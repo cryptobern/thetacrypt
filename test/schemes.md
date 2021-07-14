@@ -37,7 +37,7 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 <br>
 
 # Key Generation
-The following method generates public/private keys that can be used for all presented schemes.
+The following method generates a public and *n* private keys with a threshold of *k* using Shamir's secret sharing. Those keys can be used for all presented schemes.
 
 **`generate_keys(k, n)`**<br>
 `x = random(2, q-1)` <br> 
