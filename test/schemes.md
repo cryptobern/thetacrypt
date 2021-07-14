@@ -92,6 +92,9 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 # Threshold Encryption (Shoup's method)
 [Reference](https://www.shoup.net/papers/thresh1.pdf)<br>
 
+**Intuition** <br>
+Messages are encrypted using the public key and k parties holding a private key have to cooperate in order to decrypt the ciphertext. They each create a decryption share using their respective private key and k decryption shares can be used to reconstruct the original message.
+
 **Needed hash functions:**<br>
 ```H1(m0, m1, g0, g1, g2, g3)```: Hashes two bit strings and four group elements to an element in [0, q-1]<br>
 ```H2(g0, g1, g2)```: Hashes three group elements to a single group element<br>
