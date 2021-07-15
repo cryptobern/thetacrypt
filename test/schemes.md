@@ -129,7 +129,7 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.L, ct.u, w, ct.û, ŵ)`<br>
 
-**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br><br>
+**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br>
 `ui = ct.u^sk.xi`<br>
 `si = random(2, q-1)` <br>
 `ûi = ct.u^si` <br>
