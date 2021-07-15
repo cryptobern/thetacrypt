@@ -1,6 +1,6 @@
 # Threshold Schemes Summary
 
-Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroup of the integers modulo a prime or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
+Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroups of Z∗ or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
 
 **public_key**
 - **y**:&nbsp;&nbsp;&nbsp;public key value
