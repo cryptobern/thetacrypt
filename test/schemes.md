@@ -210,7 +210,9 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 Again, a GDH group is needed for the following scheme.
 
 **Needed helper methods:**<br>
-```ê(g0, g1)```: Determines whether a given tuple (g, g^a, g^b, g^c) is a DH tuple by checking whether ê(g, g^c) = ê(g^a, g^b)<br><br>
+```ê(g0, g1)```: Determines whether a given tuple (g, g^a, g^b, g^c) is a DH tuple by checking whether ê(g, g^c) = ê(g^a, g^b)<br>
+```H(m)```: Hashes a bit string to a single group element<br>
+<br>
 
 **Scheme**
 
