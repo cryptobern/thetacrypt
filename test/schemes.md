@@ -33,11 +33,19 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 - **id**: share identifier
 - **ui**: decryption share
 - **ei**: zkp parameter
-- **fi**: zkp parameter
+- **fi**:&nbsp; zkp parameter
+
+**partial_signature**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **si**:&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;partial signature
+
+**signed_message**
+- **sig**:&nbsp;&nbsp; signature
+- **msg**: message
 <br>
 
 # Key Generation
-The following method generates a public and *n* private keys with a threshold of *k* using Shamir's secret sharing. Those keys can be used for all presented schemes.
+The following method generates public/private keys that can be used for all presented schemes.
 
 **`generate_keys(k, n)`**<br>
 `x = random(2, q-1)` <br> 
@@ -83,6 +91,8 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `return c == H1(g, pk.vk[sh.id], h, ĉ, sh.di, ĥ)`<br><br>
 
 **`combine_coin_shares(shares: [coin_share])`**<br>
+`if k > shares.size then`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ĉ' = 1`<br>
 `for each share s in shares do`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`ui = s.di^lag_coeff(s.id)`<br>
@@ -91,9 +101,6 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 # Threshold Encryption (Shoup's method)
 [Reference](https://www.shoup.net/papers/thresh1.pdf)<br>
-
-**Intuition** <br>
-Messages are encrypted using the public key and k parties holding a private key have to cooperate in order to decrypt the ciphertext. They each create a decryption share using their respective private key and k decryption shares can be used to reconstruct the original message.
 
 **Needed hash functions:**<br>
 ```H1(m0, m1, g0, g1, g2, g3)```: Hashes two bit strings and four group elements to an element in [0, q-1]<br>
@@ -122,7 +129,7 @@ Messages are encrypted using the public key and k parties holding a private key 
 `ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.L, ct.u, w, ct.û, ŵ)`<br>
 
-**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br>
+**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br><br>
 `ui = ct.u^sk.xi`<br>
 `si = random(2, q-1)` <br>
 `ûi = ct.u^si` <br>
@@ -196,3 +203,32 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `k = ct.c_k xor G(z)`<br>
 `m = symm_dec(ct.c, k)`<br>
 `return m`<br><br>
+
+# Threshold Signatures 
+[Reference](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
+
+Again, a GDH group is needed for the following scheme.
+
+**Needed helper methods:**<br>
+```ê(g0, g1)```: Determines whether a given tuple (g, g^a, g^b, g^c) is a DH tuple by checking whether ê(g, g^c) = ê(g^a, g^b)<br><br>
+
+**Scheme**
+
+**`create_partial_signature(message: bytes, sk: private_key)`**<br>
+`ui = H(message)^sk.xi`<br>
+`return partial_signature(sk.id, ui, message)`<br><br>
+
+**`verify_partial_signature(psig: partial_signature, pk: public_key, message: bytes)`**<br>
+`return ê(g, pk.vk[si.id]) == ê(H(psig.m), psig.ui)`<br><br>
+
+**`combine_partial_signatures(psignatures: [partial_signature], message: bytes)`**<br>
+`if k > psignatures.size then`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
+`sig = 1`<br>
+`for each partial signature psig in psignatures do`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = psig.ui^lag_coeff(psig.id)`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`sig = sig*di`<br>
+`return signed_message(sig, message)`<br><br>
+
+**`verify_signature(sig: signed_message)`**<br>
+`return ê(g, pk.y) == ê(H(message), sig.sig)`<br><br>
