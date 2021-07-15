@@ -99,8 +99,8 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`ĉ' = ĉ' * ui`<br>
 `return H2(ĉ')`<br><br><br>
 
-# Threshold Encryption (Shoup's method)
-[Reference](https://www.shoup.net/papers/thresh1.pdf)<br>
+# Threshold Encryption (SG02)
+[Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
 
 **Needed hash functions:**<br>
 ```H1(m0, m1, g0, g1, g2, g3)```: Hashes two bit strings and four group elements to an element in [0, q-1]<br>
@@ -154,7 +154,7 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `m = symm_dec(ct.c, k)`<br>
 `return m`<br><br>
 
-# Threshold Encryption (Gap Diffie-Hellman Group)
+# Threshold Encryption (BZ03)
 [Reference](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.119.1717&rep=rep1&type=pdf)<br>
 
 **Background** <br>
