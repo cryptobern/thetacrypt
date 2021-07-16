@@ -1,4 +1,4 @@
-# Threshold Schemes Implementation
+# Threshold DL Schemes Implementation
 
 Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroup of Z∗ or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
 
