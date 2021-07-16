@@ -2,27 +2,36 @@
 
 Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroup of Z∗ or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
 
-**DL_Group** implements **Group**
+**Group** implements **Parameters**
+- **q: `BIG`**: group order
+- **g**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+
+**Fp_Group** implements **Group**
 - **p: `BIG`**: modulus
 - **q: `BIG`**: group order
 - **g: `BIG`**: generator
 <br><br>
 
+
 **EC_Group** imlements **Group**
 - **name: `String`**:&nbsp;&nbsp; curve name
-- **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
-- **g: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+- **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
+- **g: `ECP`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+<br><br>
+
+**DL_VerificationKey** implements **VerificationKey**
+- **key: `Vec<BIG>`**: Verification key value
 <br><br>
 
 **DL_PublicKey** implements **PublicKey**
 - **y: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
-- **verificationKey: `Vec<BIG>`**:&nbsp; verification key
+- **verificationKey: `DL_VerificationKey`**:&nbsp; verification key
 - **k: `u8`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
 - **group: `Group`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
 <br><br>
 
 **DL_PrivateKey** extends **DL_PublicKey** implements **PrivateKey** 
-- **id: `u8`**:&nbsp;&nbsp; key identifier
+- **id: `u32`**:&nbsp;&nbsp; key identifier
 - **xi: `BIG`**: private key share
 
 <br>
@@ -34,10 +43,10 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`z = z*di`<br>
 `return z`<br><br>
 
-# DL_KeyManager
-Implementation of abstract interface `KeyManager`. The following method generates public/private keys that can be used for all presented schemes.
+# DL_KeyGenerator
+Implementation of abstract interface `KeyGenerator`. The following method generates public/private keys that can be used for all presented schemes.
 
-**`DL_KeyManager::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
+**`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
 `x = random(2, group.q-1)` <br> 
 `y = group.g^x` <br>
 `ĝ = group.g^random(2, group.q-1)` <br>
@@ -163,7 +172,7 @@ Implementation of abstract interface `ThresholdCipher`.
 `m = symm_dec(ct.c, k)`<br>
 `return m`<br><br>
 
-# BZ03ThresholdCipher
+# BZ03_ThresholdCipher
 [Reference](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.119.1717&rep=rep1&type=pdf)<br>
 Implementation of abstract interface `ThresholdCipher`.
 
@@ -195,7 +204,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 **Scheme**
 
 
-**`BZ03ThresholdCipher::encrypt(msg: Vec<u8>, pk: DL_PublicKey, label:string) -> BZ03_Ciphertext`**<br>
+**`BZ03_ThresholdCipher::encrypt(msg: Vec<u8>, pk: DL_PublicKey, label:string) -> BZ03_Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(msg, k)`<br>
 `r = random(2, q-1)`<br>
@@ -204,20 +213,20 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `û = H(u, c)^r`<br>
 `return BZ03_Ciphertext(c_k, label, u, û, c)`<br><br>
 
-**`BZ03ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
+**`BZ03_ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
 `h = H(ct.u, ct.msg)`<br>
 `return ê(g, ct.û) == ê(ct.u, h)`<br><br>
 
-**`BZ03ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_Share`**<br>
+**`BZ03_ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_Share`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
 `return BZ03_Share(sk.id, ui)`<br><br>
 
-**`BZ03ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_Share, pk: PublicKey) -> bool`**<br>
+**`BZ03_ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_Share, pk: PublicKey) -> bool`**<br>
 `return ê(g, sh.ui) == ê(ct.u, pk.verificationKey[sh.id])`<br><br>
 
-**`BZ03ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]]) -> Vec<u8>`**<br>
+**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]]) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -225,8 +234,8 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `m = symm_dec(ct.msg, k)`<br>
 `return m`<br><br>
 
-# Threshold Signatures 
-[Reference](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
+# BLS04_ThresholdSignature 
+[Reference](https://gitlaassembleb.assembleinf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
 Implementation of abstract interface `ThresholdSignature`.
 Again, a GDH group is needed for the following scheme.
 
@@ -237,18 +246,18 @@ Again, a GDH group is needed for the following scheme.
 
 **Scheme**
 
-**`create_partial_signature(msg: Vec<u8>, sk: DL_PrivateKey)`**<br>
+**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, sk: DL_PrivateKey)`**<br>
 `data = H(message)^sk.xi`<br>
 `return BLS_Share(sk.id, data, msg)`<br><br>
 
-**`verify_partial_signature(share: BLS_Share, pk: DL_PublicKey, message: bytes)`**<br>
+**`BLS04_ThresholdSignature::verifyShare(share: BLS_Share, pk: DL_PublicKey, message: bytes)`**<br>
 `return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(share.m), share.data)`<br><br>
 
-**`combine_partial_signatures(shares: Vec<BLS_Share>, msg: Vec<u8>)`**<br>
+**`BLS04_ThresholdSignature::assemble(shares: Vec<BLS_Share>, msg: Vec<u8>)`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `sig = interpolate(shares)`<br>
 `return SignedMessage(sig, msg)`<br><br>
 
-**`verify_signature(sig: SignedMessage, pk: DL_PublicKey)`**<br>
+**`BLS04_ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey)`**<br>
 `return ê(pk.group.g, pk.y) == ê(H(sig.msg), sig.sig)`<br><br>
