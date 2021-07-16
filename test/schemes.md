@@ -1,161 +1,171 @@
-# Threshold Schemes Summary
+# Threshold Schemes Implementation
 
 Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroup of Z∗ or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
 
-**public_key**
-- **y**:&nbsp;&nbsp;&nbsp;public key value
-- **vk**: verification key consisting of n values vk[i] = g^xi
-- **ĝ**:&nbsp;&nbsp;&nbsp;alternate generator
+**DL_Group** implements **Group**
+- **p: `BIG`**: modulus
+- **q: `BIG`**: group order
+- **g: `BIG`**: generator
+<br><br>
 
-**private_key** 
-- **id**: key identifier
-- **xi**: private key share
-- **y**:&nbsp;&nbsp;public key value
-- **vk**: verification key consisting of n values vk[i] = g^xi
-- **ĝ**:&nbsp;&nbsp;alternate generator
+**EC_Group** imlements **Group**
+- **name: `String`**:&nbsp;&nbsp; curve name
+- **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
+- **g: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+<br><br>
 
-**coin_share**
-- **id**: share identifier
-- **di**: coin share
-- **c**:  zkp parameter
-- **z**:  zkp parameter
+**DL_PublicKey** implements **PublicKey**
+- **y: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
+- **verificationKey: `Vec<BIG>`**:&nbsp; verification key
+- **k: `u8`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
+- **group: `Group`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
+<br><br>
 
-**ciphertext**
-- **c_k**: encrypted symmetric key
-- **L**:&nbsp;&nbsp;&nbsp;&nbsp; label
-- **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
-- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
-- **e**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
-- **f**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
-- **c**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
+**DL_PrivateKey** extends **DL_PublicKey** implements **PrivateKey** 
+- **id: `u8`**:&nbsp;&nbsp; key identifier
+- **xi: `BIG`**: private key share
 
-**decryption_share**
-- **id**: share identifier
-- **ui**: decryption share
-- **ei**: zkp parameter
-- **fi**:&nbsp; zkp parameter
-
-**partial_signature**
-- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
-- **si**:&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;partial signature
-
-**signed_message**
-- **sig**:&nbsp;&nbsp; signature
-- **msg**: message
 <br>
 
-# Key Generation
-The following method generates public/private keys that can be used for all presented schemes.
+**`interpolate(shares: Vec<Share>) -> BIG`** <br>
+`z = 1`<br>
+`for each share s in shares do`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.data^lag_coeff(s.id)`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`z = z*di`<br>
+`return z`<br><br>
 
-**`generate_keys(k, n)`**<br>
-`x = random(2, q-1)` <br> 
-`y = g^x` <br>
-`ĝ = g^random(2, q-1)` <br>
+# DL_KeyManager
+Implementation of abstract interface `KeyManager`. The following method generates public/private keys that can be used for all presented schemes.
+
+**`DL_KeyManager::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
+`x = random(2, group.q-1)` <br> 
+`y = group.g^x` <br>
+`ĝ = group.g^random(2, group.q-1)` <br>
 `{x₁, .. xₙ} = ShareSecret(x, k, n)` <br>
-`vk = {g^x₁,...,g^xₙ}` <br>
-`pk = public_key(y, vk, ĝ)`<br>
+`verificationKey = {group.g^x₁,...,group.g^xₙ}` <br>
+`pk = DL_PublicKey(y, verificationKey, ĝ)`<br>
 `secrets = []`<br>
 `for each xi in {x₁, .. xₙ} do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(private_key(i, xi, y, vk, ĝ))`<br>
-`return pk, secrets`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, ĝ))`<br>
+`return (pk, secrets)`<br>
 <br><br>
 
 
-# Threshold Coin
-[Reference (p. 22)](https://link.springer.com/content/pdf/10.1007/s00145-005-0318-0.pdf)
+# CKS05_ThresholdCoin
+[Reference (p. 22)](https://link.springer.com/content/pdf/10.1007/s00145-005-0318-0.pdf) <br>
+Implementation of abstract interface `ThresholdCoin`.
 
 **Intuition**<br>
 The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G*, then raising ĉ to the secret key *x* to obtain ĉ' and finally hashing ĉ' to obtain the value F(C) ϵ {0,1}. The secret key *x* is shared using Shamir's secret sharing (to obtain secret shares xi) and instead of calculating ĉ' = ĉ^x, shares ĉ^xi can be combined to obtain ĉ' by interpolation in the exponent.
 
 **Needed hash functions:**<br>
-```H(coin_name)```: Hashes a coin name to a group element<br>
+```H(cname)```: Hashes a coin name to a group element<br>
 ```H1(g0, g1, g2, g3, g4, g5)```: Hashes six group elements to an element in [0, q-1]<br>
 ```H2(g0)```: Hashes a group element to a single bit 0/1<br>
 <br>
 
+**Needed objects:**<br>
+
+**CoinShare** implements **Share**
+- **id**: share identifier
+- **data**: coin share
+- **c**:  zkp parameter
+- **z**:  zkp parameter
+
 **Scheme:** <br>
-**`create_coin_share(coin_name: string, sk: private_key)`**<br>
-`ĉ = H(coin_name)`<br>
-`di = ĉ^sk.xi`<br>
-`s = random(2, q-1)` <br>
-`h = g^s` <br>
+**`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey)`**<br>
+`ĉ = H(cname)`<br>
+`data = ĉ^sk.xi`<br>
+`s = random(2, sk.group.q-1)` <br>
+`h = sk.group.g^s` <br>
 `ĥ = (sk.ĝ)^s` <br>
-`c = H1(g, sk.vk[sk.id], h, ĉ, di, ĥ)` <br>
+`c = H1(sk.group.g, sk.verificationKey[sk.id], h, ĉ, data, ĥ)` <br>
 `z = s + sk.xi*c` <br>
-`return coin_share(sk.id, di, c, z)`<br><br>
+`return coin_share(sk.id, data, c, z)`<br><br>
 
-**`verify_coin_share(sh: coin_share, coin_name: string, pk: public_key)`**<br>
-`ĉ = H(coin_name)`<br>
-`h = g^sh.z / pk.vk[sh.id]^sh.c`<br>
-`ĥ = pk.ĝ^sh.z / sh.di^sh.c`<br>
-`return c == H1(g, pk.vk[sh.id], h, ĉ, sh.di, ĥ)`<br><br>
+**`CKS05_ThresholdCoin::verifyShare(share: CoinShare, cname: String, pk: DL_PublicKey)`**<br>
+`ĉ = H(cname)`<br>
+`h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
+`ĥ = pk.ĝ^share.z / share.data^share.c`<br>
+`return c == H1(pk.group.g, pk.verificationKey[share.id], h, ĉ, share.data, ĥ)`<br><br>
 
-**`combine_coin_shares(shares: [coin_share])`**<br>
+**`CKS05_ThresholdCoin::assemble(shares: Vec<CoinShare>)`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`ĉ' = 1`<br>
-`for each share s in shares do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`ui = s.di^lag_coeff(s.id)`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`ĉ' = ĉ' * ui`<br>
+`ĉ' = interpolate(shares)`<br>
 `return H2(ĉ')`<br><br><br>
 
-# Threshold Encryption (SG02)
+# SG02_ThresholdCipher
 [Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
+Implementation of abstract interface `ThresholdCipher`.
 
 **Needed hash functions:**<br>
 ```H1(m0, m1, g0, g1, g2, g3)```: Hashes two bit strings and four group elements to an element in [0, q-1]<br>
 ```H2(g0, g1, g2)```: Hashes three group elements to a single group element<br>
 <br>
 
+**SG02_Share**
+- **id**: share identifier
+- **data**: decryption share
+- **ei**: zkp parameter
+- **fi**:&nbsp; zkp parameter
+
+**SG02_Ciphertext**
+- **c_k**: encrypted symmetric key
+- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
+- **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
+- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **e**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **f**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
+
 **Scheme:**
 
-**`encrypt(m: bytes, pk: public_key, L:bytes)`**<br>
+**`SG02_ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(m, k)`<br>
-`r = random(2, q-1)` <br>
+`r = random(2, pk.group.q-1)` <br>
 `z = pk.y^r` <br>
 `c_k = k xor z` <br>
-`s = random(2, q-1)` <br>
-`u = g^r` <br>
-`w = g^s` <br>
+`s = random(2, pk.group.q-1)` <br>
+`u = pk.group.g^r` <br>
+`w = pk.group.g^s` <br>
 `û = pk.ĝ^r` <br>
 `ŵ = pk.ĝ^s` <br>
 `e = H1(c_k, L, u, w, û, ŵ)` <br>
 `f = s + re` <br>
-`return ciphertext(c_k, L, u, û, e, f, c)`<br><br>
+`return SG02_Ciphertext(c_k, label, u, û, e, f, c)`<br><br>
 
-**`verify_ciphertext(ct: ciphertext, pk: public_key)`**<br>
+**`SG02_ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `w = g^ct.f / ct.u^ct.e`<br>
 `ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
-`return ct.e == H1(ct.c_k, ct.L, ct.u, w, ct.û, ŵ)`<br>
+`return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.û, ŵ)`<br>
 
-**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br>
-`ui = ct.u^sk.xi`<br>
-`si = random(2, q-1)` <br>
+**`SG02_ThresholdCipher::createShare(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_Share`**<br>
+`data = ct.u^sk.xi`<br>
+`si = random(2, sk.group.q-1)` <br>
 `ûi = ct.u^si` <br>
-`ĥi = g^si` <br>
-`ei = H2(ui, ûi, ĥi)` <br>
+`ĥi = sk.group.g^si` <br>
+`ei = H2(data, ûi, ĥi)` <br>
 `fi = si + sk.xi*ei` <br>
-`return decryption_share(sk.id, ui, ei, fi)`<br><br>
+`return SG02_Share(sk.id, data, ei, fi)`<br><br>
 
-**`verify_decryption_share(sh: decryption_share, ct: ciphertext, pk: public_key)`**<br>
-`ûi = ct.u^sh.fi / sh.ui^sh.ei`<br>
-`ĥi = g^sh.fi / pk.vk[sh.id]^sh.ei`<br>
-`return ct.e == H2(sh.ui, ûi, ĥi)`<br><br>
+**`SG02_ThresholdCipher::verifyShare(sh: SG02_Share, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+`ûi = ct.u^sh.fi / sh.data^sh.ei`<br>
+`ĥi = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
+`return ct.e == H2(sh.data, ûi, ĥi)`<br><br>
 
-**`combine_shares(ct: ciphertext, shares: [decryption_share]])`**<br>
+**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_Share>) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`z = 1`<br>
-`for each share s in shares do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.ui^lag_coeff(s.id)`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`z = z*di`<br>
+`z = interpolate(shares)`<br>
 `k = ct.c_k xor z`<br>
 `m = symm_dec(ct.c, k)`<br>
 `return m`<br><br>
 
-# Threshold Encryption (BZ03)
+# BZ03ThresholdCipher
 [Reference](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.119.1717&rep=rep1&type=pdf)<br>
+Implementation of abstract interface `ThresholdCipher`.
 
 **Background** <br>
 DDH problem: Given (g, g^a, g^b, g^c) ϵ G where G = < g > is a group of prime order q and a,b,c are uniformly chosen at random from {1,..,q-1}, one is asked to decide whether c = ab. <br>
@@ -168,45 +178,56 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 ```H(g0, m)```: Hashes a group element and a bit string to a single group element<br>
 <br>
 
+**Needed objects:**<br>
+
+**BZ03_Share** implements **Share**
+- **id**: share identifier
+- **data**: decryption share
+
+**BZ03_Ciphertext** implements **Ciphertext**
+- **c_k**: encrypted symmetric key
+- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
+- **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
+- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
+
+
 **Scheme**
 
 
-**`encrypt(message: bytes, pk: public_key, L:string)`**<br>
+**`BZ03ThresholdCipher::encrypt(msg: Vec<u8>, pk: DL_PublicKey, label:string) -> BZ03_Ciphertext`**<br>
 `k = gen_symm_key()`<br>
-`c = symm_enc(message, k)`<br>
+`c = symm_enc(msg, k)`<br>
 `r = random(2, q-1)`<br>
 `u = g^r`<br>
-`c_k = G(public_key.y^r) xor k`<br>
+`c_k = G(pk.y^r) xor k`<br>
 `û = H(u, c)^r`<br>
-`return ciphertext(c_k, L, u, û, 0, 0, c)`<br><br>
+`return BZ03_Ciphertext(c_k, label, u, û, c)`<br><br>
 
-**`verify_ciphertext(ct: ciphertext)`**<br>
-`h = H(ct.u, ct.c)`<br>
-`return ê(g, ct.w) == ê(ct.u, h)`<br><br>
+**`BZ03ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
+`h = H(ct.u, ct.msg)`<br>
+`return ê(g, ct.û) == ê(ct.u, h)`<br><br>
 
-**`create_decryption_share(ct: ciphertext, sk: private_key)`**<br>
+**`BZ03ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_Share`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
-`return decryption_share(sk.id, ui, 0, 0)`<br><br>
+`return BZ03_Share(sk.id, ui)`<br><br>
 
-**`verify_decryption_share(ct: ciphertext, sh: decryption_share, pk: public_key)`**<br>
-`return ê(g, sh.ui) == ê(ct.u, pk.vk[sh.id])`<br><br>
+**`BZ03ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_Share, pk: PublicKey) -> bool`**<br>
+`return ê(g, sh.ui) == ê(ct.u, pk.verificationKey[sh.id])`<br><br>
 
-**`combine_shares(ct: ciphertext, shares: [decryption_share]])`**<br>
+**`BZ03ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]]) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`z = 1`<br>
-`for each share sh in shares do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = sh.ui^lag_coeff(sh.id)`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`z = z*di`<br>
+`z = interpolate(shares)`<br>
 `k = ct.c_k xor G(z)`<br>
-`m = symm_dec(ct.c, k)`<br>
+`m = symm_dec(ct.msg, k)`<br>
 `return m`<br><br>
 
 # Threshold Signatures 
 [Reference](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
-
+Implementation of abstract interface `ThresholdSignature`.
 Again, a GDH group is needed for the following scheme.
 
 **Needed helper methods:**<br>
@@ -216,21 +237,18 @@ Again, a GDH group is needed for the following scheme.
 
 **Scheme**
 
-**`create_partial_signature(message: bytes, sk: private_key)`**<br>
-`ui = H(message)^sk.xi`<br>
-`return partial_signature(sk.id, ui, message)`<br><br>
+**`create_partial_signature(msg: Vec<u8>, sk: DL_PrivateKey)`**<br>
+`data = H(message)^sk.xi`<br>
+`return BLS_Share(sk.id, data, msg)`<br><br>
 
-**`verify_partial_signature(psig: partial_signature, pk: public_key, message: bytes)`**<br>
-`return ê(g, pk.vk[si.id]) == ê(H(psig.m), psig.ui)`<br><br>
+**`verify_partial_signature(share: BLS_Share, pk: DL_PublicKey, message: bytes)`**<br>
+`return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(share.m), share.data)`<br><br>
 
-**`combine_partial_signatures(psignatures: [partial_signature], message: bytes)`**<br>
-`if k > psignatures.size then`<br>
+**`combine_partial_signatures(shares: Vec<BLS_Share>, msg: Vec<u8>)`**<br>
+`if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`sig = 1`<br>
-`for each partial signature psig in psignatures do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = psig.ui^lag_coeff(psig.id)`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`sig = sig*di`<br>
-`return signed_message(sig, message)`<br><br>
+`sig = interpolate(shares)`<br>
+`return SignedMessage(sig, msg)`<br><br>
 
-**`verify_signature(sig: signed_message)`**<br>
-`return ê(g, pk.y) == ê(H(message), sig.sig)`<br><br>
+**`verify_signature(sig: SignedMessage, pk: DL_PublicKey)`**<br>
+`return ê(pk.group.g, pk.y) == ê(H(sig.msg), sig.sig)`<br><br>
