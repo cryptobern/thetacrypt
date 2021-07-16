@@ -1,9 +1,15 @@
 # Threshold API
+This document presents the abstract interfaces for our threshold cryptography library.
+
+**Group**
+- **q**: group order
+- **g**: generator
 
 **PublicKey**
 - **publicValue**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
 - **verificationKey**: verification key consisting of n values vk[i] = g^xi
-- **params**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; implementation specific parameters
+- **k**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
+- **group**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
 
 **PrivateKey** extends **PublicKey**
 - **id**: key identifier
@@ -12,23 +18,22 @@
 **Share**
 - **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
 - **data**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share value
-- **params**:  implementation specific parameters
 
 **Ciphertext**
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
-- **params**: implementation specific parameters
 
 **SignedMessage**
 - **sig**:&nbsp;&nbsp; signature
 - **msg**: message
+
 <br><br>
 
 # KeyManager
 
 The **`KeyManager`** class creates and updates keys (for later versions).<br> 
 
-**`KeyManager::generateKeys(k: u8, n: u8, rng: RAND) -> (PublicKey, Vec<PrivateKey>)`**<br>
+**`KeyManager::generateKeys(k: u8, n: u8, group: Group) -> (PublicKey, Vec<PrivateKey>)`**<br>
 <br><br>
 
 
