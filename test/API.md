@@ -1,26 +1,29 @@
 # Threshold API
 This document presents the abstract interfaces for our threshold cryptography library.
 
-**Group**
-- **q**: group order
-- **g**: generator
+**Parameters**
+- ... (empty)
+
+**VerificationKey**
+- ... (empty)
 
 **PublicKey**
 - **publicValue**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
-- **verificationKey**: verification key 
+- **verificationKey**: verification key (`VerificationKey` instance)
 - **k**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
-- **group**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
+- **params**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the domain parameters (`Parameters` instance)
 
 **PrivateKey** extends **PublicKey**
 - **id**: key identifier
 - **xi**: private key share
 
 **Share**
-- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
-- **data**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share value
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
 
 **Ciphertext**
-- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
+- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label describing the message content
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
 
 **SignedMessage**
@@ -29,11 +32,9 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 <br><br>
 
-# KeyManager
+# KeyGenerator
 
-The **`KeyManager`** class creates and updates keys (for later versions).<br> 
-
-**`KeyManager::generateKeys(k: u8, n: u8, group: Group) -> (PublicKey, Vec<PrivateKey>)`**<br>
+**`KeyGenerator::generateKeys(k: u8, n: u8, group: Group) -> (PublicKey, Vec<PrivateKey>)`**<br>
 <br><br>
 
 
@@ -52,7 +53,9 @@ The **`KeyManager`** class creates and updates keys (for later versions).<br>
 
 **`ThresholdCipher::verifyCiphertext(ct: Ciphertext, pk: PublicKey) -> bool`**<br>
 
-**`ThresholdCipher::createShare(ct: Ciphertext, sk: PrivateKey) -> Share`**<br>
+**`ThresholdCipher::decrypt(ct: Ciphertext, sk: PrivateKey) -> Share`**<br>
+
+Method probably needs renaming (partiallyDecrypt?)
 
 **`ThresholdCipher::verifyShare(sh: Share, ct: Ciphertext, pk: PublicKey) -> bool`**<br>
 
@@ -61,6 +64,8 @@ The **`KeyManager`** class creates and updates keys (for later versions).<br>
 # ThresholdSignature 
 
 **`ThresholdSignature::sign(msg: Vec<u8>, sk: PrivateKey) -> Share`**<br>
+
+Method probably needs renaming (partiallySign?)
 
 **`ThresholdSignature::verifyShare(share: Share, pk: PublicKey, msg: Vec<u8>) -> bool`**<br>
 
