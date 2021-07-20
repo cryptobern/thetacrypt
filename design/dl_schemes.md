@@ -75,14 +75,14 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 **Needed objects:**<br>
 
-**CoinShare** implements **Share**
+**CKS05_CoinShare** implements **CoinShare**
 - **id**: share identifier
 - **data**: coin share
 - **c**:  zkp parameter
 - **z**:  zkp parameter
 
 **Scheme:** <br>
-**`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey)`**<br>
+**`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey) -> CKS05_CoinShare`**<br>
 `ĉ = H(cname)`<br>
 `data = ĉ^sk.xi`<br>
 `s = random(2, sk.group.q-1)` <br>
@@ -90,15 +90,15 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `ĥ = (sk.ĝ)^s` <br>
 `c = H1(sk.group.g, sk.verificationKey[sk.id], h, ĉ, data, ĥ)` <br>
 `z = s + sk.xi*c` <br>
-`return coin_share(sk.id, data, c, z)`<br><br>
+`return CKS05_CoinShare(sk.id, data, c, z)`<br><br>
 
-**`CKS05_ThresholdCoin::verifyShare(share: CoinShare, cname: String, pk: DL_PublicKey)`**<br>
+**`CKS05_ThresholdCoin::verifyShare(share: CKS05_CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
 `ĉ = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
 `ĥ = pk.ĝ^share.z / share.data^share.c`<br>
 `return c == H1(pk.group.g, pk.verificationKey[share.id], h, ĉ, share.data, ĥ)`<br><br>
 
-**`CKS05_ThresholdCoin::assemble(shares: Vec<CoinShare>, pk: PublicKey)`**<br>
+**`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>, pk: PublicKey) -> u8`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ĉ' = interpolate(shares)`<br>
@@ -113,13 +113,13 @@ Implementation of abstract interface `ThresholdCipher`.
 ```H2(g0, g1, g2)```: Hashes three group elements to a single group element<br>
 <br>
 
-**SG02_Share**
+**SG02_DecryptionShare** implements **DecryptionShare**
 - **id**: share identifier
 - **data**: decryption share
 - **ei**: zkp parameter
 - **fi**:&nbsp; zkp parameter
 
-**SG02_Ciphertext**
+**SG02_Ciphertext** implements **Ciphertext**
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
@@ -150,21 +150,21 @@ Implementation of abstract interface `ThresholdCipher`.
 `ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.û, ŵ)`<br>
 
-**`SG02_ThresholdCipher::createShare(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_Share`**<br>
+**`SG02_ThresholdCipher::createShare(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
 `ûi = ct.u^si` <br>
 `ĥi = sk.group.g^si` <br>
 `ei = H2(data, ûi, ĥi)` <br>
 `fi = si + sk.xi*ei` <br>
-`return SG02_Share(sk.id, data, ei, fi)`<br><br>
+`return SG02_DecryptionShare(sk.id, data, ei, fi)`<br><br>
 
-**`SG02_ThresholdCipher::verifyShare(sh: SG02_Share, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+**`SG02_ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `ûi = ct.u^sh.fi / sh.data^sh.ei`<br>
 `ĥi = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
 `return ct.e == H2(sh.data, ûi, ĥi)`<br><br>
 
-**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_Share>, pk: PublicKey) -> Vec<u8>`**<br>
+**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>, pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -189,8 +189,9 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 
 **Needed objects:**<br>
 
-**BZ03_Share** implements **Share**
+**BZ03_DecryptionShare** implements **DecryptionShare**
 - **id**: share identifier
+- **label**: label identifying which shares belong together
 - **data**: decryption share
 
 **BZ03_Ciphertext** implements **Ciphertext**
@@ -217,16 +218,16 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `h = H(ct.u, ct.msg)`<br>
 `return ê(g, ct.û) == ê(ct.u, h)`<br><br>
 
-**`BZ03_ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_Share`**<br>
+**`BZ03_ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
-`return BZ03_Share(sk.id, ui)`<br><br>
+`return BZ03_DecryptionShare(sk.id, ui)`<br><br>
 
-**`BZ03_ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_Share, pk: PublicKey) -> bool`**<br>
+**`BZ03_ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_DecryptionShare, pk: PublicKey) -> bool`**<br>
 `return ê(g, sh.ui) == ê(ct.u, pk.verificationKey[sh.id])`<br><br>
 
-**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]], pk: PublicKey) -> Vec<u8>`**<br>
+**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03_DecryptionShare]], pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -244,20 +245,27 @@ Again, a GDH group is needed for the following scheme.
 ```H(m)```: Hashes a bit string to a single group element<br>
 <br>
 
+**Needed objects:**<br>
+
+**BLS04_SignatureShare** implements **SignatureShare**
+- **id**: share identifier
+- **label**: label specifying which shares belong together
+- **data**: signature share
+
 **Scheme**
 
-**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, sk: DL_PrivateKey)`**<br>
+**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, sk: DL_PrivateKey) -> BLS04_SignatureShare`**<br>
 `data = H(message)^sk.xi`<br>
-`return BLS_Share(sk.id, data, msg)`<br><br>
+`return BLS04_SignatureShare(sk.id, data, msg)`<br><br>
 
-**`BLS04_ThresholdSignature::verifyShare(share: BLS_Share, pk: DL_PublicKey, message: bytes)`**<br>
+**`BLS04_ThresholdSignature::verifyShare(share: BLS04_SignatureShare, pk: DL_PublicKey, message: bytes) -> bool`**<br>
 `return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(share.m), share.data)`<br><br>
 
-**`BLS04_ThresholdSignature::assemble(shares: Vec<BLS_Share>, msg: Vec<u8>)`**<br>
+**`BLS04_ThresholdSignature::assemble(shares: Vec<BLS04_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `sig = interpolate(shares)`<br>
 `return SignedMessage(sig, msg)`<br><br>
 
-**`BLS04_ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey)`**<br>
+**`BLS04_ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey) -> bool`**<br>
 `return ê(pk.group.g, pk.y) == ê(H(sig.msg), sig.sig)`<br><br>
