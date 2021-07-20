@@ -24,6 +24,6 @@ Types of nodes:
 https://github.com/diem/diem/issues/3960 
 
 **AcountAddress**: `[u8, 16]`; derived from identity public key (x25519 key, last 16 bytes) <br>
-**PeerID** alias AccountAddress (move-core/types/src/account_address.rs), used to send messages<br> 
-**Author** alias AccountAddress, used for consensus to identify voter/proposer
+**PeerID** alias **AccountAddress** (move-core/types/src/account_address.rs), used to send messages<br> 
+**Author** alias **AccountAddress**, used for consensus to identify voter/proposer
 For consensus, a new struct **Author** is used, which is an alias for **AccountAddress** 
