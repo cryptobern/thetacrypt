@@ -9,10 +9,11 @@ In this document, we compare approaches from different consensus implementations
 # Tendermint
 Reference: https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-062-p2p-architecture.md 
  
-**NodeID**: `string`; hex-encoded crypto.Address lowercase and of length 40 
+**NodeID**: `string`; hex-encoded crypto.Address lowercase and of length 40 <br>
+**PeerID** of type **NodeID** used for identification <br>
 
 Each Node has one or more NodeAdress addresses that it can be reached at 
-**PeerID** of type **NodeID** used for identification 
+
 
 Types of nodes:  
 - Full node: Stores the entire state of a blockchain. 
