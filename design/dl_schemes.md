@@ -98,7 +98,7 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `ĥ = pk.ĝ^share.z / share.data^share.c`<br>
 `return c == H1(pk.group.g, pk.verificationKey[share.id], h, ĉ, share.data, ĥ)`<br><br>
 
-**`CKS05_ThresholdCoin::assemble(shares: Vec<CoinShare>)`**<br>
+**`CKS05_ThresholdCoin::assemble(shares: Vec<CoinShare>, pk: PublicKey)`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ĉ' = interpolate(shares)`<br>
@@ -164,7 +164,7 @@ Implementation of abstract interface `ThresholdCipher`.
 `ĥi = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
 `return ct.e == H2(sh.data, ûi, ĥi)`<br><br>
 
-**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_Share>) -> Vec<u8>`**<br>
+**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_Share>, pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -226,7 +226,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 **`BZ03_ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_Share, pk: PublicKey) -> bool`**<br>
 `return ê(g, sh.ui) == ê(ct.u, pk.verificationKey[sh.id])`<br><br>
 
-**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]]) -> Vec<u8>`**<br>
+**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03Share]], pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
