@@ -17,7 +17,17 @@ This document presents the abstract interfaces for our threshold cryptography li
 - **id**: key identifier
 - **xi**: private key share
 
-**Share**
+**CoinShare**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
+
+**DecryptionShare**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
+
+**SignatureShare**
 - **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
 - **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
 - **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
@@ -40,7 +50,7 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 # ThresholdCoin
 
-**`ThresholdCoin::createShare(cname: String, privateKey: PrivateKey) -> Share`**<br>
+**`ThresholdCoin::createShare(cname: String, privateKey: PrivateKey) -> CoinShare`**<br>
 
 **`ThresholdCoin::verifyShare(share: Share, cname: String, publicKey: PublicKey) -> bool`**<br>
 
@@ -53,7 +63,7 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 **`ThresholdCipher::verifyCiphertext(ct: Ciphertext, pk: PublicKey) -> bool`**<br>
 
-**`ThresholdCipher::decrypt(ct: Ciphertext, sk: PrivateKey) -> Share`**<br>
+**`ThresholdCipher::decrypt(ct: Ciphertext, sk: PrivateKey) -> DecryptionShare`**<br>
 
 Method probably needs renaming (partiallyDecrypt?)
 
@@ -63,7 +73,7 @@ Method probably needs renaming (partiallyDecrypt?)
 
 # ThresholdSignature 
 
-**`ThresholdSignature::sign(msg: Vec<u8>, sk: PrivateKey) -> Share`**<br>
+**`ThresholdSignature::sign(msg: Vec<u8>, sk: PrivateKey) -> SignatureShare`**<br>
 
 Method probably needs renaming (partiallySign?)
 
