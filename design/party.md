@@ -4,7 +4,7 @@ In this document, we compare approaches from different consensus implementations
 ## HotStuff
 **ReplicaID**: `uint16_t`; high-level id used in consensus to identify proposer/voter<br>
 **PeerID**: `uint256_t`; 256 bit hash of a NetAddr or X509 certificate, used to send messages (network layer)<br>
-**NetAddr**: consists of a uint32_t ip, uint16_t port
+**NetAddr**: consists of a `uint32_t` ip and a `uint16_t` port
 
 # Tendermint
 Reference: https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-062-p2p-architecture.md 
