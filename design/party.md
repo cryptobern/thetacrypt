@@ -1,9 +1,9 @@
 # Notion of a party
-In this document, we compare approaches from different consensus implementation on how to define the notion of a party. 
+In this document, we compare approaches from different consensus implementations on how to define the notion of a party. 
 
 ## HotStuff
-**ReplicaID**: `uint16_t`; high-level id used in consensus to identify proposer/voter
-**PeerID*: `uint256_t`; 256 bit hash of a NetAddr or X509 certificate, used to send messages (network layer)
+**ReplicaID**: `uint16_t`; high-level id used in consensus to identify proposer/voter<br>
+**PeerID**: `uint256_t`; 256 bit hash of a NetAddr or X509 certificate, used to send messages (network layer)<br>
 **NetAddr**: consists of a uint32_t ip, uint16_t port
 
 # Tendermint
@@ -23,8 +23,7 @@ Types of nodes:
 # Diem
 https://github.com/diem/diem/issues/3960 
 
-**PeerID** alias AccountAddress (move-core/types/src/account_address.rs) 
-**AcountAddress*: `[u8, 16]`; derived from identity public key (x25519 key, last 16 bytes), 
-**PeerID** is used to send messages, 
-
+**AcountAddress**: `[u8, 16]`; derived from identity public key (x25519 key, last 16 bytes) <br>
+**PeerID** alias AccountAddress (move-core/types/src/account_address.rs), used to send messages<br> 
+**Author** alias AccountAddress, used for consensus to identify voter/proposer
 For consensus, a new struct **Author** is used, which is an alias for **AccountAddress** 
