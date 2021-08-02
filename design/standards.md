@@ -7,7 +7,7 @@ Integer shall be written in its unique l-digit representation base 2
 
 $`x = x_{l-1}2^{l-1} + x_{l-2}2^{l-2} + ... + x_l2 + x_0`$
 
-Where $x_i$ is either $0$ or $1$. Then let the bit $b_i$ have the value xl-i for $1 <= i <= l$. The bit string shall be $b_1b_2...b_l$ 
+Where $`x_i`$ is either 0 or 1. Then let the bit $b_i$ have the value $`x_{l-i}`$ for $1 <= i <= l$. The bit string shall be $b_1b_2...b_l$ 
 
 ## BS2OSP / OS2BSP 
 
