@@ -1,24 +1,3 @@
-<style TYPE="text/css">
-code.has-jax {font: inherit; font-size: 100%; background: inherit; border: inherit;}
-</style>
-<script type="text/x-mathjax-config">
-MathJax.Hub.Config({
-    tex2jax: {
-        inlineMath: [['$','$'], ['\\(','\\)']],
-        skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'] // removed 'code' entry
-    }
-});
-MathJax.Hub.Queue(function() {
-    var all = MathJax.Hub.getAllJax(), i;
-    for(i = 0; i < all.length; i += 1) {
-        all[i].SourceElement().parentNode.className += ' has-jax';
-    }
-});
-</script>
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
-
-
-
 # Serialisation
 *taken from [ieee_std_1363-2000](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/standards/ieee_std_1363-2000.pdf)*<br>
 
@@ -26,7 +5,7 @@ MathJax.Hub.Queue(function() {
 
 Integer shall be written in its unique l-digit representation base 2 
 
-$x = x_{l-1}2^{l-1} + x_{l-2}2^{l-2} + ... + x_l2 + x_0$
+$`x = x_{l-1}2^{l-1} + x_{l-2}2^{l-2} + ... + x_l2 + x_0`$
 
 Where $x_i$ is either $0$ or $1$. Then let the bit $b_i$ have the value xl-i for $1 <= i <= l$. The bit string shall be $b_1b_2...b_l$ 
 
