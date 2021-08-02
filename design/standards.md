@@ -15,13 +15,13 @@ To represent a bit string as an octet string, one simply pads enough zeroes on t
 
 ## Elliptic Curve representation 
 
-Compressed form: $`x_p, ŷ_p), x_p`$ = x-coordinate, $`ŷ_p`$ a bit that's computed as follows: <br>
+Compressed form: $`(x_p, ŷ_p), x_p`$ = x-coordinate, $`ŷ_p`$ a bit that's computed as follows: <br>
 
 1. if the field size $`q`$ is an odd prime, then $`ŷ_p = y_p mod 2`$ ($`y_p`$ = rightmost bit of $`y_p`$) 
 
-1. if field size $`q`$ is a power of 2 and $`x_p = 0$, then $ŷ_p = 0$ 
+1. if field size $`q`$ is a power of 2 and $`x_p = 0`$, then $ŷ_p = 0`$ 
 
-1. if the field size $`q`$ is a power of 2 and $`x_p != 0`$, then $`ŷ_p`$ is the rightmost bit of the field element $`y_px_p^{-1}`$ 
+1. if the field size $`q`$ is a power of 2 and $`x_p \neq 0`$, then $`ŷ_p`$ is the rightmost bit of the field element $`y_px_p^{-1}`$ 
 
 ## EC2OSP / OS2ECP 
 Elliptic Curve points as octet strings: PO = PC || X || Y with PC being a single octet of the form `00000UCŶ`, where <br>
