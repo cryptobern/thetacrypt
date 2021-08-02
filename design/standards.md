@@ -26,7 +26,7 @@ MathJax.Hub.Queue(function() {
 
 Integer shall be written in its unique l-digit representation base 2 
 
-    $x = x_(l-1)2^(l-1) + x_(l-2)2^(l-2) + ... + x_l2 + x_0$
+$x = x_{l-1}2^{l-1} + x_{l-2}2^{l-2} + ... + x_l2 + x_0$
 
 Where $x_i$ is either $0$ or $1$. Then let the bit $b_i$ have the value xl-i for $1 <= i <= l$. The bit string shall be $b_1b_2...b_l$ 
 
@@ -36,26 +36,26 @@ To represent a bit string as an octet string, one simply pads enough zeroes on t
 
 ## Elliptic Curve representation 
 
-Compressed form: (xp, ŷp), xp = x-coordinate, ŷp a bit that's computed as follows: <br>
+Compressed form: $(x_p, ŷ_p), x_p$ = x-coordinate, $ŷ_p$ a bit that's computed as follows: <br>
 
-1. if the field size q is an odd prime, then ŷp = yp mod 2 (yp = rightmost bit of yp) 
+1. if the field size $q$ is an odd prime, then $ŷ_p = y_p mod 2$ ($y_p$ = rightmost bit of $y_p$) 
 
-1. if field size q is a power of 2 and xp = 0, then ŷp = 0 
+1. if field size $q$ is a power of 2 and $x_p = 0$, then $ŷ_p = 0$ 
 
-1. if the field size q is a power of 2 and xp != 0, then ŷp is the rightmost bit of the field element ypxp⁻¹ 
+1. if the field size $q$ is a power of 2 and $x_p != 0$, then $ŷ_p$ is the rightmost bit of the field element $y_px_p^{-1}$ 
 
 ## EC2OSP / OS2ECP 
-Elliptic Curve points as octet strings: PO = PC || X || Y where PC is a single octet of the form `00000UCŶ` <br>
+Elliptic Curve points as octet strings: PO = PC || X || Y with PC being a single octet of the form `00000UCŶ`, where <br>
 
-    U is 1 if the format is uncompressed or hybrid, 0 otherwise 
+- U is 1 if the format is uncompressed or hybrid, 0 otherwise 
 
-    C is 1 if the format is compressed or hybrid, 0 otherwise  
+- C is 1 if the format is compressed or hybrid, 0 otherwise  
 
-    Ŷ is equal to the bit ŷp if the format is compressed or hybrid, 0 otherwise 
+- Ŷ is equal to the bit $ŷ_p$ if the format is compressed or hybrid, 0 otherwise 
 
-X is the octet string of length ceil(log256(q)) representing xp according to FE2OSP <br> 
+- X is the octet string of length ceil(log256(q)) representing $x_p$ according to FE2OSP <br> 
 
-Y is the octet string of length ceil(log256(q)) representing yp of P according to FE2OSP if the format is uncompressed or hybrid; Y is an empty string if the format is compressed 
+- Y is the octet string of length ceil(log256(q)) representing $y_p$ of P according to FE2OSP if the format is uncompressed or hybrid; Y is an empty string if the format is compressed 
 
 # DL/ECIES
 *taken from [ieee_std_1363a-2004](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/standards/ieee_std_1363a-2004.pdf*<br>
