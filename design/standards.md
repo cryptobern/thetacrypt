@@ -17,9 +17,9 @@ To represent a bit string as an octet string, one simply pads enough zeroes on t
 
 Compressed form: $`(x_p, ŷ_p), x_p`$ = x-coordinate, $`ŷ_p`$ a bit that's computed as follows: <br>
 
-1. if the field size $`q`$ is an odd prime, then $`ŷ_p = y_p mod 2`$ ($`y_p`$ = rightmost bit of $`y_p`$) 
+1. if the field size $`q`$ is an odd prime, then $`ŷ_p = y_p \mod 2`$ &nbsp; ($`y_p`$ = rightmost bit of $`y_p`$) 
 
-1. if field size $`q`$ is a power of 2 and $`x_p = 0`$, then $ŷ_p = 0`$ 
+1. if field size $`q`$ is a power of 2 and $`x_p = 0`$, then $`ŷ_p = 0`$ 
 
 1. if the field size $`q`$ is a power of 2 and $`x_p \neq 0`$, then $`ŷ_p`$ is the rightmost bit of the field element $`y_px_p^{-1}`$ 
 
@@ -32,12 +32,12 @@ Elliptic Curve points as octet strings: PO = PC || X || Y with PC being a single
 
 - Ŷ is equal to the bit $`ŷ_p`$ if the format is compressed or hybrid, 0 otherwise 
 
-- X is the octet string of length ceil(log256(q)) representing $`x_p`$ according to FE2OSP <br> 
+- X is the octet string of length $`\lceil \log_{256} {q} \rceil`$ representing $`x_p`$ according to FE2OSP <br> 
 
-- Y is the octet string of length ceil(log256(q)) representing $`y_p`$ of P according to FE2OSP if the format is uncompressed or hybrid; Y is an empty string if the format is compressed 
+- Y is the octet string of length $`\lceil \log_{256} {q} \rceil`$ representing $`y_p`$ of P according to FE2OSP if the format is uncompressed or hybrid; Y is an empty string if the format is compressed 
 
 # DL/ECIES
-*taken from [ieee_std_1363a-2004](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/standards/ieee_std_1363a-2004.pdf*<br>
+*taken from [ieee_std_1363a-2004](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/standards/ieee_std_1363a-2004.pdf)*<br>
 
 Ciphertext: (V, C, T) where V is the sender's public key, C is the encrypted message and T = MAC_K2(C || P2 || L2)
 P2 are encoding parameters and L2 is either an empty string or the length of P2 in bits (when in DHAES mode).
