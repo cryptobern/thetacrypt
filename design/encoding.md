@@ -2,7 +2,7 @@
 ASN.1's main serialization format is "Distinguished Encoding Rules" (DER) and "Basic Encoding Rules" (BER) is a variant of DER with canonicalization added. For instance, if a type includes a SET OF, the members must be sorted for DER serialization. <br> 
 A certificate represented in DER is often further encoded into PEM, which uses base64 to encode arbitrary bytes as alphanumeric characters (and ‘+’ and ‘/') and adds separator lines <br> 
 
-    ("-----BEGIN CERTIFICATE-----" and “-----END CERTIFICATE-----")
+    "-----BEGIN CERTIFICATE-----" and “-----END CERTIFICATE-----"
 PEM is useful because it’s easier to copy-paste.<br><br>
 This document is based on [this source](https://letsencrypt.org/docs/a-warm-welcome-to-asn1-and-der/).
 
@@ -105,7 +105,6 @@ BER is a type-length-value encoding, just like Protocol Buffers and Thrift. That
 | type tag  | length    | value     |
 | ----- | --------- | --------- |
 | 02    |	03      | 01 00 01  |
-|  |  |  |
 
 ### **Tag**
 
