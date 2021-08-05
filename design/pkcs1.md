@@ -142,11 +142,15 @@ The signature process looks like this:
 is SHA-256).
 The hash value is *padded*: a byte sequence is assembled, consisting of, in that order: a byte of value 0x00, a byte of value 0x01, some bytes of value 0xFF, a byte of value 0x00, a fixed header sequence H, and then $`h(m)`$. The header sequence $`H`$ identifies the hash function (strictly speaking, there are for each hash function two possible header values, and I have encountered both). The number of 0xFF bytes is adjusted so that the total sequence length is exactly equal to the encoding length of the modulus (i.e. 128 bytes for a 1024-bit modulus).
 
+    So the resulting padded sequence looks like the following:
+
+        0x00 | 0x01 | 0xFF .. 0xFF | H | h(m)
+
 - The padded value is then interpreted as an integer $`x`$, by decoding it with the big-endian convention. Due to the sequence size and the fact that the sequence begins with a 0x00, the value $`x`$ is necessarily in the $`1..n−1`$ range.
 
 - The value $`x`$ is raised to the power d (private exponent) modulo n, yielding $`s = x^d(\mod n)`$
 
-- The s value is encoded into a sequence of the same length as n; that's the signature.
+- The s value is encoded into a sequence of the same length as n, forming the signature.
 
 To verify, the signature is decoded back into the integer $`s`$, then $`x`$ is recovered with $`x=s^e(\mod n)`$, and encoded back. The verifier then checks that the padding as explained above has the proper format, and that it ends with $`h(m)`$ for the message $`m`$.
 <br>
@@ -228,8 +232,7 @@ PSS has drawbacks as well:
       and let $`x_{xLen-i}`$ be the integer value of the octet $`X_i`$ for
       $`1 <= i <= xLen`$.
 
-   2. Let $`x = x_(xLen-1) 256^(xLen-1) + x_(xLen-2) 256^(xLen-2) + ...
-      + x_1 256 + x_0`$.
+   2. Let $`x = x_{xLen-1} 256^{xLen-1} + x_{xLen-2} 256^{xLen-2} + ... + x_1 256 + x_0`$.
 
    3. Output $`x`$.
 
