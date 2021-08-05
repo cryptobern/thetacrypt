@@ -69,6 +69,22 @@ The following options shall be established or otherwise agreed upon between the 
 # BLS
 *Taken from [draft-irtf-cfrg-bls-signature-04.](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/standards/draft-irtf-cfrg-bls-signature-04.txt)* <br>
 
+A pairing-friendly elliptic curve defines the following primitives: <br>
+
+-  E1, E2: elliptic curve groups defined over finite fields.  It is assumed that E1 has a more compact representation than
+   E2, i.e., because E1 is defined over a smaller field than E2.
+
+-  G1, G2: subgroups of E1 and E2 (respectively) having prime
+   order r.
+
+-  P1, P2: distinguished points that generate G1 and G2,
+   respectively.
+
+-  GT: a subgroup, of prime order r, of the multiplicative group
+   of a field extension.
+
+-  e : G1 x G2 -> GT: a non-degenerate bilinear map.
+
 The signature and public key are created using the following methods: <br>
 
 For minimal-signature-size:<br>
