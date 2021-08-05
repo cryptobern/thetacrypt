@@ -1,7 +1,7 @@
 # PKCS #8
-PKCS8 is the eighth of the Public-Key Cryptography Standards (PKCS) and is a syntax for storing private key material. The private keys may be encrypted with a symmetric key algorithm. If the usage of your key requires it to be in plain text, make sure it is stored in a secured location. If at all possible, keep the PKCS8 formatted private key encrypted. PKCS #8 was defined in [this standard](https://datatracker.ietf.org/doc/html/rfc5208). <br>
+PKCS8 is the eighth of the Public-Key Cryptography Standards (PKCS) and is a syntax for storing private key material. The private keys may be encrypted with a symmetric key algorithm. If the usage of your key requires it to be in plain text, make sure it is stored in a secured location. If at all possible, keep the PKCS #8 formatted private key encrypted. PKCS #8 was defined in [this standard](https://datatracker.ietf.org/doc/html/rfc5208). <br>
 
-The header and footer of the PKCS8 syntax is the following:
+The header and footer of the PKCS #8 syntax is the following:
 
     -----BEGIN PRIVATE KEY-----
     -----END PRIVATE KEY-----
@@ -20,9 +20,9 @@ PKCS #1 in contrast is primarily used to store private keys for the RSA algorith
 
 ## **PKCS #8 vs PKCS #12**
 
-These are two different specs, and pkcs12 is meant to bundle a key pair with a certificate and not to store a single pkcs 8 private key. While a pkcs12 formatted keystore is password protected, so should the stand alone PKCS#8 private key if at all possible. This also goes for a PKCS#1 private key. Both private key formats should have a symmetric key encrypting them at rest.
+These are two different specs, and PKCS #12 is meant to bundle a key pair with a certificate and not to store a single PKCS #8 private key. While a PKCS #12 formatted keystore is password protected, so should the stand alone PKCS#8 private key if at all possible. This also goes for a PKCS #1 private key. Both private key formats should have a symmetric key encrypting them at rest.
 
-## **Definitions**
+## **X.509 Definitions**
 [X.509](https://www.itu.int/rec/T-REC-X.509-198811-S) defines the following fields, needed later in this document
 
     Certificate ::= SIGNED SEQUENCE { 
