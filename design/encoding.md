@@ -1,5 +1,5 @@
 # ASN.1 Encoding
-ASN.1's main serialization format is "Distinguished Encoding Rules" (DER) and "Basic Encoding Rules" (BER) is a variant of DER with canonicalization added. For instance, if a type includes a SET OF, the members must be sorted for DER serialization. <br> 
+ASN.1's main serialization format is "Distinguished Encoding Rules" (DER), which is a variant of "Basic Encoding Rules" (BER) with canonicalization added. For instance, if a type includes a SET OF, the members must be sorted for DER serialization. <br> 
 A certificate represented in DER is often further encoded into PEM, which uses base64 to encode arbitrary bytes as alphanumeric characters (and ‘+’ and ‘/') and adds separator lines <br> 
 
     "-----BEGIN CERTIFICATE-----" and “-----END CERTIFICATE-----"
