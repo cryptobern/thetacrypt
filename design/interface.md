@@ -44,7 +44,7 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 # KeyGenerator
 
-**`KeyGenerator::generateKeys(k: u8, n: u8, group: Group) -> (PublicKey, Vec<PrivateKey>)`**<br>
+**`KeyGenerator::generateKeys(k: u8, n: u8, params: Parameters) -> (PublicKey, Vec<PrivateKey>)`**<br>
 <br><br>
 
 
