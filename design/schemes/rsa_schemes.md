@@ -75,7 +75,7 @@ Implementation of abstract interface `ThresholdSignature`.
 
 **Scheme**<br>
 
-**`SH00_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> SH00_SignatureShare`**
+**`SH00_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> SH00_SignatureShare`**<br>
 `x = H(msg)`<br>
 `delta = sk.n!`<br>
 `si = x^(2*delta*xi)`<br>
