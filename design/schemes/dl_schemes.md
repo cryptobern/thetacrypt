@@ -12,7 +12,6 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 - **g: `BIG`**: generator
 <br><br>
 
-
 **EC_Group** imlements **Group**
 - **name: `String`**:&nbsp;&nbsp; curve name
 - **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
@@ -254,12 +253,12 @@ Again, a GDH group is needed for the following scheme.
 
 **Scheme**
 
-**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, sk: DL_PrivateKey) -> BLS04_SignatureShare`**<br>
-`data = H(message)^sk.xi`<br>
-`return BLS04_SignatureShare(sk.id, data, msg)`<br><br>
+**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: DL_PrivateKey) -> BLS04_SignatureShare`**<br>
+`data = H(msg)^sk.xi`<br>
+`return BLS04_SignatureShare(sk.id, label, data)`<br><br>
 
-**`BLS04_ThresholdSignature::verifyShare(share: BLS04_SignatureShare, pk: DL_PublicKey, message: bytes) -> bool`**<br>
-`return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(share.m), share.data)`<br><br>
+**`BLS04_ThresholdSignature::verifyShare(share: BLS04_SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
+`return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(msg), share.data)`<br><br>
 
 **`BLS04_ThresholdSignature::assemble(shares: Vec<BLS04_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
