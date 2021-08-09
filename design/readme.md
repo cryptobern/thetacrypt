@@ -1,4 +1,6 @@
 # Threshold Crypto Library Design
+![Alt text](./img/overview.svg)
+<img src="./img/overview.svg">
 
 ## **Overview**
 - [Interface](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/interface.md)
