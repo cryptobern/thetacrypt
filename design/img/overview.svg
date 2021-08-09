@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="769"
-    height="452" viewBox="-0.5 -0.5 769 452"
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="461.4"
+    height="271.2" viewBox="-0.5 -0.5 769 452"
     content="&lt;mxfile host=&quot;app.diagrams.net&quot; modified=&quot;2021-08-09T14:35:06.083Z&quot; agent=&quot;5.0 (X11)&quot; etag=&quot;2D9k0S2B9oN0vxbXNrwY&quot; version=&quot;14.9.5&quot; type=&quot;device&quot;&gt;&lt;diagram id=&quot;MY74g71ZSyAUrGJ7RgZr&quot; name=&quot;Page-1&quot;&gt;7Zddc6IwFIZ/DZc7AwQoXqql7c5u627dmU4vIzlCaiBOCFX76zdIEDDa7nbXetMrc94kJ+F9Yj4sNM7W1wIv01tOgFmuTdYWurRc10FhoH4qZaOVELm1kghKas1uhSl9Ad2wUUtKoNBaLUnOmaTLvhjzPIdY9jQsBF/1m805Iz1hiRMwhGmMmak+UCLTWg19u9VvgCZpM7Jj65oZjheJ4GWux8t5DnVNhps0ummRYsJXnfFQZKGx4FzWpWw9Blb52nfs6kjtbsoCcvknHZ5+ZpPsWxA/eg9lVD7NJ4Ml+qKzPGNWaium45voNprqOctNY9EqpRKmSxxX8UqtAwuNUpkxFTmqOOe5nOrWu7jmrNaCiiljY8642GZDBEM4j5VeSMEX0KkJ4hBmc1WzdRWIzlcsQMaVobYK9KRBSFgfdaP1WK1b4BlIsVFNdAe3IbjZi1ct/6DR0i77hifWay7Z5W7NVwXt/1+wcA0WV5P72+GvU7MAh/hwcYjFILhAOPhwFig4OwtksIjuxpPLr3fXp/5j+BAS7xCM0J2h4ONh+O7ZYXgGjO/Dx+heSa5BQ3247APAjCa5KsfKAFBejip7qNr7h7oio4RU3UcCCvqCZ9tUlZtLTnO5/Rh/ZPmXVa5S8qKG5xiMtnu/CfwIrr21UCH5H/g81N/WPN+g59iOSQ+dCp5/FJ7zCe91eJ59bnjBUXj2J7zX4fnBueENDHgGM8jJsLo+V5AYLgoaHzi8OodVz8M6GxDjav2mYx1L/AMnSaMJYFjS5376QzbpEX5Uq6YDZNA/ybxwz+mClyIG3at7c34jkb9/0kksEpBGoi213We/H2TzSvok2VwQ9wG8l+TupvnPJFXYPuXq5u1bGUW/AQ==&lt;/diagram&gt;&lt;/mxfile&gt;">
     <defs>
         <filter id="dropShadow">
@@ -14,8 +14,9 @@
     </defs>
     <style>
     @media (prefers-color-scheme: dark) {
-        .adpt-font {
+        .adpt-col {
             color:white !important;
+            stroke:white !important;
         }
     }
     </style>
@@ -83,12 +84,12 @@
                         style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 60px; margin-left: 51px;">
                         <div style="box-sizing: border-box; font-size: 0; text-align: center; ">
                             <div
-                                style="display: inline-block; font-size: 22px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap; " class="adpt-font">
+                                style="display: inline-block; font-size: 22px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap; " class="adpt-col">
                                 LAYER 2</div>
                         </div>
                     </div>
                 </foreignObject><text x="51" y="67" fill="#000000" font-family="Helvetica" font-size="22px"
-                    text-anchor="middle" font-weight="bold" class="adpt-font">LAYER 2</text>
+                    text-anchor="middle" font-weight="bold" class="adpt-col">LAYER 2</text>
             </switch>
         </g>
         <rect x="0" y="205" width="101" height="30" rx="4.5" ry="4.5" fill="none" stroke="none" pointer-events="all" />
@@ -99,7 +100,7 @@
                     <div xmlns="http://www.w3.org/1999/xhtml"
                         style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 220px; margin-left: 51px;">
                         <div style="box-sizing: border-box; font-size: 0; text-align: center; ">
-                            <div class="adpt-font"
+                            <div class="adpt-col"
                                 style="display: inline-block; font-size: 22px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap; ">
                                 LAYER 1</div>
                         </div>
@@ -116,7 +117,7 @@
                     <div xmlns="http://www.w3.org/1999/xhtml"
                         style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 380px; margin-left: 51px;">
                         <div style="box-sizing: border-box; font-size: 0; text-align: center; ">
-                            <div class="adpt-font"
+                            <div class="adpt-col"
                                 style="display: inline-block; font-size: 22px; font-family: Helvetica; color: #000000; line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap; ">
                                 LAYER 0</div>
                         </div>
@@ -131,27 +132,27 @@
         <path
             d="M 447 280 M 447 280 C 447.65 290.4 448.85 301.17 447 313.63 M 447 280 C 446.17 286.56 446.32 293.47 447 313.63"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
-            pointer-events="stroke" />
-        <path
+            pointer-events="stroke" class="adpt-col" />
+        <path class="adpt-col"
             d="M 443.81 311.52 C 443.81 311.52 443.81 311.52 443.81 311.52 M 443.81 311.52 C 443.81 311.52 443.81 311.52 443.81 311.52 M 445.52 315.65 C 445.93 315.46 446.16 315.08 446.83 314.14 M 445.52 315.65 C 445.8 315.39 446.2 314.89 446.83 314.14"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
             pointer-events="all" />
-        <path
+        <path class="adpt-col"
             d="M 447 318.88 M 447 318.88 C 445.96 317.29 445.51 314.6 443.5 311.88 M 447 318.88 C 445.8 316.09 444.61 313.87 443.5 311.88 M 443.5 311.88 C 444.31 312.53 445.35 312.56 447 313.63 M 443.5 311.88 C 444.85 312.32 445.62 312.91 447 313.63 M 447 313.63 C 448.06 313.07 448.97 312.41 450.5 311.88 M 447 313.63 C 447.95 313.17 448.89 312.79 450.5 311.88 M 450.5 311.88 C 449.37 314.47 447.64 316.9 447 318.88 M 450.5 311.88 C 449.52 314.26 447.79 316.82 447 318.88"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
             pointer-events="all" />
         <path d="M 447 120 L 447 153.63" fill="none" stroke="none" pointer-events="stroke" />
         <path d="M 447 158.88 L 443.5 151.88 L 447 153.63 L 450.5 151.88 Z" fill="none" stroke="none"
             pointer-events="all" />
-        <path
+        <path class="adpt-col"
             d="M 447 120 M 447 120 C 448.43 129.15 444.92 139.12 447 153.63 M 447 120 C 446.47 130.25 447.88 140.27 447 153.63"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
             pointer-events="stroke" />
-        <path
+        <path class="adpt-col"
             d="M 443.32 152.09 C 443.32 152.09 443.32 152.09 443.32 152.09 M 443.32 152.09 C 443.32 152.09 443.32 152.09 443.32 152.09 M 445.68 155.47 C 446.02 154.86 446.63 154.15 446.99 153.96 M 445.68 155.47 C 446.12 155.1 446.55 154.66 446.99 153.96"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
             pointer-events="all" />
-        <path
+        <path class="adpt-col"
             d="M 447 158.88 M 447 158.88 C 446.58 156.94 445.04 155.82 443.5 151.88 M 447 158.88 C 445.8 156.02 444.05 153.77 443.5 151.88 M 443.5 151.88 C 444.41 152.61 446.08 153.07 447 153.63 M 443.5 151.88 C 444.56 152.35 445.55 152.93 447 153.63 M 447 153.63 C 447.66 153.58 448.38 152.97 450.5 151.88 M 447 153.63 C 448.01 153.23 449.24 152.55 450.5 151.88 M 450.5 151.88 C 448.76 154.89 448.03 155.84 447 158.88 M 450.5 151.88 C 449.93 153.23 449.41 154.71 447 158.88"
             fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round" stroke-miterlimit="10"
             pointer-events="all" />
