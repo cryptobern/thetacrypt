@@ -1,6 +1,6 @@
 # Threshold Crypto Library Design
 ![](./img/overview.svg) <br>
-This documentation is split into three layers. On layer 2, the top layer, are the concrete schemes described. On layer 1, the format layer, there are different ways to represent outputs and inputs of the schemes on layer 2 and layer 0 specifies how those inputs/outputs are serialized as bytes.
+This documentation is split into three layers. On layer 2, the schemes layer, are the concrete schemes described. On layer 1, the format layer, are different ways to represent outputs and inputs of the schemes on layer 2 and layer 0, the encoding layer, specifies how those inputs/outputs are serialized as bytes.
 ## **Overview**
 - [Interface](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/interface.md)
 - [Definition of a Party](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/party.md)
