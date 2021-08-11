@@ -5,7 +5,8 @@ This documentation is split into three layers. On layer 2, the schemes layer, ar
 - [Interface](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/interface.md)
 - [Definition of a Party](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/party.md)
 - [Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/)
-    - [DL Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/dl_schemes.md)
+    - [DL Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/dl_schemes.md) - Discrete logarithm based threshold schemes
+    - [RSA Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/rsa_schemes.md) - RSA based threshold schemes
 - [Formats](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/)
     - [PKCS #1](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/pkcs1.md) - RSA formats for keys/signatures
     - [PKCS #8](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/pkcs8.md) - Generic format for private keys
