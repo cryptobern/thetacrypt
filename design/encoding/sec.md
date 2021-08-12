@@ -1,6 +1,124 @@
 # Standards of Efficient Cryptography (SEC)
 [reference](https://secg.org/sec1-v2.pdf) <br>
 
+## Syntax for Elliptic Curve Domain Parameters
+Elliptic curve domain parameters may need to be specified, for example, during the setup operation of a cryptographic scheme based on elliptic curve cryptography. There are a number of
+ways of specifying elliptic curve domain parameters. Here the following syntax, as a choice of
+three parameters, is recommended (following [3279, Int06b, 5480]) for use in X.509 certificates and
+elsewhere.
+
+    ECDomainParameters{ECDOMAIN:IOSet} ::= CHOICE {
+        specified SpecifiedECDomain,
+        named ECDOMAIN.&id({IOSet}),
+        implicitCA NULL
+    }
+The choice of three parameters representation methods (above) allows detailed specification of all
+required values using either:
+- The choice `specified` which explicitly identifies all the parameters, or,
+- The choice `named` as an object identifier identifying a particular set of elliptic curve domain
+parameters, or
+- The choice `implicitCA` which indicates that the parameters are the same as those of certification authority certifying the public key.
+The valid values for the namedCurve choice are constrained to those within the class `ECDOMAIN`
+(defined below).
+
+The following syntax is used to describe explicit representations of elliptic curve domain parameters,
+if need be. The inclusion of the cofactor is strongly recommended.
+
+        SpecifiedECDomain ::= SEQUENCE {
+        version SpecifiedECDomainVersion(ecdpVer1 | ecdpVer2 | ecdpVer3, ...),
+        fieldID FieldID {{FieldTypes}},
+        curve Curve,
+        base ECPoint,
+        order INTEGER,
+        cofactor INTEGER OPTIONAL,
+        hash HashAlgorithm OPTIONAL,
+        ...
+        }
+
+The components of type `SpecifiedECDomain` have the following meanings.
+- The component `version` is the version number of the ASN.1 type with a value of 1, 2 or 3.
+The notation above is used to constrain version to a set of values. The meaning of these
+three values are as follows. If version is ecdpVer2, then the curve and the base point shall
+be generated verifiably at random, and curve.seed shall be present. If version is ecdpVer3,
+then the curve is not generated verifiably at random but the base point is, and curve.seed
+shall be present.
+- The component `fieldID` identifies the finite field over which the elliptic curve is defined and
+was discussed in Section C.1.
+- The component `curve` of type `Curve` (defined below) specifies the elliptic curve.
+- The component `base` of type `ECPoint` (defined below) specifies the base point on the elliptic
+curve curve.
+- The component `order` is the order of the base point base.
+- The component `cofactor` is the order of the curve divided by the order of the base point.
+Inclusion of the cofactor is optional – however, it is recommended that that the cofactor be
+included in order to facilitate interoperability between implementations.
+- The component `hash` is the hash function used to generate the domain parameters verifiably
+at random.
+
+The type `SpecifiedECDomainVersion` is a subtype of INTEGER and is used to constrain the set of
+versions.
+
+    SpecifiedECDomainVersion ::= INTEGER {
+    ecdpVer1(1),
+    ecdpVer2(2),
+    ecdpVer3(3)
+    }
+The type `Curve` is defined as follows, by specifying the coefficients of the defining equation of the
+elliptic curve and an optional seed. (If the curve was generated verifiably at random using a seed
+value with a hash function such as SHA-1 as specified in ANS X9.62 [X9.62b] then said seed may
+be included as the seed component so as to allow a recipient to verify that the curve was indeed
+so generated using said seed.)
+
+    Curve ::= SEQUENCE {
+    a FieldElement,
+    b FieldElement,
+    seed BIT STRING OPTIONAL
+    -- Shall be present if used in SpecifiedECDomain
+    -- with version equal to ecdpVer2 or ecdpVer3
+    }
+An elliptic curve point itself is represented by the following type
+
+    ECPoint ::= OCTET STRING
+whose value is the octet string obtained from the conversion routines given in [ieee1363](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/ieee1363.md).
+The class `ECDOMAIN`, defined as follows, is used to specify a named curve.
+
+    ECDOMAIN ::= CLASS {
+    &id OBJECT IDENTIFIER UNIQUE
+    }
+    WITH SYNTAX { ID &id }
+
+For example, the curve sect163k1, defined in SEC 2 [SEC 2], is denoted by the syntax ID
+sect163k1.
+The following syntax, included here for completeness, may be extended by other standards and
+implementations to specify the list of supported named curves. One such extension may be found
+in SEC 2 [SEC 2] ; another such extension may be found in ANS X9.62 [X9.62b].
+
+    SECGCurveNames ECDOMAIN::= {
+    ... -- named curves
+    }
+The following type `HashAlgorithm` is used to specify a hash function.
+
+    HashAlgorithm ::= AlgorithmIdentifier {{ HashFunctions }}
+The information object set `HashFunctions` specifies the allowed hash functions currently:
+
+    HashFunctions ALGORITHM ::= {
+    {OID sha-1 PARMS NULL } |
+    {OID id-sha224 PARMS NULL } |
+    {OID id-sha256 PARMS NULL } |
+    {OID id-sha384 PARMS NULL } |
+    {OID id-sha512 PARMS NULL } ,
+    ... -- Additional hash functions may be added in the future }
+When the parameters field of `HashAlgorithm` is constrained to the type NULL, then the parameters
+should be omitted.
+The following object identifiers are used above to identify specific hash functions.
+
+    sha-1 OBJECT IDENTIFIER ::= {iso(1) identified-organization(3)
+    oiw(14) secsig(3) algorithm(2) 26}
+    id-sha OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16) us(840)
+    organization(1) gov(101) csor(3) nistalgorithm(4) hashalgs(2) }
+    id-sha224 OBJECT IDENTIFIER ::= { id-sha 4 }
+    id-sha256 OBJECT IDENTIFIER ::= { id-sha 1 }
+    id-sha384 OBJECT IDENTIFIER ::= { id-sha 2 }
+    id-sha512 OBJECT IDENTIFIER ::= { id-sha 3 }
 
 ## Syntax for Elliptic Curve Public Keys
 Elliptic curve public keys may need to be specified, for example, during the key deployment phase
@@ -40,6 +158,7 @@ The governing type ALGORITHM (above) is defined to be the following object infor
         {OID ecmqv PARMS ECDomainParameters {{SECGCurveNames}}},
         ...
     }
+
     ecPublicKeyType ALGORITHM ::= {
         OID id-ecPublicKey PARMS ECDomainParameters {{SECGCurveNames}}
     }
@@ -57,8 +176,6 @@ The following information object of class ALGORITHM indicates the type of the pa
 
     ecPublicKeyTypeRestricted ALGORITHM ::= {
     OID id-ecPublicKeyTypeRestricted PARMS ECPKRestrictions
-    Page 106 of 138 §C ASN.1 for Elliptic Curve Cryptography
-    SEC 1 Ver. 2.0 C.3 Syntax for Elliptic Curve Public Keys
     }
 The OID id-ecPublicKeyTypeRestricted is used to identify a public key that has restrictions on
 which ECC algorithms it can be used with.
@@ -92,11 +209,11 @@ elliptic curve domain parameters associated with said public key.)
 Finally, `SubjectPublicKeyInfo` specifies the public key itself when algorithm indicates that the
 public key is an elliptic curve public key.
 The elliptic curve public key (a value of type ECPoint that is an OCTET STRING) is mapped to a
-subjectPublicKey (a value encoded as type BIT STRING) as follows: The most significant bit of
+`subjectPublicKey` (a value encoded as type BIT STRING) as follows: The most significant bit of
 the value of the OCTET STRING becomes the most significant bit of the value of the BIT STRING
 and so on with consecutive bits until the least significant bit of the OCTET STRING becomes the
 least significant bit of the BIT STRING.
-The following information object of class ALGORITHM indicates the type of the paramaters component of an AlgorithmIdentifier {} containing the OID `id-ecPublicKeySupplemented`.
+The following information object of class ALGORITHM indicates the type of the paramaters component of an `AlgorithmIdentifier` {} containing the OID `id-ecPublicKeySupplemented`.
 
     ecPublicKeyTypeSupplemented ALGORITHM ::= {
     OID id-ecPublicKeyTypeSupplemented PARMS ECPKSupplements
@@ -117,46 +234,49 @@ can be used with a given elliptic curve public key.
         eccSupplements ECCSupplements }
 The type ECCSupplements serves to provide a list of multiples of the public key. These multiples
 can be used to accelerate the public key operations necessary with that public key.
-ECCSupplements ::= CHOICE {
-namedMultiples [0] NamedMultiples,
-specifiedMultiples [1] SpecifiedMultiples
-}
-NamedMultiples ::= SEQUENCE {
-multiples OBJECT IDENTIFIER,
-points SEQUENCE OF ECPoint }
-SpecifiedMultiples ::= SEQUENCE OF SEQUENCE {
-multiple INTEGER,
-point ECPoint }
-C.4 Syntax for Elliptic Curve Private Keys
+    ECCSupplements ::= CHOICE {
+        namedMultiples [0] NamedMultiples,
+        specifiedMultiples [1] SpecifiedMultiples
+    }
+    NamedMultiples ::= SEQUENCE {
+        multiples OBJECT IDENTIFIER,
+        points SEQUENCE OF ECPoint }
+        SpecifiedMultiples ::= SEQUENCE OF SEQUENCE {
+        multiple INTEGER,
+        point ECPoint }
+
+## Syntax for Elliptic Curve Private Keys
 An elliptic curve private key may need to be conveyed, for example, during the key deployment
 operation of a cryptographic scheme in which a Certification Authority generates and distributes
 the private keys. An elliptic curve private key is an unsigned integer. The following ASN.1 syntax
 may be used.
-ECPrivateKey ::= SEQUENCE {
-version INTEGER { ecPrivkeyVer1(1) } (ecPrivkeyVer1),
-privateKey OCTET STRING,
-parameters [0] ECDomainParameters {{ SECGCurveNames }} OPTIONAL,
-publicKey [1] BIT STRING OPTIONAL
-}
-Page 108 of 138 §C ASN.1 for Elliptic Curve Cryptography
-SEC 1 Ver. 2.0 C.5 Syntax for Signature and Key Establishment Schemes
-where
-• The component version specifies the version number of the elliptic curve private key structure. The syntax above creates the element ecPrivkeyVer1 of type INTEGER whose value is
-1.
-• The component privateKey is the private key defined to be the octet string of length
+
+    ECPrivateKey ::= SEQUENCE {
+    version INTEGER { ecPrivkeyVer1(1) } (ecPrivkeyVer1),
+    privateKey OCTET STRING,
+    parameters [0] ECDomainParameters {{ SECGCurveNames }} OPTIONAL,
+    publicKey [1] BIT STRING OPTIONAL
+    }
+where  
+- The component version specifies the version number of the elliptic curve private key structure. The syntax above creates the element ecPrivkeyVer1 of type INTEGER whose value is 1.  
+
+- The component privateKey is the private key defined to be the octet string of length
 dlog2 n/8e (where n is the order of the curve) obtained from the unsigned integer via the
-encoding of Section 2.3.7.
-• The optional component parameters specifies the elliptic curve domain parameters associated
+encoding of Section 2.3.7.  
+
+- The optional component parameters specifies the elliptic curve domain parameters associated
 to the private key. The type Parameters was discussed in Section C.2. If the parameters are
-known by other means then this component may be NULL or omitted.
-• The optional component publicKey contains the elliptic curve public key associated with the
+known by other means then this component may be NULL or omitted.  
+
+- The optional component publicKey contains the elliptic curve public key associated with the
 private key in question. Public keys were discussed in Section C.3. It may be useful to send
 the public key along with the private key, especially in a scheme such as MQV that involves
-calculations with the public key.
-The syntax for ECPrivateKey may be used, for example, to convey elliptic curve private keys using
+calculations with the public key.  
+
+The syntax for `ECPrivateKey` may be used, for example, to convey elliptic curve private keys using
 the syntax for PrivateKeyInfo as defined in PKCS #8 [PKCS8]. In such a case, the value of the
-component privateKeyAlgorithm within PrivateKeyInfo shall be id-ecPublicKey as discussed
-in Section C.3 above.
+component `privateKeyAlgorithm` within `PrivateKeyInfo` shall be `id-ecPublicKey` as discussed
+in the section above.
 
 ## Syntax for Signature and Key Establishment Schemes
 Signatures may need to be conveyed from one party to another whenever ECDSA is used to sign
