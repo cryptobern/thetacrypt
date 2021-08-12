@@ -10,6 +10,8 @@ This documentation is split into three layers. On layer 2, the schemes layer, ar
 - [Formats](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/)
     - [PKCS #1](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/pkcs1.md) - RSA formats for keys/signatures
     - [PKCS #8](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/pkcs8.md) - Generic format for private keys
+    - [X.509](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/X.509.md) - X.509 Certificate format
 - [Encoding](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/)
     - [ASN.1](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/asn1.md) - BER/DER/PER Encoding 
     - [IEEE 1363](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/ieee1363.md) - Elliptic curve point representation
+    - [SEC](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/SEC.md) - ECDSA Encoding

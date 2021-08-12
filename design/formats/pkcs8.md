@@ -22,35 +22,6 @@ PKCS #1 in contrast is primarily used to store private keys for the RSA algorith
 
 These are two different specs, and PKCS #12 is meant to bundle a key pair with a certificate and not to store a single PKCS #8 private key. While a PKCS #12 formatted keystore is password protected, so should the stand alone PKCS#8 private key if at all possible. This also goes for a PKCS #1 private key. Both private key formats should have a symmetric key encrypting them at rest.
 
-## **X.509 Definitions**
-[X.509](https://www.itu.int/rec/T-REC-X.509-198811-S) defines the following fields, needed later in this document
-
-    Certificate ::= SIGNED SEQUENCE { 
-        version            [0]  Version DEFAULT 1988, 
-        serialNumber            SerialNumber, 
-        signature               Algorithmidentifier 
-        issuer                  Name 
-        validity                Validity, 
-        subject                 Name, 
-        subjectPublicKeyInfo    SubjectPublicKeyInfo } 
-
-    Version     ::= INTEGER { 1988(0) } 
-
-    SerialNumber ::= INTEGER 
-
-    Validity      ::= SEQUENCE {  
-        notBefore UTCTime, 
-        notAfter  UTCTime }
-
-    SubjectPublicKeyInfo ::= SEQUENCE { 
-        algorithm AlgorithmIdentifier 
-        subjectKey BIT STRING }
-
-    AlgorithmIdentifier ::= SEQUENCE { 
-        algorithm   OBJECT IDENTIFIER 
-        parameters   ANY DEFINED BY algorithm  OPTIONAL }
-
-
 ## **Unencrypted Private-Key Information Syntax**
 This section gives the syntax for private-key information.
 Private-key information shall have ASN.1 type PrivateKeyInfo:
@@ -64,6 +35,10 @@ Private-key information shall have ASN.1 type PrivateKeyInfo:
       Version ::= INTEGER
 
       PrivateKeyAlgorithmIdentifier ::= AlgorithmIdentifier
+
+      AlgorithmIdentifier ::= SEQUENCE { 
+        algorithm   OBJECT IDENTIFIER 
+        parameters   ANY DEFINED BY algorithm  OPTIONAL }
 
       PrivateKey ::= OCTET STRING
 
