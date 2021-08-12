@@ -19,6 +19,13 @@
             stroke:white !important;
         }
     }
+
+    @media (prefers-dark-interface) {
+        .adpt-col {
+            color:white !important;
+            stroke:white !important;
+        }
+    }
     </style>
     <g filter="url(#dropShadow)">
         <rect x="157" y="0" width="600" height="120" rx="18" ry="18" fill="#dae8fc" stroke="#6c8ebf"
