@@ -14,4 +14,4 @@ This documentation is split into three layers. On layer 2, the schemes layer, ar
 - [Encoding](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/)
     - [ASN.1](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/asn1.md) - BER/DER/PER Encoding 
     - [IEEE 1363](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/ieee1363.md) - Elliptic curve point representation
-    - [SEC](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/SEC.md) - ECDSA Encoding
+    - [SEC](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/encoding/sec.md) - ECDSA Encoding
