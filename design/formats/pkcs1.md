@@ -18,7 +18,7 @@
    Suggestions for improvement are welcome.
 <br>
 
-[Link to PKCS #1](https://datatracker.ietf.org/doc/html/rfc3447)
+[Link to PKCS #1](https://datatracker.ietf.org/doc/html/rfc8017)
 
 
 ## RSA Key Representation
@@ -140,17 +140,17 @@ The signature process looks like this:
 
 - The message to be signed $`m`$ is hashed with hash value $`h`$, yielding $`h(m)`$, which is a sequence of bytes (say, 32 bytes if $`h`$
 is SHA-256).
-The hash value is *padded*: a byte sequence is assembled, consisting of, in that order: a byte of value 0x00, a byte of value 0x01, some bytes of value 0xFF, a byte of value 0x00, a fixed header sequence H, and then $`h(m)`$. The header sequence $`H`$ identifies the hash function (strictly speaking, there are for each hash function two possible header values, and I have encountered both). The number of 0xFF bytes is adjusted so that the total sequence length is exactly equal to the encoding length of the modulus (i.e. 128 bytes for a 1024-bit modulus).
+The hash value is *padded*: a byte sequence is assembled, consisting of, in that order: a byte of value 0x00, a byte of value 0x01, some bytes of value 0xFF, a byte of value 0x00, a fixed header sequence H, and then $`h(m)`$. The header sequence $`H`$ identifies the hash function. The number of 0xFF bytes is adjusted so that the total sequence length is exactly equal to the encoding length of the modulus (i.e. 128 bytes for a 1024-bit modulus).
 
     So the resulting padded sequence looks like the following:
 
-        0x00 | 0x01 | 0xFF .. 0xFF | H | h(m)
+        0x00 | 0x01 | 0xFF .. 0xFF | 0x00 | H | h(m)
 
 - The padded value is then interpreted as an integer $`x`$, by decoding it with the big-endian convention. Due to the sequence size and the fact that the sequence begins with a 0x00, the value $`x`$ is necessarily in the $`1..n−1`$ range.
 
 - The value $`x`$ is raised to the power d (private exponent) modulo n, yielding $`s = x^d(\mod n)`$
 
-- The s value is encoded into a sequence of the same length as n, forming the signature.
+- The $`s`$ value is encoded into a sequence of the same length as n, forming the signature.
 
 To verify, the signature is decoded back into the integer $`s`$, then $`x`$ is recovered with $`x=s^e(\mod n)`$, and encoded back. The verifier then checks that the padding as explained above has the proper format, and that it ends with $`h(m)`$ for the message $`m`$.
 <br>
@@ -269,6 +269,68 @@ PSS has drawbacks as well:
 
          $`X = X_1 X_2 ... X_{xLen}`$.
 
+
+EMSA-PSS-ENCODE (M, emBits)
+
+   Options:
+
+      Hash     hash function (hLen denotes the length in octets of
+               the hash function output)
+      MGF      mask generation function
+      sLen     intended length in octets of the salt
+
+   Input:
+
+      M        message to be encoded, an octet string
+      emBits   maximal bit length of the integer OS2IP (EM) (see Section
+               4.2), at least 8hLen + 8sLen + 9
+
+   Output:
+
+      EM       encoded message, an octet string of length emLen = \ceil
+               (emBits/8)
+
+   Errors:  "Encoding error"; "message too long"
+
+   Steps:
+
+      1.   If the length of M is greater than the input limitation for
+           the hash function (2^61 - 1 octets for SHA-1), output
+           "message too long" and stop.
+
+      2.   Let mHash = Hash(M), an octet string of length hLen.
+
+      3.   If emLen < hLen + sLen + 2, output "encoding error" and stop.
+
+      4.   Generate a random octet string salt of length sLen; if sLen =
+           0, then salt is the empty string.
+
+      5.   Let
+
+              M' = (0x)00 00 00 00 00 00 00 00 || mHash || salt;
+
+           M' is an octet string of length 8 + hLen + sLen with eight
+           initial zero octets.
+
+      6.   Let H = Hash(M'), an octet string of length hLen.
+
+      7.   Generate an octet string PS consisting of emLen - sLen - hLen
+           - 2 zero octets.  The length of PS may be 0.
+
+      8.   Let DB = PS || 0x01 || salt; DB is an octet string of length
+           emLen - hLen - 1.
+
+      9.   Let dbMask = MGF(H, emLen - hLen - 1).
+
+      10.  Let maskedDB = DB \xor dbMask.
+
+      11.  Set the leftmost 8emLen - emBits bits of the leftmost octet
+           in maskedDB to zero.
+
+      12.  Let EM = maskedDB || H || 0xbc.
+
+      13.  Output EM.
+
 ### **Signature generation operation**
 
     RSASSA-PSS-SIGN (K, M)
@@ -287,7 +349,7 @@ PSS has drawbacks as well:
 
    1. EMSA-PSS encoding: Apply the EMSA-PSS encoding operation (Section
       9.1.1) to the message M to produce an encoded message EM of length
-      \ceil ((modBits - 1)/8) octets such that the bit length of the
+      $`\lceil ((modBits - 1)/8)\rceil`$ octets such that the bit length of the
       integer OS2IP (EM) (see Section 4.2) is at most modBits - 1, where
       modBits is the length in bits of the RSA modulus n:
 
@@ -305,7 +367,6 @@ PSS has drawbacks as well:
          representative m:
 
             m = OS2IP (EM).
-
 
       - Apply the RSASP1 signature primitive (Section 5.2.1) to the RSA
          private key K and the message representative m to produce an
@@ -1277,60 +1338,3 @@ SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
     }
 
     END
-
-
-
-Appendix D.  Revision History of PKCS #1
-
-   Versions 1.0 - 1.5:
-
-      Versions 1.0 - 1.3 were distributed to participants in RSA Data
-      Security, Inc.'s Public-Key Cryptography Standards meetings in
-      February and March 1991.
-
-      Version 1.4 was part of the June 3, 1991 initial public release of
-      PKCS.  Version 1.4 was published as NIST/OSI Implementors'
-      Workshop document SEC-SIG-91-18.
-
-      Version 1.5 incorporated several editorial changes, including
-      updates to the references and the addition of a revision history.
-      The following substantive changes were made:
-
-      *  Section 10: "MD4 with RSA" signature and verification processes
-         were added.
-
-      *  Section 11: md4WithRSAEncryption object identifier was added.
-
-      Version 1.5 was republished as [RFC2313] (which was later
-      obsoleted by [RFC2437]).
-
-   Version 2.0:
-
-      Version 2.0 incorporated major editorial changes in terms of the
-      document structure and introduced the RSAES-OAEP encryption
-      scheme.  This version continued to support the encryption and
-      signature processes in version 1.5, although the hash algorithm
-      MD4 was no longer allowed due to cryptanalytic advances in the
-      intervening years.  Version 2.0 was republished as [RFC2437]
-      (which was later obsoleted by [RFC3447]).
-
-   Version 2.1:
-
-      Version 2.1 introduced multi-prime RSA and the RSASSA-PSS
-      signature scheme with appendix along with several editorial
-      improvements.  This version continued to support the schemes in
-      version 2.0.  Version 2.1 was republished as [RFC3447].
-
-
-   Version 2.2:
-
-      Version 2.2 updates the list of allowed hashing algorithms to
-      align them with FIPS 180-4 [SHS], therefore adding SHA-224,
-      SHA-512/224, and SHA-512/256.  The following substantive changes
-      were made:
-
-      *  Object identifiers for sha224WithRSAEncryption,
-         sha512-224WithRSAEncryption, and sha512-256WithRSAEncryption
-         were added.
-
-      *  This version continues to support the schemes in version 2.1.
