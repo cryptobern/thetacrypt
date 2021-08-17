@@ -62,7 +62,7 @@ Implementation of abstract interface `KeyGenerator`. The following method genera
 `m = p' * q'`<br>
 `{x₁, .. xₙ} = share_secret(d, k, n)`<br>
 `v = random_element(Qn)`<br>
-`choose random element u in Zn with Jacobi symbol (u|n) = -11`<br>
+`choose random element u in Zn with Jacobi symbol (u|n) = -1`<br>
 `verificationKey = RSA_VerificationKey(v, {v^x₁,...,v^xₙ}, u)` <br>
 `pk = RSA_PublicKey(N, e, verificationKey, n)`<br>
 `secrets = []`<br>
@@ -115,7 +115,7 @@ Implementation of abstract interface `ThresholdSignature`.
 **`SH00_ThresholdSignature::assemble(shares: Vec<SH00_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`x = H(msg)`
+`x = H(msg)` <br>
 `w = 1`<br>
 `for each share s in shares do`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.data^(2*lag_coeff(s.id))`<br>
