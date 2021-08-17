@@ -177,17 +177,6 @@ PSS has drawbacks as well:
    unrestricted or constrained by a very large number, depending on the
    hash function underlying the EMSA-PSS encoding method.
 
-   Assuming that computing e-th roots modulo n is infeasible and the
-   hash and mask generation functions in EMSA-PSS have appropriate
-   properties, RSASSA-PSS provides secure signatures.  This assurance is
-   provable in the sense that the difficulty of forging signatures can
-   be directly related to the difficulty of inverting the RSA function,
-   provided that the hash and mask generation functions are viewed as
-   black boxes or random oracles.  The bounds in the security proof are
-   essentially "tight", meaning that the success probability and running
-   time for the best forger against RSASSA-PSS are very close to the
-   corresponding parameters for the best RSA inversion algorithm; 
-
    In contrast to the RSASSA-PKCS1-v1_5 signature scheme, a hash
    function identifier is not embedded in the EMSA-PSS encoded message,
    so in theory it is possible for an adversary to substitute a
@@ -270,29 +259,28 @@ PSS has drawbacks as well:
          $`X = X_1 X_2 ... X_{xLen}`$.
 
 
-EMSA-PSS-ENCODE (M, emBits)
+**EMSA-PSS-ENCODE (M, emBits)**
 
-   Options:
+   **Options:**
 
       Hash     hash function (hLen denotes the length in octets of
                the hash function output)
       MGF      mask generation function
       sLen     intended length in octets of the salt
 
-   Input:
+   **Input:**
 
       M        message to be encoded, an octet string
-      emBits   maximal bit length of the integer OS2IP (EM) (see Section
-               4.2), at least 8hLen + 8sLen + 9
+      emBits   maximal bit length of the integer OS2IP (EM), at least 8hLen + 8sLen + 9
 
-   Output:
+   **Output:**
 
       EM       encoded message, an octet string of length emLen = \ceil
                (emBits/8)
 
-   Errors:  "Encoding error"; "message too long"
+   **Errors:**  "Encoding error"; "message too long"
 
-   Steps:
+   **Steps:**
 
       1.   If the length of M is greater than the input limitation for
            the hash function (2^61 - 1 octets for SHA-1), output
@@ -331,26 +319,79 @@ EMSA-PSS-ENCODE (M, emBits)
 
       13.  Output EM.
 
+   **RSASP1 (K, m)**  
+
+**Input:**  
+
+        K        RSA private key, where K has one of the following forms:
+                - a pair (n, d)
+                - a quintuple (p, q, dP, dQ, qInv) and a (possibly empty)
+                    sequence of triplets (r_i, d_i, t_i), i = 3, ..., u
+        m        message representative, an integer between 0 and n - 1
+
+
+**Output:**  
+
+        s        signature representative, an integer between 0 and n - 1
+
+**Error:**  "message representative out of range"  
+
+**Assumption:**  RSA private key K is valid  
+
+**Steps:**
+
+        1.  If the message representative m is not between 0 and n - 1,
+            output "message representative out of range" and stop.
+
+        2.  The signature representative s is computed as follows.
+
+            a.  If the first form (n, d) of K is used, let s = m^d mod n.
+
+            b.  If the second form (p, q, dP, dQ, qInv) and (r_i, d_i,
+                t_i) of K is used, proceed as follows:
+
+                1.  Let s_1 = m^dP mod p and s_2 = m^dQ mod q.
+
+                2.  If u > 2, let s_i = m^(d_i) mod r_i, i = 3, ..., u.
+
+                3.  Let h = (s_1 - s_2) * qInv mod p.
+
+                4.  Let s = s_2 + q * h.
+
+                5.  If u > 2, let R = r_1 and for i = 3 to u do
+
+                    a.  Let R = R * r_(i-1).
+
+                    b.  Let h = (s_i - s) * t_i mod r_i.
+
+                    c.  Let s = s + R * h.
+
+        3.  Output s.
+
+    Note: Step 2.b can be rewritten as a single loop, provided that one
+    reverses the order of p and q.  For consistency with PKCS #1 v2.0,
+    however, the first two primes p and q are treated separately from the
+    additional primes.
+
 ### **Signature generation operation**
 
-    RSASSA-PSS-SIGN (K, M)
+**RSASSA-PSS-SIGN (K, M)**
 
-    Input:
+**Input:**
     K        signer's RSA private key
     M        message to be signed, an octet string
 
-    Output:
+**Output:**
     S        signature, an octet string of length k, where k is the
                 length in octets of the RSA modulus n
 
-    Errors: "message too long;" "encoding error"
+**Errors:** "message too long;" "encoding error"
 
-   Steps:
+   **Steps:**
 
-   1. EMSA-PSS encoding: Apply the EMSA-PSS encoding operation (Section
-      9.1.1) to the message M to produce an encoded message EM of length
+   1. EMSA-PSS encoding: Apply the EMSA-PSS encoding operation to the message M to produce an encoded message EM of length
       $`\lceil ((modBits - 1)/8)\rceil`$ octets such that the bit length of the
-      integer OS2IP (EM) (see Section 4.2) is at most modBits - 1, where
+      integer OS2IP (EM) is at most modBits - 1, where
       modBits is the length in bits of the RSA modulus n:
 
             EM = EMSA-PSS-ENCODE (M, modBits - 1).
@@ -368,32 +409,32 @@ EMSA-PSS-ENCODE (M, emBits)
 
             m = OS2IP (EM).
 
-      - Apply the RSASP1 signature primitive (Section 5.2.1) to the RSA
+      - Apply the RSASP1 signature primitive to the RSA
          private key K and the message representative m to produce an
          integer signature representative s:
 
             s = RSASP1 (K, m).
 
       - Convert the signature representative s to a signature S of
-         length k octets (see Section 4.1):
+         length k octets:
 
             S = I2OSP (s, k).
 
    3. Output the signature S.
 
 ### **Signature verification operation**
-    RSASSA-PSS-VERIFY ((n, e), M, S)
+**RSASSA-PSS-VERIFY ((n, e), M, S)**
 
-    Input:
+**Input:**
     (n, e)   signer's RSA public key
     M        message whose signature is to be verified, an octet string
     S        signature to be verified, an octet string of length k, where
                 k is the length in octets of the RSA modulus n
 
-    Output:
+**Output:**
     "valid signature" or "invalid signature"
 
-   Steps:
+**Steps:**
 
    1. Length checking: If the length of the signature S is not k octets,
       output "invalid signature" and stop.
@@ -426,7 +467,7 @@ EMSA-PSS-ENCODE (M, emBits)
          "integer too large," output "invalid signature" and stop.
 
    3. EMSA-PSS verification: Apply the EMSA-PSS verification operation
-      (Section 9.1.2) to the message M and the encoded message EM to
+      to the message M and the encoded message EM to
       determine whether they are consistent:
 
             Result = EMSA-PSS-VERIFY (M, EM, modBits - 1).
@@ -434,308 +475,96 @@ EMSA-PSS-ENCODE (M, emBits)
    4. If Result = "consistent," output "valid signature." Otherwise,
       output "invalid signature."
 
-## Scheme Identification
-This section defines object identifiers for the encryption and
-signature schemes.  The schemes compatible with PKCS #1 v1.5 have the
-same definitions as in PKCS #1 v1.5.  The intended application of
-these definitions includes X.509 certificates and PKCS #7.
-
-Here are type identifier definitions for the PKCS #1 OIDs:
-
-    PKCS1Algorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID rsaEncryption                PARAMETERS NULL } |
-        { OID md2WithRSAEncryption         PARAMETERS NULL } |
-        { OID md5WithRSAEncryption         PARAMETERS NULL } |
-        { OID sha1WithRSAEncryption        PARAMETERS NULL } |
-        { OID sha224WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha256WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha384WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha512WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha512-224WithRSAEncryption  PARAMETERS NULL } |
-        { OID sha512-256WithRSAEncryption  PARAMETERS NULL } |
-        { OID id-RSAES-OAEP   PARAMETERS RSAES-OAEP-params } |
-        PKCS1PSourceAlgorithms                               |
-        { OID id-RSASSA-PSS   PARAMETERS RSASSA-PSS-params },
-        ...  -- Allows for future expansion --
-    }
-
-## RSAES-OAEP
-
-   The object identifier `id-RSAES-OAEP` identifies the RSAES-OAEP
-   encryption scheme.
-
-       id-RSAES-OAEP    OBJECT IDENTIFIER ::= { pkcs-1 7 }
-
-   The parameters field associated with this OID in a value of type
-   AlgorithmIdentifier SHALL have a value of type RSAES-OAEP-params:
-
-    RSAES-OAEP-params ::= SEQUENCE {
-        hashAlgorithm      [0] HashAlgorithm     DEFAULT sha1,
-        maskGenAlgorithm   [1] MaskGenAlgorithm  DEFAULT mgf1SHA1,
-        pSourceAlgorithm   [2] PSourceAlgorithm  DEFAULT pSpecifiedEmpty
-    }
-
-   The fields of type `RSAES-OAEP-params` have the following meanings:
-
--  `hashAlgorithm` identifies the hash function.  It SHALL be an
-      algorithm ID with an OID in the set OAEP-PSSDigestAlgorithms.  For
-      a discussion of supported hash functions, see Appendix B.1.
-
 
-       HashAlgorithm ::= AlgorithmIdentifier {
-          {OAEP-PSSDigestAlgorithms}
-       }
+**RSAVP1 ((n, e), s)**  
 
-       OAEP-PSSDigestAlgorithms    ALGORITHM-IDENTIFIER ::= {
-           { OID id-sha1       PARAMETERS NULL }|
-           { OID id-sha224     PARAMETERS NULL }|
-           { OID id-sha256     PARAMETERS NULL }|
-           { OID id-sha384     PARAMETERS NULL }|
-           { OID id-sha512     PARAMETERS NULL }|
-           { OID id-sha512-224 PARAMETERS NULL }|
-           { OID id-sha512-256 PARAMETERS NULL },
-           ...  -- Allows for future expansion --
-       }
+**Input:**  
 
-   The default hash function is SHA-1:
+            (n, e) RSA public key  
 
-       sha1    HashAlgorithm ::= {
-           algorithm   id-sha1,
-           parameters  SHA1Parameters : NULL
-       }
+            s signature representative, an integer between 0 and n - 1  
 
-       SHA1Parameters ::= NULL
+**Output:**  
 
--  `maskGenAlgorithm` identifies the mask generation function.  It
-    SHALL be an algorithm ID with an OID in the set
-    `PKCS1MGFAlgorithms`, which for this version SHALL consist of
-    `id-mgf1`, identifying the MGF1 mask generation function.  The parameters field associated with `id-mgf1`
-    SHALL be an algorithm ID with an OID in the set
-    `OAEP-PSSDigestAlgorithms`, identifying the hash function on which
-    MGF1 is based.
+            m message representative, an integer between 0 and n - 1  
 
-        MaskGenAlgorithm ::= AlgorithmIdentifier { {PKCS1MGFAlgorithms} }
+**Error:**  "signature representative out of range"  
 
-        PKCS1MGFAlgorithms    ALGORITHM-IDENTIFIER ::= {
-            { OID id-mgf1 PARAMETERS HashAlgorithm },
-            ...  -- Allows for future expansion --
-        }
+**Assumption:**  RSA public key (n, e) is valid  
 
--  The default mask generation function is MGF1 with SHA-1:
+**Steps:**
 
-        mgf1SHA1    MaskGenAlgorithm ::= {
-            algorithm   id-mgf1,
-            parameters  HashAlgorithm : sha1
-        }
+        1.  If the signature representative s is not between 0 and n - 1,
+            output "signature representative out of range" and stop.
 
+        2.  Let m = s^e mod n.
 
--  `pSourceAlgorithm` identifies the source (and possibly the value) of
-      the label L.  It SHALL be an algorithm ID with an OID in the set
-      PKCS1PSourceAlgorithms, which for this version SHALL consist of
-      id-pSpecified, indicating that the label is specified explicitly.
-      The parameters field associated with id-pSpecified SHALL have a
-      value of type OCTET STRING, containing the label.  In previous
-      versions of this specification, the term "encoding parameters" was
-      used rather than "label", hence the name of the type below.
+        3.  Output m.
 
-       PSourceAlgorithm ::= AlgorithmIdentifier {
-          {PKCS1PSourceAlgorithms}
-       }
+**EMSA-PSS-VERIFY (M, EM, emBits)**
 
-       PKCS1PSourceAlgorithms    ALGORITHM-IDENTIFIER ::= {
-           { OID id-pSpecified PARAMETERS EncodingParameters },
-           ...  -- Allows for future expansion --
-       }
+   **Options:**  
 
-       id-pSpecified    OBJECT IDENTIFIER ::= { pkcs-1 9 }
+      Hash     hash function (hLen denotes the length in octets of
+               the hash function output)
+      MGF      mask generation function
+      sLen     intended length in octets of the salt
 
-       EncodingParameters ::= OCTET STRING(SIZE(0..MAX))
+   **Input:**  
 
--  The default label is an empty string (so that lHash will contain
-      the hash of the empty string):
+      M        message to be verified, an octet string
+      EM       encoded message, an octet string of length emLen = \ceil
+               (emBits/8)
+      emBits   maximal bit length of the integer OS2IP (EM) (see Section
+               4.2), at least 8hLen + 8sLen + 9
 
-       pSpecifiedEmpty    PSourceAlgorithm ::= {
-           algorithm   id-pSpecified,
-           parameters  EncodingParameters : emptyString
-       }
+   **Output:**  "consistent" or "inconsistent"  
 
-       emptyString    EncodingParameters ::= ''H
+   **Steps:**  
 
-   If all of the default values of the fields in RSAES-OAEP-params are
-   used, then the algorithm identifier will have the following value:
-
-       rSAES-OAEP-Default-Identifier    RSAES-AlgorithmIdentifier ::= {
-           algorithm   id-RSAES-OAEP,
-           parameters  RSAES-OAEP-params : {
-               hashAlgorithm       sha1,
-               maskGenAlgorithm    mgf1SHA1,
-               pSourceAlgorithm    pSpecifiedEmpty
-           }
-       }
-
-       RSAES-AlgorithmIdentifier ::= AlgorithmIdentifier  {
-           {PKCS1Algorithms}
-       }
-
-
-
-
-
-## RSAES-PKCS-v1_5
-
-   The object identifier rsaEncryption (see Appendix A.1) identifies the
-   RSAES-PKCS1-v1_5 encryption scheme.  The parameters field associated
-   with this OID in a value of type AlgorithmIdentifier SHALL have a
-   value of type NULL.  This is the same as in PKCS #1 v1.5.
-
-       rsaEncryption    OBJECT IDENTIFIER ::= { pkcs-1 1 }
-
-## RSASSA-PSS
-
-   The object identifier id-RSASSA-PSS identifies the RSASSA-PSS
-   encryption scheme.
-
-       id-RSASSA-PSS    OBJECT IDENTIFIER ::= { pkcs-1 10 }
-
-   The parameters field associated with this OID in a value of type
-   AlgorithmIdentifier SHALL have a value of type RSASSA-PSS-params:
-
-    RSASSA-PSS-params ::= SEQUENCE {
-        hashAlgorithm      [0] HashAlgorithm      DEFAULT sha1,
-        maskGenAlgorithm   [1] MaskGenAlgorithm   DEFAULT mgf1SHA1,
-        saltLength         [2] INTEGER            DEFAULT 20,
-        trailerField       [3] TrailerField       DEFAULT trailerFieldBC
-    }
-
-   The fields of type RSASSA-PSS-params have the following meanings:
-
-   -  `hashAlgorithm` identifies the hash function.  It SHALL be an
-      algorithm ID with an OID in the set `OAEP-PSSDigestAlgorithms`.  The default hash function is SHA-1.
-
-   -  `maskGenAlgorithm` identifies the mask generation function.  It
-      SHALL be an algorithm ID with an OID in the set PKCS1MGFAlgorithms
-      (see Appendix A.2.1).  The default mask generation function is
-      MGF1 with SHA-1.  For MGF1 (and more generally, for other mask
-      generation functions based on a hash function), it is RECOMMENDED
-      that the underlying hash function be the same as the one
-      identified by hashAlgorithm; 
-
-   - `saltLength` is the octet length of the salt.  It SHALL be an
-      integer.  For a given hashAlgorithm, the default value of
-      saltLength is the octet length of the hash value.  Unlike the
-      other fields of type `RSASSA-PSS-params`, `saltLength` does not need
-      to be fixed for a given RSA key pair.
-
-   -  `trailerField` is the trailer field number, for compatibility with
-      IEEE 1363a [IEEE1363A].  It SHALL be 1 for this version of the
-      document, which represents the trailer field with hexadecimal
-      value 0xbc.  Other trailer fields (including the trailer field
-      HashID || 0xcc in IEEE 1363a) are not supported in this document.
-
-       TrailerField ::= INTEGER { trailerFieldBC(1) }
-
-   If the default values of the hashAlgorithm, maskGenAlgorithm, and
-   trailerField fields of RSASSA-PSS-params are used, then the algorithm
-   identifier will have the following value:
-
-       rSASSA-PSS-Default-Identifier    RSASSA-AlgorithmIdentifier ::= {
-           algorithm   id-RSASSA-PSS,
-           parameters  RSASSA-PSS-params : {
-               hashAlgorithm       sha1,
-               maskGenAlgorithm    mgf1SHA1,
-               saltLength          20,
-               trailerField        trailerFieldBC
-           }
-       }
-
-       RSASSA-AlgorithmIdentifier ::= AlgorithmIdentifier {
-           {PKCS1Algorithms}
-       }
-
-   Note: In some applications, the hash function underlying a signature
-   scheme is identified separately from the rest of the operations in
-   the signature scheme.  For instance, in PKCS #7 [RFC2315], a hash
-   function identifier is placed before the message and a "digest
-   encryption" algorithm identifier (indicating the rest of the
-   operations) is carried with the signature.  In order for PKCS #7 to
-   support the RSASSA-PSS signature scheme, an object identifier would
-   need to be defined for the operations in RSASSA-PSS after the hash
-   function (analogous to the RSAEncryption OID for the
-   RSASSA-PKCS1-v1_5 scheme).  S/MIME Cryptographic Message Syntax (CMS)
-   [RFC5652] takes a different approach.  Although a hash function
-   identifier is placed before the message, an algorithm identifier for
-   the full signature scheme may be carried with a CMS signature (this
-   is done for DSA signatures).  Following this convention, the
-   id-RSASSA-PSS OID can be used to identify RSASSA-PSS signatures in
-   CMS.  Since CMS is considered the successor to PKCS #7 and new
-   developments such as the addition of support for RSASSA-PSS will be
-   pursued with respect to CMS rather than PKCS #7, an OID for the "rest
-   of" RSASSA-PSS is not defined in this version of PKCS #1.
-
-##  RSASSA-PKCS-v1_5
-
-   The object identifier for RSASSA-PKCS1-v1_5 SHALL be one of the
-   following.  The choice of OID depends on the choice of hash
-   algorithm: MD2, MD5, SHA-1, SHA-224, SHA-256, SHA-384, SHA-512,
-   SHA-512/224, or SHA-512/256.  Note that if either MD2 or MD5 is used,
-   then the OID is just as in PKCS #1 v1.5.  For each OID, the
-   parameters field associated with this OID in a value of type
-   AlgorithmIdentifier SHALL have a value of type NULL.  The OID should
-   be chosen in accordance with the following table:
-
-Hash algorithm  |  OID |
-----------------| ------------------------------------------|
-MD2  |            md2WithRSAEncryption        ::= {pkcs-1 2}
-MD5    |          md5WithRSAEncryption        ::= {pkcs-1 4}
-SHA-1    |        sha1WithRSAEncryption       ::= {pkcs-1 5}
-SHA-256  |        sha224WithRSAEncryption     ::= {pkcs-1 14}
-SHA-256  |        sha256WithRSAEncryption     ::= {pkcs-1 11}
-SHA-384   |       sha384WithRSAEncryption     ::= {pkcs-1 12}
-SHA-512    |      sha512WithRSAEncryption     ::= {pkcs-1 13}
-SHA-512/224 |     sha512-224WithRSAEncryption ::= {pkcs-1 15}
-SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
-
-   The EMSA-PKCS1-v1_5 encoding method includes an ASN.1 value of type
-   DigestInfo, where the type DigestInfo has the syntax
-
-       DigestInfo ::= SEQUENCE {
-           digestAlgorithm DigestAlgorithm,
-           digest OCTET STRING
-       }
-
-   digestAlgorithm identifies the hash function and SHALL be an
-   algorithm ID with an OID in the set PKCS1-v1-5DigestAlgorithms.
-
-
-       DigestAlgorithm ::= AlgorithmIdentifier {
-          {PKCS1-v1-5DigestAlgorithms}
-       }
-
-       PKCS1-v1-5DigestAlgorithms    ALGORITHM-IDENTIFIER ::= {
-           { OID id-md2        PARAMETERS NULL }|
-           { OID id-md5        PARAMETERS NULL }|
-           { OID id-sha1       PARAMETERS NULL }|
-           { OID id-sha224     PARAMETERS NULL }|
-           { OID id-sha256     PARAMETERS NULL }|
-           { OID id-sha384     PARAMETERS NULL }|
-           { OID id-sha512     PARAMETERS NULL }|
-           { OID id-sha512-224 PARAMETERS NULL }|
-           { OID id-sha512-256 PARAMETERS NULL }
-       }
-
-# Supporting Techniques
-
-   This section gives several examples of underlying functions
-   supporting the encryption schemes in Section 7 and the encoding
-   methods in Section 9.  A range of techniques is given here to allow
-   compatibility with existing applications as well as migration to new
-   techniques.  While these supporting techniques are appropriate for
-   applications to implement, none of them is required to be
-   implemented.  It is expected that profiles for PKCS #1 v2.2 will be
-   developed that specify particular supporting techniques.
-
-   This section also gives object identifiers for the supporting
-   techniques.
+      1.   If the length of M is greater than the input limitation for
+           the hash function (2^61 - 1 octets for SHA-1), output
+           "inconsistent" and stop.
+
+      2.   Let mHash = Hash(M), an octet string of length hLen.
+
+      3.   If emLen < hLen + sLen + 2, output "inconsistent" and stop.
+
+      4.   If the rightmost octet of EM does not have hexadecimal value
+           0xbc, output "inconsistent" and stop.
+
+      5.   Let maskedDB be the leftmost emLen - hLen - 1 octets of EM,
+           and let H be the next hLen octets.
+
+      6.   If the leftmost 8emLen - emBits bits of the leftmost octet in
+           maskedDB are not all equal to zero, output "inconsistent" and
+           stop.
+
+      7.   Let dbMask = MGF(H, emLen - hLen - 1).
+
+      8.   Let DB = maskedDB \xor dbMask.
+
+      9.   Set the leftmost 8emLen - emBits bits of the leftmost octet
+           in DB to zero.
+
+      10.  If the emLen - hLen - sLen - 2 leftmost octets of DB are not
+           zero or if the octet at position emLen - hLen - sLen - 1 (the
+           leftmost position is "position 1") does not have hexadecimal
+           value 0x01, output "inconsistent" and stop.
+
+      11.  Let salt be the last sLen octets of DB.
+
+      12.  Let
+
+              M' = (0x)00 00 00 00 00 00 00 00 || mHash || salt ;
+
+           M' is an octet string of length 8 + hLen + sLen with eight
+           initial zero octets.
+
+      13.  Let H' = Hash(M'), an octet string of length hLen.
+
+      14.  If H = H', output "consistent".  Otherwise, output
+           "inconsistent".
 
 ##  Hash Functions
 
@@ -753,116 +582,6 @@ SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
    yield a mask generation function (Appendix B.2) with pseudorandom
    output.
 
-
-   Nine hash functions are given as examples for the encoding methods in
-   this document: MD2 [RFC1319] (which was retired by [RFC6149]), MD5
-   [RFC1321], SHA-1, SHA-224, SHA-256, SHA-384, SHA-512, SHA-512/224,
-   and SHA-512/256 [SHS].  For the RSAES-OAEP encryption scheme and
-   EMSA-PSS encoding method, only SHA-1, SHA-224, SHA-256, SHA-384, SHA-
-   512, SHA-512/224, and SHA-512/256 are RECOMMENDED.  For the EMSA-
-   PKCS1-v1_5 encoding method, SHA-224, SHA-256, SHA-384, SHA-512, SHA-
-   512/224, and SHA-512/256 are RECOMMENDED for new applications.  MD2,
-   MD5, and SHA-1 are recommended only for compatibility with existing
-   applications based on PKCS #1 v1.5.
-
-   The object identifiers id-md2, id-md5, id-sha1, id-sha224, id-sha256,
-   id-sha384, id-sha512, id-sha512/224, and id-sha512/256 identify the
-   respective hash functions:
-
-       id-md2      OBJECT IDENTIFIER ::= {
-           iso (1) member-body (2) us (840) rsadsi (113549)
-           digestAlgorithm (2) 2
-       }
-
-       id-md5      OBJECT IDENTIFIER ::= {
-           iso (1) member-body (2) us (840) rsadsi (113549)
-           digestAlgorithm (2) 5
-       }
-
-       id-sha1    OBJECT IDENTIFIER ::= {
-           iso(1) identified-organization(3) oiw(14) secsig(3)
-            algorithms(2) 26
-       }
-
-       id-sha224    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 4
-       }
-
-       id-sha256    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 1
-       }
-
-       id-sha384    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 2
-       }
-
-
-       id-sha512    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 3
-       }
-
-       id-sha512-224    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 5
-       }
-
-       id-sha512-256    OBJECT IDENTIFIER ::= {
-           joint-iso-itu-t (2) country (16) us (840) organization (1)
-           gov (101) csor (3) nistalgorithm (4) hashalgs (2) 6
-       }
-
-   The parameters field associated with these OIDs in a value of type
-   AlgorithmIdentifier SHALL have a value of type NULL.
-
-   The parameters field associated with id-md2 and id-md5 in a value of
-   type AlgorithmIdentifier shall have a value of type NULL.
-
-   The parameters field associated with id-sha1, id-sha224, id-sha256,
-   id-sha384, id-sha512, id-sha512/224, and id-sha512/256 should
-   generally be omitted, but if present, it shall have a value of type
-   NULL.
-
-   This is to align with the definitions originally promulgated by NIST.
-   For the SHA algorithms, implementations MUST accept
-   AlgorithmIdentifier values both without parameters and with NULL
-   parameters.
-
-   Exception: When formatting the DigestInfoValue in EMSA-PKCS1-v1_5
-   (see Section 9.2), the parameters field associated with id-sha1,
-   id-sha224, id-sha256, id-sha384, id-sha512, id-sha512/224, and
-   id-sha512/256 shall have a value of type NULL.  This is to maintain
-   compatibility with existing implementations and with the numeric
-   information values already published for EMSA-PKCS1-v1_5, which are
-   also reflected in IEEE 1363a [IEEE1363A].
-
-   Note: Version 1.5 of PKCS #1 also allowed for the use of MD4 in
-   signature schemes.  The cryptanalysis of MD4 has progressed
-   significantly in the intervening years.  For example, Dobbertin [MD4]
-   demonstrated how to find collisions for MD4 and that the first two
-   rounds of MD4 are not one-way [MD4FIRST].  Because of these results
-   and others (e.g., [MD4LAST]), MD4 is NOT RECOMMENDED.
-
-   Further advances have been made in the cryptanalysis of MD2 and MD5,
-   especially after the findings of Stevens et al.  [PREFIX] on chosen-
-   prefix collisions on MD5.  MD2 and MD5 should be considered
-   cryptographically broken and removed from existing applications.
-   This version of the standard supports MD2 and MD5 just for backwards-
-   compatibility reasons.
-
-   There have also been advances in the cryptanalysis of SHA-1.
-   Particularly, the results of Wang et al.  [SHA1CRYPT] (which have
-   been independently verified by M.  Cochran in his analysis [COCHRAN])
-   on using a differential path to find collisions in SHA-1, which
-   conclude that the security strength of the SHA-1 hashing algorithm is
-   significantly reduced.  However, this reduction is not significant
-   enough to warrant the removal of SHA-1 from existing applications,
-   but its usage is only recommended for backwards-compatibility
-   reasons.
-
    To address these concerns, only SHA-224, SHA-256, SHA-384, SHA-512,
    SHA-512/224, and SHA-512/256 are RECOMMENDED for new applications.
    As of today, the best (known) collision attacks against these hash
@@ -871,10 +590,7 @@ SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
    document, a collision attack is easily translated into a signature
    forgery.  Therefore, the value L / 2 should be at least equal to the
    desired security level in bits of the signature scheme (a security
-   level of B bits means that the best attack has complexity 2B).  The
-   same rule of thumb can be applied to RSAES-OAEP; it is RECOMMENDED
-   that the bit length of the seed (which is equal to the bit length of
-   the hash output) be twice the desired security level in bits.
+   level of B bits means that the best attack has complexity 2B). 
 
 ##  Mask Generation Functions
 
@@ -903,23 +619,23 @@ SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
 
    MGF1 (mgfSeed, maskLen)
 
-   Options:
+   **Options:**
 
       Hash     hash function (hLen denotes the length in octets of
                the hash function output)
 
-   Input:
+   **Input:**
 
       mgfSeed  seed from which mask is generated, an octet string
       maskLen  intended length in octets of the mask, at most 2^32 hLen
 
-   Output:
+   **Output:**
 
       mask     mask, an octet string of length maskLen
 
-   Error: "mask too long"
+   **Error:** "mask too long"
 
-   Steps:
+  **Steps:**
 
    1.  If maskLen > 2^32 hLen, output "mask too long" and stop.
 
@@ -949,392 +665,3 @@ SHA-512/256  |    sha512-256WithRSAEncryption ::= {pkcs-1 16}
    The parameters field associated with this OID in a value of type
    AlgorithmIdentifier shall have a value of type hashAlgorithm,
    identifying the hash function on which MGF1 is based.
-
-## ASN.1 Module
-
-    -- PKCS #1 v2.2 ASN.1 Module
-    -- Revised October 27, 2012
-
-    -- This module has been checked for conformance with the
-    -- ASN.1 standard by the OSS ASN.1 Tools
-
-    PKCS-1 {
-        iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-1(1)
-        modules(0) pkcs-1(1)
-    }
-
-    DEFINITIONS EXPLICIT TAGS ::=
-
-    BEGIN
-
-    -- EXPORTS ALL
-    -- All types and values defined in this module are exported for use
-    -- in other ASN.1 modules.
-
-    IMPORTS
-
-    id-sha224, id-sha256, id-sha384, id-sha512, id-sha512-224,
-    id-sha512-256
-        FROM NIST-SHA2 {
-            joint-iso-itu-t(2) country(16) us(840) organization(1)
-            gov(101) csor(3) nistalgorithm(4) hashAlgs(2)
-        };
-
-    -- ============================
-    --   Basic object identifiers
-    -- ============================
-
-    -- The DER encoding of this in hexadecimal is:
-    -- (0x)06 08
-    --        2A 86 48 86 F7 0D 01 01
-    --
-    pkcs-1    OBJECT IDENTIFIER ::= {
-        iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) 1
-    }
-
-    --
-    -- When rsaEncryption is used in an AlgorithmIdentifier,
-
-
-    -- the parameters MUST be present and MUST be NULL.
-    --
-    rsaEncryption    OBJECT IDENTIFIER ::= { pkcs-1 1 }
-
-    --
-    -- When id-RSAES-OAEP is used in an AlgorithmIdentifier, the
-    -- parameters MUST be present and MUST be RSAES-OAEP-params.
-    --
-    id-RSAES-OAEP    OBJECT IDENTIFIER ::= { pkcs-1 7 }
-
-    --
-    -- When id-pSpecified is used in an AlgorithmIdentifier, the
-    -- parameters MUST be an OCTET STRING.
-    --
-    id-pSpecified    OBJECT IDENTIFIER ::= { pkcs-1 9 }
-
-    --
-    -- When id-RSASSA-PSS is used in an AlgorithmIdentifier, the
-    -- parameters MUST be present and MUST be RSASSA-PSS-params.
-    --
-    id-RSASSA-PSS    OBJECT IDENTIFIER ::= { pkcs-1 10 }
-
-    --
-    -- When the following OIDs are used in an AlgorithmIdentifier,
-    -- the parameters MUST be present and MUST be NULL.
-    --
-    md2WithRSAEncryption         OBJECT IDENTIFIER ::= { pkcs-1 2 }
-    md5WithRSAEncryption         OBJECT IDENTIFIER ::= { pkcs-1 4 }
-    sha1WithRSAEncryption        OBJECT IDENTIFIER ::= { pkcs-1 5 }
-    sha224WithRSAEncryption      OBJECT IDENTIFIER ::= { pkcs-1 14 }
-    sha256WithRSAEncryption      OBJECT IDENTIFIER ::= { pkcs-1 11 }
-    sha384WithRSAEncryption      OBJECT IDENTIFIER ::= { pkcs-1 12 }
-    sha512WithRSAEncryption      OBJECT IDENTIFIER ::= { pkcs-1 13 }
-    sha512-224WithRSAEncryption  OBJECT IDENTIFIER ::= { pkcs-1 15 }
-    sha512-256WithRSAEncryption  OBJECT IDENTIFIER ::= { pkcs-1 16 }
-
-    --
-    -- This OID really belongs in a module with the secsig OIDs.
-    --
-    id-sha1    OBJECT IDENTIFIER ::= {
-        iso(1) identified-organization(3) oiw(14) secsig(3) algorithms(2)
-        26
-    }
-
-    --
-    -- OIDs for MD2 and MD5, allowed only in EMSA-PKCS1-v1_5.
-    --
-    id-md2 OBJECT IDENTIFIER ::= {
-
-
-       iso(1) member-body(2) us(840) rsadsi(113549) digestAlgorithm(2) 2
-   }
-
-    id-md5 OBJECT IDENTIFIER ::= {
-        iso(1) member-body(2) us(840) rsadsi(113549) digestAlgorithm(2) 5
-    }
-
-    --
-    -- When id-mgf1 is used in an AlgorithmIdentifier, the parameters
-    -- MUST be present and MUST be a HashAlgorithm, for example, sha1.
-    --
-    id-mgf1    OBJECT IDENTIFIER ::= { pkcs-1 8 }
-
-    -- ================
-    --   Useful types
-    -- ================
-
-    ALGORITHM-IDENTIFIER ::= CLASS {
-        &id    OBJECT IDENTIFIER  UNIQUE,
-        &Type  OPTIONAL
-    }
-        WITH SYNTAX { OID &id [PARAMETERS &Type] }
-
-    -- Note: the parameter InfoObjectSet in the following definitions
-    -- allows a distinct information object set to be specified for sets
-    -- of algorithms such as:
-    -- DigestAlgorithms    ALGORITHM-IDENTIFIER ::= {
-    --     { OID id-md2  PARAMETERS NULL }|
-    --     { OID id-md5  PARAMETERS NULL }|
-    --     { OID id-sha1 PARAMETERS NULL }
-    -- }
-    --
-
-    AlgorithmIdentifier { ALGORITHM-IDENTIFIER:InfoObjectSet } ::=
-        SEQUENCE {
-            algorithm
-                ALGORITHM-IDENTIFIER.&id({InfoObjectSet}),
-            parameters
-                ALGORITHM-IDENTIFIER.&Type({InfoObjectSet}{@.algorithm})
-                OPTIONAL
-    }
-
-    -- ==============
-    --   Algorithms
-    -- ==============
-
-    --
-    -- Allowed EME-OAEP and EMSA-PSS digest algorithms.
-
-    --
-    OAEP-PSSDigestAlgorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID id-sha1       PARAMETERS NULL }|
-        { OID id-sha224     PARAMETERS NULL }|
-        { OID id-sha256     PARAMETERS NULL }|
-        { OID id-sha384     PARAMETERS NULL }|
-        { OID id-sha512     PARAMETERS NULL }|
-        { OID id-sha512-224 PARAMETERS NULL }|
-        { OID id-sha512-256 PARAMETERS NULL },
-        ...  -- Allows for future expansion --
-    }
-
-    --
-    -- Allowed EMSA-PKCS1-v1_5 digest algorithms.
-    --
-    PKCS1-v1-5DigestAlgorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID id-md2        PARAMETERS NULL }|
-        { OID id-md5        PARAMETERS NULL }|
-        { OID id-sha1       PARAMETERS NULL }|
-        { OID id-sha224     PARAMETERS NULL }|
-        { OID id-sha256     PARAMETERS NULL }|
-        { OID id-sha384     PARAMETERS NULL }|
-        { OID id-sha512     PARAMETERS NULL }|
-        { OID id-sha512-224 PARAMETERS NULL }|
-        { OID id-sha512-256 PARAMETERS NULL }
-    }
-
-    -- When id-md2 and id-md5 are used in an AlgorithmIdentifier, the
-    -- parameters field shall have a value of type NULL.
-
-    -- When id-sha1, id-sha224, id-sha256, id-sha384, id-sha512,
-    -- id-sha512-224, and id-sha512-256 are used in an
-    -- AlgorithmIdentifier, the parameters (which are optional) SHOULD be
-    -- omitted, but if present, they SHALL have a value of type NULL.
-    -- However, implementations MUST accept AlgorithmIdentifier values
-    -- both without parameters and with NULL parameters.
-
-    -- Exception: When formatting the DigestInfoValue in EMSA-PKCS1-v1_5
-    -- (see Section 9.2), the parameters field associated with id-sha1,
-    -- id-sha224, id-sha256, id-sha384, id-sha512, id-sha512-224, and
-    -- id-sha512-256 SHALL have a value of type NULL.  This is to
-    -- maintain compatibility with existing implementations and with the
-    -- numeric information values already published for EMSA-PKCS1-v1_5,
-    -- which are also reflected in IEEE 1363a.
-
-    sha1    HashAlgorithm ::= {
-        algorithm   id-sha1,
-        parameters  SHA1Parameters : NULL
-    }
-
-    HashAlgorithm ::= AlgorithmIdentifier { {OAEP-PSSDigestAlgorithms} }
-
-    SHA1Parameters ::= NULL
-
-    --
-    -- Allowed mask generation function algorithms.
-    -- If the identifier is id-mgf1, the parameters are a HashAlgorithm.
-    --
-    PKCS1MGFAlgorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID id-mgf1 PARAMETERS HashAlgorithm },
-        ...  -- Allows for future expansion --
-    }
-
-    --
-    -- Default AlgorithmIdentifier for id-RSAES-OAEP.maskGenAlgorithm and
-    -- id-RSASSA-PSS.maskGenAlgorithm.
-    --
-    mgf1SHA1    MaskGenAlgorithm ::= {
-        algorithm   id-mgf1,
-        parameters  HashAlgorithm : sha1
-    }
-
-    MaskGenAlgorithm ::= AlgorithmIdentifier { {PKCS1MGFAlgorithms} }
-
-    --
-    -- Allowed algorithms for pSourceAlgorithm.
-    --
-    PKCS1PSourceAlgorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID id-pSpecified PARAMETERS EncodingParameters },
-        ...  -- Allows for future expansion --
-    }
-
-    EncodingParameters ::= OCTET STRING(SIZE(0..MAX))
-
-    --
-    -- This identifier means that the label L is an empty string, so the
-    -- digest of the empty string appears in the RSA block before
-    -- masking.
-    --
-
-    pSpecifiedEmpty    PSourceAlgorithm ::= {
-        algorithm   id-pSpecified,
-        parameters  EncodingParameters : emptyString
-    }
-
-    PSourceAlgorithm ::= AlgorithmIdentifier { {PKCS1PSourceAlgorithms} }
-    emptyString    EncodingParameters ::= ''H
-
-    --
-    -- Type identifier definitions for the PKCS #1 OIDs.
-    --
-    PKCS1Algorithms    ALGORITHM-IDENTIFIER ::= {
-        { OID rsaEncryption                PARAMETERS NULL } |
-        { OID md2WithRSAEncryption         PARAMETERS NULL } |
-        { OID md5WithRSAEncryption         PARAMETERS NULL } |
-        { OID sha1WithRSAEncryption        PARAMETERS NULL } |
-        { OID sha224WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha256WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha384WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha512WithRSAEncryption      PARAMETERS NULL } |
-        { OID sha512-224WithRSAEncryption  PARAMETERS NULL } |
-        { OID sha512-256WithRSAEncryption  PARAMETERS NULL } |
-        { OID id-RSAES-OAEP   PARAMETERS RSAES-OAEP-params } |
-        PKCS1PSourceAlgorithms                               |
-        { OID id-RSASSA-PSS   PARAMETERS RSASSA-PSS-params },
-        ...  -- Allows for future expansion --
-    }
-
-    -- ===================
-    --   Main structures
-    -- ===================
-
-    RSAPublicKey ::= SEQUENCE {
-        modulus           INTEGER,  -- n
-        publicExponent    INTEGER   -- e
-    }
-
-    --
-    -- Representation of RSA private key with information for the CRT
-    -- algorithm.
-    --
-    RSAPrivateKey ::= SEQUENCE {
-        version           Version,
-        modulus           INTEGER,  -- n
-        publicExponent    INTEGER,  -- e
-        privateExponent   INTEGER,  -- d
-        prime1            INTEGER,  -- p
-        prime2            INTEGER,  -- q
-        exponent1         INTEGER,  -- d mod (p-1)
-        exponent2         INTEGER,  -- d mod (q-1)
-        coefficient       INTEGER,  -- (inverse of q) mod p
-        otherPrimeInfos   OtherPrimeInfos OPTIONAL
-    }
-
-
-    Version ::= INTEGER { two-prime(0), multi(1) }
-        (CONSTRAINED BY
-            {-- version MUST
-        be multi if otherPrimeInfos present --})
-
-    OtherPrimeInfos ::= SEQUENCE SIZE(1..MAX) OF OtherPrimeInfo
-
-
-    OtherPrimeInfo ::= SEQUENCE {
-        prime             INTEGER,  -- ri
-        exponent          INTEGER,  -- di
-        coefficient       INTEGER   -- ti
-    }
-
-    --
-    -- AlgorithmIdentifier.parameters for id-RSAES-OAEP.
-    -- Note that the tags in this Sequence are explicit.
-    --
-    RSAES-OAEP-params ::= SEQUENCE {
-        hashAlgorithm      [0] HashAlgorithm     DEFAULT sha1,
-        maskGenAlgorithm   [1] MaskGenAlgorithm  DEFAULT mgf1SHA1,
-        pSourceAlgorithm   [2] PSourceAlgorithm  DEFAULT pSpecifiedEmpty
-    }
-
-    --
-    -- Identifier for default RSAES-OAEP algorithm identifier.
-    -- The DER encoding of this is in hexadecimal:
-    -- (0x)30 0D
-    --        06 09
-    --           2A 86 48 86 F7 0D 01 01 07
-    --        30 00
-    -- Notice that the DER encoding of default values is "empty".
-    --
-
-    rSAES-OAEP-Default-Identifier    RSAES-AlgorithmIdentifier ::= {
-        algorithm   id-RSAES-OAEP,
-        parameters  RSAES-OAEP-params : {
-            hashAlgorithm       sha1,
-            maskGenAlgorithm    mgf1SHA1,
-            pSourceAlgorithm    pSpecifiedEmpty
-        }
-    }
-
-    RSAES-AlgorithmIdentifier ::= AlgorithmIdentifier {
-        {PKCS1Algorithms}
-    }
-
-    --
-
-
-    -- AlgorithmIdentifier.parameters for id-RSASSA-PSS.
-    -- Note that the tags in this Sequence are explicit.
-    --
-    RSASSA-PSS-params ::= SEQUENCE {
-        hashAlgorithm      [0] HashAlgorithm      DEFAULT sha1,
-        maskGenAlgorithm   [1] MaskGenAlgorithm   DEFAULT mgf1SHA1,
-        saltLength         [2] INTEGER            DEFAULT 20,
-        trailerField       [3] TrailerField       DEFAULT trailerFieldBC
-    }
-
-    TrailerField ::= INTEGER { trailerFieldBC(1) }
-
-    --
-    -- Identifier for default RSASSA-PSS algorithm identifier
-    -- The DER encoding of this is in hexadecimal:
-    -- (0x)30 0D
-    --        06 09
-    --           2A 86 48 86 F7 0D 01 01 0A
-    --        30 00
-    -- Notice that the DER encoding of default values is "empty".
-    --
-    rSASSA-PSS-Default-Identifier    RSASSA-AlgorithmIdentifier ::= {
-        algorithm   id-RSASSA-PSS,
-        parameters  RSASSA-PSS-params : {
-            hashAlgorithm       sha1,
-            maskGenAlgorithm    mgf1SHA1,
-            saltLength          20,
-            trailerField        trailerFieldBC
-        }
-    }
-
-    RSASSA-AlgorithmIdentifier ::= AlgorithmIdentifier {
-        {PKCS1Algorithms}
-    }
-
-    --
-    -- Syntax for the EMSA-PKCS1-v1_5 hash identifier.
-    --
-    DigestInfo ::= SEQUENCE {
-        digestAlgorithm DigestAlgorithm,
-        digest OCTET STRING
-    }
-
-    DigestAlgorithm ::= AlgorithmIdentifier {
-        {PKCS1-v1-5DigestAlgorithms}
-    }
-
-    END
