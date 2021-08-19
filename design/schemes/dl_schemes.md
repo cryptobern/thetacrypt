@@ -217,7 +217,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `h = H(ct.u, ct.msg)`<br>
 `return ê(g, ct.û) == ê(ct.u, h)`<br><br>
 
-**`BZ03_ThresholdCipher::decrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
+**`BZ03_ThresholdCipher::partialDecrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
