@@ -1,4 +1,4 @@
-# Threshold API
+# Threshold Crypto Library API
 This document presents the abstract interfaces for our threshold cryptography library.
 
 **Parameters**
@@ -63,9 +63,7 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 **`ThresholdCipher::verifyCiphertext(ct: Ciphertext, pk: PublicKey) -> bool`**<br>
 
-**`ThresholdCipher::decrypt(ct: Ciphertext, sk: PrivateKey) -> DecryptionShare`**<br>
-
-Method probably needs renaming (partiallyDecrypt?)
+**`ThresholdCipher::partialDecrypt(ct: Ciphertext, sk: PrivateKey) -> DecryptionShare`**<br>
 
 **`ThresholdCipher::verifyShare(sh: Share, ct: Ciphertext, pk: PublicKey) -> bool`**<br>
 
@@ -73,9 +71,7 @@ Method probably needs renaming (partiallyDecrypt?)
 
 # ThresholdSignature 
 
-**`ThresholdSignature::sign(msg: Vec<u8>, sk: PrivateKey) -> SignatureShare`**<br>
-
-Method probably needs renaming (partiallySign?)
+**`ThresholdSignature::partialSign(msg: Vec<u8>, sk: PrivateKey) -> SignatureShare`**<br>
 
 **`ThresholdSignature::verifyShare(share: Share, pk: PublicKey, msg: Vec<u8>) -> bool`**<br>
 
