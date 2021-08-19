@@ -149,7 +149,7 @@ Implementation of abstract interface `ThresholdCipher`.
 `ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.û, ŵ)`<br>
 
-**`SG02_ThresholdCipher::createShare(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
+**`SG02_ThresholdCipher::decrypt(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
 `ûi = ct.u^si` <br>
@@ -217,7 +217,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `h = H(ct.u, ct.msg)`<br>
 `return ê(g, ct.û) == ê(ct.u, h)`<br><br>
 
-**`BZ03_ThresholdCipher::createShare(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
+**`BZ03_ThresholdCipher::decrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
