@@ -1,4 +1,4 @@
-# Threshold API
+# Threshold Crypto Library API
 This document presents the abstract interfaces for our threshold cryptography library.
 
 **Parameters**
