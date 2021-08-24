@@ -1,0 +1,76 @@
+# Threshold Crypto Library API (RUST Version)
+
+In Rust, no such concept as inheritance exists. Rather, the language uses the concept of "composition over inheritance" which means we have to structure the API differently.
+
+## Structs
+
+**PublicKey**
+- **publicValue**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
+- **verificationKey**: verification key (implements `VerificationKey` trait)
+- **k**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
+
+**PrivateKey**
+- **id**: key identifier
+- **xi**: private key share
+- **pk**: public key
+
+**CoinShare**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
+
+**DecryptionShare**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
+
+**SignatureShare**
+- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
+- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
+- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
+
+**Ciphertext**
+- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label describing the message content
+- **msg**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
+
+**SignedMessage**
+- **sig**:&nbsp;&nbsp; signature
+- **msg**: message
+
+<br><br>
+
+## Traits
+
+**Share** <br>
+- **`get_id(&self) -> u8`**
+
+
+### Threshold Cipher
+
+**CipherPublicKey**<br>
+- **`encrypt(&self, msg: Vec<u8>, label: Vec<u8>) -> impl Ciphertext`**
+- **`verifyShare(&self, sh: impl Share, ct: impl Ciphertext) -> bool`**
+- **`verifyCiphertext(&self, ct: impl Ciphertext) -> bool`**
+- **`assemble(ct: impl Ciphertext, shares: Vec<impl Share>]) -> Vec<u8>`**
+
+**CipherPrivateKey**<br>
+- **`partialDecrypt(&self, ct: impl Ciphertext) -> impl Share`**
+
+### Threshold Signature
+
+**SignaturePublicKey**<br>
+- **`verify(&self, sig: impl SignedMessage) -> bool`**
+- **`verifyShare(&self, share: impl Share, msg: Vec<u8>) -> bool`**
+- **`assemble(shares: Vec<impl Share>, msg: Vec<u8>) -> bool`**
+
+**SignaturePrivateKey**<br>
+- **`partialSign(&self, msg: Vec<u8>) -> impl Share`**
+
+### Threshold Coin
+
+**CoinPublicKey**<br>
+- **`verifyShare(&self, share: impl Share, cname: String) -> bool`**
+- **`assemble(shares: Vec<impl Share>) -> u8`**
+
+**CoinPrivateKey**<br>
+- **`createShare(&self, cname: String) -> impl Share`**

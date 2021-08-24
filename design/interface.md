@@ -44,37 +44,37 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 # KeyGenerator
 
-**`KeyGenerator::generateKeys(k: u8, n: u8, params: Parameters) -> (PublicKey, Vec<PrivateKey>)`**<br>
+**`KeyGenerator::generateKeys(uint8_t k, uint8_t n, Parameters params) -> (PublicKey, vector<PrivateKey>)`**<br>
 <br><br>
 
 
 # ThresholdCoin
 
-**`ThresholdCoin::createShare(cname: String, privateKey: PrivateKey) -> CoinShare`**<br>
+**`ThresholdCoin::createShare(string cname, PrivateKey privateKey) -> CoinShare`**<br>
 
-**`ThresholdCoin::verifyShare(share: Share, cname: String, publicKey: PublicKey) -> bool`**<br>
+**`ThresholdCoin::verifyShare(CoinShare share, string cname, PublicKey publicKey) -> bool`**<br>
 
-**`ThresholdCoin::assemble(shares: Vec<Share>) -> u8`**<br><br>
+**`ThresholdCoin::assemble(vector<CoinShare> shares) -> uint8_t`**<br><br>
 
 # ThresholdCipher
 
 
-**`ThresholdCipher::encrypt(msg: Vec<u8>, label: Vec<u8>, pk: PublicKey) -> Ciphertext`**<br>
+**`ThresholdCipher::encrypt(vector<uint8_t> msg, vector<uint8_t> label, PublicKey pk) -> Ciphertext`**<br>
 
-**`ThresholdCipher::verifyCiphertext(ct: Ciphertext, pk: PublicKey) -> bool`**<br>
+**`ThresholdCipher::verifyCiphertext(Ciphertext ct, PublicKey pk) -> bool`**<br>
 
-**`ThresholdCipher::partialDecrypt(ct: Ciphertext, sk: PrivateKey) -> DecryptionShare`**<br>
+**`ThresholdCipher::partialDecrypt(Ciphertext ct, PrivateKey sk) -> DecryptionShare`**<br>
 
-**`ThresholdCipher::verifyShare(sh: Share, ct: Ciphertext, pk: PublicKey) -> bool`**<br>
+**`ThresholdCipher::verifyShare(DecryptionShare share, Ciphertext ct, PublicKey pk) -> bool`**<br>
 
-**`ThresholdCipher::assemble(ct: Ciphertext, shares: Vec<Share>]) -> Vec<u8>`**<br><br>
+**`ThresholdCipher::assemble(Ciphertext ct, vector<DecryptionShare> shares) -> vector<uint8_t>`**<br><br>
 
 # ThresholdSignature 
 
-**`ThresholdSignature::partialSign(msg: Vec<u8>, sk: PrivateKey) -> SignatureShare`**<br>
+**`ThresholdSignature::partialSign(vector<uint8_t> msg, PrivateKey sk) -> SignatureShare`**<br>
 
-**`ThresholdSignature::verifyShare(share: Share, pk: PublicKey, msg: Vec<u8>) -> bool`**<br>
+**`ThresholdSignature::verifyShare(SignatureShare share, PublicKey pk, vector<uint8_t> msg) -> bool`**<br>
 
-**`ThresholdSignature::assemble(shares: Vec<Share>, msg: Vec<u8>) -> bool`**<br>
+**`ThresholdSignature::assemble(vector<SignatureShare> shares, vector<uint8_t> msg) -> bool`**<br>
 
-**`ThresholdSignature::verify(sig: SignedMessage) -> bool`**<br>
+**`ThresholdSignature::verify(SignedMessage sig, PublicKey pk) -> bool`**<br>
