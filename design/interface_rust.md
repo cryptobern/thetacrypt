@@ -6,7 +6,7 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 
 **Share** <br>
 - **`get_id(&self) -> u8`**
-- **`get_data(&self) -> vec<u8>`**
+- **`get_data(&self) -> Vec<u8>`**
 
 **Ciphertext**<br>
 - **`get_label(&self)`**
