@@ -56,8 +56,8 @@ This document presents the abstract interfaces for our threshold cryptography li
 
 **`ThresholdCoin::assemble(vector<CoinShare> shares) -> uint8_t`**<br><br>
 
-# ThresholdCipher
 
+# ThresholdCipher
 
 **`ThresholdCipher::encrypt(vector<uint8_t> msg, vector<uint8_t> label, PublicKey pk) -> Ciphertext`**<br>
 
@@ -68,6 +68,7 @@ This document presents the abstract interfaces for our threshold cryptography li
 **`ThresholdCipher::verifyShare(DecryptionShare share, Ciphertext ct, PublicKey pk) -> bool`**<br>
 
 **`ThresholdCipher::assemble(Ciphertext ct, vector<DecryptionShare> shares) -> vector<uint8_t>`**<br><br>
+
 
 # ThresholdSignature 
 

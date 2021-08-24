@@ -1,6 +1,6 @@
 # Threshold Crypto Library API (RUST Version)
 
-In Rust, no such concept as inheritance exists. Rather, the language uses the concept of "composition over inheritance" which means we have to structure the API differently.
+In Rust, no such concept as inheritance exists. Instead, the language uses the concept of "composition over inheritance," which means we have to structure the API differently.
 
 ## Structs
 
@@ -43,7 +43,11 @@ In Rust, no such concept as inheritance exists. Rather, the language uses the co
 
 **Share** <br>
 - **`get_id(&self) -> u8`**
+- **`get_data(&self) -> vec<u8>`**
 
+**Ciphertext**<br>
+- **`get_label(&self)`**<br>
+- **`get_message(&self)`**<br>
 
 ### Threshold Cipher
 
