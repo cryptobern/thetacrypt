@@ -2,43 +2,6 @@
 
 In Rust, no such concept as inheritance exists. Instead, the language uses the concept of "composition over inheritance," which means we have to structure the API differently.
 
-## Structs
-
-**PublicKey**
-- **publicValue**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
-- **verificationKey**: verification key (implements `VerificationKey` trait)
-- **k**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
-
-**PrivateKey**
-- **id**: key identifier
-- **xi**: private key share
-- **pk**: public key
-
-**CoinShare**
-- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
-- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
-- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
-
-**DecryptionShare**
-- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
-- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
-- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
-
-**SignatureShare**
-- **id**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; share identifier
-- **label**:&nbsp;&nbsp;&nbsp;label used to show which shares belong together
-- **data**:&nbsp;&nbsp;&nbsp;&nbsp;share value
-
-**Ciphertext**
-- **label**:&nbsp;&nbsp;&nbsp;&nbsp; label describing the message content
-- **msg**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
-
-**SignedMessage**
-- **sig**:&nbsp;&nbsp; signature
-- **msg**: message
-
-<br><br>
-
 ## Traits
 
 **Share** <br>
@@ -46,8 +9,12 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 - **`get_data(&self) -> vec<u8>`**
 
 **Ciphertext**<br>
-- **`get_label(&self)`**<br>
-- **`get_message(&self)`**<br>
+- **`get_label(&self)`**
+- **`get_message(&self)`**
+
+**SignedMessage**<br>
+- **`get_signature(%self)`**
+- **`get_message(&self)`**
 
 ### Threshold Cipher
 
