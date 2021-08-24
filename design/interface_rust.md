@@ -13,7 +13,7 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 - **`get_message(&self)`**
 
 **SignedMessage**<br>
-- **`get_signature(%self)`**
+- **`get_signature(&self)`**
 - **`get_message(&self)`**
 
 ### Threshold Cipher
