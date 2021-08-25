@@ -20,28 +20,28 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 
 **CipherPublicKey**<br>
 - **`encrypt(&self, msg: Vec<u8>, label: Vec<u8>) -> impl Ciphertext`**
-- **`verifyShare(&self, sh: impl Share, ct: impl Ciphertext) -> bool`**
-- **`verifyCiphertext(&self, ct: impl Ciphertext) -> bool`**
+- **`verify_share(&self, sh: impl Share, ct: impl Ciphertext) -> bool`**
+- **`verify_ciphertext(&self, ct: impl Ciphertext) -> bool`**
 - **`assemble(ct: impl Ciphertext, shares: Vec<impl Share>]) -> Vec<u8>`**
 
 **CipherPrivateKey**<br>
-- **`partialDecrypt(&self, ct: impl Ciphertext) -> impl Share`**
+- **`partial_decrypt(&self, ct: impl Ciphertext) -> impl Share`**
 
 ### Threshold Signature
 
 **SignaturePublicKey**<br>
 - **`verify(&self, sig: impl SignedMessage) -> bool`**
-- **`verifyShare(&self, share: impl Share, msg: Vec<u8>) -> bool`**
+- **`verify_share(&self, share: impl Share, msg: Vec<u8>) -> bool`**
 - **`assemble(shares: Vec<impl Share>, msg: Vec<u8>) -> bool`**
 
 **SignaturePrivateKey**<br>
-- **`partialSign(&self, msg: Vec<u8>) -> impl Share`**
+- **`partial_sign(&self, msg: Vec<u8>) -> impl Share`**
 
 ### Threshold Coin
 
 **CoinPublicKey**<br>
-- **`verifyShare(&self, share: impl Share, cname: String) -> bool`**
+- **`verify_share(&self, share: impl Share, cname: String) -> bool`**
 - **`assemble(shares: Vec<impl Share>) -> u8`**
 
 **CoinPrivateKey**<br>
-- **`createShare(&self, cname: String) -> impl Share`**
+- **`create_share(&self, cname: String) -> impl Share`**
