@@ -5,6 +5,7 @@
 
 use miracl_core::rand::{RAND, RAND_impl};
 use miracl_core::bls12381::ecp::ECP;
+use miracl_core::bls12381::big;
 use miracl_core::bls12381::ecp2::ECP2;
 use miracl_core::bls12381::big::BIG;
 use miracl_core::bls12381::dbig::DBIG;
@@ -21,6 +22,13 @@ pub struct ECGroup {
     g: ECP
 }
 
+pub struct PublicKey {
+    y: ECP2,
+    verificationKey: Vec<ECP>,
+    g_hat: ECP,
+    group: ECGroup,
+}
+
 pub struct PrivateKey {
     id: u8,
     xi: BIG,
@@ -32,23 +40,26 @@ impl PrivateKey {
         let mut u = cipher.u.clone();
         u = u.mul(&self.xi);
 
-        return DecryptionShare {id:self.id.clone(), data: u.clone()};
+        DecryptionShare {id:self.id.clone(), data: u.clone()}
     }
-}
-
-pub struct PublicKey {
-    y: ECP2,
-    verificationKey: Vec<ECP>,
-    g_hat: ECP,
-    group: ECGroup,
 }
 
 fn H(g: &ECP2, m: &Vec<u8>) -> ECP {
     let a = ECP::hap2point(&g.getx().geta());
 
-    //let mut bytes: Vec<u8> = Vec::new();
-   // g.tobytes(&mut bytes, false);
-    a
+    let mut bytes: Vec<u8> = vec![0;256];
+    g.tobytes(&mut bytes, false);
+
+    let mut h = HASH256::new();
+    h.process_array(&[&bytes[..], &m[..]].concat());
+
+    let h = [&vec![0;big::MODBYTES - 32][..], &h.hash()[..]].concat();
+
+    let mut s = BIG::frombytes(&h);
+    s.rmod(&BIG::new_ints(&rom::CURVE_ORDER));
+
+    ECP::generator().mul(&s)
+
 }
 
 impl PublicKey {
