@@ -1,0 +1,7 @@
+cargo:rustc-cfg=gmp_limb_bits_64
+$ mkdir -p "/home/sh4d0/Documents/rust_crypto/target/rls/debug/build/rug-318979f046c39fdc/out/try_unsafe_in_unsafe"
+$ cd "/home/sh4d0/Documents/rust_crypto/target/rls/debug/build/rug-318979f046c39fdc/out/try_unsafe_in_unsafe"
+$ printf '%s' "// try_uns"... > "/home/sh4d0/Documents/rust_crypto/target/rls/debug/build/rug-318979f046c39fdc/out/try_unsafe_in_unsafe/try_unsafe_in_unsafe.rs"
+$ "rustc" "try_unsafe_in_unsafe.rs" "--emit=dep-info,metadata" >& /dev/null
+cargo:rustc-cfg=unsafe_in_unsafe
+$ rm -r "/home/sh4d0/Documents/rust_crypto/target/rls/debug/build/rug-318979f046c39fdc/out/try_unsafe_in_unsafe"

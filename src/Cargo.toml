@@ -1,0 +1,22 @@
+[package]
+name = "rust_crypto"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+time = "0.2.27"
+byteorder = "1"
+modular = "1.0.0"
+rug = "1.13.0"
+ark-ff = "=0.2.0"
+ark-ec = "=0.2.0"
+ark-poly = "=0.2.0"
+ark-serialize = "=0.2.0"
+ark-std = "=0.2.0"
+ark-bls12-381 = "=0.2.0"
+miracl_core = "=2.6.0"
+der = "=0.4.1"
+hex = "=0.3.0"
+
+[features]
+std = []
