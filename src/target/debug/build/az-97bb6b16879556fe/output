@@ -1,0 +1,6 @@
+$ mkdir -p "/home/sh4d0/Documents/rust_crypto/target/debug/build/az-97bb6b16879556fe/out/try_track_caller"
+$ cd "/home/sh4d0/Documents/rust_crypto/target/debug/build/az-97bb6b16879556fe/out/try_track_caller"
+$ printf '%s' "// try_tra"... > "/home/sh4d0/Documents/rust_crypto/target/debug/build/az-97bb6b16879556fe/out/try_track_caller/try_track_caller.rs"
+$ "rustc" "try_track_caller.rs" "--emit=dep-info,metadata" >& /dev/null
+cargo:rustc-cfg=track_caller
+$ rm -r "/home/sh4d0/Documents/rust_crypto/target/debug/build/az-97bb6b16879556fe/out/try_track_caller"
