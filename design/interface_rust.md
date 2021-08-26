@@ -16,6 +16,17 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 - **`get_signature(&self)`**
 - **`get_message(&self)`**
 
+
+### Threshold Coin
+
+**CoinPublicKey**<br>
+- **`verify_share(&self, share: impl Share, cname: String) -> bool`**
+- **`assemble(shares: Vec<impl Share>) -> u8`**
+
+**CoinPrivateKey**<br>
+- **`create_share(&self, cname: String) -> impl Share`**
+
+
 ### Threshold Cipher
 
 **CipherPublicKey**<br>
@@ -36,12 +47,3 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 
 **SignaturePrivateKey**<br>
 - **`partial_sign(&self, msg: Vec<u8>) -> impl Share`**
-
-### Threshold Coin
-
-**CoinPublicKey**<br>
-- **`verify_share(&self, share: impl Share, cname: String) -> bool`**
-- **`assemble(shares: Vec<impl Share>) -> u8`**
-
-**CoinPrivateKey**<br>
-- **`create_share(&self, cname: String) -> impl Share`**
