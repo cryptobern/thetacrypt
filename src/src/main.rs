@@ -93,7 +93,7 @@ impl PublicKey {
         let mut msg: Vec<u8> = vec![0; 44];
         cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
 
-        return msg;
+        msg
     }
 
     fn verify_ciphertext(&self, ct: &Ciphertext) -> bool {
@@ -105,7 +105,7 @@ impl PublicKey {
         let mut rhs = pair::ate(&ECP2::generator(), &ct.hr);
         rhs = pair::fexp(&rhs);
         
-        return lhs.equals(&rhs);
+        lhs.equals(&rhs)
 
     }
 
@@ -116,7 +116,7 @@ impl PublicKey {
         let mut rhs = pair::ate(&ct.u, &self.verificationKey[(&share.id - 1) as usize]);
         rhs = pair::fexp(&rhs);
         
-        return lhs.equals(&rhs);
+        lhs.equals(&rhs)
     }
 }
 
@@ -153,7 +153,7 @@ fn interpolate(shares: Vec<BIG>) -> BIG {
     }
     key.rmod(&q);
 
-    return BIG::fromstring(key.tostring())
+    BIG::fromstring(key.tostring())
 }
 
 fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
@@ -225,7 +225,7 @@ fn gen_keys(k: u8, n:u8, rng: &mut impl RAND) -> (PublicKey, Vec<PrivateKey>) {
         sk.push(PrivateKey {id:j, xi:shares[(j -1) as usize], pubkey:pk.clone()});
     }
 
-    return (pk, sk)
+    (pk, sk)
 }  
 
 fn shamir_share(x: &BIG, g:&ECP, k: &u8, n: &u8, rng: &mut impl RAND) -> (Vec<BIG>, Vec<ECP>) {
@@ -269,7 +269,7 @@ fn eval_pol(x: &BIG, a: &Vec<BIG>) ->  BIG {
     val.add(&a[(len - 1) as usize]);
     val.rmod(&q);
 
-    return BIG::fromstring(val.tostring());
+    BIG::fromstring(val.tostring())
 }
 
 fn lagrange_coeff(indices: &[u8], i: isize) -> BIG {
@@ -347,14 +347,12 @@ fn main() {
     let ciphertext = pk.encrypt(msg, label, &mut rng);
     printbinary(&ciphertext.msg, Some("Ciphertext: "));
 
-    let cipherok = pk.verify_ciphertext(&ciphertext);
-
-    println!("Ciphertext ok: {}", cipherok);
+    println!("Ciphertext valid: {}", pk.verify_ciphertext(&ciphertext));
 
     let mut shares:Vec<DecryptionShare> = Vec::new();
     for i in 0..K {
         shares.push(sk[i as usize].partial_decrypt(&ciphertext));
-        println!("Share {} ok? {}", i, pk.verify_decryption_share(&shares[i as usize], &ciphertext));
+        println!("Share {} valid: {}", i, pk.verify_decryption_share(&shares[i as usize], &ciphertext));
     }
 
     let msg = pk.assemble(&ciphertext, &shares);
