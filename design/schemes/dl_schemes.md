@@ -129,7 +129,7 @@ Implementation of abstract interface `ThresholdCipher`.
 
 **Scheme:**
 
-**`SG02_ThresholdCipher::partialEncrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
+**`SG02_ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(m, k)`<br>
 `r = random(2, pk.group.q-1)` <br>
