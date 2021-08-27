@@ -35,6 +35,29 @@ pub struct BZ03_PrivateKey {
     pubkey: BZ03_PublicKey,
 }
 
+pub struct BZ03_DecryptionShare {
+    id: u8,
+    data: ECP2
+}
+
+impl DecryptionShare for BZ03_DecryptionShare {
+    fn get_id(&self) -> u8 { self.id.clone() }
+    fn get_data(&self) -> ECP2 { self.data.clone() }
+}
+
+pub struct BZ03_Ciphertext {
+    label: Vec<u8>,
+    msg: Vec<u8>,
+    c_k: Vec<u8>,
+    u: ECP2,
+    hr: ECP
+}
+
+impl Ciphertext for BZ03_Ciphertext {
+    fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
+    fn get_label(&self) -> Vec<u8> { self.label.clone() }
+}
+
 
 pub fn bz03_gen_keys(k: u8, n:u8, rng: &mut impl RAND) -> (BZ03_PublicKey, Vec<BZ03_PrivateKey>) {
     let x = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
@@ -79,18 +102,8 @@ fn H(g: &ECP2, m: &Vec<u8>) -> ECP {
 }
 
 impl BZ03_PublicKey {
-    pub fn encrypt(&self, msg:Vec<u8>, label:Vec<u8>, rng: &mut impl RAND) -> BZ03_Ciphertext {
-        let prk: &mut [u8] = &mut[0;32];
-        let mut ikm: Vec<u8> = Vec::new();
-        for _ in 0..32 {
-            ikm.push(rng.getbyte());
-        }
-
-        let salt: Vec<u8> = Vec::new();
-        hkdf_extract(MC_SHA2, 32, prk, Option::Some(&salt), &ikm);
-
-        let k: &mut[u8] = &mut[0;32];
-        hkdf_expand(MC_SHA2, 32, k, 16, prk, &[0]);
+    pub fn encrypt(&self, msg:Vec<u8>, label:&Vec<u8>, rng: &mut impl RAND) -> BZ03_Ciphertext {
+        let k = gen_symm_key(rng);
 
         let q = BIG::new_ints(&rom::CURVE_ORDER);
         let r = BIG::randomnum(&q, rng);
@@ -100,14 +113,14 @@ impl BZ03_PublicKey {
         let mut rY = self.y.clone();
         rY = rY.mul(&r);
 
-        let c_k = xor(G(&rY), (*k).to_vec());
+        let c_k = xor(G(&rY), (k).to_vec());
 
         let mut encryption: Vec<u8> = vec![0; msg.len()];
-        cbc_iv0_encrypt(k, &msg, &mut encryption);
+        cbc_iv0_encrypt(&k, &msg, &mut encryption);
 
         let hr = H(&u, &encryption).mul(&r);
 
-        let c = BZ03_Ciphertext{label:label, msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
+        let c = BZ03_Ciphertext{label:label.clone(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
         c
     }
 
@@ -135,7 +148,7 @@ impl BZ03_PublicKey {
         lhs.equals(&rhs)
     }
 
-    pub fn verify_decryption_share(&self, share: &BZ03_DecryptionShare, ct: &BZ03_Ciphertext) -> bool {
+    pub fn verify_share(&self, share: &BZ03_DecryptionShare, ct: &BZ03_Ciphertext) -> bool {
         let mut lhs =  pair::ate( &share.data, &ECP::generator());
         lhs = pair::fexp(&lhs);
 
@@ -144,16 +157,6 @@ impl BZ03_PublicKey {
         
         lhs.equals(&rhs)
     }
-}
-
-fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
-    let v3: Vec<u8> = v1
-    .iter()
-    .zip(v2.iter())
-    .map(|(&x1, &x2)| x1 ^ x2)
-    .collect();
-
-    v3
 }
 
 // hash ECP to bit string
@@ -166,27 +169,4 @@ fn G(x: &ECP2) -> Vec<u8> {
     
     let r = h.hash().to_vec();
     r
-}
-
-pub struct BZ03_DecryptionShare {
-    id: u8,
-    data: ECP2
-}
-
-impl DecryptionShare for BZ03_DecryptionShare {
-    fn get_id(&self) -> u8 { self.id.clone() }
-    fn get_data(&self) -> ECP2 { self.data.clone() }
-}
-
-pub struct BZ03_Ciphertext {
-    label: Vec<u8>,
-    msg: Vec<u8>,
-    c_k: Vec<u8>,
-    u: ECP2,
-    hr: ECP
-}
-
-impl Ciphertext for BZ03_Ciphertext {
-    fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
-    fn get_label(&self) -> Vec<u8> { self.label.clone() }
 }

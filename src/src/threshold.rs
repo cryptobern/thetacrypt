@@ -4,6 +4,7 @@ use miracl_core::bls12381::ecp2::ECP2;
 use miracl_core::bls12381::big::BIG;
 use miracl_core::bls12381::dbig::DBIG;
 use miracl_core::bls12381::rom;
+use miracl_core::hmac::*;
 
 pub struct ECGroup {
     pub q: BIG,
@@ -19,21 +20,31 @@ pub trait DecryptionShare {
     fn get_data(&self) -> ECP2;
 }
 
-pub trait CipherPrivateKey {
-    fn encrypt(msg:&[u8]) -> dyn Ciphertext;
-    fn verify_ciphertext() -> bool;
-    fn verify_share() -> bool;
-    fn assemble(ct: &impl Ciphertext, shares: &Vec<impl DecryptionShare>) -> Vec<u8>;
+pub trait CipherPublicKey {
+    fn encrypt(&self, msg:Vec<u8>, label:Vec<u8>, rng: &mut impl RAND)  -> dyn Ciphertext;
+    fn verify_ciphertext(&self, ct: &dyn Ciphertext) -> bool;
+    fn verify_share(&self, share: &dyn DecryptionShare, ct: &impl Ciphertext) -> bool;
+    fn assemble(&self, ct: &dyn Ciphertext, shares: &Vec<impl DecryptionShare>) -> Vec<u8>;
 }
 
-pub fn gen_key_values(k: u8, n:u8, rng: &mut impl RAND) -> (ECP2, Vec<BIG>, Vec<ECP>) {
+pub trait CipherPrivateKey {
+    fn partial_decrypt(&self, ct: &dyn Ciphertext) -> dyn DecryptionShare;
+}
+
+pub fn gen_key_values(k: u8, n:u8, rng: &mut impl RAND) -> (ECP, Vec<BIG>, Vec<ECP>) {
+    let x = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
+    let mut y = ECP::generator();
+    y = y.mul(&x);
+
+    let (shares, h) = shamir_share(&x, &ECP::generator(), &k, &n, rng);
+
+    (y, shares, h)
+}  
+
+pub fn gen_key_values2(k: u8, n:u8, rng: &mut impl RAND) -> (ECP2, Vec<BIG>, Vec<ECP>) {
     let x = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
     let mut y = ECP2::generator();
     y = y.mul(&x);
-
-    let s = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
-    let mut g_hat = ECP::generator();
-    g_hat = g_hat.mul(&s);
 
     let (shares, h) = shamir_share(&x, &ECP::generator(), &k, &n, rng);
 
@@ -147,4 +158,29 @@ pub fn interpolate(shares: Vec<BIG>) -> BIG {
     key.rmod(&q);
 
     BIG::fromstring(key.tostring())
+}
+
+pub fn gen_symm_key(rng: &mut impl RAND) -> [u8; 32] {
+    let prk: &mut [u8] = &mut[0;32];
+    let mut ikm: Vec<u8> = Vec::new();
+    for _ in 0..32 {
+        ikm.push(rng.getbyte());
+    }
+
+    let salt: Vec<u8> = Vec::new();
+    hkdf_extract(MC_SHA2, 32, prk, Option::Some(&salt), &ikm);
+
+    let k: &mut[u8;32] = &mut[0;32];
+    hkdf_expand(MC_SHA2, 32, k, 16, prk, &[0]);
+    *k
+}
+
+pub fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
+    let v3: Vec<u8> = v1
+    .iter()
+    .zip(v2.iter())
+    .map(|(&x1, &x2)| x1 ^ x2)
+    .collect();
+
+    v3
 }

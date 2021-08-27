@@ -9,8 +9,10 @@ use std::time::SystemTime;
 
 mod bz03;
 mod threshold;
+mod sg02;
 
 use crate::bz03::*;
+use crate::sg02::*;
 use crate::threshold::*;
 
 pub fn printbinary(array: &[u8], caption: Option<&str>) {
@@ -60,14 +62,16 @@ fn main() {
         }
     }
 
-    let (pk, sk) = bz03_gen_keys(K, N, &mut rng);
-
     let plaintext = "This is a test!  ";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label: Vec<u8> = String::from("label").as_bytes().to_vec();
-
     println!("Message: {}", plaintext);
-    let ciphertext = pk.encrypt(msg, label, &mut rng);
+
+
+
+    println!("\n--BZ03 Threshold Cipher--");
+    let (pk, sk) = bz03_gen_keys(K, N, &mut rng);
+    let ciphertext = pk.encrypt(msg, &label, &mut rng);
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     println!("Ciphertext valid: {}", pk.verify_ciphertext(&ciphertext));
@@ -75,10 +79,17 @@ fn main() {
     let mut shares:Vec<BZ03_DecryptionShare> = Vec::new();
     for i in 0..K {
         shares.push(sk[i as usize].partial_decrypt(&ciphertext));
-        println!("Share {} valid: {}", i, pk.verify_decryption_share(&shares[i as usize], &ciphertext));
+        println!("Share {} valid: {}", i, pk.verify_share(&shares[i as usize], &ciphertext));
     }
 
     let msg = pk.assemble(&ciphertext, &shares);
 
     println!("Decrypted message: {}", hex2string(msg));
+
+    println!("\n--SG02 Threshold Cipher--");
+    let (pk, sk) = sg02_gen_keys(K, N, &mut rng);
+    let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
+
+    let ciphertext = pk.encrypt(msg, &label, &mut rng); 
+    printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 }
