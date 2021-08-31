@@ -48,13 +48,13 @@ Implementation of abstract interface `KeyGenerator`. The following method genera
 **`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
 `x = random(2, group.q-1)` <br> 
 `y = group.g^x` <br>
-`ĝ = group.g^random(2, group.q-1)` <br>
+`gbar = group.g^random(2, group.q-1)` <br>
 `{x₁, .. xₙ} = ShareSecret(x, k, n)` <br>
 `verificationKey = {group.g^x₁,...,group.g^xₙ}` <br>
-`pk = DL_PublicKey(y, verificationKey, ĝ)`<br>
+`pk = DL_PublicKey(y, verificationKey, gbar)`<br>
 `secrets = []`<br>
 `for each xi in {x₁, .. xₙ} do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, ĝ))`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, gbar))`<br>
 `return (pk, secrets)`<br>
 <br><br>
 
@@ -82,26 +82,26 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 **Scheme:** <br>
 **`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey) -> CKS05_CoinShare`**<br>
-`ĉ = H(cname)`<br>
-`data = ĉ^sk.xi`<br>
+`cbar = H(cname)`<br>
+`data = cbar^sk.xi`<br>
 `s = random(2, sk.group.q-1)` <br>
 `h = sk.group.g^s` <br>
-`ĥ = (sk.ĝ)^s` <br>
-`c = H1(sk.group.g, sk.verificationKey[sk.id], h, ĉ, data, ĥ)` <br>
+`hbar = (sk.gbar)^s` <br>
+`c = H1(sk.group.g, sk.verificationKey[sk.id], h, cbar, data, hbar)` <br>
 `z = s + sk.xi*c` <br>
 `return CKS05_CoinShare(sk.id, data, c, z)`<br><br>
 
 **`CKS05_ThresholdCoin::verifyShare(share: CKS05_CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
-`ĉ = H(cname)`<br>
+`cbar = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
-`ĥ = pk.ĝ^share.z / share.data^share.c`<br>
-`return c == H1(pk.group.g, pk.verificationKey[share.id], h, ĉ, share.data, ĥ)`<br><br>
+`hbar = pk.gbar^share.z / share.data^share.c`<br>
+`return c == H1(pk.group.g, pk.verificationKey[share.id], h, cbar, share.data, hbar)`<br><br>
 
 **`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>, pk: PublicKey) -> u8`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`ĉ' = interpolate(shares)`<br>
-`return H2(ĉ')`<br><br><br>
+`cbar = interpolate(shares)`<br>
+`return H2(cbar)`<br><br><br>
 
 # SG02_ThresholdCipher
 [Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
@@ -122,7 +122,7 @@ Implementation of abstract interface `ThresholdCipher`.
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
-- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **ubar**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **e**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **f**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
@@ -138,30 +138,30 @@ Implementation of abstract interface `ThresholdCipher`.
 `s = random(2, pk.group.q-1)` <br>
 `u = pk.group.g^r` <br>
 `w = pk.group.g^s` <br>
-`û = pk.ĝ^r` <br>
-`ŵ = pk.ĝ^s` <br>
-`e = H1(c_k, L, u, w, û, ŵ)` <br>
+`ubar = pk.gbar^r` <br>
+`wbar = pk.gbar^s` <br>
+`e = H1(c_k, L, u, w, ubar, wbar)` <br>
 `f = s + re` <br>
-`return SG02_Ciphertext(c_k, label, u, û, e, f, c)`<br><br>
+`return SG02_Ciphertext(c_k, label, u, ubar, e, f, c)`<br><br>
 
 **`SG02_ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `w = g^ct.f / ct.u^ct.e`<br>
-`ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
-`return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.û, ŵ)`<br>
+`wbar = pk.gbar^ct.f / ct.ubar^ct.e`<br>
+`return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.ubar, wbar)`<br>
 
 **`SG02_ThresholdCipher::partialDecrypt(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
-`ûi = ct.u^si` <br>
-`ĥi = sk.group.g^si` <br>
-`ei = H2(data, ûi, ĥi)` <br>
+`uibar = ct.u^si` <br>
+`hibar = sk.group.g^si` <br>
+`ei = H2(data, uibar, hibar)` <br>
 `fi = si + sk.xi*ei` <br>
 `return SG02_DecryptionShare(sk.id, data, ei, fi)`<br><br>
 
 **`SG02_ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
-`ûi = ct.u^sh.fi / sh.data^sh.ei`<br>
-`ĥi = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
-`return ct.e == H2(sh.data, ûi, ĥi)`<br><br>
+`uibar = ct.u^sh.fi / sh.data^sh.ei`<br>
+`hibar = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
+`return ct.e == H2(sh.data, uibar, hibar)`<br><br>
 
 **`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>, pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
@@ -197,7 +197,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
-- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **ubar**:&nbsp;&nbsp;&nbsp;&nbsp; pairing parameter
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
 
 
@@ -210,12 +210,12 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `r = random(2, q-1)`<br>
 `u = g^r`<br>
 `c_k = G(pk.y^r) xor k`<br>
-`û = H(u, c)^r`<br>
-`return BZ03_Ciphertext(c_k, label, u, û, c)`<br><br>
+`ubar = H(u, c)^r`<br>
+`return BZ03_Ciphertext(c_k, label, u, ubar, c)`<br><br>
 
 **`BZ03_ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
 `h = H(ct.u, ct.msg)`<br>
-`return ê(g, ct.û) == ê(ct.u, h)`<br><br>
+`return ê(g, ct.ubar) == ê(ct.u, h)`<br><br>
 
 **`BZ03_ThresholdCipher::partialDecrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
