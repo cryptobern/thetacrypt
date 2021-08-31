@@ -5,17 +5,20 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 **Group** implements **Parameters**
 - **q: `BIG`**: group order
 - **g**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+- **g_bar**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 
 **Fp_Group** implements **Group**
 - **p: `BIG`**: modulus
 - **q: `BIG`**: group order
 - **g: `BIG`**: generator
+- **g_bar: `BIG`**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 <br><br>
 
 **EC_Group** imlements **Group**
 - **name: `String`**:&nbsp;&nbsp; curve name
 - **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
 - **g: `ECP`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
+- **g_bar: `ECP`**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 <br><br>
 
 **DL_VerificationKey** implements **VerificationKey**
@@ -48,13 +51,13 @@ Implementation of abstract interface `KeyGenerator`. The following method genera
 **`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
 `x = random(2, group.q-1)` <br> 
 `y = group.g^x` <br>
-`ĝ = group.g^random(2, group.q-1)` <br>
+`g_bar = group.g^random(2, group.q-1)` <br>
 `{x₁, .. xₙ} = ShareSecret(x, k, n)` <br>
 `verificationKey = {group.g^x₁,...,group.g^xₙ}` <br>
-`pk = DL_PublicKey(y, verificationKey, ĝ)`<br>
+`pk = DL_PublicKey(y, verificationKey, g_bar)`<br>
 `secrets = []`<br>
 `for each xi in {x₁, .. xₙ} do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, ĝ))`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, g_bar))`<br>
 `return (pk, secrets)`<br>
 <br><br>
 
@@ -82,26 +85,26 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 **Scheme:** <br>
 **`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey) -> CKS05_CoinShare`**<br>
-`ĉ = H(cname)`<br>
-`data = ĉ^sk.xi`<br>
+`cbar = H(cname)`<br>
+`data = cbar^sk.xi`<br>
 `s = random(2, sk.group.q-1)` <br>
 `h = sk.group.g^s` <br>
-`ĥ = (sk.ĝ)^s` <br>
-`c = H1(sk.group.g, sk.verificationKey[sk.id], h, ĉ, data, ĥ)` <br>
+`h_bar = (sk.g_bar)^s` <br>
+`c = H1(sk.group.g, sk.verificationKey[sk.id], h, cbar, data, h_bar)` <br>
 `z = s + sk.xi*c` <br>
 `return CKS05_CoinShare(sk.id, data, c, z)`<br><br>
 
 **`CKS05_ThresholdCoin::verifyShare(share: CKS05_CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
-`ĉ = H(cname)`<br>
+`cbar = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
-`ĥ = pk.ĝ^share.z / share.data^share.c`<br>
-`return c == H1(pk.group.g, pk.verificationKey[share.id], h, ĉ, share.data, ĥ)`<br><br>
+`h_bar = pk.group.g_bar^share.z / share.data^share.c`<br>
+`return c == H1(pk.group.g, pk.verificationKey[share.id], h, cbar, share.data, h_bar)`<br><br>
 
 **`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>, pk: PublicKey) -> u8`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`ĉ' = interpolate(shares)`<br>
-`return H2(ĉ')`<br><br><br>
+`cbar = interpolate(shares)`<br>
+`return H2(cbar)`<br><br><br>
 
 # SG02_ThresholdCipher
 [Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
@@ -122,7 +125,7 @@ Implementation of abstract interface `ThresholdCipher`.
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
-- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **u_bar**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **e**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **f**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
@@ -138,30 +141,30 @@ Implementation of abstract interface `ThresholdCipher`.
 `s = random(2, pk.group.q-1)` <br>
 `u = pk.group.g^r` <br>
 `w = pk.group.g^s` <br>
-`û = pk.ĝ^r` <br>
-`ŵ = pk.ĝ^s` <br>
-`e = H1(c_k, L, u, w, û, ŵ)` <br>
+`u_bar = pk.group.g_bar^r` <br>
+`w_bar = pk.group.g_bar^s` <br>
+`e = H1(c_k, L, u, w, u_bar, w_bar)` <br>
 `f = s + re` <br>
-`return SG02_Ciphertext(c_k, label, u, û, e, f, c)`<br><br>
+`return SG02_Ciphertext(c_k, label, u, u_bar, e, f, c)`<br><br>
 
 **`SG02_ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `w = g^ct.f / ct.u^ct.e`<br>
-`ŵ = pk.ĝ^ct.f / ct.û^ct.e`<br>
-`return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.û, ŵ)`<br>
+`w_bar = pk.group.g_bar^ct.f / ct.u_bar^ct.e`<br>
+`return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.u_bar, w_bar)`<br>
 
 **`SG02_ThresholdCipher::partialDecrypt(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
-`ûi = ct.u^si` <br>
-`ĥi = sk.group.g^si` <br>
-`ei = H2(data, ûi, ĥi)` <br>
+`ui_bar = ct.u^si` <br>
+`hi_bar = sk.group.g^si` <br>
+`ei = H2(data, ui_bar, hi_bar)` <br>
 `fi = si + sk.xi*ei` <br>
 `return SG02_DecryptionShare(sk.id, data, ei, fi)`<br><br>
 
 **`SG02_ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
-`ûi = ct.u^sh.fi / sh.data^sh.ei`<br>
-`ĥi = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
-`return ct.e == H2(sh.data, ûi, ĥi)`<br><br>
+`ui_bar = ct.u^sh.fi / sh.data^sh.ei`<br>
+`hi_bar = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
+`return ct.e == H2(sh.data, ui_bar, hi_bar)`<br><br>
 
 **`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>, pk: PublicKey) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
@@ -197,7 +200,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
-- **û**:&nbsp;&nbsp;&nbsp;&nbsp; zkp parameter
+- **u_bar**:&nbsp;&nbsp;&nbsp;&nbsp; pairing parameter
 - **msg**:&nbsp;&nbsp;&nbsp;&nbsp; encrypted message
 
 
@@ -210,12 +213,12 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `r = random(2, q-1)`<br>
 `u = g^r`<br>
 `c_k = G(pk.y^r) xor k`<br>
-`û = H(u, c)^r`<br>
-`return BZ03_Ciphertext(c_k, label, u, û, c)`<br><br>
+`u_bar = H(u, c)^r`<br>
+`return BZ03_Ciphertext(c_k, label, u, u_bar, c)`<br><br>
 
 **`BZ03_ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
 `h = H(ct.u, ct.msg)`<br>
-`return ê(g, ct.û) == ê(ct.u, h)`<br><br>
+`return ê(g, ct.u_bar) == ê(ct.u, h)`<br><br>
 
 **`BZ03_ThresholdCipher::partialDecrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
