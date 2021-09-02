@@ -19,6 +19,7 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 **PublicKey** <br>
 
 **PrivateKey** <br>
+- **`get_public_key(&self)`**
 
 **DL_Group** <br>
 - **`get_generator(&self) -> DL_GroupElement`**
@@ -36,8 +37,20 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 - **`to_bytes(&self) -> &[u8];`**
 - **`from_bytes(&self, bytes: &[u8]);`**
 
+**BigInt** <br>
+- **`new() -> Self`**
+- **`new_big(y: &Self::DataType) -> Self`**
+- **`new_ints(a: &[Chunk]) -> Self`**
+- **`new_copy(y: &Self) -> Self`**
+- **`from_bytes(bytes: &[u8]) -> Self`**
+- **`rmod(&mut self, y: &Self)`**
+- **`rmul(&mut self, y: &Self, q: &Self)`**
+- **`add(&mut self, y: &Self)`**
+- **`to_bytes(&self) -> &[u8]`**
+- **`to_string(&self) -> &str`**
+
 **KeyGenerator**<br>
-- **`generate_keys(k: &u8, n: &u8, rng: &mut impl RAND) -> (impl PublicKey, Vec<impl PrivateKey>)`**
+- **`generate_keys(k: &u8, n: &u8, rng: &mut impl RAND, domain: &Domain, scheme: &Scheme) -> Vec<Box<impl PrivateKey>>`**
 
 **ThresholdCoin**<br>
 - **`create_share(cname: String, sk: &PrivateKey, &sk: PrivateKey) -> impl Share`**
