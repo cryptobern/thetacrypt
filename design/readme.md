@@ -4,8 +4,8 @@ This documentation is split into three layers. On layer 2, the schemes layer, ar
 ## **Overview**
 - [Definition of a Party](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/party.md)
 - [Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/)
-    - [Interface](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/interface.md)
-    - [Interface (RUST Version)](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/interface_rust.md)
+    - [Interface](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/interface.md)
+    - [Interface (RUST Version)](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/interface_rust.md)
     - [DL Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/dl_schemes.md) - Discrete logarithm based threshold schemes
     - [RSA Schemes](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/rsa_schemes.md) - RSA based threshold schemes
 - [Formats](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/formats/)
