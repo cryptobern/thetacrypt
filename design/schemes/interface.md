@@ -1,5 +1,5 @@
 # Threshold Crypto Library API
-This document presents the abstract interfaces for our threshold cryptography library.
+This document presents the abstract interfaces for our threshold cryptography library. Notation and data types are inspired by C++.
 
 **Parameters**
 - ... (empty)
