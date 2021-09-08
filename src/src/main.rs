@@ -16,16 +16,6 @@ mod bigint;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 //use crate::dl_schemes::sg02::*;
 
-pub fn printbinary(array: &[u8], caption: Option<&str>) {
-    if caption.is_some() {
-        print!("{}", caption.unwrap());
-    }
-    for i in 0..array.len() {
-        print!("{:02X}", array[i])
-    }
-    println!("")
-}
-
 fn hex2string(msg: Vec<u8>) -> String {
     let mut res: String = String::new();
     for i in 0..msg.len() {

@@ -16,15 +16,17 @@ use mcore::aes::*;
 use mcore::hash256::*;
 
 use crate::dl_schemes::common::gen_symm_key;
+use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::common::xor;
 use crate::dl_schemes::dl_groups::dl_group::*;
-use crate::interface::Ciphertext;
+use crate::interface::*;
 use crate::interface::PrivateKey;
 use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
 use crate::bigint::BigInt;
 
+use super::DlShare;
 use super::dl_groups::BigImpl;
 
 pub struct SG02_PublicKey<G: DlGroup> {
@@ -83,6 +85,12 @@ impl<G: DlGroup> Ciphertext for SG02_Ciphertext<G> {
 impl<G: DlGroup> Share for SG02_DecryptionShare<G> {
     fn get_id(&self) -> u8 {
         self.id.clone()
+    }
+}
+
+impl<G: DlGroup> DlShare<G> for SG02_DecryptionShare<G> {
+    fn get_data(&self) -> G {
+        self.data.clone()
     }
 }
 
@@ -158,7 +166,14 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     }
 
     fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8> {
-        vec![0;100]
+        let rY = interpolate(shares);
+
+        let key = xor(H(&rY), ct.c_k.clone());
+        
+        let mut msg: Vec<u8> = vec![0; 44];
+        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
+        
+        msg
     }
 }
 
@@ -174,7 +189,6 @@ fn H<G: DlGroup>(x: &G) -> Vec<u8> {
 }
 
 fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl {
-    let mut bytes:Vec<u8>= vec![0;180];
     let mut buf:Vec<u8> = Vec::new();
     let q = BIG::new_ints(&rom::CURVE_ORDER);
 
@@ -209,7 +223,6 @@ fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl
 }
 
 fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
-    let mut bytes:Vec<u8>= vec![0;180];
     let mut buf:Vec<u8> = Vec::new();
     let q = BIG::new_ints(&rom::CURVE_ORDER);
 

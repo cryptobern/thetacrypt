@@ -4,7 +4,7 @@ use crate::dl_schemes::dl_groups::dl_group::*;
 use crate::interface::*;
 use crate::bigint::*;
 
-use super::dl_groups::{BigImpl, pairing::PairingEngine};
+use super::{DlShare, dl_groups::{BigImpl, pairing::PairingEngine}};
 
 pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: &u8, n: &u8, rng: &mut impl RAND) -> (Vec<BigImpl>, Vec<G>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
@@ -75,15 +75,13 @@ pub fn gen_symm_key(rng: &mut impl RAND) -> [u8; 32] {
     *k
 }
 
-/*
-
-pub fn interpolate<T: DlGroup + Clone>(shares: &Vec<impl Share<T>>) -> T { 
+pub fn interpolate<G: DlGroup, S: DlShare<G>>(shares: &Vec<S>) -> G { 
     let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id()).collect();
-    let mut rY = T::new();
+    let mut rY = G::new();
 
     for i in 0..shares.len() {
-        let l = lagrange_coeff(&ids, shares[i].get_id() as isize);
-        let mut ui = shares[i].get_data::<T>().clone();
+        let l = lagrange_coeff::<G>(&ids, shares[i].get_id() as isize);
+        let mut ui = shares[i].get_data().clone();
         ui.pow(&l);
         rY.mul(&ui);
     }
@@ -91,31 +89,31 @@ pub fn interpolate<T: DlGroup + Clone>(shares: &Vec<impl Share<T>>) -> T {
     rY
 }
 
-pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> G::BigInt {
-    let mut prod = G::DBigInt::new_copy(&G::BigInt::new_int(1));
+pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> BigImpl {
+    let mut prod = G::BigInt::new_int(1);
     let q = G::get_order();
     
     for k in 0..indices.len() {
         let j:isize = indices[k].into();
 
         if i != j {
-            let mut ij: G::BigInt;
+            let mut ij;
             let val = (j - i).abs();
 
             if i > j {
-                ij = q.clone();
+                ij = G::get_order();
                 ij.sub(&G::BigInt::new_int(val));
             } else {
                 ij = G::BigInt::new_int(val);
             }
-            ij.invmodp(&q);
+            ij.inv_mod(&q);
             ij.imul(j as isize);
 
-            prod = G::BigInt::mul(&prod.dmod(&q), &ij);
+            prod.rmod(&q);
+            prod.mul_mod(&ij, &q);
         }
     } 
-
-    let res = prod.dmod(&q);
-    res
+    
+    prod.rmod(&q);
+    prod
 }
- */

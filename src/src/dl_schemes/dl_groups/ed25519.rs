@@ -1,4 +1,4 @@
-use mcore::{ed25519::{big::BIG, dbig::DBIG, ecp::ECP, rom}, rand::RAND};
+use mcore::{ed25519::{big::{BIG, MODBYTES}, dbig::DBIG, ecp::ECP, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 
 use super::{BigImpl, pairing::PairingEngine};
@@ -72,7 +72,7 @@ impl DlGroup for Ed25519 {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;100];
+        let mut buf:Vec<u8> = vec![0;2*MODBYTES + 1];
         self.value.tobytes(&mut buf, true);
         buf
     }
@@ -168,7 +168,7 @@ impl BigInt for Ed25519BIG {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut b:Vec<u8> = vec![0; 100];
+        let mut b:Vec<u8> = vec![0; MODBYTES];
         self.value.tobytes(&mut b);
         b
     }
@@ -183,6 +183,26 @@ impl BigInt for Ed25519BIG {
         } else {
             panic!("Incompatible big integer implementation!");
         }
+    }
+
+    fn inv_mod(&mut self, m: &BigImpl) {
+        if let BigImpl::Ed25519(v) = m {
+            self.value.invmodp(&v.value);
+        } else {
+            panic!("Incompatible big integer implementation!");
+        }   
+    }
+
+    fn sub(&mut self, y: &BigImpl) {
+        if let BigImpl::Ed25519(v) = y {
+            self.value.sub(&v.value);
+        } else {
+            panic!("Incompatible big integer implementation!");
+        }  
+    }
+
+    fn imul(&mut self, i: isize) {
+        self.value.imul(i);
     }
 }
 

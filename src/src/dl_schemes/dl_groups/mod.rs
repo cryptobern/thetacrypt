@@ -47,6 +47,30 @@ impl BigImpl {
         }
     }
 
+    pub fn sub(&mut self, y: &BigImpl) {
+        match self {
+             BigImpl::Bls12381(x) => x.sub(y),
+             BigImpl::Bn254(x) => x.sub(y),
+             BigImpl::Ed25519(x) => x.sub(y)
+        }
+    }
+
+    pub fn inv_mod(&mut self, m: &BigImpl) {
+        match self {
+             BigImpl::Bls12381(x) => x.inv_mod(m),
+             BigImpl::Bn254(x) => x.inv_mod(m),
+             BigImpl::Ed25519(x) => x.inv_mod(m)
+        }
+    }
+
+    pub fn imul(&mut self, i: isize) {
+        match self {
+             BigImpl::Bls12381(x) => x.imul(i),
+             BigImpl::Bn254(x) => x.imul(i),
+             BigImpl::Ed25519(x) => x.imul(i)
+        }
+    }
+
     pub fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) {
         match self {
              BigImpl::Bls12381(x) => x.pow_mod(y, m),
