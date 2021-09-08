@@ -5,12 +5,6 @@
 #![allow(dead_code)]
 
 use mcore::rand::RAND;
-use mcore::bls12381::ecp::ECP;
-use mcore::bls12381::big;
-use mcore::bls12381::ecp2::ECP2;
-use mcore::bls12381::big::BIG;
-use mcore::bls12381::rom;
-use mcore::bls12381::pair;
 use mcore::hmac::*;
 use mcore::aes::*;
 use mcore::hash256::*;
@@ -139,11 +133,49 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     }
 
     fn verify_ciphertext(ct: &Self::CT, pk: &Self::PK) -> bool {
-        true
+        let mut w = G::new();
+        w.pow(&ct.f);
+
+        let mut rhs = ct.u.clone();
+        rhs.pow(&ct.e);
+
+        w.div(&rhs);
+
+
+        let mut w_bar = pk.g_bar.clone();
+        w_bar.pow(&ct.f);
+
+        let mut rhs = ct.u_bar.clone();
+        rhs.pow(&ct.e);
+
+        w_bar.div(&rhs);
+
+        let e2 = H1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar);
+
+        ct.e.equals(&e2)
     }
 
     fn verify_share(share: &Self::SH, ct: &Self::CT, pk: &Self::PK) -> bool {
-        true
+        let mut ui_bar = ct.u.clone();
+        ui_bar.pow(&share.fi);
+
+        let mut rhs = share.data.clone();
+        rhs.pow(&share.ei);
+
+        ui_bar.div(&rhs);
+
+
+        let mut hi_bar = G::new();
+        hi_bar.pow(&share.fi);
+
+        let mut rhs = pk.verificationKey[share.get_id() as usize].clone();
+        rhs.pow(&share.ei);
+
+        hi_bar.div(&rhs);
+
+        let e2 = H2(&share.data, &ui_bar, &hi_bar);
+
+        ct.e.equals(&e2)
     }
 
     fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
@@ -190,7 +222,7 @@ fn H<G: DlGroup>(x: &G) -> Vec<u8> {
 
 fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl {
     let mut buf:Vec<u8> = Vec::new();
-    let q = BIG::new_ints(&rom::CURVE_ORDER);
+    let q = G::get_order();
 
     buf = [&buf[..], &m1[..]].concat();
     buf = [&buf[..], &m2[..]].concat();
@@ -205,10 +237,12 @@ fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl
 
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
+
+    let nbits = q.nbytes()*8;
     
-    if q.nbits() > buf.len()*4 {
+    if nbits > buf.len()*4 {
         let mut g:[u8;32];
-        for i in 1..(((q.nbits() - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
+        for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
             hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
             g = hash.hash();
@@ -224,7 +258,7 @@ fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl
 
 fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
     let mut buf:Vec<u8> = Vec::new();
-    let q = BIG::new_ints(&rom::CURVE_ORDER);
+    let q = G::get_order();
 
     buf = [&buf[..], &g1.to_bytes()[..]].concat();
     buf = [&buf[..], &g2.to_bytes()[..]].concat();
@@ -237,9 +271,11 @@ fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
     
-    if q.nbits() > buf.len()*4 {
+    let nbits = q.nbytes()*8;
+    
+    if nbits > buf.len()*4 {
         let mut g:[u8;32];
-        for i in 1..(((q.nbits() - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
+        for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
             hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
             g = hash.hash();
@@ -252,130 +288,3 @@ fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
 
     res
 }
-
-
-/*
-
-
-impl SG02_ThresholdCipher {
-
-    pub fn encrypt(&self, msg:Vec<u8>, label:&Vec<u8>, rng: &mut impl RAND) -> SG02_Ciphertext {
-        let k = gen_symm_key(rng);
-
-        let q = BIG::new_ints(&rom::CURVE_ORDER);
-        let r = BIG::randomnum(&q, rng);
-        let mut u = ECP::generator();
-        u = u.mul(&r);
-
-        let mut rY = self.y.clone();
-        rY = rY.mul(&r);
-
-        let c_k = xor(H(&rY), (k).to_vec());
-
-        let mut encryption: Vec<u8> = vec![0; msg.len()];
-        cbc_iv0_encrypt(&k, &msg, &mut encryption);
-
-        let s = BIG::randomnum(&q, rng);
-        let mut w = ECP::generator();
-        w = w.mul(&s);
-
-        let mut w_bar = self.g_hat.clone();
-        w_bar = w_bar.mul(&s);
-
-        let mut u_bar = self.g_hat.clone();
-        u_bar = u_bar.mul(&r);
-
-        let e = H1(&c_k, &label, &u, &w, &u_bar, &w_bar);
-
-        let mut f = BIG::mul(&e, &r).dmod(&q);
-        f.add(&s);
-
-        println!("encrypt zkp:");
-        println!("{}", w.tostring());
-        println!("{}", w_bar.tostring());
-
-        let c = SG02_Ciphertext{label:label.clone(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
-        c
-    }
-
-    pub fn assemble(&self, shares: &Vec<SG02_DecryptionShare>, ct: &SG02_Ciphertext) -> Vec<u8> {
-        let rY = interpol_exp(shares);
-
-        let key = xor(H(&rY), ct.c_k.clone());
-        
-        let mut msg: Vec<u8> = vec![0; 44];
-        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
-        
-        msg
-    }
-
-
-    pub fn verify_share(&self, share: &SG02_DecryptionShare, ct: &SG02_Ciphertext) -> bool {
-        let mut ui_bar = ct.u.mul(&share.fi.clone());
-        let rhs = share.data.mul(&share.ei);
-        ui_bar.sub(&rhs);
-
-        let mut hi_bar = ECP::generator().mul(&share.fi.clone());
-        let rhs = self.verificationKey[share.get_id() as usize].mul(&share.ei);
-        hi_bar.sub(&rhs);
-
-        let e2 = H2(&share.data, &ui_bar, &hi_bar);
-
-        BIG::comp(&ct.e, &e2) == 0
-    }
-
-    pub fn verify_ciphertext(&self, ct: &SG02_Ciphertext) -> bool {
-        let mut w = ECP::generator().mul(&ct.f);
-        let rhs = ct.u.mul(&ct.e);
-        w.sub(&rhs);
-
-        let mut w_bar = self.g_hat.mul(&ct.f);
-        let rhs = ct.u_bar.mul(&ct.e);
-        w_bar.sub(&rhs);
-
-        println!("verify ciphertext:");
-        println!("{}", w.tostring());
-        println!("{}", w_bar.tostring());
-
-        BIG::comp(&ct.e, &H1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar)) == 0
-    }
-
-}
-
-impl SG02_PrivateKey {
-    pub fn partial_decrypt(&self, ct: &SG02_Ciphertext, rng: &mut impl RAND) -> SG02_DecryptionShare {
-        let mut data = ct.u.clone();
-        data = data.mul(&self.xi);
-
-        let q = BIG::new_ints(&rom::CURVE_ORDER);
-
-        let si = BIG::randomnum(&q, rng);
-
-        let ui_bar = ct.u.mul(&si);
-        let hi_bar = self.pubkey.group.g.mul(&si);
-
-        let ei = H2(&data, &ui_bar, &hi_bar);
-        let mut fi = BIG::mul(&self.xi, &ei).dmod(&q);
-        fi.add(&si);
-
-        SG02_DecryptionShare { id:self.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
-    }
-}
-
-pub fn interpol_exp(shares: &Vec<SG02_DecryptionShare>) -> ECP { 
-    let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id()).collect();
-    let mut rY = ECP::new();
-
-    for i in 0..shares.len() {
-        let l = lagrange_coeff(&ids, shares[i].get_id() as isize);
-        let mut ui = shares[i].get_data().clone();
-        ui = ui.mul(&l);
-        if i == 0 {
-            rY = ui;
-        } else {
-            rY.add(&ui);
-        }
-    }
-
-    rY
-} */

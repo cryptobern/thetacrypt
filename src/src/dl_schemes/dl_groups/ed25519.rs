@@ -91,6 +91,10 @@ impl DlGroup for Ed25519 {
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Ed25519(x.clone())    
     }
+
+    fn nbytes() -> usize {
+        2*MODBYTES 
+    }
 }
 
 pub struct Ed25519BIG {
@@ -202,6 +206,14 @@ impl BigInt for Ed25519BIG {
 
     fn imul(&mut self, i: isize) {
         self.value.imul(i);
+    }
+
+    fn equals(&self, y: &BigImpl) -> bool {
+        if let BigImpl::Ed25519(v) = y {
+            BIG::comp(&self.value, &v.value) == 0
+        } else {
+            false
+        }  
     }
 }
 

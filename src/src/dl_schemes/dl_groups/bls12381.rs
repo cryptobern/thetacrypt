@@ -94,6 +94,10 @@ impl DlGroup for Bls12381 {
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bls12381(x.clone())    
     }
+
+    fn nbytes() -> usize {
+        2*MODBYTES 
+    }
 }
 
 pub struct Bls12381ECP2 {
@@ -164,6 +168,10 @@ impl DlGroup for Bls12381ECP2 {
 
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bls12381(x.clone())    
+    }
+
+    fn nbytes() -> usize {
+        2*MODBYTES 
     }
 }
 
@@ -239,6 +247,10 @@ impl DlGroup for Bls12381FP12 {
 
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bls12381(x.clone())    
+    }
+
+    fn nbytes() -> usize {
+        MODBYTES
     }
 }
 
@@ -369,6 +381,14 @@ impl BigInt for Bls12381BIG {
 
     fn imul(&mut self, i: isize) {
         self.value.imul(i);
+    }
+
+    fn equals(&self, y: &BigImpl) -> bool {
+        if let BigImpl::Bls12381(v) = y {
+            BIG::comp(&self.value, &v.value) == 0
+        } else {
+            false
+        }  
     }
 }
 

@@ -94,6 +94,10 @@ impl DlGroup for Bn254 {
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bn254(x.clone())    
     }
+
+    fn nbytes() -> usize {
+        2*MODBYTES 
+    }
 }
 
 pub struct Bn254ECP2 {
@@ -164,6 +168,10 @@ impl DlGroup for Bn254ECP2 {
 
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bn254(x.clone())    
+    }
+
+    fn nbytes() -> usize {
+        2*MODBYTES 
     }
 }
 
@@ -239,6 +247,10 @@ impl DlGroup for Bn254FP12 {
 
     fn wrp(x: &Self::BigInt) -> BigImpl {
         BigImpl::Bn254(x.clone())    
+    }
+
+    fn nbytes() -> usize {
+        MODBYTES 
     }
 }
 
@@ -369,6 +381,14 @@ impl BigInt for Bn254BIG {
 
     fn imul(&mut self, i: isize) {
         self.value.imul(i);
+    }
+
+    fn equals(&self, y: &BigImpl) -> bool {
+        if let BigImpl::Bn254(v) = y {
+            BIG::comp(&self.value, &v.value) == 0
+        } else {
+            false
+        }  
     }
 }
 
