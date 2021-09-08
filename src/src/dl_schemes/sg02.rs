@@ -342,9 +342,6 @@ impl SG02_ThresholdCipher {
 
 }
 
-
-
-
 impl SG02_PrivateKey {
     pub fn partial_decrypt(&self, ct: &SG02_Ciphertext, rng: &mut impl RAND) -> SG02_DecryptionShare {
         let mut data = ct.u.clone();
