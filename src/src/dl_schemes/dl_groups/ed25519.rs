@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use mcore::{ed25519::{big::{BIG, MODBYTES}, dbig::DBIG, ecp::ECP, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 
@@ -94,6 +96,10 @@ impl DlGroup for Ed25519 {
 
     fn nbytes() -> usize {
         2*MODBYTES 
+    }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
     }
 }
 

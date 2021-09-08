@@ -19,6 +19,7 @@ use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
 use crate::bigint::BigInt;
+use crate::util::printbinary;
 
 use super::DlShare;
 use super::dl_groups::BigImpl;
@@ -35,7 +36,7 @@ impl<G: DlGroup> Clone for SG02_PublicKey<G> {
     }
 }
 pub struct SG02_PrivateKey<G: DlGroup> {
-    pub id: u8,
+    pub id: usize,
     pub xi: BigImpl,
     pub pubkey: SG02_PublicKey<G>,
 }
@@ -46,6 +47,10 @@ impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
     type PK = SG02_PublicKey<G>;
     fn get_public_key(&self) -> SG02_PublicKey<G> {
         self.pubkey.clone()
+    }
+
+    fn get_id(&self) -> usize {
+        self.id 
     }
 }
 pub struct SG02_Ciphertext<G: DlGroup> {
@@ -59,7 +64,7 @@ pub struct SG02_Ciphertext<G: DlGroup> {
 }
 
 pub struct SG02_DecryptionShare<G: DlGroup>  {
-    id: u8,
+    id: usize,
     label: Vec<u8>,
     data: G,
     ei: BigImpl,
@@ -77,8 +82,8 @@ impl<G: DlGroup> Ciphertext for SG02_Ciphertext<G> {
 }
 
 impl<G: DlGroup> Share for SG02_DecryptionShare<G> {
-    fn get_id(&self) -> u8 {
-        self.id.clone()
+    fn get_id(&self) -> usize {
+        self.id as usize
     }
 }
 
@@ -101,7 +106,8 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     fn encrypt(msg: &[u8], label: &[u8], pk: &SG02_PublicKey<G>, rng: &mut impl RAND) -> Self::CT {
         let k = gen_symm_key(rng);
 
-        let r = G::BigInt::new_rand(&G::get_order(), rng);
+        //let r = G::BigInt::new_rand(&G::get_order(), rng);
+        let r = G::BigInt::new_int(2);
         let mut u = G::new();
         u.pow(&r);
 
@@ -164,11 +170,10 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
 
         ui_bar.div(&rhs);
 
-
         let mut hi_bar = G::new();
         hi_bar.pow(&share.fi);
 
-        let mut rhs = pk.verificationKey[share.get_id() as usize].clone();
+        let mut rhs = pk.verificationKey[(share.get_id() -1) as usize].clone();
         rhs.pow(&share.ei);
 
         hi_bar.div(&rhs);

@@ -1,4 +1,6 @@
-use mcore::{bls12381::{big::{BASEBITS, BIG, MODBYTES}, dbig::DBIG, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
+use std::fmt::Display;
+
+use mcore::{bls12381::{big::{BASEBITS, BIG, MODBYTES}, dbig::DBIG, ecp::{CURVETYPE, ECP, MONTGOMERY}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
 
@@ -98,6 +100,10 @@ impl DlGroup for Bls12381 {
     fn nbytes() -> usize {
         2*MODBYTES 
     }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
+    }
 }
 
 pub struct Bls12381ECP2 {
@@ -172,6 +178,10 @@ impl DlGroup for Bls12381ECP2 {
 
     fn nbytes() -> usize {
         2*MODBYTES 
+    }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
     }
 }
 
@@ -251,6 +261,10 @@ impl DlGroup for Bls12381FP12 {
 
     fn nbytes() -> usize {
         MODBYTES
+    }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
     }
 }
 

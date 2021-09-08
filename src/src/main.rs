@@ -3,7 +3,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::{dl_groups::{bls12381::Bls12381}, keygen::*};
+use crate::dl_schemes::{dl_groups::{bls12381::Bls12381, ed25519::Ed25519}, keygen::*};
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::sg02::*;
 use crate::interface::*;
@@ -16,7 +16,7 @@ mod util;
 
 fn main() {
     const K:u8 = 3; // threshold
-    const N:u8 = 5; // total number of secret shares
+    const N:u8 = 4; // total number of secret shares
 
     // initialize new random number generator
     let mut rng = new_rand();
@@ -30,7 +30,7 @@ fn main() {
     println!("\n--SG02 Threshold Cipher--");
 
     // generate secret shares for SG02 scheme over Bls12381 curve
-    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Bls12381::new()));
+    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Ed25519::new()));
     
     // the keys are wrapped in an enum struct, so we have to unwrap them first (using the macro unwrap_keys)
     let sk = unwrap_keys!(sk, DlPrivateKey::SG02);

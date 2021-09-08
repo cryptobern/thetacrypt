@@ -4,6 +4,7 @@ pub trait PublicKey {}
 
 pub trait PrivateKey {
     type PK: PublicKey;
+    fn get_id(&self) -> usize;
     fn get_public_key(&self) -> Self::PK;
 }
 
@@ -12,7 +13,7 @@ pub trait Ciphertext {
     fn get_label(&self) -> Vec<u8>;
 }
 pub trait Share {
-    fn get_id(&self) -> u8;
+    fn get_id(&self) -> usize;
 }
 
 pub trait ThresholdCipher {

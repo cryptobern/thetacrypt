@@ -47,6 +47,10 @@ impl<PE:PairingEngine> PrivateKey for BZ03_PrivateKey<PE> {
     fn get_public_key(&self) -> BZ03_PublicKey<PE>{
         self.pubkey.clone()
     }
+
+    fn get_id(&self) -> usize {
+        self.id as usize
+    }
 }
 
 
