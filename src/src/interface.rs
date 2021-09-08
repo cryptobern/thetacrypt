@@ -1,6 +1,5 @@
-use mcore::rand::RAND;
-
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
+use std::time::SystemTime;
+use mcore::rand::{RAND, RAND_impl};
 
 pub trait PublicKey {}
 
@@ -38,4 +37,32 @@ pub fn printbinary(array: &[u8], caption: Option<&str>) {
         print!("{:02X}", array[i])
     }
     println!("")
+}
+
+pub fn new_rand() -> RAND_impl {
+    let mut raw: [u8; 100] = [0; 100];
+    let mut rng = RAND_impl::new();
+    rng.clean();
+
+    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
+
+    match now {
+        Ok(_n) => {
+            let ms = _n.as_millis();
+            for i in 0..15 {
+                raw[i] = (ms << i) as u8
+            }
+
+            rng.seed(16, &raw);
+        },
+        Err(_) => {
+            for i in 0..100 {
+                raw[i] = i as u8
+            }
+
+            rng.seed(100, &raw);
+        }
+    }
+
+    rng
 }
