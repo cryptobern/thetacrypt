@@ -3,17 +3,18 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use miracl_core::rand::{RAND, RAND_impl};
-
+use mcore::rand::{RAND, RAND_impl};
+use crate::dl_schemes::{dl_groups::{bls12381::Bls12381}, keygen::*};
 use std::time::SystemTime;
+use crate::dl_schemes::sg02::*;
+use crate::interface::*;
 
-mod bz03;
-mod threshold;
-mod sg02;
+mod interface;
+mod dl_schemes;
+mod bigint;
 
-use crate::bz03::*;
-use crate::sg02::*;
-use crate::threshold::*;
+use crate::dl_schemes::dl_groups::dl_group::DlGroup;
+//use crate::dl_schemes::sg02::*;
 
 pub fn printbinary(array: &[u8], caption: Option<&str>) {
     if caption.is_some() {
@@ -67,29 +68,39 @@ fn main() {
     let label: Vec<u8> = String::from("label").as_bytes().to_vec();
     println!("Message: {}", plaintext);
 
+    println!("\n--SG02 Threshold Cipher--");
 
+    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Bls12381::new()));
+    let sk = unwrap_keys!(sk, DlPrivateKey::SG02);
 
-    println!("\n--BZ03 Threshold Cipher--");
+    let ciphertext = SG02_ThresholdCipher::encrypt(&msg, &label, &sk[0].pubkey, &mut rng); 
+    printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
+
+    println!("Ciphertext valid: {}", SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].pubkey));
+
+    let mut shares = Vec::new();
+    for i in 0..K {
+        shares.push(SG02_ThresholdCipher::partial_decrypt(&ciphertext, sk[i as usize], &mut rng));
+        println!("Share {} valid: {}", i, SG02_ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].pubkey));
+    }
+
+    let msg = SG02_ThresholdCipher::assemble( &shares, &ciphertext);
+    println!("Decrypted message: {}", hex2string(msg));
+
+    /*
     let (pk, sk) = bz03_gen_keys(K, N, &mut rng);
     let ciphertext = pk.encrypt(msg, &label, &mut rng);
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     println!("Ciphertext valid: {}", pk.verify_ciphertext(&ciphertext));
 
-    let mut shares:Vec<BZ03_DecryptionShare> = Vec::new();
+    let mut shares = Vec::new();
     for i in 0..K {
         shares.push(sk[i as usize].partial_decrypt(&ciphertext));
         println!("Share {} valid: {}", i, pk.verify_share(&shares[i as usize], &ciphertext));
     }
 
-    let msg = pk.assemble(&ciphertext, &shares);
+    let msg = pk.assemble(&shares, &ciphertext);
 
-    println!("Decrypted message: {}", hex2string(msg));
-
-    println!("\n--SG02 Threshold Cipher--");
-    let (pk, sk) = sg02_gen_keys(K, N, &mut rng);
-    let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
-
-    let ciphertext = pk.encrypt(msg, &label, &mut rng); 
-    printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
+    println!("Decrypted message: {}", hex2string(msg));*/
 }
