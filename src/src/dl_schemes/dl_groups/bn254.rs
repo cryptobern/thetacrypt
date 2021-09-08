@@ -1,4 +1,4 @@
-use mcore::{bn254::{big::BIG, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
+use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
 
@@ -74,7 +74,7 @@ impl DlGroup for Bn254 {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;100];
+        let mut buf:Vec<u8> = vec![0;2*MODBYTES + 1];
         self.value.tobytes(&mut buf, true);
         buf
     }
@@ -145,7 +145,7 @@ impl DlGroup for Bn254ECP2 {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;100];
+        let mut buf:Vec<u8> = vec![0;2*MODBYTES + 1];
         self.value.tobytes(&mut buf, true);
         buf
     }
@@ -334,9 +334,9 @@ impl BigInt for Bn254BIG {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut b:Vec<u8> = vec![0; 100];
-        self.value.tobytes(&mut b);
-        b
+        let mut buf:Vec<u8> = vec![0;MODBYTES];
+        self.value.tobytes(&mut buf);
+        buf
     }
 
     fn to_string(&self) -> String {
@@ -349,6 +349,26 @@ impl BigInt for Bn254BIG {
         } else {
             panic!("Incompatible big integer implementation!");
         }
+    }
+
+    fn inv_mod(&mut self, m: &BigImpl) {
+        if let BigImpl::Bn254(v) = m {
+            self.value.invmodp(&v.value);
+        } else {
+            panic!("Incompatible big integer implementation!");
+        }   
+    }
+
+    fn sub(&mut self, y: &BigImpl) {
+        if let BigImpl::Bn254(v) = y {
+            self.value.sub(&v.value);
+        } else {
+            panic!("Incompatible big integer implementation!");
+        }  
+    }
+
+    fn imul(&mut self, i: isize) {
+        self.value.imul(i);
     }
 }
 

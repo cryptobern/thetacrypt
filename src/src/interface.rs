@@ -29,3 +29,13 @@ pub trait ThresholdCipher {
     fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH;
     fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8>;
 }
+
+pub fn printbinary(array: &[u8], caption: Option<&str>) {
+    if caption.is_some() {
+        print!("{}", caption.unwrap());
+    }
+    for i in 0..array.len() {
+        print!("{:02X}", array[i])
+    }
+    println!("")
+}

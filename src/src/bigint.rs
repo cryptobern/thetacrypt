@@ -18,7 +18,10 @@ pub trait BigInt:
     fn from_bytes(bytes: &[u8]) -> BigImpl;
     fn rmod(&mut self, y: &BigImpl);
     fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl);
+    fn inv_mod(&mut self, m: &BigImpl);
     fn add(&mut self, y: &BigImpl);
+    fn sub(&mut self, y: &BigImpl);
+    fn imul(&mut self, i: isize);
     fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl);
     fn to_bytes(&self) -> Vec<u8>;
     fn to_string(&self) -> String;
