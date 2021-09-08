@@ -3,25 +3,16 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use mcore::rand::{RAND, RAND_impl};
 use crate::dl_schemes::{dl_groups::{bls12381::Bls12381}, keygen::*};
+use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::sg02::*;
 use crate::interface::*;
+use crate::util::*;
 
 mod interface;
 mod dl_schemes;
 mod bigint;
-
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
-
-fn hex2string(msg: Vec<u8>) -> String {
-    let mut res: String = String::new();
-    for i in 0..msg.len() {
-        res.push(msg[i] as char);
-    }
-
-    res
-}
+mod util;
 
 fn main() {
     const K:u8 = 3;

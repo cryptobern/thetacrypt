@@ -2,7 +2,6 @@ use mcore::{ed25519::{big::{BIG, MODBYTES}, dbig::DBIG, ecp::ECP, rom}, rand::RA
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 
 use super::{BigImpl, pairing::PairingEngine};
-
 pub struct Ed25519 {
     value: ECP
 }
