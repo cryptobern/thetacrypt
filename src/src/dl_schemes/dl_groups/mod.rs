@@ -1,14 +1,16 @@
-use mcore::{arch::Chunk, bls12381::big::BIG as Bls12381B, bn254::big::BIG as Bn254B, ed25519::big::BIG as Ed25519B, rand::RAND};
-
 pub mod bls12381;
 pub mod bn254;
 pub mod ed25519;
 pub mod dl_group;
 pub mod pairing;
 
-use crate::{bigint::BigInt, dl_schemes::dl_groups::bn254::Bn254};
+use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
+use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
+use mcore::bn254::big::MODBYTES as BN254MODBYTES;
 
-use self::{bls12381::{Bls12381, Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG, pairing::PairingEngine};
+use crate::{bigint::BigInt};
+
+use self::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
 
 pub enum BigImpl {
     Bls12381(Bls12381BIG),
@@ -93,6 +95,22 @@ impl BigImpl {
             BigImpl::Bn254(x) => x.to_string(),
             BigImpl::Ed25519(x) => x.to_string()
         }
+    }
+
+    pub fn nbytes(&self) -> usize {
+        match self {
+            BigImpl::Bls12381(x) => BLS12381MODBYTES,
+            BigImpl::Bn254(x) => BN254MODBYTES,
+            BigImpl::Ed25519(x) => ED25519MODBYTES
+        }
+    }
+
+    pub fn equals(&self, y: &BigImpl) -> bool {
+        match self {
+            BigImpl::Bls12381(x) => x.equals(y),
+            BigImpl::Bn254(x) => x.equals(y),
+            BigImpl::Ed25519(x) => x.equals(y)
+       }
     }
 }
 

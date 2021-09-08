@@ -24,4 +24,5 @@ pub trait DlGroup:
     fn equals(&self, g: &Self) -> bool;         // check whether two elements are equal
     fn get_order() -> BigImpl; 
     fn wrp(x: &Self::BigInt) -> BigImpl;        // wrap bigint type in bigimpl
+    fn nbytes() -> usize;                       // get number of bytes
 }

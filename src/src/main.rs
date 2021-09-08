@@ -15,10 +15,13 @@ mod bigint;
 mod util;
 
 fn main() {
-    const K:u8 = 3;
-    const N:u8 = 5;
+    const K:u8 = 3; // threshold
+    const N:u8 = 5; // total number of secret shares
 
+    // initialize new random number generator
     let mut rng = new_rand();
+
+    // prepare message and label
     let plaintext = "This is a test!  ";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label: Vec<u8> = String::from("label").as_bytes().to_vec();
@@ -28,23 +31,27 @@ fn main() {
 
     // generate secret shares for SG02 scheme over Bls12381 curve
     let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Bls12381::new()));
+    
     // the keys are wrapped in an enum struct, so we have to unwrap them first (using the macro unwrap_keys)
     let sk = unwrap_keys!(sk, DlPrivateKey::SG02);
 
     // a public key is stored inside each secret share, so those can be used for encryption
     let ciphertext = SG02_ThresholdCipher::encrypt(&msg, &label, &sk[0].pubkey, &mut rng); 
+    
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
+    // check whether ciphertext is valid (needed for cca security)
     println!("Ciphertext valid: {}", SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].pubkey));
 
     // create decryption shares and verify them
     let mut shares = Vec::new();
+
     for i in 0..K {
         shares.push(SG02_ThresholdCipher::partial_decrypt(&ciphertext, sk[i as usize], &mut rng));
         println!("Share {} valid: {}", i, SG02_ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].pubkey));
     }
 
-    // assemble decryption shares to restore original message (still has a bug atm)
+    // assemble decryption shares to restore original message (does compile but is not working properly atm)
     let msg = SG02_ThresholdCipher::assemble( &shares, &ciphertext);
     println!("Decrypted message: {}", hex2string(msg));
 }

@@ -1,5 +1,4 @@
-use std::time::SystemTime;
-use mcore::rand::{RAND, RAND_impl};
+use mcore::rand::{RAND};
 
 pub trait PublicKey {}
 
