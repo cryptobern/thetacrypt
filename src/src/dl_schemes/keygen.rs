@@ -76,7 +76,7 @@ impl DlKeyGenerator {
                 let publicKey = SG02_PublicKey { y: y, verificationKey:h, g_bar: g_bar };
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::SG02(SG02_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: (i+1) as u8} ))
+                    privateKeys.push(DlPrivateKey::SG02(SG02_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: (i+1)} ))
                 }
 
                 return privateKeys;

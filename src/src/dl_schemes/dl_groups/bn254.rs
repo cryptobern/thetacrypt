@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
@@ -98,6 +100,10 @@ impl DlGroup for Bn254 {
     fn nbytes() -> usize {
         2*MODBYTES 
     }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
+    }
 }
 
 pub struct Bn254ECP2 {
@@ -172,6 +178,10 @@ impl DlGroup for Bn254ECP2 {
 
     fn nbytes() -> usize {
         2*MODBYTES 
+    }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
     }
 }
 
@@ -251,6 +261,10 @@ impl DlGroup for Bn254FP12 {
 
     fn nbytes() -> usize {
         MODBYTES 
+    }
+
+    fn to_string(&self) -> String {
+        self.value.tostring()
     }
 }
 
@@ -395,5 +409,23 @@ impl BigInt for Bn254BIG {
 impl Clone for Bn254BIG {
     fn clone(&self) -> Self {
         Self{ value: self.value.clone() }
+    }
+}
+
+impl Display for Bn254 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value.tostring())
+    }
+}
+
+impl Display for Bn254FP12 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value.tostring())
+    }
+}
+
+impl Display for Bn254ECP2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value.tostring())
     }
 }

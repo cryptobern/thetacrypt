@@ -1,7 +1,6 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::dl_schemes::dl_groups::dl_group::*;
-use crate::interface::*;
+use crate::{dl_schemes::dl_groups::dl_group::*, util::printbinary};
 use crate::bigint::*;
 
 use super::{DlShare, dl_groups::{BigImpl, pairing::PairingEngine}};
@@ -23,6 +22,7 @@ pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: &u8, n: &u8, rng: &mut impl RAND
         let mut hi = G::new();
         hi.pow(&xi);
         h.push(hi);
+        
         shares.push(xi);
     }
 
@@ -76,14 +76,19 @@ pub fn gen_symm_key(rng: &mut impl RAND) -> [u8; 32] {
 }
 
 pub fn interpolate<G: DlGroup, S: DlShare<G>>(shares: &Vec<S>) -> G { 
-    let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id()).collect();
+    let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id() as u8).collect();
     let mut rY = G::new();
 
     for i in 0..shares.len() {
         let l = lagrange_coeff::<G>(&ids, shares[i].get_id() as isize);
         let mut ui = shares[i].get_data().clone();
         ui.pow(&l);
-        rY.mul(&ui);
+
+        if i == 0 {
+            rY = ui;
+        } else {
+            rY.mul(&ui);
+        }
     }
 
     rY
