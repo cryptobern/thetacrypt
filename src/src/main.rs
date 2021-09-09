@@ -3,7 +3,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::{bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519}, keygen::*};
+use crate::dl_schemes::{bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, keygen::*};
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::sg02::*;
 use crate::interface::*;

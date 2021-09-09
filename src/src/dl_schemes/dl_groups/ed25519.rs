@@ -1,6 +1,4 @@
-use std::fmt::Display;
-
-use mcore::{ed25519::{big::{BIG, MODBYTES}, dbig::DBIG, ecp::ECP, rom}, rand::RAND};
+use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 
 use super::{BigImpl, pairing::PairingEngine};
@@ -13,11 +11,11 @@ impl PairingEngine for Ed25519 {
 
     type G3 = Self;
 
-    fn pair(g1: &Self::G2, g2: &Self) -> Self::G3 {
+    fn pair(_g1: &Self::G2, _g2: &Self) -> Self::G3 {
         panic!("Ed22519 does not support pairings!")
     }
 
-    fn ddh(g1: &Self::G2, g2: &Self, g3:&Self::G2, g4:&Self) -> bool {
+    fn ddh(_g1: &Self::G2, _g2: &Self, _g3:&Self::G2, _g4:&Self) -> bool {
         panic!("Ed22519 does not support pairings!")
     }
 }

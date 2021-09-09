@@ -4,8 +4,8 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+
 use mcore::rand::RAND;
-use mcore::hmac::*;
 use mcore::aes::*;
 use mcore::hash256::*;
 
@@ -19,7 +19,6 @@ use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
 use crate::bigint::BigInt;
-use crate::util::printbinary;
 
 use super::DlShare;
 use super::dl_groups::BigImpl;

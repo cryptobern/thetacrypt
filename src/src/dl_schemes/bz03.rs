@@ -5,13 +5,7 @@
 #![allow(dead_code)]
 
 use mcore::rand::RAND;
-use mcore::bls12381::ecp::ECP;
 use mcore::bls12381::big;
-use mcore::bls12381::ecp2::ECP2;
-use mcore::bls12381::big::BIG;
-use mcore::bls12381::rom;
-use mcore::bls12381::pair;
-use mcore::hmac::*;
 use mcore::aes::*;
 use mcore::hash256::*;
 
@@ -118,7 +112,7 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
         c
     }
 
-    fn verify_ciphertext(ct: &Self::CT, pk: &Self::PK) -> bool {
+    fn verify_ciphertext(ct: &Self::CT, _pk: &Self::PK) -> bool {
         let h = H::<PE::G2, PE>(&ct.u, &ct.msg);
 
         PE::ddh(&ct.u, &h, &PE::G2::new(), &ct.hr)
@@ -128,7 +122,7 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
         PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, _rng: &mut impl RAND) -> Self::SH {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 
