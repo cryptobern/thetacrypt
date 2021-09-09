@@ -1,7 +1,5 @@
-use std::fmt::Display;
-
-use mcore::{bls12381::{big::{BASEBITS, BIG, MODBYTES}, dbig::DBIG, ecp::{CURVETYPE, ECP, MONTGOMERY}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, util::printbinary};
+use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
 
 use super::BigImpl;
@@ -236,10 +234,10 @@ impl DlGroup for Bls12381FP12 {
         self.value = g.clone()
     }
 
-    /* TODO: fix serialization */
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;100];
-        //self.value.tobytes(&mut buf);
+        let mut buf:Vec<u8> = vec![0;2 * MODBYTES + 1];
+        let mut val = self.value.clone();
+        val.tobytes(&mut buf);
         buf
     }
 

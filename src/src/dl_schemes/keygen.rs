@@ -1,6 +1,5 @@
 use mcore::rand::RAND;
 
-use crate::interface::*;
 use crate::bigint::*;
 use crate::dl_schemes::common::*;
 use crate::dl_schemes::bz03::*;
@@ -8,9 +7,7 @@ use crate::dl_schemes::sg02::*;
 
 use super::DlDomain;
 use super::dl_groups::BigImpl;
-use super::dl_groups::bls12381::Bls12381;
 use super::dl_groups::dl_group::*;
-use super::dl_groups::pairing::*;
 
 pub enum DlScheme<D: DlDomain> {
     BZ03(D),
@@ -44,7 +41,7 @@ pub struct DlKeyGenerator {}
 impl DlKeyGenerator {
     pub fn generate_keys<D: DlDomain>(k: &u8, n: &u8, rng: &mut impl RAND, scheme: &DlScheme<D>) -> Vec<DlPrivateKey<D>> {
         match scheme {
-            DlScheme::BZ03(D) => {
+            DlScheme::BZ03(_D) => {
                 if !D::is_pairing_friendly() {
                     panic!("Supplied domain does not support pairings!")
                 }
@@ -64,7 +61,7 @@ impl DlKeyGenerator {
             }
 
             ,
-            DlScheme::SG02(D) => {
+            DlScheme::SG02(_D) => {
                 let x = D::BigInt::new_rand(&D::get_order(), rng);
                 let y = D::new_pow_big(&x);
 

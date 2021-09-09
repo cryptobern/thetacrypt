@@ -99,9 +99,9 @@ impl BigImpl {
 
     pub fn nbytes(&self) -> usize {
         match self {
-            BigImpl::Bls12381(x) => BLS12381MODBYTES,
-            BigImpl::Bn254(x) => BN254MODBYTES,
-            BigImpl::Ed25519(x) => ED25519MODBYTES
+            BigImpl::Bls12381(_) => BLS12381MODBYTES,
+            BigImpl::Bn254(_) => BN254MODBYTES,
+            BigImpl::Ed25519(_) => ED25519MODBYTES
         }
     }
 
