@@ -15,8 +15,8 @@ impl PairingEngine for Bls12381 {
     type G3 = Bls12381FP12;
 
     fn pair(g1: &Self::G2, g2: &Self) -> Self::G3 {
-        let rhs = pair::ate(&g1.value, &g2.value);
-        pair::fexp(&rhs);
+        let mut rhs = pair::ate(&g1.value, &g2.value);
+        rhs = pair::fexp(&rhs);
         Self::G3 { value: rhs} 
     }
 

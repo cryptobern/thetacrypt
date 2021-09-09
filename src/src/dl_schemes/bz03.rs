@@ -148,7 +148,7 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
 }
 
 fn H<G1: DlGroup, G2: DlGroup>(g: &G1, m: &Vec<u8>) -> G2 {
-    let mut bytes  = g.to_bytes();
+    let bytes  = g.to_bytes();
     
     let mut h = HASH256::new();
     h.process_array(&[&bytes[..], &m[..]].concat());
@@ -173,52 +173,3 @@ fn G<G: DlGroup>(x: &G) -> Vec<u8> {
     let r = h.hash().to_vec();
     r
 }
-
-/*
-
-impl<PE: PairingEngine> BZ03_PrivateKey<PE> {
-    pub fn partial_decrypt(&self, ct: &BZ03_Ciphertext<PE>) -> BZ03_DecryptionShare<PE::G2> {
-        let mut u = ct.u.clone();
-        u.mul(&self.xi);
-
-        BZ03_DecryptionShare {id:self.id.clone(), data: u.clone()}
-    }
-}
-
-
-impl <PE:PairingEngine> BZ03_PublicKey<PE> {
-    pub fn assemble(&self, shares:&Vec<BZ03_DecryptionShare<PE::G2>>, ct:&BZ03_Ciphertext<PE>) -> Vec<u8> {
-        let rY = interpolate(shares);
-
-        let key = xor(G(&rY), ct.c_k.clone());
-        
-        let mut msg: Vec<u8> = vec![0; 44];
-        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
-
-        msg
-    }
-
-    pub fn verify_ciphertext(&self, ct: &BZ03_Ciphertext<PE>) -> bool {
-        let h = H(&ct.u, &ct.msg);
-
-        let mut lhs =  pair::ate(&ct.u, &h);
-        lhs = pair::fexp(&lhs);
-
-        let mut rhs = pair::ate(&ECP2::generator(), &ct.hr);
-        rhs = pair::fexp(&rhs);
-        
-        lhs.equals(&rhs)
-    }
-
-    pub fn verify_share(&self, share: &BZ03_DecryptionShare<PE::G2>, ct: &BZ03_Ciphertext<PE>) -> bool {
-        let mut lhs =  pair::ate( &share.data, &ECP::generator());
-        lhs = pair::fexp(&lhs);
-
-        let mut rhs = pair::ate(&ct.u, &self.verificationKey[(&share.id - 1) as usize]);
-        rhs = pair::fexp(&rhs);
-        
-        lhs.equals(&rhs)
-    }
-}
-
-*/
