@@ -31,7 +31,7 @@ fn main() {
     println!("\n--SG02 Threshold Cipher--");
 
     // generate secret shares for SG02 scheme over Bls12381 curve
-    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Ed25519::new()));
+    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::SG02(Bls12381::new()));
     
     // the keys are wrapped in an enum struct, so we have to unwrap them first (using the macro unwrap_keys)
     let sk = unwrap_keys!(sk, DlPrivateKey::SG02);
@@ -59,7 +59,7 @@ fn main() {
 
     println!("\n--BZ03 Threshold Cipher--");
 
-    // generate secret shares for SG02 scheme over Bls12381 curve
+    // generate secret shares for BZ03 scheme over Bls12381 curve
     let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::BZ03(Bls12381::new()));
     
     // the keys are wrapped in an enum struct, so we have to unwrap them first (using the macro unwrap_keys)
