@@ -147,7 +147,6 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
 
         w.div(&rhs);
 
-
         let mut w_bar = pk.g_bar.clone();
         w_bar.pow(&ct.f);
 
@@ -193,7 +192,7 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
         ui_bar.pow(&si);
 
         let mut hi_bar = G::new();
-        ui_bar.pow(&si);
+        hi_bar.pow(&si);
 
         let ei = H2(&data, &ui_bar, &hi_bar);
         let mut fi = BigImpl::rmul(&sk.xi, &ei, &G::get_order());

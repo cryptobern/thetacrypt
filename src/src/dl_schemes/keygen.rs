@@ -46,7 +46,7 @@ impl DlKeyGenerator {
         match scheme {
             DlScheme::BZ03(D) => {
                 if !D::is_pairing_friendly() {
-                    panic!("Supplied domain does not support pairings but scheme relies on pairings!")
+                    panic!("Supplied domain does not support pairings!")
                 }
 
                 let x = D::BigInt::new_rand(&D::G2::get_order(), rng);
@@ -57,7 +57,7 @@ impl DlKeyGenerator {
                 let publicKey = BZ03_PublicKey { y: y, verificationKey:h };
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::BZ03(BZ03_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: (i+1) as u8} ))
+                    privateKeys.push(DlPrivateKey::BZ03(BZ03_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: i+1} ))
                 }
 
                 return privateKeys;

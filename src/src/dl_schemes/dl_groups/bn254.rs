@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, util::printbinary};
 use crate::dl_schemes::dl_groups::pairing::*;
 
 use super::BigImpl;
@@ -238,7 +238,7 @@ impl DlGroup for Bn254FP12 {
 
     /* TODO: fix serialization */
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;100];
+        let buf:Vec<u8> = vec![0;100];
         //self.value.tobytes(&mut buf);
         buf
     }
