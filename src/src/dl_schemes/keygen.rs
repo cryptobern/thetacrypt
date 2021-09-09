@@ -49,7 +49,7 @@ impl DlKeyGenerator {
                     panic!("Supplied domain does not support pairings!")
                 }
 
-                let x = D::BigInt::new_rand(&D::G2::get_order(), rng);
+                let x = D::BigInt::new_int(2);//D::BigInt::new_rand(&D::G2::get_order(), rng);
                 let y = D::G2::new_pow_big(&x);
 
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, &k, &n, rng);

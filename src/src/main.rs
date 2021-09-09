@@ -56,7 +56,6 @@ fn main() {
     let msg = SG02_ThresholdCipher::assemble( &shares, &ciphertext);
     println!("Decrypted message: {}", hex2string(&msg));
 
-
     println!("\n--BZ03 Threshold Cipher--");
 
     // generate secret shares for BZ03 scheme over Bls12381 curve
