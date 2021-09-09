@@ -106,8 +106,7 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     fn encrypt(msg: &[u8], label: &[u8], pk: &SG02_PublicKey<G>, rng: &mut impl RAND) -> Self::CT {
         let k = gen_symm_key(rng);
 
-        //let r = G::BigInt::new_rand(&G::get_order(), rng);
-        let r = G::BigInt::new_int(2);
+        let r = G::BigInt::new_rand(&G::get_order(), rng);
         let mut u = G::new();
         u.pow(&r);
 
