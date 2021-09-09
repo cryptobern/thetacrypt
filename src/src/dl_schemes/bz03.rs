@@ -21,6 +21,7 @@ use crate::dl_schemes::dl_groups::pairing::PairingEngine;
 use crate::dl_schemes::common::*;
 use crate::interface::*;
 
+use super::DlShare;
 use super::dl_groups::BigImpl;
 
 pub struct BZ03_PublicKey<PE: PairingEngine> {
@@ -29,7 +30,7 @@ pub struct BZ03_PublicKey<PE: PairingEngine> {
 }
 
 pub struct BZ03_PrivateKey<PE: PairingEngine> {
-    pub id: u8,
+    pub id: usize,
     pub xi: BigImpl,
     pub pubkey: BZ03_PublicKey<PE>
 }
@@ -53,19 +54,19 @@ impl<PE:PairingEngine> PrivateKey for BZ03_PrivateKey<PE> {
     }
 }
 
-
-/*
-
-
-
 pub struct BZ03_DecryptionShare<G: DlGroup> {
-    id: u8,
+    id: usize,
     data: G
 }
 
-impl<G: DlGroup> Share<G> for BZ03_DecryptionShare<G> {
-    fn get_id(&self) -> u8 { self.id.clone() }
-    fn get_data(&self) -> G { self.data.clone() }
+impl<G: DlGroup> Share for BZ03_DecryptionShare<G> {
+    fn get_id(&self) -> usize { self.id.clone() }
+}
+
+impl<G: DlGroup> DlShare<G> for BZ03_DecryptionShare<G> {
+    fn get_data(&self) -> G {
+        self.data.clone()
+    }
 }
 
 pub struct BZ03_Ciphertext<PE: PairingEngine> {
@@ -73,7 +74,7 @@ pub struct BZ03_Ciphertext<PE: PairingEngine> {
     msg: Vec<u8>,
     c_k: Vec<u8>,
     u: PE::G2,
-    hr: PE::G1
+    hr: PE
 }
 
 impl<PE: PairingEngine> Ciphertext for BZ03_Ciphertext<PE> {
@@ -81,24 +82,98 @@ impl<PE: PairingEngine> Ciphertext for BZ03_Ciphertext<PE> {
     fn get_label(&self) -> Vec<u8> { self.label.clone() }
 }
 
-pub fn bz03_gen_keys<PK: PublicKey, SK: PrivateKey, PE:PairingEngine> (k: u8, n:u8, rng: &mut impl RAND) -> (PK, Vec<SK>) {
-    let x = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
-    let mut y = ECP2::generator();
-    y = y.mul(&x);
 
-    let s = BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng);
+pub struct BZ03_ThresholdCipher<PE: PairingEngine> {
+    g: PE
+}
 
-    let (shares, h) = shamir_share(&x, &k, &n, rng);
-    let pk = BZ03_PublicKey {y:y.clone(), verificationKey:h.clone() };
-    let mut sk = Vec::new();
-    
-    for j in 1..n+1 {
-        sk.push(BZ03_PrivateKey::<PE> {id:j, xi:shares[(j -1) as usize], pubkey:pk.clone()});
+impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
+    type CT = BZ03_Ciphertext<PE>;
+
+    type PK = BZ03_PublicKey<PE>;
+
+    type SK = BZ03_PrivateKey<PE>;
+
+    type SH = BZ03_DecryptionShare<PE::G2>;
+
+    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::PK, rng: &mut impl RAND) -> Self::CT {
+        let k = gen_symm_key(rng);
+
+        let r = PE::BigInt::new_rand(&PE::G2::get_order(), rng);
+        let mut u = PE::G2::new();
+        u.pow(&r);
+
+        let mut rY = pk.y.clone();
+        rY.pow(&r);
+
+        let c_k = xor(G(&rY), (k).to_vec());
+
+        let mut encryption: Vec<u8> = vec![0; msg.len()];
+        cbc_iv0_encrypt(&k, &msg, &mut encryption);
+
+        let mut hr = H::<PE::G2, PE>(&u, &encryption);
+        hr.pow(&r);
+
+        let c = BZ03_Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
+        c
     }
 
-    (pk, sk)
-}  
-*/
+    fn verify_ciphertext(ct: &Self::CT, pk: &Self::PK) -> bool {
+        let h = H::<PE::G2, PE>(&ct.u, &ct.msg);
+
+        PE::ddh(&ct.u, &h, &PE::G2::new(), &ct.hr)
+    }
+
+    fn verify_share(share: &Self::SH, ct: &Self::CT, pk: &Self::PK) -> bool {
+        PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
+    }
+
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
+        let mut u = ct.u.clone();
+        u.pow(&sk.xi);
+
+        BZ03_DecryptionShare {id:sk.id, data: u}
+    }
+
+    fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8> {
+        let rY = interpolate(shares);
+
+        let key = xor(G(&rY), ct.c_k.clone());
+        
+        let mut msg: Vec<u8> = vec![0; 44];
+        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
+
+        msg
+    }
+}
+
+fn H<G1: DlGroup, G2: DlGroup>(g: &G1, m: &Vec<u8>) -> G2 {
+    let mut bytes  = g.to_bytes();
+    
+    let mut h = HASH256::new();
+    h.process_array(&[&bytes[..], &m[..]].concat());
+
+    let h = [&vec![0;big::MODBYTES - 32][..], &h.hash()[..]].concat();
+
+    let mut s = G2::BigInt::from_bytes(&h);
+    s.rmod(&G2::get_order());
+
+    let mut res = G2::new();
+    res.pow(&s);
+    res
+}
+
+// hash ECP to bit string
+fn G<G: DlGroup>(x: &G) -> Vec<u8> {
+    let res = x.to_bytes();
+
+    let mut h = HASH256::new();
+    h.process_array(&res);
+    
+    let r = h.hash().to_vec();
+    r
+}
+
 /*
 
 impl<PE: PairingEngine> BZ03_PrivateKey<PE> {
@@ -110,45 +185,8 @@ impl<PE: PairingEngine> BZ03_PrivateKey<PE> {
     }
 }
 
-fn H(g: &ECP2, m: &Vec<u8>) -> ECP {
-    let mut bytes: Vec<u8> = vec![0;256];
-    g.tobytes(&mut bytes, false);
-
-    let mut h = HASH256::new();
-    h.process_array(&[&bytes[..], &m[..]].concat());
-
-    let h = [&vec![0;big::MODBYTES - 32][..], &h.hash()[..]].concat();
-
-    let mut s = BIG::frombytes(&h);
-    s.rmod(&BIG::new_ints(&rom::CURVE_ORDER));
-
-    ECP::generator().mul(&s)
-}
 
 impl <PE:PairingEngine> BZ03_PublicKey<PE> {
-    pub fn encrypt(&self, msg:Vec<u8>, label:&Vec<u8>, rng: &mut impl RAND) -> BZ03_Ciphertext<PE> {
-        let k = gen_symm_key(rng);
-
-        let q = BIG::new_ints(&rom::CURVE_ORDER);
-        let r = BIG::randomnum(&q, rng);
-        let mut u = ECP2::generator();
-        u = u.mul(&r);
-
-        let mut rY = self.y.clone();
-        rY = rY.mul(&r);
-
-        let c_k = xor(G(&rY), (k).to_vec());
-
-        let mut encryption: Vec<u8> = vec![0; msg.len()];
-        cbc_iv0_encrypt(&k, &msg, &mut encryption);
-
-        let hr = H(&u, &encryption).mul(&r);
-
-        let c = BZ03_Ciphertext{label:label.clone(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
-        c
-    }
-
-
     pub fn assemble(&self, shares:&Vec<BZ03_DecryptionShare<PE::G2>>, ct:&BZ03_Ciphertext<PE>) -> Vec<u8> {
         let rY = interpolate(shares);
 
@@ -183,14 +221,4 @@ impl <PE:PairingEngine> BZ03_PublicKey<PE> {
     }
 }
 
-// hash ECP to bit string
-fn G(x: &ECP2) -> Vec<u8> {
-    let mut res:Vec<u8> = vec![0;100];
-    x.getx().tobytes(&mut res);
-
-    let mut h = HASH256::new();
-    h.process_array(&res);
-    
-    let r = h.hash().to_vec();
-    r
-}*/
+*/

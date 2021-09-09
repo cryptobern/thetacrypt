@@ -43,7 +43,7 @@ pub fn new_rand() -> RAND_impl {
 }
 
 // convert a vector of bytes to an ASCII string
-pub fn hex2string(msg: Vec<u8>) -> String {
+pub fn hex2string(msg: &Vec<u8>) -> String {
     let mut res: String = String::new();
     for i in 0..msg.len() {
         res.push(msg[i] as char);

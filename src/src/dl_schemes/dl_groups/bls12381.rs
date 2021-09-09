@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use mcore::{bls12381::{big::{BASEBITS, BIG, MODBYTES}, dbig::DBIG, ecp::{CURVETYPE, ECP, MONTGOMERY}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, util::printbinary};
 use crate::dl_schemes::dl_groups::pairing::*;
 
 use super::BigImpl;
@@ -155,7 +155,7 @@ impl DlGroup for Bls12381ECP2 {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let mut buf:Vec<u8> = vec![0;2 * MODBYTES + 1];
+        let mut buf:Vec<u8> = vec![0;4*MODBYTES + 1];
         self.value.tobytes(&mut buf, false);
         buf
     }
