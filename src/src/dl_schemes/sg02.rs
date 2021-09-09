@@ -131,8 +131,9 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
 
         let e = H1(&c_k, &label, &u, &w, &u_bar, &w_bar);
 
-        let mut f = BigImpl::rmul(&e, &r, &G::get_order());
-        f.add(&s);
+        let mut f = s.clone();
+        f.add(&BigImpl::rmul(&e, &r, &G::get_order()));
+        f.rmod(&G::get_order());
 
         let c = SG02_Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
         c
@@ -177,9 +178,9 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
 
         hi_bar.div(&rhs);
 
-        let e2 = H2(&share.data, &ui_bar, &hi_bar);
+        let ei2 = H2(&share.data, &ui_bar, &hi_bar);
 
-        ct.e.equals(&e2)
+        share.ei.equals(&ei2)
     }
 
     fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
@@ -195,8 +196,9 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
         hi_bar.pow(&si);
 
         let ei = H2(&data, &ui_bar, &hi_bar);
-        let mut fi = BigImpl::rmul(&sk.xi, &ei, &G::get_order());
-        fi.add(&si);
+        let mut fi = si.clone();
+        fi.add(&BigImpl::rmul(&sk.xi, &ei, &G::get_order()));
+        fi.rmod(&G::get_order());
 
         SG02_DecryptionShare { id:sk.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
     }
