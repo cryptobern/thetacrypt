@@ -1,6 +1,6 @@
 # Threshold Schemes
 
-![](../img/reverse_schemes.png)
+![](../img/schemes_reverse.png)
 
 *: Non-compatible interactive schemes
 [GGN16](https://link.springer.com/content/pdf/10.1007%2F978-3-319-39555-5_9.pdf), [GG18](https://eprint.iacr.org/2019/114.pdf)
