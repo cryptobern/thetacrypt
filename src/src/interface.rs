@@ -40,3 +40,13 @@ pub trait ThresholdSignature {
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool;
     fn assemble(shares: &Vec<Self::SH>, msg: &[u8]) -> Self::SM;
 }
+
+pub trait ThresholdCoin {
+    type PK: PublicKey;
+    type SK: PrivateKey;
+    type SH: Share;
+
+    fn create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH;
+    fn verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool;
+    fn assemble(shares: &Vec<Self::SH>) -> bool;
+}

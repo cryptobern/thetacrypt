@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
+use crate::dl_schemes::coins::cks05::CKS05_ThresholdCoin;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::{
     ciphers::bz03::BZ03_ThresholdCipher, dl_groups::bls12381::Bls12381,
@@ -135,8 +136,28 @@ fn main() {
     let signature = BLS04_ThresholdSignature::assemble(&shares, &msg);
     println!("Signature: {}", signature.get_sig().to_string());
 
-    println!(
-        "Signature valid: {}",
+    println!("Signature valid: {}",
         BLS04_ThresholdSignature::verify(&signature, &sk[0].get_public_key())
     );
+
+    /* create threshold coin using CKS05 scheme */
+    println!("\n--CKS05 Threshold Coin--");
+
+    // generate secret shares for CKS05 scheme over Bls12381 curve
+    let sk = CKS05_ThresholdCoin::generate_keys(K, N, Bls12381::new(), &mut rng);
+    println!("Keys generated");
+
+    let mut shares = Vec::new();
+    let coin_name = b"My first threshold coin";
+
+    for i in 0..K {
+        shares.push(CKS05_ThresholdCoin::create_share(coin_name,&sk[i as usize], &mut rng));
+
+        println!("Coin share {} valid: {}", i,
+            CKS05_ThresholdCoin::verify_share(&shares[i as usize], coin_name, &sk[0].get_public_key())
+        );
+    }
+
+    let coin = CKS05_ThresholdCoin::assemble(&shares);
+    println!("Coin: {}", coin.to_string());
 }
