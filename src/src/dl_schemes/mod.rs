@@ -6,6 +6,7 @@ pub mod dl_groups;
 pub mod keygen;
 pub mod common;
 pub mod ciphers;
+pub mod signatures;
 
 pub trait DlDomain: PairingEngine {
     fn is_pairing_friendly() -> bool;

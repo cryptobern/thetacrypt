@@ -8,15 +8,19 @@ use crate::dl_schemes::ciphers::sg02::*;
 use super::DlDomain;
 use super::dl_groups::BigImpl;
 use super::dl_groups::dl_group::*;
+use super::signatures::bls04::BLS04_PrivateKey;
+use super::signatures::bls04::BLS04_PublicKey;
 
 pub enum DlScheme<D: DlDomain> {
     BZ03(D),
-    SG02(D)
+    SG02(D),
+    BLS04(D)
 }
 
 pub enum DlPrivateKey<D: DlDomain> {
     BZ03(BZ03_PrivateKey<D>),
-    SG02(SG02_PrivateKey<D>)
+    SG02(SG02_PrivateKey<D>),
+    BLS04(BLS04_PrivateKey<D>)
 }
 
 #[macro_export]
@@ -58,9 +62,8 @@ impl DlKeyGenerator {
                 }
 
                 return privateKeys;
-            }
+            },
 
-            ,
             DlScheme::SG02(_D) => {
                 let x = D::BigInt::new_rand(&D::get_order(), rng);
                 let y = D::new_pow_big(&x);
@@ -74,6 +77,24 @@ impl DlKeyGenerator {
 
                 for i in 0..shares.len() {
                     privateKeys.push(DlPrivateKey::SG02(SG02_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: (i+1)} ))
+                }
+
+                return privateKeys;
+            },
+
+            DlScheme::BLS04(_D) => {
+                let x = D::BigInt::new_rand(&D::get_order(), rng);
+                let y = D::new_pow_big(&x);
+
+                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, &k, &n, rng);
+                let mut privateKeys = Vec::new();
+
+                let g_bar = D::new_rand(rng);
+
+                let publicKey = BLS04_PublicKey { y: y, verificationKey:h };
+
+                for i in 0..shares.len() {
+                    privateKeys.push(DlPrivateKey::BLS04(BLS04_PrivateKey {xi: shares[i].clone(), pubkey: publicKey.clone(), id: (i+1)} ))
                 }
 
                 return privateKeys;

@@ -2,7 +2,7 @@ use mcore::{arch::Chunk, rand::RAND};
 
 use crate::dl_schemes::dl_groups::BigImpl;
 
-// Wrapper for the different BIG implementations in Miracl Core
+/// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
     Sized 
     + Clone

@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use mcore::rand::{RAND_impl, RAND};
 
-// print a vector of bytes to the console
+/// print a vector of bytes to the console
 pub fn printbinary(array: &[u8], caption: Option<&str>) {
     if caption.is_some() {
         print!("{}", caption.unwrap());
@@ -13,7 +13,7 @@ pub fn printbinary(array: &[u8], caption: Option<&str>) {
     println!("")
 }
 
-// create new RAND_impl instance and feed it with some entropy (current time)
+/// create new RAND_impl instance and feed it with some entropy (current time)
 pub fn new_rand() -> RAND_impl {
     let mut raw: [u8; 100] = [0; 100];
     let mut rng = RAND_impl::new();
@@ -42,7 +42,7 @@ pub fn new_rand() -> RAND_impl {
     rng
 }
 
-// convert a vector of bytes to an ASCII string
+/// convert a vector of bytes to an ASCII string
 pub fn hex2string(msg: &Vec<u8>) -> String {
     let mut res: String = String::new();
     for i in 0..msg.len() {
