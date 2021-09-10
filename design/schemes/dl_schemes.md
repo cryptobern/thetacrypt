@@ -104,7 +104,7 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `c_bar = interpolate(shares)`<br>
-`return H2(cbar)`<br><br><br>
+`return H2(c_bar)`<br><br><br>
 
 # SG02_ThresholdCipher
 [Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
