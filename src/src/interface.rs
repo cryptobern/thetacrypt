@@ -48,5 +48,5 @@ pub trait ThresholdCoin {
 
     fn create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH;
     fn verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool;
-    fn assemble(shares: &Vec<Self::SH>) -> bool;
+    fn assemble(shares: &Vec<Self::SH>) -> u8;
 }

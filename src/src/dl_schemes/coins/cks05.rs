@@ -169,7 +169,7 @@ impl<G: DlGroup> ThresholdCoin for CKS05_ThresholdCoin<G> {
         share.c.equals(&c)
     }
 
-    fn assemble(shares: &Vec<Self::SH>) -> bool {
+    fn assemble(shares: &Vec<Self::SH>) -> u8 {
         let coin = interpolate(shares);
         H2(&coin)
     }
@@ -250,22 +250,35 @@ fn H1<G: DlGroup>(g1: &G, g2: &G, g3: &G, g4: &G, g5: &G, g6: &G) -> BigImpl {
     res
 }
 
-fn H2<G: DlGroup>(g: &G) -> bool {
+fn H2<G: DlGroup>(g: &G) -> u8 {
     let mut buf: Vec<u8> = Vec::new();
 
     buf = [&buf[..], &g.to_bytes()[..]].concat();
 
     let mut hash = HASH256::new();
     hash.process_array(&buf);
-    let h = hash.hash().to_vec();
 
+    let h = hash.hash();
+    
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
 
-    //let mut res = G::BigInt::from_bytes(&buf);
-  //  res.rmod(&G::BigInt::new_int(2));
+    let nbits = G::get_order().nbytes() * 8;
 
-   // let bit = res.to_bytes()[0];
-   // println!("Bit: {} ", res.to_string());
-    1 != 0
+    if nbits > buf.len() * 4 {
+        let mut g: [u8; 32];
+        for i in 1..(((nbits - buf.len() * 4) / buf.len() * 8) as f64).ceil() as isize {
+            g = h.clone();
+            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            g = hash.hash();
+            buf = [&buf[..], &g].concat();
+        }
+    }
+
+    let mut res = G::BigInt::from_bytes(&buf);
+    res.rmod(&G::BigInt::new_int(2));
+
+    let bit = res.to_bytes()[res.nbytes() - 1];
+
+    bit
 }
