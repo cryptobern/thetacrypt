@@ -3,9 +3,9 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::{bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, keygen::*};
+use crate::dl_schemes::{ciphers::bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, keygen::*};
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
-use crate::dl_schemes::sg02::*;
+use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
 use crate::interface::*;
 use crate::util::*;
 
@@ -22,7 +22,7 @@ fn main() {
     let mut rng = new_rand();
 
     // prepare message and label
-    let plaintext = "This is a test!  ";
+    let plaintext = "This is a test message!";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label = b"Label";
     
