@@ -31,7 +31,9 @@ macro_rules! unwrap_keys {
         for i in 0..$vec.len() {
             let val = &$vec[i];
             match val {
-                $variant(x) => vec.push(x),
+                $variant(x) => {
+                    vec.push((*x).clone())
+                },
                 _ => panic!("Error unwrapping key"),
             }
         }
@@ -43,7 +45,7 @@ macro_rules! unwrap_keys {
 pub struct DlKeyGenerator {}
 
 impl DlKeyGenerator {
-    pub fn generate_keys<D: DlDomain>(k: &u8, n: &u8, rng: &mut impl RAND, scheme: &DlScheme<D>) -> Vec<DlPrivateKey<D>> {
+    pub fn generate_keys<D: DlDomain>(k: usize, n: usize, rng: &mut impl RAND, scheme: &DlScheme<D>) -> Vec<DlPrivateKey<D>> {
         match scheme {
             DlScheme::BZ03(_D) => {
                 if !D::is_pairing_friendly() {
@@ -53,7 +55,7 @@ impl DlKeyGenerator {
                 let x = D::BigInt::new_rand(&D::G2::get_order(), rng);
                 let y = D::G2::new_pow_big(&x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, &k, &n, rng);
+                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
                 let publicKey = BZ03_PublicKey { y: y, verificationKey:h };
 
@@ -68,7 +70,7 @@ impl DlKeyGenerator {
                 let x = D::BigInt::new_rand(&D::get_order(), rng);
                 let y = D::new_pow_big(&x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, &k, &n, rng);
+                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
 
                 let g_bar = D::new_rand(rng);
@@ -86,10 +88,8 @@ impl DlKeyGenerator {
                 let x = D::BigInt::new_rand(&D::get_order(), rng);
                 let y = D::new_pow_big(&x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, &k, &n, rng);
+                let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
-
-                let g_bar = D::new_rand(rng);
 
                 let publicKey = BLS04_PublicKey { y: y, verificationKey:h };
 

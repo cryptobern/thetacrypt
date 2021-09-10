@@ -1,8 +1,11 @@
-use std::str::ParseBoolError;
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(clippy::many_single_char_names)]
+#![allow(clippy::zero_prefixed_literal)]
 
-use mcore::hash256::HASH256;
+use mcore::{hash256::HASH256, rand::RAND};
 
-use crate::{dl_schemes::{DlShare, common::interpolate, dl_groups::{BigImpl, dl_group::DlGroup, pairing::PairingEngine}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}};
+use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{BigImpl, dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys};
 use crate::bigint::*;
 
 pub struct BLS04_ThresholdSignature<PE: PairingEngine> {
@@ -51,6 +54,12 @@ impl<PE: PairingEngine> Clone for BLS04_PublicKey<PE> {
     }
 }
 
+impl<PE: PairingEngine> Clone for BLS04_PrivateKey<PE> {
+    fn clone(&self) -> Self {
+        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
+    }
+}
+
 impl<PE: PairingEngine> Share for BLS04_SignatureShare<PE> {
     fn get_id(&self) -> usize {
         self.id
@@ -87,9 +96,16 @@ impl<PE: PairingEngine> ThresholdSignature for BLS04_ThresholdSignature<PE> {
         PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {
+    fn assemble(shares: &Vec<Self::SH>, msg: &[u8]) -> Self::SM {
         let sig = interpolate(&shares);
         BLS04_SignedMessage{sig:sig, msg:msg.to_vec() } 
+    }
+}
+
+impl<D:DlDomain> BLS04_ThresholdSignature<D> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<BLS04_PrivateKey<D>> {
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BLS04(domain));
+        unwrap_keys!(keys, DlPrivateKey::BLS04)
     }
 }
 

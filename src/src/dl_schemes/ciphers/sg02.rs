@@ -14,14 +14,15 @@ use crate::dl_schemes::common::gen_symm_key;
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::common::xor;
 use crate::dl_schemes::dl_groups::dl_group::*;
-use crate::interface::*;
+use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
+use crate::{interface::*, unwrap_keys};
 use crate::interface::PrivateKey;
 use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
 use crate::bigint::BigInt;
 
-use crate::dl_schemes::DlShare;
+use crate::dl_schemes::{DlDomain, DlShare};
 use crate::dl_schemes::dl_groups::BigImpl;
 
 pub struct SG02_PublicKey<G: DlGroup> {
@@ -29,30 +30,12 @@ pub struct SG02_PublicKey<G: DlGroup> {
     pub verificationKey: Vec<G>,
     pub g_bar: G
 }
-
-impl<G: DlGroup> Clone for SG02_PublicKey<G> {
-    fn clone(&self) -> SG02_PublicKey<G> {
-        return SG02_PublicKey {y:self.y.clone(), verificationKey:self.verificationKey.clone(), g_bar:self.g_bar.clone() };
-    }
-}
 pub struct SG02_PrivateKey<G: DlGroup> {
     pub id: usize,
     pub xi: BigImpl,
     pub pubkey: SG02_PublicKey<G>,
 }
 
-impl<G: DlGroup> PublicKey for SG02_PublicKey<G> {}
-
-impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
-    type PK = SG02_PublicKey<G>;
-    fn get_public_key(&self) -> SG02_PublicKey<G> {
-        self.pubkey.clone()
-    }
-
-    fn get_id(&self) -> usize {
-        self.id 
-    }
-}
 pub struct SG02_Ciphertext<G: DlGroup> {
     label: Vec<u8>,
     msg: Vec<u8>,
@@ -69,6 +52,31 @@ pub struct SG02_DecryptionShare<G: DlGroup>  {
     data: G,
     ei: BigImpl,
     fi: BigImpl,
+}
+
+impl<G: DlGroup> Clone for SG02_PublicKey<G> {
+    fn clone(&self) -> SG02_PublicKey<G> {
+        return SG02_PublicKey {y:self.y.clone(), verificationKey:self.verificationKey.clone(), g_bar:self.g_bar.clone() };
+    }
+}
+
+impl<G: DlGroup> Clone for SG02_PrivateKey<G> {
+    fn clone(&self) -> Self {
+        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
+    }
+}
+
+impl<G: DlGroup> PublicKey for SG02_PublicKey<G> {}
+
+impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
+    type PK = SG02_PublicKey<G>;
+    fn get_public_key(&self) -> SG02_PublicKey<G> {
+        self.pubkey.clone()
+    }
+
+    fn get_id(&self) -> usize {
+        self.id 
+    }
 }
 
 impl<G: DlGroup> Ciphertext for SG02_Ciphertext<G> {
@@ -215,6 +223,13 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
             .expect("decryption failure");
         
         msg
+    }
+}
+
+impl<D:DlDomain> SG02_ThresholdCipher<D> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<SG02_PrivateKey<D>> {
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::SG02(domain));
+        unwrap_keys!(keys, DlPrivateKey::SG02)
     }
 }
 

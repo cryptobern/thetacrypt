@@ -14,8 +14,9 @@ use crate::bigint::BigInt;
 use crate::dl_schemes::dl_groups::BigImpl;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
-use crate::dl_schemes::{DlShare, common::*};
-use crate::interface::*;
+use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
+use crate::dl_schemes::{DlDomain, DlShare, common::*};
+use crate::{interface::*, unwrap_keys};
 
 pub struct BZ03_PublicKey<PE: PairingEngine> {
     pub y: PE::G2,
@@ -28,9 +29,33 @@ pub struct BZ03_PrivateKey<PE: PairingEngine> {
     pub pubkey: BZ03_PublicKey<PE>
 }
 
+pub struct BZ03_DecryptionShare<G: DlGroup> {
+    id: usize,
+    data: G
+}
+
+pub struct BZ03_Ciphertext<PE: PairingEngine> {
+    label: Vec<u8>,
+    msg: Vec<u8>,
+    c_k: Vec<u8>,
+    u: PE::G2,
+    hr: PE
+}
+
+pub struct BZ03_ThresholdCipher<PE: PairingEngine> {
+    g: PE
+}
+
+
 impl<PE: PairingEngine> Clone for BZ03_PublicKey<PE> {
     fn clone(&self) -> Self {
         Self {y:self.y.clone(), verificationKey:self.verificationKey.clone()}
+    }
+}
+
+impl<PE: PairingEngine> Clone for BZ03_PrivateKey<PE> {
+    fn clone(&self) -> Self {
+        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
     }
 }
 
@@ -47,11 +72,6 @@ impl<PE:PairingEngine> PrivateKey for BZ03_PrivateKey<PE> {
     }
 }
 
-pub struct BZ03_DecryptionShare<G: DlGroup> {
-    id: usize,
-    data: G
-}
-
 impl<G: DlGroup> Share for BZ03_DecryptionShare<G> {
     fn get_id(&self) -> usize { self.id.clone() }
 }
@@ -62,22 +82,9 @@ impl<G: DlGroup> DlShare<G> for BZ03_DecryptionShare<G> {
     }
 }
 
-pub struct BZ03_Ciphertext<PE: PairingEngine> {
-    label: Vec<u8>,
-    msg: Vec<u8>,
-    c_k: Vec<u8>,
-    u: PE::G2,
-    hr: PE
-}
-
 impl<PE: PairingEngine> Ciphertext for BZ03_Ciphertext<PE> {
     fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     fn get_label(&self) -> Vec<u8> { self.label.clone() }
-}
-
-
-pub struct BZ03_ThresholdCipher<PE: PairingEngine> {
-    g: PE
 }
 
 impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
@@ -90,8 +97,6 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
     type SH = BZ03_DecryptionShare<PE::G2>;
 
     fn encrypt(msg: &[u8], label: &[u8], pk: &Self::PK, rng: &mut impl RAND) -> Self::CT {
-        let k = gen_symm_key(rng);
-
         let r = PE::BigInt::new_rand(&PE::G2::get_order(), rng);
         let mut u = PE::G2::new();
         u.pow(&r);
@@ -143,6 +148,13 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
             .expect("decryption failure");
 
         msg
+    }
+}
+
+impl<D:DlDomain> BZ03_ThresholdCipher<D> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<BZ03_PrivateKey<D>> {
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BZ03(domain));
+        unwrap_keys!(keys, DlPrivateKey::BZ03)
     }
 }
 

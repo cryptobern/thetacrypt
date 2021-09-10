@@ -5,7 +5,7 @@ use crate::bigint::*;
 
 use super::{DlShare, dl_groups::BigImpl};
 
-pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: &u8, n: &u8, rng: &mut impl RAND) -> (Vec<BigImpl>, Vec<G>) {
+pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut impl RAND) -> (Vec<BigImpl>, Vec<G>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
     let q = G::get_order();
 
