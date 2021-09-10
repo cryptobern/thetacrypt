@@ -3,7 +3,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::{ciphers::bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, keygen::*};
+use crate::dl_schemes::{ciphers::bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, keygen::*, signatures::bls04::BLS04_ThresholdSignature};
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
 use crate::interface::*;
@@ -83,4 +83,24 @@ fn main() {
     // assemble decryption shares to restore original message
     let msg = BZ03_ThresholdCipher::assemble( &shares, &ciphertext);
     println!("Decrypted message: {}", hex2string(&msg));
+
+    println!("\n--BLS04 Threshold Signature--");
+
+    // generate secret shares for BLS04 scheme over Bls12381 curve
+    let sk = DlKeyGenerator::generate_keys(&K, &N, &mut rng, &DlScheme::BLS04(Bls12381::new()));
+    
+    // the keys are wrapped in an enum struct, so we have to unwrap them first (using the macro unwrap_keys)
+    let sk = unwrap_keys!(sk, DlPrivateKey::BLS04);
+    
+    let mut shares = Vec::new();
+
+    for i in 0..K {
+        shares.push(BLS04_ThresholdSignature::partial_sign(&msg, sk[i as usize]));
+        println!("Partial signature {} valid: {}", i, BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].pubkey));
+    }
+
+    let signature = BLS04_ThresholdSignature::assemble(&shares, &msg, &sk[0].pubkey);
+    println!("Signature: {}", signature.sig.to_string());
+
+    println!("Signature valid: {}", BLS04_ThresholdSignature::verify(&signature, &sk[0].pubkey));
 }
