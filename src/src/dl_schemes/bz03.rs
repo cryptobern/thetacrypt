@@ -4,6 +4,8 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use chacha20poly1305::aead::{Aead, NewAead};
 use mcore::rand::RAND;
 use mcore::bls12381::big;
 use mcore::aes::*;
@@ -100,10 +102,14 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
         let mut rY = pk.y.clone();
         rY.pow(&r);
 
+        let k = gen_symm_key(rng);
+        let key = Key::from_slice(&k);
+        let cipher = ChaCha20Poly1305::new(key);
+        let encryption: Vec<u8> = cipher
+            .encrypt(Nonce::from_slice(&rY.to_bytes()[0..12]),  msg)
+            .expect("encryption failure");
+            
         let c_k = xor(G(&rY), (k).to_vec());
-
-        let mut encryption: Vec<u8> = vec![0; msg.len()];
-        cbc_iv0_encrypt(&k, &msg, &mut encryption);
 
         let mut hr = H::<PE::G2, PE>(&u, &encryption);
         hr.pow(&r);
@@ -131,11 +137,13 @@ impl<PE: PairingEngine> ThresholdCipher for BZ03_ThresholdCipher<PE> {
 
     fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8> {
         let rY = interpolate(shares);
-
-        let key = xor(G(&rY), ct.c_k.clone());
         
-        let mut msg: Vec<u8> = vec![0; 44];
-        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
+        let k = xor(G(&rY), ct.c_k.clone());
+        let key = Key::from_slice(&k);
+        let cipher = ChaCha20Poly1305::new(key);
+        let msg = cipher
+            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.msg.as_ref())
+            .expect("decryption failure");
 
         msg
     }
