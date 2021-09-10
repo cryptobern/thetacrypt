@@ -85,25 +85,25 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 **Scheme:** <br>
 **`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey) -> CKS05_CoinShare`**<br>
-`cbar = H(cname)`<br>
-`data = cbar^sk.xi`<br>
+`c_bar = H(cname)`<br>
+`data = c_bar^sk.xi`<br>
 `s = random(2, sk.group.q-1)` <br>
 `h = sk.group.g^s` <br>
-`h_bar = (sk.g_bar)^s` <br>
-`c = H1(sk.group.g, sk.verificationKey[sk.id], h, cbar, data, h_bar)` <br>
+`h_bar = c_bar^s` <br>
+`c = H1(sk.group.g, sk.verificationKey[sk.id], h, c_bar, data, h_bar)` <br>
 `z = s + sk.xi*c` <br>
 `return CKS05_CoinShare(sk.id, data, c, z)`<br><br>
 
 **`CKS05_ThresholdCoin::verifyShare(share: CKS05_CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
-`cbar = H(cname)`<br>
+`c_bar = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
-`h_bar = pk.group.g_bar^share.z / share.data^share.c`<br>
-`return share.c == H1(pk.group.g, pk.verificationKey[share.id], h, cbar, share.data, h_bar)`<br><br>
+`h_bar = c_bar^share.z / share.data^share.c`<br>
+`return share.c == H1(pk.group.g, pk.verificationKey[share.id], h, c_bar, share.data, h_bar)`<br><br>
 
 **`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>) -> u8`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`cbar = interpolate(shares)`<br>
+`c_bar = interpolate(shares)`<br>
 `return H2(cbar)`<br><br><br>
 
 # SG02_ThresholdCipher
