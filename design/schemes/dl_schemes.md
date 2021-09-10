@@ -98,7 +98,7 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `cbar = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
 `h_bar = pk.group.g_bar^share.z / share.data^share.c`<br>
-`return c == H1(pk.group.g, pk.verificationKey[share.id], h, cbar, share.data, h_bar)`<br><br>
+`return share.c == H1(pk.group.g, pk.verificationKey[share.id], h, cbar, share.data, h_bar)`<br><br>
 
 **`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>) -> u8`**<br>
 `if k > shares.size then`<br>
