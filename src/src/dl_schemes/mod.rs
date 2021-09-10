@@ -5,8 +5,7 @@ use self::dl_groups::{dl_group::DlGroup, pairing::PairingEngine};
 pub mod dl_groups;
 pub mod keygen;
 pub mod common;
-pub mod bz03;
-pub mod sg02;
+pub mod ciphers;
 
 pub trait DlDomain: PairingEngine {
     fn is_pairing_friendly() -> bool;

@@ -2,8 +2,8 @@ use mcore::rand::RAND;
 
 use crate::bigint::*;
 use crate::dl_schemes::common::*;
-use crate::dl_schemes::bz03::*;
-use crate::dl_schemes::sg02::*;
+use crate::dl_schemes::ciphers::bz03::*;
+use crate::dl_schemes::ciphers::sg02::*;
 
 use super::DlDomain;
 use super::dl_groups::BigImpl;

@@ -5,9 +5,7 @@
 #![allow(dead_code)]
 
 
-use chacha20poly1305::aead::AeadInPlace;
 use mcore::rand::RAND;
-use mcore::aes::*;
 use mcore::hash256::*;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
@@ -23,8 +21,8 @@ use crate::interface::Share;
 use crate::interface::ThresholdCipher;
 use crate::bigint::BigInt;
 
-use super::DlShare;
-use super::dl_groups::BigImpl;
+use crate::dl_schemes::DlShare;
+use crate::dl_schemes::dl_groups::BigImpl;
 
 pub struct SG02_PublicKey<G: DlGroup> {
     pub y: G,
