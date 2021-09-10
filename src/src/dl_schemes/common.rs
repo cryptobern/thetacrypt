@@ -72,6 +72,7 @@ pub fn gen_symm_key(rng: &mut impl RAND) -> [u8; 32] {
 
     let k: &mut[u8;32] = &mut[0;32];
     hkdf_expand(MC_SHA2, 32, k, 16, prk, &[0]);
+    
     *k
 }
 

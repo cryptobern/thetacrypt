@@ -5,9 +5,12 @@
 #![allow(dead_code)]
 
 
+use chacha20poly1305::aead::AeadInPlace;
 use mcore::rand::RAND;
 use mcore::aes::*;
 use mcore::hash256::*;
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
+use chacha20poly1305::aead::{Aead, NewAead};
 
 use crate::dl_schemes::common::gen_symm_key;
 use crate::dl_schemes::common::interpolate;
@@ -103,8 +106,6 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     type SH = SG02_DecryptionShare<G>;
 
     fn encrypt(msg: &[u8], label: &[u8], pk: &SG02_PublicKey<G>, rng: &mut impl RAND) -> Self::CT {
-        let k = gen_symm_key(rng);
-
         let r = G::BigInt::new_rand(&G::get_order(), rng);
         let mut u = G::new();
         u.pow(&r);
@@ -112,11 +113,15 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
         let mut rY = pk.y.clone();
         rY.pow(&r);
 
+        let k = gen_symm_key(rng);
+        let key = Key::from_slice(&k);
+        let cipher = ChaCha20Poly1305::new(key);
+        let encryption: Vec<u8> = cipher
+            .encrypt(Nonce::from_slice(&rY.to_bytes()[0..12]),  msg)
+            .expect("encryption failure");
+        
         let c_k = xor(H(&rY), (k).to_vec());
-
-        let mut encryption: Vec<u8> = vec![0; msg.len()];
-        cbc_iv0_encrypt(&k, &msg, &mut encryption);
-
+      
         let s = G::BigInt::new_rand(&G::get_order(), rng);
         let mut w = G::new();
         w.pow(&s);
@@ -204,10 +209,12 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8> {
         let rY = interpolate(shares);
 
-        let key = xor(H(&rY), ct.c_k.clone());
-        
-        let mut msg: Vec<u8> = vec![0; 44];
-        cbc_iv0_decrypt(&key, &ct.msg.clone(), &mut msg);
+        let k = xor(H(&rY), ct.c_k.clone());
+        let key = Key::from_slice(&k);
+        let cipher = ChaCha20Poly1305::new(key);
+        let msg = cipher
+            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.msg.as_ref())
+            .expect("decryption failure");
         
         msg
     }

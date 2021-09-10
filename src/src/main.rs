@@ -24,7 +24,7 @@ fn main() {
     // prepare message and label
     let plaintext = "This is a test!  ";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
-    let label: Vec<u8> = String::from("label").as_bytes().to_vec();
+    let label = b"Label";
     
     println!("Message: {}", plaintext);
 
@@ -37,7 +37,7 @@ fn main() {
     let sk = unwrap_keys!(sk, DlPrivateKey::SG02);
 
     // a public key is stored inside each secret share, so those can be used for encryption
-    let ciphertext = SG02_ThresholdCipher::encrypt(&msg, &label, &sk[0].pubkey, &mut rng); 
+    let ciphertext = SG02_ThresholdCipher::encrypt(&msg, label, &sk[0].pubkey, &mut rng); 
     
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
@@ -65,7 +65,7 @@ fn main() {
     let sk = unwrap_keys!(sk, DlPrivateKey::BZ03);
 
     // a public key is stored inside each secret share, so those can be used for encryption
-    let ciphertext = BZ03_ThresholdCipher::encrypt(&msg, &label, &sk[0].pubkey, &mut rng); 
+    let ciphertext = BZ03_ThresholdCipher::encrypt(&msg, label, &sk[0].pubkey, &mut rng); 
     
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
