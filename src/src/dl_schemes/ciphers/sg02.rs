@@ -26,14 +26,14 @@ use crate::dl_schemes::{DlDomain, DlShare};
 use crate::dl_schemes::dl_groups::BigImpl;
 
 pub struct SG02_PublicKey<G: DlGroup> {
-    pub y: G,
-    pub verificationKey: Vec<G>,
-    pub g_bar: G
+    y: G,
+    verificationKey: Vec<G>,
+    g_bar: G
 }
 pub struct SG02_PrivateKey<G: DlGroup> {
-    pub id: usize,
-    pub xi: BigImpl,
-    pub pubkey: SG02_PublicKey<G>,
+    id: usize,
+    xi: BigImpl,
+    pubkey: SG02_PublicKey<G>,
 }
 
 pub struct SG02_Ciphertext<G: DlGroup> {
@@ -76,6 +76,18 @@ impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
 
     fn get_id(&self) -> usize {
         self.id 
+    }
+}
+
+impl<G: DlGroup> SG02_PrivateKey<G> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &SG02_PublicKey<G>) -> Self {
+        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+}
+
+impl<G: DlGroup> SG02_PublicKey<G> {
+    pub fn new(y: &G, verificationKey: &Vec<G>, g_bar:&G) -> Self {
+        Self {y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
     }
 }
 

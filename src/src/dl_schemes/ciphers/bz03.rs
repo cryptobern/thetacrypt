@@ -19,14 +19,14 @@ use crate::dl_schemes::{DlDomain, DlShare, common::*};
 use crate::{interface::*, unwrap_keys};
 
 pub struct BZ03_PublicKey<PE: PairingEngine> {
-    pub y: PE::G2,
-    pub verificationKey: Vec<PE>
+    y: PE::G2,
+    verificationKey: Vec<PE>
 }
 
 pub struct BZ03_PrivateKey<PE: PairingEngine> {
-    pub id: usize,
-    pub xi: BigImpl,
-    pub pubkey: BZ03_PublicKey<PE>
+    id: usize,
+    xi: BigImpl,
+    pubkey: BZ03_PublicKey<PE>
 }
 
 pub struct BZ03_DecryptionShare<G: DlGroup> {
@@ -69,6 +69,18 @@ impl<PE:PairingEngine> PrivateKey for BZ03_PrivateKey<PE> {
 
     fn get_id(&self) -> usize {
         self.id as usize
+    }
+}
+
+impl<PE:PairingEngine> BZ03_PrivateKey<PE> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &BZ03_PublicKey<PE>) -> Self {
+        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+}
+
+impl<PE:PairingEngine> BZ03_PublicKey<PE> {
+    pub fn new(y: &PE::G2, verificationKey: &Vec<PE>) -> Self {
+        Self {y:y.clone(), verificationKey:verificationKey.clone()}
     }
 }
 

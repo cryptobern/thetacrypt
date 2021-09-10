@@ -13,25 +13,25 @@ pub struct BLS04_ThresholdSignature<PE: PairingEngine> {
 }
 
 pub struct BLS04_SignatureShare<PE: PairingEngine> {
-    pub id:usize,
-    pub label:Vec<u8>,
-    pub data:PE::G2
+    id:usize,
+    label:Vec<u8>,
+    data:PE::G2
 }
 
 pub struct BLS04_SignedMessage<PE: PairingEngine> {
-    pub msg: Vec<u8>,
-    pub sig: PE::G2
+    msg: Vec<u8>,
+    sig: PE::G2
 }
 
 pub struct BLS04_PublicKey<PE: PairingEngine> {
-    pub y: PE,
-    pub verificationKey:Vec<PE>
+    y: PE,
+    verificationKey:Vec<PE>
 }  
 
 pub struct BLS04_PrivateKey<PE: PairingEngine> {
-    pub id: usize,
-    pub xi: BigImpl,
-    pub pubkey: BLS04_PublicKey<PE>
+    id: usize,
+    xi: BigImpl,
+    pubkey: BLS04_PublicKey<PE>
 }
 
 impl<PE: PairingEngine> PublicKey for BLS04_PublicKey<PE> {}
@@ -60,6 +60,18 @@ impl<PE: PairingEngine> Clone for BLS04_PrivateKey<PE> {
     }
 }
 
+impl<PE:PairingEngine> BLS04_PrivateKey<PE> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &BLS04_PublicKey<PE>) -> Self {
+        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+}
+
+impl<PE:PairingEngine> BLS04_PublicKey<PE> {
+    pub fn new(y: &PE, verificationKey: &Vec<PE>) -> Self {
+        Self {y:y.clone(), verificationKey:verificationKey.clone()}
+    }
+}
+
 impl<PE: PairingEngine> Share for BLS04_SignatureShare<PE> {
     fn get_id(&self) -> usize {
         self.id
@@ -69,6 +81,12 @@ impl<PE: PairingEngine> Share for BLS04_SignatureShare<PE> {
 impl<PE: PairingEngine> DlShare<PE::G2> for BLS04_SignatureShare<PE> {
     fn get_data(&self) -> PE::G2 {
         self.data.clone()
+    }
+}
+
+impl<PE: PairingEngine> BLS04_SignedMessage<PE> {
+    pub fn get_sig(&self) -> PE::G2 {
+        self.sig.clone()
     }
 }
 

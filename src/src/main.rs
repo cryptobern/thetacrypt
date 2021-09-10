@@ -3,15 +3,18 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::{ciphers::bz03::BZ03_ThresholdCipher, dl_groups::{bls12381::Bls12381}, signatures::bls04::BLS04_ThresholdSignature};
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
+use crate::dl_schemes::dl_groups::dl_group::DlGroup;
+use crate::dl_schemes::{
+    ciphers::bz03::BZ03_ThresholdCipher, dl_groups::bls12381::Bls12381,
+    signatures::bls04::BLS04_ThresholdSignature,
+};
 use crate::interface::*;
 use crate::util::*;
 
-mod interface;
-mod dl_schemes;
 mod bigint;
+mod dl_schemes;
+mod interface;
 mod util;
 
 fn main() {
@@ -25,34 +28,45 @@ fn main() {
     let plaintext = "This is a test message!";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label = b"Label";
-    
+
     println!("Message: {}", plaintext);
 
     /* perform threshold encryption using SG02 scheme */
     println!("\n--SG02 Threshold Cipher--");
 
     // generate secret shares for SG02 scheme over Bls12381 curve
-    let sk = SG02_ThresholdCipher::generate_keys(K, N,  Bls12381::new(), &mut rng);
+    let sk = SG02_ThresholdCipher::generate_keys(K, N, Bls12381::new(), &mut rng);
     println!("Keys generated");
 
     // a public key is stored inside each secret share, so those can be used for encryption
-    let ciphertext = SG02_ThresholdCipher::encrypt(&msg, label, &sk[0].pubkey, &mut rng); 
-    
+    let ciphertext = SG02_ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut rng);
+
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     // check whether ciphertext is valid (needed for cca security, not working properly atm)
-    println!("Ciphertext valid: {}", SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].pubkey));
+    println!(
+        "Ciphertext valid: {}",
+        SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key())
+    );
 
     // create decryption shares and verify them (verification not working properly atm)
     let mut shares = Vec::new();
 
     for i in 0..K {
-        shares.push(SG02_ThresholdCipher::partial_decrypt(&ciphertext, &sk[i as usize], &mut rng));
-        println!("Share {} valid: {}", i, SG02_ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].pubkey));
+        shares.push(SG02_ThresholdCipher::partial_decrypt(
+            &ciphertext,
+            &sk[i as usize],
+            &mut rng,
+        ));
+        println!(
+            "Share {} valid: {}",
+            i,
+            SG02_ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].get_public_key())
+        );
     }
 
     // assemble decryption shares to restore original message
-    let msg = SG02_ThresholdCipher::assemble( &shares, &ciphertext);
+    let msg = SG02_ThresholdCipher::assemble(&shares, &ciphertext);
     println!("Decrypted message: {}", hex2string(&msg));
 
     /* perform threshold encryption using BZ03 scheme */
@@ -63,23 +77,38 @@ fn main() {
     println!("Keys generated");
 
     // a public key is stored inside each secret share, so those can be used for encryption
-    let ciphertext = BZ03_ThresholdCipher::encrypt(&msg, label, &sk[0].pubkey, &mut rng); 
-    
+    let ciphertext = BZ03_ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut rng);
+
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     // check whether ciphertext is valid (needed for cca security, not working properly atm)
-    println!("Ciphertext valid: {}", BZ03_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].pubkey));
+    println!(
+        "Ciphertext valid: {}",
+        BZ03_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key())
+    );
 
     // create decryption shares and verify them (verification not working properly atm)
     let mut shares = Vec::new();
 
     for i in 0..K {
-        shares.push(BZ03_ThresholdCipher::partial_decrypt(&ciphertext, &sk[i as usize], &mut rng));
-        println!("Share {} valid: {}", i, BZ03_ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].pubkey));
+        shares.push(BZ03_ThresholdCipher::partial_decrypt(
+            &ciphertext,
+            &sk[i as usize],
+            &mut rng,
+        ));
+        println!(
+            "Share {} valid: {}",
+            i,
+            BZ03_ThresholdCipher::verify_share(
+                &shares[i as usize],
+                &ciphertext,
+                &sk[0].get_public_key()
+            )
+        );
     }
 
     // assemble decryption shares to restore original message
-    let msg = BZ03_ThresholdCipher::assemble( &shares, &ciphertext);
+    let msg = BZ03_ThresholdCipher::assemble(&shares, &ciphertext);
     println!("Decrypted message: {}", hex2string(&msg));
 
     /* create threshold signatures using BLS04 scheme */
@@ -92,12 +121,22 @@ fn main() {
     let mut shares = Vec::new();
 
     for i in 0..K {
-        shares.push(BLS04_ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
-        println!("Partial signature {} valid: {}", i, BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].pubkey));
+        shares.push(BLS04_ThresholdSignature::partial_sign(
+            &msg,
+            &sk[i as usize],
+        ));
+        println!(
+            "Partial signature {} valid: {}",
+            i,
+            BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key())
+        );
     }
 
     let signature = BLS04_ThresholdSignature::assemble(&shares, &msg);
-    println!("Signature: {}", signature.sig.to_string());
+    println!("Signature: {}", signature.get_sig().to_string());
 
-    println!("Signature valid: {}", BLS04_ThresholdSignature::verify(&signature, &sk[0].pubkey));
+    println!(
+        "Signature valid: {}",
+        BLS04_ThresholdSignature::verify(&signature, &sk[0].get_public_key())
+    );
 }
