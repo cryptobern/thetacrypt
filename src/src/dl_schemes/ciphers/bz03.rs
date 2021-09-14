@@ -9,9 +9,10 @@ use chacha20poly1305::aead::{Aead, NewAead};
 use mcore::rand::RAND;
 use mcore::bls12381::big;
 use mcore::hash256::*;
+use rasn::types::{Integer, OctetString};
+use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag};
 
-use crate::bigint::BigInt;
-use crate::dl_schemes::dl_groups::BigImpl;
+use crate::bigint::*;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
@@ -196,3 +197,8 @@ fn G<G: DlGroup>(x: &G) -> Vec<u8> {
     let r = h.hash().to_vec();
     r
 }
+
+impl<PE: PairingEngine> AsnType for BZ03_PrivateKey<PE> {
+    const TAG: Tag = Tag::SEQUENCE;
+}
+

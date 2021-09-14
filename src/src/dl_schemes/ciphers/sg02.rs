@@ -20,10 +20,9 @@ use crate::interface::PrivateKey;
 use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
-use crate::bigint::BigInt;
+use crate::bigint::*;
 
 use crate::dl_schemes::{DlDomain, DlShare};
-use crate::dl_schemes::dl_groups::BigImpl;
 
 pub struct SG02_PublicKey<G: DlGroup> {
     y: G,

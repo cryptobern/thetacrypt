@@ -1,7 +1,9 @@
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 
-use super::{BigImpl, pairing::PairingEngine};
+use super::{pairing::PairingEngine};
+use crate::bigint::*;
+
 pub struct Ed25519 {
     value: ECP
 }
@@ -76,8 +78,8 @@ impl DlGroup for Ed25519 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:ECP::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -98,6 +100,10 @@ impl DlGroup for Ed25519 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "ed25519".to_string()
     }
 }
 

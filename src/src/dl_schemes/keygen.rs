@@ -8,7 +8,6 @@ use crate::dl_schemes::ciphers::sg02::*;
 use super::DlDomain;
 use super::coins::cks05::CKS05_PrivateKey;
 use super::coins::cks05::CKS05_PublicKey;
-use super::dl_groups::BigImpl;
 use super::dl_groups::dl_group::*;
 use super::signatures::bls04::BLS04_PrivateKey;
 use super::signatures::bls04::BLS04_PublicKey;

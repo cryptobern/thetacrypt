@@ -1,8 +1,7 @@
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
-
-use super::BigImpl;
+use crate::bigint::*;
 
 pub struct Bn254 {
     value: ECP
@@ -79,8 +78,8 @@ impl DlGroup for Bn254 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:ECP::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -101,6 +100,10 @@ impl DlGroup for Bn254 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bn254".to_string()
     }
 }
 
@@ -158,8 +161,8 @@ impl DlGroup for Bn254ECP2 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:ECP2::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -180,6 +183,10 @@ impl DlGroup for Bn254ECP2 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bn254".to_string()
     }
 }
 
@@ -241,8 +248,8 @@ impl DlGroup for Bn254FP12 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:FP12::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -263,6 +270,10 @@ impl DlGroup for Bn254FP12 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bn254".to_string()
     }
 }
 

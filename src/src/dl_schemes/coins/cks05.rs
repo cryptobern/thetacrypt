@@ -11,7 +11,7 @@ use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::{bigint::*, unwrap_keys};
 use crate::dl_schemes::{DlDomain, DlShare};
 use crate::{
-    dl_schemes::dl_groups::{dl_group::DlGroup, BigImpl},
+    dl_schemes::dl_groups::{dl_group::DlGroup},
     interface::{PrivateKey, PublicKey, Share, ThresholdCoin},
 };
 

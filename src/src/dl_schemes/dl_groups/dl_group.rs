@@ -1,7 +1,5 @@
 use mcore::{rand::RAND};
-use crate::bigint::BigInt;
-
-use super::BigImpl;
+use crate::bigint::*;
 
 pub trait DlGroup: 
     Sized 
@@ -38,7 +36,7 @@ pub trait DlGroup:
     fn to_bytes(&self) -> Vec<u8>;              
 
     /// load from bytes 
-    fn from_bytes(&self, bytes: &[u8]);         
+    fn from_bytes(bytes: &[u8]) -> Self;         
 
     /// check whether two elements are equal
     fn equals(&self, g: &Self) -> bool;         
@@ -54,4 +52,6 @@ pub trait DlGroup:
 
     /// convert group element to string representation
     fn to_string(&self) -> String;
+
+    fn get_name() -> String;
 }
