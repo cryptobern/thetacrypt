@@ -1,8 +1,8 @@
 use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
+use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag, types::{Integer, Utf8String, OctetString}};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
 use crate::dl_schemes::dl_groups::pairing::*;
-
-use super::BigImpl;
+use crate::bigint::*;
 
 pub struct Bls12381 {
     value: ECP
@@ -79,8 +79,8 @@ impl DlGroup for Bls12381 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:ECP::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -101,6 +101,10 @@ impl DlGroup for Bls12381 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bls12381".to_string()
     }
 }
 
@@ -158,8 +162,8 @@ impl DlGroup for Bls12381ECP2 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:ECP2::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -180,6 +184,10 @@ impl DlGroup for Bls12381ECP2 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bls12381".to_string()
     }
 }
 
@@ -241,8 +249,8 @@ impl DlGroup for Bls12381FP12 {
         buf
     }
 
-    fn from_bytes(&self, bytes: &[u8]) {
-        ECP::frombytes(bytes);
+    fn from_bytes(bytes: &[u8]) -> Self {
+        Self { value:FP12::frombytes(bytes) }
     }
 
     fn equals(&self, g: &Self) -> bool {
@@ -263,6 +271,10 @@ impl DlGroup for Bls12381FP12 {
 
     fn to_string(&self) -> String {
         self.value.tostring()
+    }
+
+    fn get_name() -> String {
+        "bls12381".to_string()
     }
 }
 
@@ -407,5 +419,67 @@ impl BigInt for Bls12381BIG {
 impl Clone for Bls12381BIG {
     fn clone(&self) -> Self {
         Self{ value: self.value.clone() }
+    }
+}
+
+impl rasn::AsnType for Bls12381 {
+    const TAG: rasn::Tag = rasn::Tag::OCTET_STRING;
+}
+
+impl Decode for Bls12381 {
+    fn decode_with_tag<D: Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        // Accepts a closure that decodes the contents of the sequence.
+        decoder.decode_sequence(tag, |decoder| {
+            let bytes = OctetString::decode(decoder)?;
+            let value = ECP::frombytes(&bytes);
+            Ok(Self { value })
+        })
+    }
+}
+
+impl Encode for Bls12381 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        // Accepts a closure that encodes the contents of the sequence.
+        encoder.encode_sequence(tag, |encoder| {
+            let bytes = self.to_bytes();
+
+            let octets = OctetString::from(bytes);
+            octets.encode(encoder)?;
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl AsnType for Bls12381ECP2 {
+    const TAG: Tag = Tag::OCTET_STRING;
+}
+
+impl Decode for Bls12381ECP2 {
+    fn decode_with_tag<D: Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        // Accepts a closure that decodes the contents of the sequence.
+        decoder.decode_sequence(tag, |decoder| {
+            let bytes = OctetString::decode(decoder)?;
+
+            Ok(Self::from_bytes(&bytes))
+        })
+    }
+}
+
+impl Encode for Bls12381ECP2 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        // Accepts a closure that encodes the contents of the sequence.
+        encoder.encode_sequence(tag, |encoder| {
+            let bytes = self.to_bytes();
+
+            let octets = OctetString::from(bytes);
+            octets.encode(encoder)?;
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }

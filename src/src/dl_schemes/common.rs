@@ -3,7 +3,7 @@ use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 use crate::dl_schemes::dl_groups::dl_group::*;
 use crate::bigint::*;
 
-use super::{DlShare, dl_groups::BigImpl};
+use super::{DlShare};
 
 pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut impl RAND) -> (Vec<BigImpl>, Vec<G>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
