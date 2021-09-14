@@ -47,10 +47,7 @@ fn main() {
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     // check whether ciphertext is valid 
-    println!(
-        "Ciphertext valid: {}",
-        SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key())
-    );
+    println!("Ciphertext valid: {}", SG02_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key()));
 
     // create decryption shares and verify them 
     let mut shares = Vec::new();
@@ -79,10 +76,7 @@ fn main() {
     printbinary(&ciphertext.get_msg(), Some("Ciphertext: "));
 
     // check whether ciphertext is valid 
-    println!(
-        "Ciphertext valid: {}",
-        BZ03_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key())
-    );
+    println!("Ciphertext valid: {}", BZ03_ThresholdCipher::verify_ciphertext(&ciphertext, &sk[0].get_public_key()));
 
     // create decryption shares and verify them 
     let mut shares = Vec::new();
@@ -112,12 +106,12 @@ fn main() {
         println!("Partial signature {} valid: {}", i, BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key()));
     }
 
+    // combine shares to generate full signature
     let signature = BLS04_ThresholdSignature::assemble(&shares, &msg);
     println!("Signature: {}", signature.get_sig().to_string());
 
-    println!("Signature valid: {}",
-        BLS04_ThresholdSignature::verify(&signature, &sk[0].get_public_key())
-    );
+    // check whether signature is a valid bls signature
+    println!("Signature valid: {}", BLS04_ThresholdSignature::verify(&signature, &sk[0].get_public_key()));
 
 
     
@@ -133,7 +127,6 @@ fn main() {
 
     for i in 0..K {
         shares.push(CKS05_ThresholdCoin::create_share(coin_name,&sk[i as usize], &mut rng));
-
         println!("Coin share {} valid: {}", i, CKS05_ThresholdCoin::verify_share(&shares[i as usize], coin_name, &sk[0].get_public_key()));
     }
 
