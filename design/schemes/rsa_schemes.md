@@ -28,22 +28,22 @@
 
 **Helper methods**
 
-**`interpolate(shares: Vec<Share>) -> BIG`** <br>
-`z = 1`<br>
-`for each share s in shares do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.data^lag_coeff(s.id)`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`z = z*di`<br>
-`return z`<br><br>
+	interpolate(shares: Vec<Share>) -> BIG
+		z = 1
+		for each share s in shares do
+			di = s.data^lag_coeff(s.id)
+			z = z*di
+		return z
 
-**`share_secret(x: BIG, n: u32, m: BIG) -> Vec<BIG>`** <br>
-`let coeff: vec<BIG>`<br>
-`let shares: vec<BIG>`<br>
-`coeff.push(x)`<br>
-`for i in 1,...,m-1 do`<br>
-`      coeff.push(random(0, m-1))`<br>
-`for i in 0,...,n do`<br>
-`      shares.push((eval_pol(i, coeff) * n!^(-1)) % m)`<br>
-`return shares`<br><br>
+	share_secret(x: BIG, n: u32, m: BIG) -> Vec<BIG>
+		let coeff: vec<BIG>
+		let shares: vec<BIG>
+		coeff.push(x)
+		for i in 1,...,m-1 do
+			coeff.push(random(0, m-1))
+		for i in 0,...,n do
+			shares.push((eval_pol(i, coeff) * n!^(-1)) % m)
+		return shares
 
 
 L(n) = bit-length of n <br>
@@ -53,23 +53,23 @@ Let $`Q_n`$ be the subgroup of squares in $`Z_n^{*}`$.
 # RSA_KeyGenerator
 Implementation of abstract interface `KeyGenerator`. The following method generates public/private keys that can be used for all presented schemes.
 
-**`RSA_KeyGenerator::generate_keys(k: u8, n:u8, params:Parameters) -> (RSA_PublicKey, Vec<RSA_PrivateKey>)`** <br>
-`choose random prime p of length params.length such that p = 2p' + 1 with p' prime` <br>
-`choose random prime q of length params.length such that q = 2q' + 1 with q' prime` <br>
-`e = random_prime()`<br>
-`N = pq`<br>
-`d = mod_inv(e, phi(N))`<br>
-`m = p' * q'`<br>
-`{x₁, .. xₙ} = share_secret(d, k, n)`<br>
-`v = random_element(Qn)`<br>
-`choose random element u in Zn with Jacobi symbol (u|n) = -1`<br>
-`verificationKey = RSA_VerificationKey(v, {v^x₁,...,v^xₙ}, u)` <br>
-`pk = RSA_PublicKey(N, e, verificationKey, n)`<br>
-`secrets = []`<br>
-`for each xi in {x₁, .. xₙ} do`<br>
-`      secrets.push(DL_PrivateKey(i, xi, n)`<br>
-`sk = RSA_PrivateKey(N, e)`<br>
-`return (pk, secrets)`<br><br>
+	RSA_KeyGenerator::generate_keys(k: u8, n:u8, params:Parameters) -> (RSA_PublicKey, Vec<RSA_PrivateKey>)
+		choose random prime p of length params.length such that p = 2p' + 1 with p' prime
+		choose random prime q of length params.length such that q = 2q' + 1 with q' prime
+		e = random_prime()
+		N = pq
+		d = mod_inv(e, phi(N))
+		m = p' * q'
+		{x₁, .. xₙ} = share_secret(d, k, n)
+		v = random_element(Qn)
+		choose random element u in Zn with Jacobi symbol (u|n) = -1
+		verificationKey = RSA_VerificationKey(v, {v^x₁,...,v^xₙ}, u)
+		pk = RSA_PublicKey(N, e, verificationKey, n)
+		secrets = []
+		for each xi in {x₁, .. xₙ} do
+			secrets.push(DL_PrivateKey(i, xi, n)
+		sk = RSA_PrivateKey(N, e)
+		return (pk, secrets)
 
 
 # SH00_ThresholdSignature
@@ -95,9 +95,9 @@ Implementation of abstract interface `ThresholdSignature`.
 **`SH00_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> SH00_SignatureShare`**<br>
 `h = H(msg)`<br>
 `if (h|sk.n) = 1 then`<br>
-`      x = h`<br>
+`	   x = h`<br>
 `else`<br>
-`      h = h * sk.vk.u^sk.e`<br>
+`      h = h * sk.vk.u^sk.e`<br>
 `si = x^(2*xi)`<br>
 `x* = x^4`<br>
 `r = random(0, 2^(L(n) + 2*L1) - 1)`<br>
