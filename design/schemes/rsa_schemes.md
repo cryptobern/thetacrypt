@@ -97,7 +97,7 @@ Implementation of abstract interface `ThresholdSignature`.
 `if (h|sk.n) = 1 then`<br>
 `	   x = h`<br>
 `else`<br>
-`      h = h * sk.vk.u^sk.e`<br>
+`      x = h * sk.vk.u^sk.e`<br>
 `si = x^(2*xi)`<br>
 `x* = x^4`<br>
 `r = random(0, 2^(L(n) + 2*L1) - 1)`<br>
