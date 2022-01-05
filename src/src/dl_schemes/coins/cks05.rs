@@ -19,11 +19,13 @@ pub struct CKS05_ThresholdCoin<G: DlGroup> {
     g: G,
 }
 
+#[derive(Clone)]
 pub struct CKS05_PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>
 }
 
+#[derive(Clone)]
 pub struct CKS05_PrivateKey<G: DlGroup> {
     id: usize,
     xi: BigImpl,
@@ -48,25 +50,6 @@ impl<G: DlGroup> PrivateKey for CKS05_PrivateKey<G> {
 
     fn get_public_key(&self) -> Self::PK {
         self.pubkey.clone()
-    }
-}
-
-impl<G: DlGroup> Clone for CKS05_PublicKey<G> {
-    fn clone(&self) -> Self {
-        Self {
-            y: self.y.clone(),
-            verificationKey: self.verificationKey.clone()
-        }
-    }
-}
-
-impl<G: DlGroup> Clone for CKS05_PrivateKey<G> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            xi: self.xi.clone(),
-            pubkey: self.pubkey.clone(),
-        }
     }
 }
 

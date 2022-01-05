@@ -2,7 +2,9 @@ use mcore::{arch::Chunk, rand::RAND};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
+use mcore::rsa2048::big::MODBYTES as RSA2048MODBYTES;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
+use crate::rsa_schemes::rsa_groups::rsa2048::Rsa2048BIG;
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
@@ -33,7 +35,8 @@ pub trait BigInt:
 pub enum BigImpl {
     Bls12381(Bls12381BIG),
     Bn254(Bn254BIG),
-    Ed25519(Ed25519BIG)
+    Ed25519(Ed25519BIG),
+    Rsa2048(Rsa2048BIG)
 }
 
 impl BigImpl {
@@ -47,7 +50,8 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.rmod(y),
             BigImpl::Bn254(x) => x.rmod(y),
-            BigImpl::Ed25519(x) => x.rmod(y)
+            BigImpl::Ed25519(x) => x.rmod(y),
+            BigImpl::Rsa2048(x) => x.rmod(y),
         }
     }
 
@@ -55,7 +59,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.mul_mod(y, m),
              BigImpl::Bn254(x) => x.mul_mod(y, m),
-             BigImpl::Ed25519(x) => x.mul_mod(y, m)
+             BigImpl::Ed25519(x) => x.mul_mod(y, m),
+             BigImpl::Rsa2048(x) => x.mul_mod(y, m)
         }
     }
 
@@ -63,7 +68,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.add(y),
              BigImpl::Bn254(x) => x.add(y),
-             BigImpl::Ed25519(x) => x.add(y)
+             BigImpl::Ed25519(x) => x.add(y),
+             BigImpl::Rsa2048(x) => x.add(y)
         }
     }
 
@@ -71,7 +77,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.sub(y),
              BigImpl::Bn254(x) => x.sub(y),
-             BigImpl::Ed25519(x) => x.sub(y)
+             BigImpl::Ed25519(x) => x.sub(y),
+             BigImpl::Rsa2048(x) => x.sub(y)
         }
     }
 
@@ -79,7 +86,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.inv_mod(m),
              BigImpl::Bn254(x) => x.inv_mod(m),
-             BigImpl::Ed25519(x) => x.inv_mod(m)
+             BigImpl::Ed25519(x) => x.inv_mod(m),
+             BigImpl::Rsa2048(x) => x.inv_mod(m)
         }
     }
 
@@ -87,7 +95,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.imul(i),
              BigImpl::Bn254(x) => x.imul(i),
-             BigImpl::Ed25519(x) => x.imul(i)
+             BigImpl::Ed25519(x) => x.imul(i),
+             BigImpl::Rsa2048(x) => x.imul(i)
         }
     }
 
@@ -95,7 +104,8 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.pow_mod(y, m),
              BigImpl::Bn254(x) => x.pow_mod(y, m),
-             BigImpl::Ed25519(x) => x.pow_mod(y, m)
+             BigImpl::Ed25519(x) => x.pow_mod(y, m),
+             BigImpl::Rsa2048(x) => x.pow_mod(y, m)
         }
     }
 
@@ -103,7 +113,8 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.to_bytes(),
             BigImpl::Bn254(x) => x.to_bytes(),
-            BigImpl::Ed25519(x) => x.to_bytes()
+            BigImpl::Ed25519(x) => x.to_bytes(),
+            BigImpl::Rsa2048(x) => x.to_bytes()
         }
     }
 
@@ -111,7 +122,8 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.to_string(),
             BigImpl::Bn254(x) => x.to_string(),
-            BigImpl::Ed25519(x) => x.to_string()
+            BigImpl::Ed25519(x) => x.to_string(),
+            BigImpl::Rsa2048(x) => x.to_string()
         }
     }
 
@@ -119,7 +131,8 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(_) => BLS12381MODBYTES,
             BigImpl::Bn254(_) => BN254MODBYTES,
-            BigImpl::Ed25519(_) => ED25519MODBYTES
+            BigImpl::Ed25519(_) => ED25519MODBYTES,
+            BigImpl::Rsa2048(_) => RSA2048MODBYTES
         }
     }
 
@@ -127,7 +140,8 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.equals(y),
             BigImpl::Bn254(x) => x.equals(y),
-            BigImpl::Ed25519(x) => x.equals(y)
+            BigImpl::Ed25519(x) => x.equals(y),
+            BigImpl::Rsa2048(x) => x.equals(y)
        }
     }
 }
@@ -138,6 +152,7 @@ impl Clone for BigImpl {
             BigImpl::Bls12381(x) => BigImpl::Bls12381(x.clone()),
             BigImpl::Bn254(x) => BigImpl::Bn254(x.clone()),
             BigImpl::Ed25519(x) => BigImpl::Ed25519(x.clone()),
+            BigImpl::Rsa2048(x) => BigImpl::Rsa2048(x.clone())
         }
     }
 }
