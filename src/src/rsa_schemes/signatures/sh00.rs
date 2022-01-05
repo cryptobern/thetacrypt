@@ -1,6 +1,6 @@
 use mcore::{rand::RAND, hash256::HASH256};
 
-use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, rsa_groups::{rsa2048::Rsa2048, rsa_domain::RsaDomain}, rsa_mod::RsaModulus, bigint::BigInt}, unwrap_keys};
+use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, rsa_groups::{rsa2048::Rsa2048, rsa_domain::RsaDomain}, rsa_mod::RsaModulus, bigint::BigInt, common::{lagrange_coeff, interpolate, ext_euclid}}, unwrap_keys};
 
 
 const BigInt_BYTES:usize = 2048;
@@ -24,7 +24,8 @@ pub struct SH00_PublicKey {
     N: BigInt,
     e: BigInt,
     verificationKey:SH00_VerificationKey,
-    n:usize
+    n:usize,
+    plen:usize
 }  
 
 pub struct SH00_PrivateKey {
@@ -50,16 +51,16 @@ impl ThresholdSignature for SH00_ThresholdSignature {
     type SH = SH00_SignatureShare;
 
     fn verify(sig: &Self::SM, pk: &Self::PK) -> bool {
-        todo!()
+        BigInt::_pow_mod(&sig.sig, &pk.e, &pk.N).equals(&H(&sig.msg, &pk.N, pk.plen))
     }
 
     fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH {
-        let h = H(&msg);
+        let h = H(&msg, &sk.get_public_key().N, sk.get_public_key().plen);
+
         let j = BigInt::jacobi(&h, &sk.pubkey.N);
         let mut s = BigInt::new_copy(&h);
 
         if j == -1 {
-
             let tmp = BigInt::_pow_mod(&sk.get_public_key().verificationKey.u, &sk.get_public_key().e, &sk.modulus.get_m());
             s = BigInt::_mul(&s, &tmp);
         } else if j == 0 {
@@ -70,15 +71,27 @@ impl ThresholdSignature for SH00_ThresholdSignature {
         exp.lshift(1);
         let si = BigInt::_pow_mod(&s, &exp, &sk.modulus.get_m());
 
-        return Self::SH {id: sk.id, label:b"".to_vec(), data:si }
+        return Self::SH {id: sk.get_id(), label:b"".to_vec(), data:si }
     }
 
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
         todo!()
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8]) -> Self::SM {
-        todo!()
+    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {
+        let mut h = H(&msg, &pk.N, pk.plen);
+        let mut w = interpolate(&shares, &pk.N);
+        let (mut a, mut b) = ext_euclid(&BigInt::new_int(4), &pk.e);
+
+        a.rmod(&pk.N);
+        b.rmod(&pk.N);
+
+        w.pow_mod(&a, &pk.N);
+        h.pow_mod(&b, &pk.N);
+
+        let sig = BigInt::_mul_mod(&w, &h, &pk.N);
+
+        SH00_SignedMessage{sig:sig, msg:msg.to_vec()} 
     }
 }
 
@@ -95,8 +108,19 @@ impl SH00_PublicKey {
     pub fn new(N: BigInt,
         e: BigInt,
         verificationKey:SH00_VerificationKey,
-        n:usize) -> Self {
-        Self {N, e, verificationKey, n}
+        n:usize,
+        plen:usize) -> Self {
+        Self {N, e, verificationKey, n, plen}
+    }
+}
+
+impl SH00_SignatureShare {
+    pub fn get_id(&self) -> usize {
+        self.id.clone()
+    }
+
+    pub fn get_data(&self) -> BigInt {
+        self.data.clone()
     }
 }
 
@@ -129,6 +153,12 @@ impl SH00_VerificationKey {
         }
 }
 
+impl SH00_SignedMessage {
+    pub fn get_sig(&self) -> BigInt {
+        self.sig.clone()
+    }
+}
+
 impl Share for SH00_SignatureShare {
     fn get_id(&self) -> usize {
         self.id
@@ -137,7 +167,7 @@ impl Share for SH00_SignatureShare {
 
 impl Clone for SH00_PublicKey {
     fn clone(&self) -> Self {
-        Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), n: self.n.clone() }
+        Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), n: self.n.clone(), plen: self.plen.clone() }
     }
 }
 impl Clone for SH00_PrivateKey {
@@ -152,23 +182,28 @@ impl Clone for SH00_VerificationKey {
     }
 }
 
-fn H(m: &[u8]) -> BigInt {
+fn H(m: &[u8], n: &BigInt, plen:usize) -> BigInt {
     let mut hash = HASH256::new();
     hash.process_array(&m);
     let h = hash.hash();
 
     let mut buf = Vec::new();
     buf = [&buf[..], &h].concat();
-
-    let num:usize = buf.len() as usize/BigInt_BYTES;
     
-    let mut g:[u8;32];
-    for i in 2..num as isize {
-        g = h.clone();
-        hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
-        g = hash.hash();
-        buf = [&buf[..], &g].concat();
+    let nbits = plen*plen;
+    
+    if nbits > buf.len()*4 {
+        let mut g:[u8;32];
+        for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
+            g = h.clone();
+            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            g = hash.hash();
+            buf = [&buf[..], &g].concat();
+        }
     }
 
-    BigInt::from_bytes(&mut buf)
+    let mut res = BigInt::from_bytes(&mut buf);
+    res.rmod(&n);
+
+    res
 }

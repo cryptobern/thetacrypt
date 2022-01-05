@@ -29,7 +29,7 @@ fn main() {
     let mut rng = new_rand();
 
     // prepare message and label
-    let plaintext = "This is a test message!";
+    let plaintext = "This is a test message! ";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label = b"Label";
 
@@ -122,8 +122,22 @@ fn main() {
     println!("\n--SH00 Threshold Signature--");
 
     // generate secret shares for SSH0 with 2048 bit keys
-    let sk = SH00_ThresholdSignature::generate_keys(K, N, 512, &mut rng);
-    println!("Keys generated");
+    let sk = SH00_ThresholdSignature::generate_keys(K, N, 128, &mut rng);
+    println!("Keys generated\n");
+
+    let mut shares = Vec::new();
+
+    for i in 0..K {
+        shares.push(SH00_ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
+        //println!("Partial signature {} valid: {}", i, BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key()));
+    }
+
+    // combine shares to generate full signature
+    let signature = SH00_ThresholdSignature::assemble(&shares, &msg, &sk[0].get_public_key());
+    println!("Signature: {}", signature.get_sig().to_string());
+
+    // check whether signature is a valid bls signature
+    println!("Signature valid: {}", SH00_ThresholdSignature::verify(&signature, &sk[0].get_public_key()));
 
     
     // create threshold coin using CKS05 scheme //

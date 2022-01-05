@@ -104,7 +104,7 @@ impl<PE: PairingEngine> ThresholdSignature for BLS04_ThresholdSignature<PE> {
         PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8]) -> Self::SM {
+    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {
         let sig = interpolate(&shares);
         BLS04_SignedMessage{sig:sig, msg:msg.to_vec() } 
     }

@@ -27,8 +27,9 @@ impl RsaKeyGenerator {
                 let mut p: BigInt = BigInt::new();
                 let mut q: BigInt = BigInt::new();
 
+                println!("generating prime e...");
                 let e: BigInt = BigInt::new_prime(rng, ESIZE/8);
-                println!("e: {}", e.to_string());   
+                println!("found prime e: {}", e.to_string());
 
                 println!("generating strong primes...");
 
@@ -42,16 +43,23 @@ impl RsaKeyGenerator {
                 let elapsed_time = now.elapsed();
                 println!("found second prime q in {} seconds: {}", elapsed_time.as_secs(), q.to_string());
                 
-                let modulus = RsaModulus::new(&p1, &q1);
+                let modulus = RsaModulus::new(&p1, &q1, PLEN);
 
                 let d = modulus.inv_m(&e.clone());
 
                 let (xi, v, vi) = shamir_share(&d, k, n, &modulus.get_m(), rng);
                 
-                let u = BigInt::new();
+                let mut u;
+
+                loop {
+                    u = BigInt::new_rand(rng, PLEN/8 - 1);
+                    if BigInt::jacobi(&u, &modulus.get_n()) == -1 {
+                        break;
+                    }
+                }
 
                 let verificationKey = SH00_VerificationKey::new(v, vi, u);
-                let pubkey = SH00_PublicKey::new(modulus.get_n(), e.clone(), verificationKey, n );
+                let pubkey = SH00_PublicKey::new(modulus.get_n(), e.clone(), verificationKey, n, PLEN);
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {

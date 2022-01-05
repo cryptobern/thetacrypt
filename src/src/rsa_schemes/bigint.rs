@@ -36,14 +36,12 @@ impl BigInt {
         }
     }
 
-    pub fn new_rand(rng: &mut impl RAND, bytes: usize) -> Self {
+    pub fn new_rand(rng: &mut impl RAND, len: usize) -> Self {
         unsafe {
-            let mut s = String::with_capacity(2*bytes + 1);
-            for _ in 0..bytes {
+            let mut s = String::with_capacity(2*len + 1);
+            for _ in 0..len {
                 write!(&mut s, "{:02X}", rng.getbyte()).expect("Unable to get random bytes!");
             }
-
-           // println!("bytes: {}", s);
 
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
@@ -57,8 +55,6 @@ impl BigInt {
             for _ in 0..len {
                 write!(&mut s, "{:02X}", rng.getbyte()).expect("Unable to get random bytes!");
             }
-
-           // println!("bytes: {}", s);
 
             gmp::mpz_set_str(self.value.as_mut_ptr(), s.as_ptr() as *const i8, 16);
         }
@@ -256,10 +252,7 @@ impl BigInt {
                 write!(&mut s, "{:02X}", bytes[i]).expect("Unable to read from bytes!");
             }
 
-            println!("bytes: {}", s);
-
             let mut z = MaybeUninit::uninit();
-            gmp::mpz_init(z.as_mut_ptr());
             gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
             Self { value: z }
         }
@@ -277,6 +270,27 @@ impl BigInt {
             let mut y = BigInt::new();
             gmp::mpz_gcd(y.value.as_mut_ptr(), self.value.as_ptr(), x.value.as_ptr());
             y.equals(&BigInt::new_int(1))
+        }
+    }
+
+    pub fn pow(&mut self, y: usize) {
+        unsafe {
+            gmp::mpz_pow_ui(self.value.as_mut_ptr(), self.value.as_ptr(), y as u64);
+        }
+    }
+
+    pub fn _div(x: &Self, y: &Self) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());          
+            gmp::mpz_fdiv_q(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr());
+            Self { value: z }
+        }
+    }
+
+    pub fn div(&mut self, y: &Self) {
+        unsafe {        
+            gmp::mpz_fdiv_q(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
         }
     }
 }
