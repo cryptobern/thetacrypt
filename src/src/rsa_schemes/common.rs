@@ -50,6 +50,10 @@ pub fn eval_pol(x: &BigInt, a: &Vec<BigInt>, p: &BigInt) ->  BigInt {
     val
 }
 
+// generate primes p1 and p = 2*p1 + 1 using algorithm proposed by Ronald Cramer and Victor Shoup
+//
+// reference: https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/sh00_impl/papers/signature_schemes_based_strong_rsa-tissec00.pdf
+//
 pub fn gen_strong_prime(p1: &mut BigInt, p: &mut BigInt, e: &BigInt, rng: &mut impl RAND, psize: usize) {
     let mut prime = false;
 
