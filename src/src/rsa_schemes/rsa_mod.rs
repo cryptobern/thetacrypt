@@ -12,17 +12,18 @@ pub struct RsaModulus {
     q1: BigInt,
     m: BigInt,
     c1: BigInt,
-    c2: BigInt
+    c2: BigInt,
+    plen: usize
 }
 
 impl Clone for RsaModulus {
     fn clone(&self) -> Self {
-        Self { p: self.p.clone(), q: self.q.clone(), n: self.n.clone(), p1: self.p1.clone(), q1: self.q1.clone(), m: self.m.clone(), c1: self.c1.clone(), c2: self.c2.clone() }
+        Self { p: self.p.clone(), q: self.q.clone(), n: self.n.clone(), p1: self.p1.clone(), q1: self.q1.clone(), m: self.m.clone(), c1: self.c1.clone(), c2: self.c2.clone(), plen: self.plen.clone() }
     }
 }
 
 impl RsaModulus {
-    pub fn new(p1: &BigInt, q1:&BigInt) -> Self {
+    pub fn new(p1: &BigInt, q1:&BigInt, plen: usize) -> Self {
 
         let mut p = p1.clone();
         let mut q = q1.clone();
@@ -45,7 +46,7 @@ impl RsaModulus {
         let c1 = BigInt::_mul(&p1, &p); 
         let c2 = BigInt::_mul(&q1, &q);     
 
-        Self{p:p.clone(), q:q.clone(), n, p1:p1.clone(), q1:q1.clone(), m, c1, c2}
+        Self{p:p.clone(), q:q.clone(), n, p1:p1.clone(), q1:q1.clone(), m, c1, c2, plen}
     }
 
     pub fn inv_n(&self, x: &BigInt) -> BigInt {
