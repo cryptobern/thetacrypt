@@ -11,12 +11,15 @@ use crate::dl_schemes::{
     signatures::bls04::BLS04_ThresholdSignature,
 };
 use crate::interface::*;
+use crate::rsa_schemes::rsa_groups::{rsa2048::Rsa2048, rsa_domain::RsaDomain};
+use crate::rsa_schemes::signatures::sh00::SH00_ThresholdSignature;
 use crate::util::*;
 
 mod bigint;
 mod dl_schemes;
 mod interface;
 mod util;
+mod rsa_schemes;
 
 fn main() {
     const K: usize = 3; // threshold
@@ -32,7 +35,7 @@ fn main() {
 
     println!("Message: {}", plaintext);
 
-
+    /*
 
     // perform threshold encryption using SG02 scheme 
     println!("\n--SG02 Threshold Cipher--");
@@ -113,6 +116,14 @@ fn main() {
     // check whether signature is a valid bls signature
     println!("Signature valid: {}", BLS04_ThresholdSignature::verify(&signature, &sk[0].get_public_key()));
 
+    */
+
+    // create threshold signatures using SH00 scheme
+    println!("\n--SH00 Threshold Signature--");
+
+    // generate secret shares for SSH0 with 2048 bit keys
+    let sk = SH00_ThresholdSignature::generate_keys(K, N, 512, &mut rng);
+    println!("Keys generated");
 
     
     // create threshold coin using CKS05 scheme //

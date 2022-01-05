@@ -24,11 +24,14 @@ use crate::bigint::*;
 
 use crate::dl_schemes::{DlDomain, DlShare};
 
+#[derive(Clone)]
 pub struct SG02_PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>,
     g_bar: G
 }
+
+#[derive(Clone)]
 pub struct SG02_PrivateKey<G: DlGroup> {
     id: usize,
     xi: BigImpl,
@@ -51,18 +54,6 @@ pub struct SG02_DecryptionShare<G: DlGroup>  {
     data: G,
     ei: BigImpl,
     fi: BigImpl,
-}
-
-impl<G: DlGroup> Clone for SG02_PublicKey<G> {
-    fn clone(&self) -> SG02_PublicKey<G> {
-        return SG02_PublicKey {y:self.y.clone(), verificationKey:self.verificationKey.clone(), g_bar:self.g_bar.clone() };
-    }
-}
-
-impl<G: DlGroup> Clone for SG02_PrivateKey<G> {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
-    }
 }
 
 impl<G: DlGroup> PublicKey for SG02_PublicKey<G> {}

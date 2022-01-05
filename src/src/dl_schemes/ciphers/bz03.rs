@@ -9,8 +9,7 @@ use chacha20poly1305::aead::{Aead, NewAead};
 use mcore::rand::RAND;
 use mcore::bls12381::big;
 use mcore::hash256::*;
-use rasn::types::{Integer, OctetString};
-use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag};
+use rasn::{AsnType, Tag};
 
 use crate::bigint::*;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
@@ -19,11 +18,13 @@ use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::dl_schemes::{DlDomain, DlShare, common::*};
 use crate::{interface::*, unwrap_keys};
 
+#[derive(Clone)]
 pub struct BZ03_PublicKey<PE: PairingEngine> {
     y: PE::G2,
     verificationKey: Vec<PE>
 }
 
+#[derive(Clone)]
 pub struct BZ03_PrivateKey<PE: PairingEngine> {
     id: usize,
     xi: BigImpl,
@@ -47,18 +48,6 @@ pub struct BZ03_ThresholdCipher<PE: PairingEngine> {
     g: PE
 }
 
-
-impl<PE: PairingEngine> Clone for BZ03_PublicKey<PE> {
-    fn clone(&self) -> Self {
-        Self {y:self.y.clone(), verificationKey:self.verificationKey.clone()}
-    }
-}
-
-impl<PE: PairingEngine> Clone for BZ03_PrivateKey<PE> {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
-    }
-}
 
 impl<PE: PairingEngine> PublicKey for BZ03_PublicKey<PE> {}
 

@@ -23,11 +23,13 @@ pub struct BLS04_SignedMessage<PE: PairingEngine> {
     sig: PE::G2
 }
 
+#[derive(Clone)]
 pub struct BLS04_PublicKey<PE: PairingEngine> {
     y: PE,
     verificationKey:Vec<PE>
 }  
 
+#[derive(Clone)]
 pub struct BLS04_PrivateKey<PE: PairingEngine> {
     id: usize,
     xi: BigImpl,
@@ -45,18 +47,6 @@ impl<PE: PairingEngine> PrivateKey for BLS04_PrivateKey<PE> {
 
     fn get_public_key(&self) -> Self::PK {
         self.pubkey.clone()
-    }
-}
-
-impl<PE: PairingEngine> Clone for BLS04_PublicKey<PE> {
-    fn clone(&self) -> Self {
-        Self { y: self.y.clone(), verificationKey: self.verificationKey.clone() }
-    }
-}
-
-impl<PE: PairingEngine> Clone for BLS04_PrivateKey<PE> {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
     }
 }
 
