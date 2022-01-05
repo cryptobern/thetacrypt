@@ -51,7 +51,6 @@ pub fn eval_pol(x: &BigInt, a: &Vec<BigInt>, p: &BigInt) ->  BigInt {
 }
 
 pub fn gen_strong_prime(p1: &mut BigInt, p: &mut BigInt, e: &BigInt, rng: &mut impl RAND, psize: usize) {
-    let PLEN:usize = psize;
     let mut prime = false;
 
     while prime == false {

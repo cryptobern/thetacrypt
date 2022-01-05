@@ -28,7 +28,6 @@ impl RsaKeyGenerator {
                 let mut p: BigInt = BigInt::new();
                 let mut q: BigInt = BigInt::new();
 
-
                 let e: BigInt = BigInt::new_prime(rng, ESIZE/8);
                 println!("e: {}", e.to_string());   
 
