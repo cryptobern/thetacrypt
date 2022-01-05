@@ -120,7 +120,7 @@ Implementation of abstract interface `ThresholdSignature`.
 `for each share s in shares do`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.data^(2*lag_coeff(s.id))`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`w = w*di`<br>
-`a,b = ext_euclid(e', 4)`<br>
+`a,b = ext_euclid(e, 4)`<br>
 `y = w^a*x^b`<br>
 `return SignedMessage(y, msg)`<br><br>
 
