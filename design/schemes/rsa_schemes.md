@@ -95,34 +95,34 @@ Implementation of abstract interface `ThresholdSignature`.
 **`SH00_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> SH00_SignatureShare`**<br>
 `h = H(msg)`<br>
 `if (h|sk.n) = 1 then`<br>
-`	   x = h`<br>
+`	   s = h`<br>
 `else`<br>
-`      x = h * sk.vk.u^sk.e`<br>
-`si = x^(2*xi)`<br>
-`x* = x^4`<br>
+`      s = h * sk.vk.u^sk.e`<br>
+`si = s^(2*xi)`<br>
+`s* = s^4`<br>
 `r = random(0, 2^(L(n) + 2*L1) - 1)`<br>
 `v' = v^r`<br>
-`x' = x^r`<br>
-`c = H'(v, x*, vi, si^2, v', x')` <br>
-`z = xi*c + r`<br>
+`s' = s^r`<br>
+`c = H'(v, s*, vi, si^2, v', s')` <br>
+`z = si*c + r`<br>
 `return SH00_SignatureShare(i, label, si z, c)`<br><br>
 
 
-**`SH00_ThresholdSignature::verifyShare(share: SH00_SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
+**`SH00_ThresholdSignature::verifyShare(share: SH00_SignatureShare, pk: RSA_PublicKey, msg: Vec<u8>) -> bool`**<br>
 `x* = x^4`<br>
 `return share.c == H'(pk.vk.v, x*, pk.vk.vi, share.data^2, pk.vk.v^z*pk.vk.vi^(-c), x*^z*share.data^(-2c))`<br><br>
 
-**`SH00_ThresholdSignature::assemble(shares: Vec<SH00_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
+**`SH00_ThresholdSignature::assemble(shares: Vec<SH00_SignatureShare>, msg: Vec<u8>, pk: RSA_PublicKey) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
-`x = H(msg)` <br>
+`s = H(msg)` <br>
 `w = 1`<br>
 `for each share s in shares do`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`di = s.data^(2*lag_coeff(s.id))`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`w = w*di`<br>
-`a,b = ext_euclid(e, 4)`<br>
-`y = w^a*x^b`<br>
+`a,b = ext_euclid(4, e)`<br>
+`y = w^a*s^b`<br>
 `return SignedMessage(y, msg)`<br><br>
 
-**`SH00_ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey) -> bool`**<br>
+**`SH00_ThresholdSignature::verify(sig: SignedMessage, pk: RSA_PublicKey) -> bool`**<br>
 `return sig.sig^pk.e == H(sig.msg)`<br><br>
