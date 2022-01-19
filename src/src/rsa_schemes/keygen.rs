@@ -27,27 +27,36 @@ impl RsaKeyGenerator {
                 let mut p: BigInt = BigInt::new();
                 let mut q: BigInt = BigInt::new();
 
-                println!("generating prime e...");
-                let e: BigInt = BigInt::new_prime(rng, ESIZE/8);
-                println!("found prime e: {}", e.to_string());
+                //let e: BigInt = BigInt::new_prime(rng, ESIZE/8);
+                let e = BigInt::new_int(65537); // Question: Should we be able to change this?
 
                 println!("generating strong primes...");
 
                 let now = Instant::now();
                 gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN/8);
-                let elapsed_time = now.elapsed();
-                println!("found first prime p in {} seconds: {}", elapsed_time.as_secs(), p.to_string());
+                let elapsed_time = now.elapsed().as_millis();
+                println!("found first prime p in {}ms: {}", elapsed_time, p.to_string());
                 
                 let now = Instant::now();
                 gen_strong_prime(&mut q1, &mut q, &e,  rng, PLEN/8);
-                let elapsed_time = now.elapsed();
-                println!("found second prime q in {} seconds: {}", elapsed_time.as_secs(), q.to_string());
+                let elapsed_time = now.elapsed().as_millis();
+                println!("found second prime q in {}ms: {}", elapsed_time, q.to_string());
                 
                 let modulus = RsaModulus::new(&p1, &q1, PLEN);
 
                 let d = modulus.inv_m(&e.clone());
 
-                let (xi, v, vi) = shamir_share(&d, k, n, &modulus.get_m(), rng);
+                let mut v;
+
+                loop {
+                    v = BigInt::new_rand(rng, PLEN/8 - 1); // TODO: change this -> should be random in {0, ..., n-1}
+                    if v.legendre(&modulus.get_n()) == 1 {
+                        break
+                    }
+                }
+
+                let delta = fac(n);
+                let (xi, vi) = shamir_share(&d, k, n, &modulus.get_m(), &v, rng);
                 
                 let mut u;
 
@@ -59,12 +68,12 @@ impl RsaKeyGenerator {
                 }
 
                 let verificationKey = SH00_VerificationKey::new(v, vi, u);
-                let pubkey = SH00_PublicKey::new(modulus.get_n(), e.clone(), verificationKey, n, PLEN);
+                let pubkey = SH00_PublicKey::new(modulus.get_n(),  e.clone(), verificationKey, delta, PLEN);
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {
                     pks.push(RsaPrivateKey::SH00(
-                            SH00_PrivateKey::new(i, modulus.clone(), xi[i].clone(), pubkey.clone())))
+                            SH00_PrivateKey::new(xi[i].0, modulus.clone(), xi[i].1.clone(), pubkey.clone())))
                 }
                 pks
             }
