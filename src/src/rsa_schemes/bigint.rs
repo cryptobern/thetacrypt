@@ -1,6 +1,7 @@
 use std::mem::MaybeUninit;
 
 use gmp_mpfr_sys::gmp::{mpz_t, mpz_init, self};
+use hex::FromHex;
 use mcore::rand::RAND;
 use std::ffi::CStr;
 use std::fmt::Write;
@@ -61,32 +62,22 @@ impl BigInt {
     }
 
     pub fn new_prime(rng: &mut impl RAND, len: usize) -> Self {
-        unsafe {
-            let mut x = BigInt::new();
+        let mut x = BigInt::new();
 
-            loop {
-                x.rand(rng, len);
+        loop {
+            x.rand(rng, len);
 
-                if x.is_prime() {
-                    break;
-                }
-            } 
-           
-            x
-        }
+            if x.is_prime() {
+                break;
+            }
+        } 
+        
+        x
     }
 
     pub fn set(&mut self, y: &Self) {
         unsafe {
             gmp::mpz_set(self.value.as_mut_ptr(), y.value.as_ptr());
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        unsafe {
-            let str = gmp::mpz_get_str(std::ptr::null_mut(), 16, self.value.as_ptr());
-            let s:String = CStr::from_ptr(str).to_str().unwrap().to_string();
-            s
         }
     }
 
@@ -179,6 +170,12 @@ impl BigInt {
         }
     }
 
+    pub fn pow(&mut self, y: u64) {
+        unsafe {
+            gmp::mpz_pow_ui(self.value.as_mut_ptr(), self.value.as_ptr(), y as u64);
+        }
+    }
+
     pub fn _pow_mod(x: &Self, e:&Self, m:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
@@ -191,6 +188,15 @@ impl BigInt {
     pub fn pow_mod(&mut self, e:&Self, m: &Self) {
         unsafe {
             gmp::mpz_powm(self.value.as_mut_ptr(), self.value.as_ptr(), e.value.as_ptr(), m.value.as_ptr());
+        }
+    }
+
+    pub fn root(&mut self, n: u64) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr()); 
+            gmp::mpz_rootrem(self.value.as_mut_ptr(), z.as_mut_ptr(), self.value.as_ptr(), n as u64);
+            Self { value: z }
         }
     }
 
@@ -245,19 +251,6 @@ impl BigInt {
         }
     }
 
-    pub fn from_bytes(bytes: &mut [u8]) -> Self {
-        unsafe {
-            let mut s = String::with_capacity(2*bytes.len() + 1);
-            for i in 0..bytes.len() {
-                write!(&mut s, "{:02X}", bytes[i]).expect("Unable to read from bytes!");
-            }
-
-            let mut z = MaybeUninit::uninit();
-            gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
-            Self { value: z }
-        }
-    }
-
     pub fn jacobi(x: &Self, y:&Self) -> isize {
         unsafe {
             gmp::mpz_jacobi(x.value.as_ptr(), y.value.as_ptr()) as isize
@@ -273,12 +266,6 @@ impl BigInt {
         }
     }
 
-    pub fn pow(&mut self, y: usize) {
-        unsafe {
-            gmp::mpz_pow_ui(self.value.as_mut_ptr(), self.value.as_ptr(), y as u64);
-        }
-    }
-
     pub fn _div(x: &Self, y: &Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
@@ -291,6 +278,41 @@ impl BigInt {
     pub fn div(&mut self, y: &Self) {
         unsafe {        
             gmp::mpz_fdiv_q(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
+        }
+    }
+
+    pub fn legendre(&self, y: &Self) -> isize {
+        unsafe {
+            gmp::mpz_legendre(self.value.as_ptr(), y.value.as_ptr()) as isize
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        unsafe {
+            let str = gmp::mpz_get_str(std::ptr::null_mut(), 16, self.value.as_ptr());
+            let s:String = CStr::from_ptr(str).to_str().unwrap().to_string();
+            s
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut s = self.to_string();
+        if s.len() % 2 == 1 {
+            s.insert(0, '0');
+        }
+        Vec::from_hex(s).expect("Invalid hex string")
+    }
+
+    pub fn from_bytes(bytes: &mut [u8]) -> Self {
+        unsafe {
+            let mut s = String::with_capacity(2*bytes.len() + 1);
+            for i in 0..bytes.len() {
+                write!(&mut s, "{:02X}", bytes[i]).expect("Unable to read from bytes!");
+            }
+
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
+            Self { value: z }
         }
     }
 }

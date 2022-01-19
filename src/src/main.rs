@@ -3,6 +3,8 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+use std::time::Instant;
+
 use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
 use crate::dl_schemes::coins::cks05::CKS05_ThresholdCoin;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
@@ -121,40 +123,59 @@ fn main() {
     // create threshold signatures using SH00 scheme
     println!("\n--SH00 Threshold Signature--");
 
-    // generate secret shares for SSH0 with 2048 bit keys
+    // generate secret shares for SSH0 with 128 bit primes
+    let now = Instant::now();
     let sk = SH00_ThresholdSignature::generate_keys(K, N, 128, &mut rng);
-    println!("Keys generated\n");
+    let elapsed_time = now.elapsed().as_millis();
+    println!("[{}ms]\tKeys generated", elapsed_time);
 
     let mut shares = Vec::new();
 
     for i in 0..K {
+        let now = Instant::now();
         shares.push(SH00_ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
-        //println!("Partial signature {} valid: {}", i, BLS04_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key()));
+        let elapsed_time = now.elapsed().as_millis();
+        println!("[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
+        let now = Instant::now();
+        let valid =  SH00_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key());
+        let elapsed_time = now.elapsed().as_millis();
+        println!("[{}ms]\tPartial signature {} valid: {}", elapsed_time, shares[i].get_id(), valid);
     }
 
     // combine shares to generate full signature
+    let now = Instant::now();
     let signature = SH00_ThresholdSignature::assemble(&shares, &msg, &sk[0].get_public_key());
-    println!("Signature: {}", signature.get_sig().to_string());
+    let elapsed_time = now.elapsed().as_millis();
+    println!("[{}ms]\tSignature: {}", elapsed_time, signature.get_sig().to_string());
 
     // check whether signature is a valid bls signature
-    println!("Signature valid: {}", SH00_ThresholdSignature::verify(&signature, &sk[0].get_public_key()));
+    let now = Instant::now();
+    let valid = SH00_ThresholdSignature::verify(&signature, &sk[0].get_public_key());
+    let elapsed_time = now.elapsed().as_millis();
+    println!("[{}ms]\tSignature valid: {}", elapsed_time, valid);
 
-    
+    /*
     // create threshold coin using CKS05 scheme //
     println!("\n--CKS05 Threshold Coin--");
 
     // generate secret shares for CKS05 scheme over Bls12381 curve
+    let now = Instant::now();
     let sk = CKS05_ThresholdCoin::generate_keys(K, N, Bls12381::new(), &mut rng);
-    println!("Keys generated");
+    let elapsed_time = now.elapsed().as_millis();
+    println!("[{}ms] Keys generated", elapsed_time);
 
     let mut shares = Vec::new();
     let coin_name = b"My first threshold coin";
 
     for i in 0..K {
+        let now = Instant::now();
         shares.push(CKS05_ThresholdCoin::create_share(coin_name,&sk[i as usize], &mut rng));
+        let elapsed_time = now.elapsed().as_millis();
         println!("Coin share {} valid: {}", i, CKS05_ThresholdCoin::verify_share(&shares[i as usize], coin_name, &sk[0].get_public_key()));
     }
 
+    let now = Instant::now();
     let coin = CKS05_ThresholdCoin::assemble(&shares);
-    println!("Coin: {}", coin.to_string());
+    let elapsed_time = now.elapsed().as_millis();
+    println!("[{}ms] Coin: {}", elapsed_time, coin.to_string());*/
 }
