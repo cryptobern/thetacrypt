@@ -5,7 +5,7 @@ This documentation is split into three layers. On layer 2, the schemes layer, ar
 - [Definition of a Party](party.md)
 - [Schemes](schemes/)
     - [Interface](schemes/interface.md)
-    - [Interface (RUST Version)](design/schemes/interface_rust.md)
+    - [Interface (RUST Version)](schemes/interface_rust.md)
     - [DL Schemes](schemes/dl_schemes.md) - Discrete logarithm based threshold schemes
     - [RSA Schemes](schemes/rsa_schemes.md) - RSA based threshold schemes
 - [Formats](formats/)
