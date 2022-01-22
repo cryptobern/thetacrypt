@@ -1,10 +1,28 @@
 use std::mem::MaybeUninit;
 
-use gmp_mpfr_sys::gmp::{mpz_t, mpz_init, self};
+use gmp_mpfr_sys::gmp::{mpz_t, self};
 use hex::FromHex;
 use mcore::rand::RAND;
 use std::ffi::CStr;
 use std::fmt::Write;
+
+#[macro_export] macro_rules! BIGINT {
+    ($x:expr) => {
+        BigInt::new_int($x as isize)
+    };
+}
+
+#[macro_export] macro_rules! ZERO {
+    () => {
+        BigInt::new_int(0)
+    };
+}
+
+#[macro_export] macro_rules! ONE {
+    () => {
+        BigInt::new_int(1)
+    };
+}
 
 pub struct BigInt {
     value: MaybeUninit<mpz_t>
@@ -176,6 +194,15 @@ impl BigInt {
         }
     }
 
+    pub fn _pow(x: &Self, y: u64) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_pow_ui(z.as_mut_ptr(), x.value.as_ptr(), y as u64);
+            Self { value: z }
+        }
+    }
+
     pub fn _pow_mod(x: &Self, e:&Self, m:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
@@ -224,6 +251,16 @@ impl BigInt {
     pub fn imul(&mut self, i: isize) {
         unsafe {
             gmp::mpz_mul_si(self.value.as_mut_ptr(), self.value.as_ptr(), i as i64);
+        }
+    }
+
+    pub fn _imul(x: &Self, i: isize) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());  
+            gmp::mpz_mul_si(z.as_mut_ptr(), x.value.as_ptr(), i as i64);
+            
+            Self { value:z }
         }
     }
 

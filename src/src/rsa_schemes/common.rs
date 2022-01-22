@@ -1,5 +1,5 @@
 use mcore::rand::RAND;
-use crate::interface::Share;
+use crate::{interface::Share, BIGINT, ONE, ZERO};
 
 use super::{bigint::BigInt, signatures::sh00::SH00_SignatureShare};
 
@@ -9,7 +9,7 @@ const BOUND: usize = 100;
 pub fn shamir_share(x: &BigInt, k: usize, n: usize, m: &BigInt, v:&BigInt, rng: &mut impl RAND) -> (Vec<(usize, BigInt)>, Vec<BigInt>) {
     let mut coeff: Vec<BigInt> = Vec::new();
 
-    let delta = BigInt::new_int(fac(n) as isize);
+    let delta = BIGINT!(fac(n));
     let delta_inv = BigInt::_inv_mod(&delta, &m);
 
     for _ in 0..k-1 {
@@ -23,7 +23,7 @@ pub fn shamir_share(x: &BigInt, k: usize, n: usize, m: &BigInt, v:&BigInt, rng: 
     let mut VK: Vec<BigInt> = Vec::new();
 
     for j in 1..n+1 {
-        let xi = eval_pol(&BigInt::new_int(j as isize), &mut coeff, &m);
+        let xi = eval_pol(&BIGINT!(j), &mut coeff, &m);
         VK.push(BigInt::_mul_mod(&BigInt::_pow_mod(&v, &xi, &m), &delta_inv, &m));
         shares.push((j, xi));
     }
@@ -33,13 +33,13 @@ pub fn shamir_share(x: &BigInt, k: usize, n: usize, m: &BigInt, v:&BigInt, rng: 
 
 pub fn eval_pol(x: &BigInt, a: &Vec<BigInt>, p: &BigInt) ->  BigInt {
     let len = (a.len()) as isize;
-    let mut val = BigInt::new_int(0);
+    let mut val = ZERO!();
     
     for i in 0..len - 1 {
         let mut tmp = BigInt::new_copy(&a[i as usize].clone());
         let mut xi = x.clone();
 
-        xi.pow_mod(&BigInt::new_int(len - i - 1), &p);
+        xi.pow_mod(&BIGINT!(len - i - 1), &p);
         tmp.mul_mod(&xi, &p);
         val.add(&tmp);
     }
@@ -96,18 +96,18 @@ pub fn gen_strong_prime(p1: &mut BigInt, p: &mut BigInt, e: &BigInt, rng: &mut i
 
         /* Step 3: Test if 2 is a Miller-Rabin witness to the compositeness of p1 */
         if prime {
-            let mut a = BigInt::new_int(2);
+            let mut a = BIGINT!(2);
             a.pow_mod(&p1, &p1);
-            prime = a.equals(&BigInt::new_int(2));
+            prime = a.equals(&BIGINT!(2));
         }
 
         /* Step 4: Test if 2^p1 = +-1 (mod p)*/
         if prime {
-            let mut t = BigInt::new_int(2);
+            let mut t = BIGINT!(2);
             t.pow_mod(&p1, &p);
             let mut s = p.clone();
             s.dec(1);
-            prime = t.equals(&BigInt::new_int(1)) || t.equals(&s);
+            prime = t.equals(&ONE!()) || t.equals(&s);
         }
 
         /*Step 5: Apply Miller-Rabin test to p1 */
@@ -152,64 +152,45 @@ pub fn fac(x: usize) -> usize {
 
 pub fn interpolate(shares: &Vec<SH00_SignatureShare>, N: &BigInt) -> BigInt { 
     let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id() as u8).collect();
-    let mut rY = BigInt::new();
+    let mut w = ONE!();
 
     for i in 0..shares.len() {
         let share = shares[i].clone();
-        let l = lag_coeff(&ids, share.get_id() as isize, share.get_delta()) * 2;
-        let mut ui = shares[i].get_data().clone();
 
-        ui.pow_mod(&BigInt::new_int(l), &N);
+        let l = lag_coeff(&ids, share.get_id() as isize, share.get_delta(), &N);
+        let mut wj = shares[i].get_data().clone();
 
-        if i == 0 {
-            rY = ui;
-        } else {
-            rY.mul_mod(&ui, &N);
-        }
+        wj.pow_mod(&l, &N);
+        w.mul_mod(&wj, &N);
     }
 
-    rY.rmod(&N);
-    rY
+    w
 }
 
-pub fn lagrange_coeff(indices: &[u8], i: isize, m: &BigInt) -> BigInt {
-    let mut prod = BigInt::new_int(1);
+pub fn lag_coeff(indices: &[u8], i: isize, d: usize, N:&BigInt) -> BigInt {
+    let delta = BIGINT!(d); 
+    let mut ln = delta.clone();
+    let mut ld = ONE!();
     
     for k in 0..indices.len() {
         let j:isize = indices[k].into();
 
         if i != j {
-            let mut ij = BigInt::new_int(j-i);
-            ij.inv_mod(&m);
-            ij.imul(j as isize);
-
-            prod.rmod(&m);
-            prod.mul_mod(&ij, &m);
+            ln.mul(&BIGINT!(-j));
+            ld.mul(&BIGINT!(i-j))
         }
     } 
     
-    prod.rmod(&m);
-    prod
-}
+    let mut lambda = BigInt::_div(&ln, &ld);
+    lambda.imul(2);
 
-pub fn lag_coeff(indices: &[u8], i: isize, delta: usize) -> isize {
-    let mut prod: f64 = 1.0;
-    
-    for k in 0..indices.len() {
-        let j = indices[k].into();
-        if i != j {
-            let div:f64 = (-j) as f64 / (i-j) as f64;
-            prod *= div;
-        }
-    } 
-    prod *= delta as f64;
-    prod as isize
+    lambda
 }
 
 
 pub fn ext_euclid(x: &BigInt, y: &BigInt) -> (BigInt, BigInt) {
-    if x.equals(&BigInt::new_int(0)) {
-        return (BigInt::new_int(0), BigInt::new_int(1));
+    if x.equals(&ZERO!()) {
+        return (ZERO!(), ONE!());
     }
 
     let (x1, mut y1) = ext_euclid(&BigInt::_rmod(&y, &x), &x);

@@ -1,7 +1,7 @@
 use std::time::Instant;
 use mcore::rand::RAND;
 
-use crate::rsa_schemes::{common::{bytes2int, gen_strong_prime, fac}, rsa_mod::RsaModulus, bigint::BigInt};
+use crate::{rsa_schemes::{common::{bytes2int, gen_strong_prime, fac}, rsa_mod::RsaModulus, bigint::BigInt}, BIGINT};
 
 use super::{common::shamir_share, rsa_groups::{rsa_domain::RsaDomain, rsa_domain::BigFiniteField }, signatures::sh00::{SH00_PrivateKey, SH00_PublicKey, SH00_VerificationKey}};
 
@@ -28,7 +28,7 @@ impl RsaKeyGenerator {
                 let mut q: BigInt = BigInt::new();
 
                 //let e: BigInt = BigInt::new_prime(rng, ESIZE/8);
-                let e = BigInt::new_int(65537); // Question: Should we be able to change this?
+                let e = BIGINT!(65537); // Question: Should we be able to change this?
 
                 println!("generating strong primes...");
 
