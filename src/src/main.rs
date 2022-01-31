@@ -4,14 +4,14 @@
 #![allow(dead_code)]
 
 use std::time::Instant;
-
+/*
 use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
 use crate::dl_schemes::coins::cks05::CKS05_ThresholdCoin;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::{
     ciphers::bz03::BZ03_ThresholdCipher, dl_groups::bls12381::Bls12381,
     signatures::bls04::BLS04_ThresholdSignature,
-};
+};*/
 use crate::interface::*;
 use crate::rsa_schemes::signatures::sh00::Sh00ThresholdSignature;
 use crate::util::*;
@@ -132,9 +132,9 @@ fn main() {
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Sh00ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
+        shares.push(Sh00ThresholdSignature::partial_sign(&msg, label, &sk[i as usize]));
         let elapsed_time = now.elapsed().as_millis();
-        println!("[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
+        println!("\n[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
         let now = Instant::now();
         let valid =  Sh00ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key());
         let elapsed_time = now.elapsed().as_millis();
@@ -145,7 +145,7 @@ fn main() {
     let now = Instant::now();
     let signature = Sh00ThresholdSignature::assemble(&shares, &msg, &sk[0].get_public_key());
     let elapsed_time = now.elapsed().as_millis();
-    println!("[{}ms]\tSignature: {}", elapsed_time, signature.get_sig().to_string());
+    println!("\n[{}ms]\tSignature: {}", elapsed_time, signature.get_sig().to_string());
 
     // check whether signature is a valid bls signature
     let now = Instant::now();
