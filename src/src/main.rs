@@ -13,8 +13,7 @@ use crate::dl_schemes::{
     signatures::bls04::BLS04_ThresholdSignature,
 };
 use crate::interface::*;
-use crate::rsa_schemes::rsa_groups::{rsa2048::Rsa2048, rsa_domain::RsaDomain};
-use crate::rsa_schemes::signatures::sh00::SH00_ThresholdSignature;
+use crate::rsa_schemes::signatures::sh00::Sh00ThresholdSignature;
 use crate::util::*;
 
 mod bigint;
@@ -125,7 +124,7 @@ fn main() {
 
     // generate secret shares for SSH0 with 128 bit primes
     let now = Instant::now();
-    let sk = SH00_ThresholdSignature::generate_keys(K, N, 2048, &mut rng);
+    let sk = Sh00ThresholdSignature::generate_keys(K, N, 512, &mut rng);
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 
@@ -133,24 +132,24 @@ fn main() {
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(SH00_ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
+        shares.push(Sh00ThresholdSignature::partial_sign(&msg, &sk[i as usize]));
         let elapsed_time = now.elapsed().as_millis();
         println!("[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
         let now = Instant::now();
-        let valid =  SH00_ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key());
+        let valid =  Sh00ThresholdSignature::verify_share(&shares[i as usize], &msg, &sk[0].get_public_key());
         let elapsed_time = now.elapsed().as_millis();
         println!("[{}ms]\tPartial signature {} valid: {}", elapsed_time, shares[i].get_id(), valid);
     }
 
     // combine shares to generate full signature
     let now = Instant::now();
-    let signature = SH00_ThresholdSignature::assemble(&shares, &msg, &sk[0].get_public_key());
+    let signature = Sh00ThresholdSignature::assemble(&shares, &msg, &sk[0].get_public_key());
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tSignature: {}", elapsed_time, signature.get_sig().to_string());
 
     // check whether signature is a valid bls signature
     let now = Instant::now();
-    let valid = SH00_ThresholdSignature::verify(&signature, &sk[0].get_public_key());
+    let valid = Sh00ThresholdSignature::verify(&signature, &sk[0].get_public_key());
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tSignature valid: {}", elapsed_time, valid);
 

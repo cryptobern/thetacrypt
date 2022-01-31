@@ -1,16 +1,13 @@
 use mcore::{rand::RAND, hash256::HASH256};
-
 use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT};
 
 
-const BigInt_BYTES:usize = 2048;
-const L1:usize = 32*8;
 
-pub struct SH00_ThresholdSignature {
+pub struct Sh00ThresholdSignature {
     g: BigInt
 }
 
-pub struct SH00_SignatureShare {
+pub struct Sh00SignatureShare {
     id:usize,
     label:Vec<u8>,
     xi:BigInt,
@@ -18,40 +15,40 @@ pub struct SH00_SignatureShare {
     c:BigInt
 }
 
-pub struct SH00_SignedMessage {
+pub struct Sh00SignedMessage {
     msg: Vec<u8>,
     sig: BigInt
 }
 
-pub struct SH00_PublicKey {
+pub struct Sh00PublicKey {
     N: BigInt,
     e: BigInt,
-    verificationKey:SH00_VerificationKey,
+    verificationKey:Sh00VerificationKey,
     delta:usize,
     modbits:usize
 }  
 
-pub struct SH00_PrivateKey {
+pub struct Sh00PrivateKey {
     id: usize,
     m: BigInt,
     si: BigInt,
-    pubkey: SH00_PublicKey
+    pubkey: Sh00PublicKey
 }
 
-pub struct SH00_VerificationKey {
+pub struct Sh00VerificationKey {
     v: BigInt,
     vi: Vec<BigInt>,
     u: BigInt
 }
 
-impl ThresholdSignature for SH00_ThresholdSignature {
-    type SM = SH00_SignedMessage;
+impl ThresholdSignature for Sh00ThresholdSignature {
+    type SM = Sh00SignedMessage;
 
-    type PK = SH00_PublicKey;
+    type PK = Sh00PublicKey;
 
-    type SK = SH00_PrivateKey;
+    type SK = Sh00PrivateKey;
 
-    type SH = SH00_SignatureShare;
+    type SH = Sh00SignatureShare;
 
     fn verify(sig: &Self::SM, pk: &Self::PK) -> bool {
         sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
@@ -127,30 +124,30 @@ impl ThresholdSignature for SH00_ThresholdSignature {
             y = u.inv_mod(&pk.N).mul_mod(&y, &N);
         }
 
-        SH00_SignedMessage{sig:y, msg:msg.to_vec()} 
+        Sh00SignedMessage{sig:y, msg:msg.to_vec()} 
     }
 }
 
-impl SH00_ThresholdSignature {
-    pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut impl RAND) -> Vec<SH00_PrivateKey> {
+impl Sh00ThresholdSignature {
+    pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut impl RAND) -> Vec<Sh00PrivateKey> {
         let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(modsize));
         unwrap_keys!(keys, RsaPrivateKey::SH00)
     }
 }
 
-impl PublicKey for SH00_PublicKey {}
+impl PublicKey for Sh00PublicKey {}
 
-impl SH00_PublicKey {
+impl Sh00PublicKey {
     pub fn new(N: BigInt,
         e: BigInt,
-        verificationKey:SH00_VerificationKey,
+        verificationKey:Sh00VerificationKey,
         delta:usize,
         modbits:usize) -> Self {
         Self {N, e, verificationKey, delta, modbits}
     }
 }
 
-impl SH00_SignatureShare {
+impl Sh00SignatureShare {
     pub fn get_id(&self) -> usize {
         self.id.clone()
     }
@@ -160,14 +157,14 @@ impl SH00_SignatureShare {
     }
 }
 
-impl Clone for SH00_SignatureShare {
+impl Clone for Sh00SignatureShare {
     fn clone(&self) -> Self {
         Self { id: self.id.clone(), label: self.label.clone(), xi: self.xi.clone(), z: self.z.clone(), c: self.c.clone() }
     }
 }
 
-impl PrivateKey for SH00_PrivateKey {
-    type PK = SH00_PublicKey;
+impl PrivateKey for Sh00PrivateKey {
+    type PK = Sh00PublicKey;
 
     fn get_id(&self) -> usize {
         self.id
@@ -178,16 +175,16 @@ impl PrivateKey for SH00_PrivateKey {
     }
 }
 
-impl SH00_PrivateKey {
+impl Sh00PrivateKey {
     pub fn new(id: usize,
         m: BigInt,
         si: BigInt,
-        pubkey: SH00_PublicKey) -> Self {
+        pubkey: Sh00PublicKey) -> Self {
         Self {id, m, si, pubkey}
     }
 }
 
-impl SH00_VerificationKey {
+impl Sh00VerificationKey {
     pub fn new(v: BigInt,
         vi: Vec<BigInt>,
         u: BigInt) -> Self {
@@ -195,36 +192,36 @@ impl SH00_VerificationKey {
         }
 }
 
-impl SH00_SignedMessage {
+impl Sh00SignedMessage {
     pub fn get_sig(&self) -> BigInt {
         self.sig.clone()
     }
 }
 
-impl Share for SH00_SignatureShare {
+impl Share for Sh00SignatureShare {
     fn get_id(&self) -> usize {
         self.id
     }
 }
 
-impl Clone for SH00_PublicKey {
+impl Clone for Sh00PublicKey {
     fn clone(&self) -> Self {
         Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), delta: self.delta.clone(), modbits: self.modbits.clone() }
     }
 }
-impl Clone for SH00_PrivateKey {
+impl Clone for Sh00PrivateKey {
     fn clone(&self) -> Self {
         Self { id: self.id.clone(), m: self.m.clone(), si: self.si.clone(), pubkey: self.pubkey.clone() }
     }
 }
 
-impl Clone for SH00_VerificationKey {
+impl Clone for Sh00VerificationKey {
     fn clone(&self) -> Self {
         Self { v: self.v.clone(), vi: self.vi.clone(), u: self.u.clone() }
     }
 }
 
-fn H(m: &[u8], pk: &SH00_PublicKey) -> (BigInt, isize) {
+fn H(m: &[u8], pk: &Sh00PublicKey) -> (BigInt, isize) {
     let mut x = H1(m, &pk.N, pk.modbits);
     let j = BigInt::jacobi(&x, &pk.N);
     if j == -1 {
