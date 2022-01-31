@@ -21,8 +21,6 @@ impl RsaKeyGenerator {
             RsaScheme::SH00(MODSIZE) => {
                 let PLEN = MODSIZE/2 - 2; 
 
-                let mut v = BigInt::new_rand(rng, MODSIZE - 1).pow(2);
-
                 let mut p1 = BigInt::new_rand(rng, PLEN);
                 let mut q1 = BigInt::new_rand(rng, PLEN);
 
@@ -46,12 +44,12 @@ impl RsaKeyGenerator {
                 let N = p.mul(&q);
                 let m = p1.mul(&q1);
 
-                v = v.rmod(&N); 
+                let v = BigInt::new_rand(rng, MODSIZE - 1).pow(2).rmod(&N);
 
                 let d = e.inv_mod(&m);
 
                 let delta = fac(n);
-                let (xi, vi) = shamir_share(&d, k, n, &m, &v, MODSIZE, rng);
+                let (xi, vi) = shamir_share(&d, k, n, &N, &m, &v, MODSIZE, rng);
                 
                 let mut u;
                 let mut up;

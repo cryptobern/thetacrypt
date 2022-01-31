@@ -2,7 +2,6 @@ use mcore::{rand::RAND, hash256::HASH256};
 use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT};
 
 
-
 pub struct Sh00ThresholdSignature {
     g: BigInt
 }
@@ -54,13 +53,14 @@ impl ThresholdSignature for Sh00ThresholdSignature {
         sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
     }
 
-    fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH {
         let N = sk.get_public_key().N.clone();
         let v = sk.get_public_key().verificationKey.v.clone();
         let vi = sk.get_public_key().verificationKey.vi[sk.id - 1].clone();
+        let si = sk.si.clone();
 
         let (x, _) = H(&msg, &sk.get_public_key()); 
-        let xi = x.pow_mod(&sk.si.lshift(1), &N); // xi = x^(2*si)
+        let xi = x.pow_mod(&si.lshift(1), &N); // xi = x^(2*si)
 
         let x_hat = x.pow(4).rmod(&N); // x_hat = x^4
 
@@ -68,18 +68,14 @@ impl ThresholdSignature for Sh00ThresholdSignature {
         let r = BIGINT!(777777777777777777); //TODO: random value in {0, 2^(2*modbits + 2 + 2*L1)}
 
         let v1 = v.pow_mod(&r, &N); //v1 = v^r
-
         let x1 = x_hat.pow_mod(&r, &N); // x1 = x_hat^r
-
         let xi2 = xi.pow(2).rmod(&N); //xi2 = xi^2
-
-       // println!("v1: {}", v1.to_string());
 
         let c = H2(&v, &x_hat, &vi, &xi2, &v1, &x1);
 
-        let z = sk.si.mul(&c).add(&r); // z = si*c + r
+        let z = si.mul(&c).add(&r); // z = si*c + r
 
-        return Self::SH {id: sk.get_id(), label:b"".to_vec(), xi:xi, z, c }
+        return Self::SH {id: sk.get_id(), label:label.to_vec(), xi:xi, z:z, c:c }
     }
 
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
@@ -93,19 +89,17 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
         let x_hat = x.pow(4).rmod(&N); // x_hat = x^4
 
-        let xi2 = share.xi.pow(2); //xi2 = xi^2
+        let xi2 = share.xi.pow(2).rmod(&N); //xi2 = xi^2
 
-        let T = vi.pow_mod(&c, &N).inv_mod(&N);
-        let v1 = v.pow_mod(&z, &N).mul_mod(&T, &N); // v1 = v^z*vi^(-c) 
+        let div = vi.pow_mod(&c, &N).inv_mod(&N);
+        let v1 = v.pow_mod(&z, &N).mul_mod(&div, &N); // v1 = v^z / vi^c 
 
-        let T = xi.pow_mod(&c.lshift(1), &N).inv_mod(&N);
-        let x1 = x_hat.pow_mod(&z, &N).mul_mod(&T, &N);  // x1 = x_hat^z*xi^(-2c)
+        let div = xi.pow_mod(&c.lshift(1), &N).inv_mod(&N);
+        let x1 = x_hat.pow_mod(&z, &N).mul_mod(&div, &N);  // x1 = x_hat^z / xi^(2c)
 
-       // println!("v1: {}", v1.to_string());
+        let c2 = H2(&v, &x_hat, &vi, &xi2, &v1, &x1);
 
-        let c = H2(&v, &x_hat, &vi, &xi2, &v1, &x1);
-
-        c.equals(&share.c)
+        c2.equals(&c)
     }
 
     fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {

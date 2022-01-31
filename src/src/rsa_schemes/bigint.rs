@@ -91,7 +91,7 @@ impl BigInt {
                 
                 write!(&mut s, "{:02X}", byte).expect("Unable to get random bytes!");
             }
-
+            write!(&mut s, "\0").expect("Unable to null terminate string");
             gmp::mpz_set_str(self.value.as_mut_ptr(), s.as_ptr() as *const i8, 16);
         }
     }

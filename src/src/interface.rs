@@ -36,7 +36,7 @@ pub trait ThresholdSignature {
     type SH: Share;
 
     fn verify(sig: &Self::SM, pk: &Self::PK) -> bool;
-    fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH;
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH;
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool;
     fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM;
 }

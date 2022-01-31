@@ -93,18 +93,18 @@ impl<PE: PairingEngine> ThresholdSignature for BLS04_ThresholdSignature<PE> {
         PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
     }
 
-    fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH {
         let mut data = H::<PE::G2>(&msg);
         data.pow(&sk.xi);
 
-        BLS04_SignatureShare{ id: sk.id, label:b"".to_vec(), data:data }
+        BLS04_SignatureShare{ id: sk.id, label:label.to_vec(), data:data }
     }
 
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
         PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {
+    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], _pk: &Self::PK) -> Self::SM {
         let sig = interpolate(&shares);
         BLS04_SignedMessage{sig:sig, msg:msg.to_vec() } 
     }
