@@ -1,16 +1,16 @@
 use std::time::Instant;
 use mcore::rand::RAND;
 
-use crate::{rsa_schemes::{common::{bytes2int, gen_strong_prime, fac}, bigint::BigInt}, BIGINT, ONE};
+use crate::{rsa_schemes::{common::{gen_strong_prime, fac}, bigint::BigInt}, BIGINT, ONE};
 
-use super::{common::shamir_share, rsa_groups::{rsa_domain::RsaDomain, rsa_domain::BigFiniteField }, signatures::sh00::{SH00_PrivateKey, SH00_PublicKey, SH00_VerificationKey}};
+use super::{common::shamir_share, signatures::sh00::{Sh00PrivateKey, Sh00PublicKey, Sh00VerificationKey}};
 
 pub enum RsaScheme {
     SH00(usize)
 }
 
 pub enum RsaPrivateKey {
-    SH00(SH00_PrivateKey)
+    SH00(Sh00PrivateKey)
 }
 
 pub struct RsaKeyGenerator {}
@@ -65,13 +65,13 @@ impl RsaKeyGenerator {
                     }
                 }
 
-                let verificationKey = SH00_VerificationKey::new(v, vi, u);
-                let pubkey = SH00_PublicKey::new(N,  e.clone(), verificationKey, delta, MODSIZE);
+                let verificationKey = Sh00VerificationKey::new(v, vi, u);
+                let pubkey = Sh00PublicKey::new(N,  e.clone(), verificationKey, delta, MODSIZE);
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {
                     pks.push(RsaPrivateKey::SH00(
-                            SH00_PrivateKey::new(xi[i].0, m.clone(), xi[i].1.clone(), pubkey.clone())))
+                            Sh00PrivateKey::new(xi[i].0, m.clone(), xi[i].1.clone(), pubkey.clone())))
                 }
                 pks
             }
