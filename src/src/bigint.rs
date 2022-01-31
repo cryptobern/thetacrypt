@@ -79,7 +79,7 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.inv_mod(m),
              BigImpl::Bn254(x) => x.inv_mod(m),
-             BigImpl::Ed25519(x) => x.inv_mod(m)
+             BigImpl::Ed25519(x) => x.inv_mod(m),
         }
     }
 
@@ -87,7 +87,7 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.imul(i),
              BigImpl::Bn254(x) => x.imul(i),
-             BigImpl::Ed25519(x) => x.imul(i)
+             BigImpl::Ed25519(x) => x.imul(i),
         }
     }
 
@@ -95,7 +95,7 @@ impl BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.pow_mod(y, m),
              BigImpl::Bn254(x) => x.pow_mod(y, m),
-             BigImpl::Ed25519(x) => x.pow_mod(y, m)
+             BigImpl::Ed25519(x) => x.pow_mod(y, m),
         }
     }
 
@@ -103,7 +103,7 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.to_bytes(),
             BigImpl::Bn254(x) => x.to_bytes(),
-            BigImpl::Ed25519(x) => x.to_bytes()
+            BigImpl::Ed25519(x) => x.to_bytes(),
         }
     }
 
@@ -111,7 +111,7 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.to_string(),
             BigImpl::Bn254(x) => x.to_string(),
-            BigImpl::Ed25519(x) => x.to_string()
+            BigImpl::Ed25519(x) => x.to_string(),
         }
     }
 
@@ -119,7 +119,7 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(_) => BLS12381MODBYTES,
             BigImpl::Bn254(_) => BN254MODBYTES,
-            BigImpl::Ed25519(_) => ED25519MODBYTES
+            BigImpl::Ed25519(_) => ED25519MODBYTES,
         }
     }
 
@@ -127,7 +127,7 @@ impl BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.equals(y),
             BigImpl::Bn254(x) => x.equals(y),
-            BigImpl::Ed25519(x) => x.equals(y)
+            BigImpl::Ed25519(x) => x.equals(y),
        }
     }
 }

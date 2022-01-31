@@ -24,11 +24,14 @@ use crate::bigint::*;
 
 use crate::dl_schemes::{DlDomain, DlShare};
 
+#[derive(Clone)]
 pub struct SG02_PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>,
     g_bar: G
 }
+
+#[derive(Clone)]
 pub struct SG02_PrivateKey<G: DlGroup> {
     id: usize,
     xi: BigImpl,
@@ -51,18 +54,6 @@ pub struct SG02_DecryptionShare<G: DlGroup>  {
     data: G,
     ei: BigImpl,
     fi: BigImpl,
-}
-
-impl<G: DlGroup> Clone for SG02_PublicKey<G> {
-    fn clone(&self) -> SG02_PublicKey<G> {
-        return SG02_PublicKey {y:self.y.clone(), verificationKey:self.verificationKey.clone(), g_bar:self.g_bar.clone() };
-    }
-}
-
-impl<G: DlGroup> Clone for SG02_PrivateKey<G> {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
-    }
 }
 
 impl<G: DlGroup> PublicKey for SG02_PublicKey<G> {}
@@ -112,11 +103,11 @@ impl<G: DlGroup> DlShare<G> for SG02_DecryptionShare<G> {
     }
 }
 
-pub struct SG02_ThresholdCipher<G: DlGroup> {
+pub struct Sg02ThresholdCipher<G: DlGroup> {
     g: G
 }
 
-impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
+impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
     type PK = SG02_PublicKey<G>;
     type SK = SG02_PrivateKey<G>;
     type CT = SG02_Ciphertext<G>;
@@ -237,7 +228,7 @@ impl<G:DlGroup> ThresholdCipher for SG02_ThresholdCipher<G> {
     }
 }
 
-impl<D:DlDomain> SG02_ThresholdCipher<D> {
+impl<D:DlDomain> Sg02ThresholdCipher<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<SG02_PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::SG02(domain));
         unwrap_keys!(keys, DlPrivateKey::SG02)

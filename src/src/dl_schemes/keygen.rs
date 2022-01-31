@@ -6,11 +6,11 @@ use crate::dl_schemes::ciphers::bz03::*;
 use crate::dl_schemes::ciphers::sg02::*;
 
 use super::DlDomain;
-use super::coins::cks05::CKS05_PrivateKey;
-use super::coins::cks05::CKS05_PublicKey;
+use super::coins::cks05::Cks05PrivateKey;
+use super::coins::cks05::Cks05PublicKey;
 use super::dl_groups::dl_group::*;
-use super::signatures::bls04::BLS04_PrivateKey;
-use super::signatures::bls04::BLS04_PublicKey;
+use super::signatures::bls04::Bls04PrivateKey;
+use super::signatures::bls04::Bls04PublicKey;
 
 pub enum DlScheme<D: DlDomain> {
     BZ03(D),
@@ -20,10 +20,10 @@ pub enum DlScheme<D: DlDomain> {
 }
 
 pub enum DlPrivateKey<D: DlDomain> {
-    BZ03(BZ03_PrivateKey<D>),
+    BZ03(Bz03PrivateKey<D>),
     SG02(SG02_PrivateKey<D>),
-    BLS04(BLS04_PrivateKey<D>),
-    CKS05(CKS05_PrivateKey<D>)
+    BLS04(Bls04PrivateKey<D>),
+    CKS05(Cks05PrivateKey<D>)
 }
 
 #[macro_export]
@@ -60,10 +60,10 @@ impl DlKeyGenerator {
 
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
-                let publicKey = BZ03_PublicKey::new(&y, &h );
+                let publicKey = Bz03PublicKey::new(&y, &h );
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::BZ03(BZ03_PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::BZ03(Bz03PrivateKey::new(i+1, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;
@@ -94,10 +94,10 @@ impl DlKeyGenerator {
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
 
-                let publicKey = BLS04_PublicKey::new(&y, &h);
+                let publicKey = Bls04PublicKey::new(&y, &h);
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::BLS04(BLS04_PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::BLS04(Bls04PrivateKey::new(i+1, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;
@@ -110,10 +110,10 @@ impl DlKeyGenerator {
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
 
-                let publicKey = CKS05_PublicKey::new(&y,&h);
+                let publicKey = Cks05PublicKey::new(&y,&h);
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::CKS05(CKS05_PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::CKS05(Cks05PrivateKey::new(i+1, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;
