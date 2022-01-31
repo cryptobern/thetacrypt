@@ -21,18 +21,18 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 - **g_bar: `ECP`**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 <br><br>
 
-**DL_VerificationKey** implements **VerificationKey**
+**DlVerificationKey** implements **VerificationKey**
 - **key: `Vec<BIG>`**: Verification key value
 <br><br>
 
 **DL_PublicKey** implements **PublicKey**
 - **y: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
-- **verificationKey: `DL_VerificationKey`**:&nbsp; verification key
+- **verificationKey: `DlVerificationKey`**:&nbsp; verification key
 - **k: `u8`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
 - **group: `Group`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
 <br><br>
 
-**DL_PrivateKey** extends **DL_PublicKey** implements **PrivateKey** 
+**DlPrivateKey** extends **DL_PublicKey** implements **PrivateKey** 
 - **id: `u32`**:&nbsp;&nbsp; key identifier
 - **xi: `BIG`**: private key share
 
@@ -48,7 +48,7 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 # DL_KeyGenerator
 Implementation of abstract interface `KeyGenerator`. The following method generates public/private keys that can be used for all presented schemes.
 
-**`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DL_PrivateKey>)`**<br>
+**`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DlPrivateKey>)`**<br>
 `x = random(2, group.q-1)` <br> 
 `y = group.g^x` <br>
 `g_bar = group.g^random(2, group.q-1)` <br>
@@ -57,12 +57,12 @@ Implementation of abstract interface `KeyGenerator`. The following method genera
 `pk = DL_PublicKey(y, verificationKey, g_bar)`<br>
 `secrets = []`<br>
 `for each xi in {x₁, .. xₙ} do`<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DL_PrivateKey(i, xi, y, verificationKey, g_bar))`<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`secrets.push(DlPrivateKey(i, xi, y, verificationKey, g_bar))`<br>
 `return (pk, secrets)`<br>
 <br><br>
 
 
-# CKS05_ThresholdCoin
+# Cks05ThresholdCoin
 [Reference (p. 22)](https://link.springer.com/content/pdf/10.1007/s00145-005-0318-0.pdf) <br>
 Implementation of abstract interface `ThresholdCoin`.
 
@@ -77,14 +77,14 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 
 **Needed objects:**<br>
 
-**CKS05_CoinShare** implements **CoinShare**
+**Cks05CoinShare** implements **CoinShare**
 - **id**: share identifier
 - **data**: coin share
 - **c**:  zkp parameter
 - **z**:  zkp parameter
 
 **Scheme:** <br>
-**`CKS05_ThresholdCoin::createShare(cname: String, sk: DL_PrivateKey) -> CKS05_CoinShare`**<br>
+**`Cks05ThresholdCoin::createShare(cname: String, sk: DlPrivateKey) -> Cks05CoinShare`**<br>
 `c_bar = H(cname)`<br>
 `data = c_bar^sk.xi`<br>
 `s = random(2, sk.group.q-1)` <br>
@@ -92,21 +92,21 @@ The value of a coin named *C* is obtained by hashing *C*&nbsp;to obtain ĉ *ϵ G
 `h_bar = c_bar^s` <br>
 `c = H1(sk.group.g, sk.verificationKey[sk.id], h, c_bar, data, h_bar)` <br>
 `z = s + sk.xi*c` <br>
-`return CKS05_CoinShare(sk.id, data, c, z)`<br><br>
+`return Cks05CoinShare(sk.id, data, c, z)`<br><br>
 
-**`CKS05_ThresholdCoin::verifyShare(share: CKS05_CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
+**`Cks05ThresholdCoin::verifyShare(share: Cks05CoinShare, cname: String, pk: DL_PublicKey) -> bool`**<br>
 `c_bar = H(cname)`<br>
 `h = pk.group.g^share.z / pk.verificationkey[share.id]^share.c`<br>
 `h_bar = c_bar^share.z / share.data^share.c`<br>
 `return share.c == H1(pk.group.g, pk.verificationKey[share.id], h, c_bar, share.data, h_bar)`<br><br>
 
-**`CKS05_ThresholdCoin::assemble(shares: Vec<CKS05_CoinShare>) -> u8`**<br>
+**`Cks05ThresholdCoin::assemble(shares: Vec<Cks05CoinShare>) -> u8`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `c_bar = interpolate(shares)`<br>
 `return H2(c_bar)`<br><br><br>
 
-# SG02_ThresholdCipher
+# Sg02ThresholdCipher
 [Reference](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf)<br>
 Implementation of abstract interface `ThresholdCipher`.
 
@@ -132,7 +132,7 @@ Implementation of abstract interface `ThresholdCipher`.
 
 **Scheme:**
 
-**`SG02_ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
+**`Sg02ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(m, k)`<br>
 `r = random(2, pk.group.q-1)` <br>
@@ -147,12 +147,12 @@ Implementation of abstract interface `ThresholdCipher`.
 `f = s + re` <br>
 `return SG02_Ciphertext(c_k, label, u, u_bar, e, f, c)`<br><br>
 
-**`SG02_ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+**`Sg02ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `w = g^ct.f / ct.u^ct.e`<br>
 `w_bar = pk.group.g_bar^ct.f / ct.u_bar^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.u_bar, w_bar)`<br>
 
-**`SG02_ThresholdCipher::partialDecrypt(ct: SG02_Ciphertext, sk: DL_PrivateKey) -> SG02_DecryptionShare`**<br>
+**`Sg02ThresholdCipher::partialDecrypt(ct: SG02_Ciphertext, sk: DlPrivateKey) -> SG02_DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
 `ui_bar = ct.u^si` <br>
@@ -161,12 +161,12 @@ Implementation of abstract interface `ThresholdCipher`.
 `fi = si + sk.xi*ei` <br>
 `return SG02_DecryptionShare(sk.id, data, ei, fi)`<br><br>
 
-**`SG02_ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+**`Sg02ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `ui_bar = ct.u^sh.fi / sh.data^sh.ei`<br>
 `hi_bar = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
 `return ct.e == H2(sh.data, ui_bar, hi_bar)`<br><br>
 
-**`SG02_ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>) -> Vec<u8>`**<br>
+**`Sg02ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -174,7 +174,7 @@ Implementation of abstract interface `ThresholdCipher`.
 `m = symm_dec(ct.c, k)`<br>
 `return m`<br><br>
 
-# BZ03_ThresholdCipher
+# Bz03ThresholdCipher
 [Reference](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.119.1717&rep=rep1&type=pdf)<br>
 Implementation of abstract interface `ThresholdCipher`.
 
@@ -191,12 +191,12 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 
 **Needed objects:**<br>
 
-**BZ03_DecryptionShare** implements **DecryptionShare**
+**Bz03DecryptionShare** implements **DecryptionShare**
 - **id**: share identifier
 - **label**: label identifying which shares belong together
 - **data**: decryption share
 
-**BZ03_Ciphertext** implements **Ciphertext**
+**Bz03Ciphertext** implements **Ciphertext**
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
@@ -207,29 +207,29 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 **Scheme**
 
 
-**`BZ03_ThresholdCipher::encrypt(msg: Vec<u8>, pk: DL_PublicKey, label:string) -> BZ03_Ciphertext`**<br>
+**`Bz03ThresholdCipher::encrypt(msg: Vec<u8>, pk: DL_PublicKey, label:string) -> Bz03Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(msg, k)`<br>
 `r = random(2, q-1)`<br>
 `u = g^r`<br>
 `c_k = G(pk.y^r) xor k`<br>
 `u_bar = H(u, c)^r`<br>
-`return BZ03_Ciphertext(c_k, label, u, u_bar, c)`<br><br>
+`return Bz03Ciphertext(c_k, label, u, u_bar, c)`<br><br>
 
-**`BZ03_ThresholdCipher::verifyCiphertext(ct: BZ03_Ciphertext) -> bool`**<br>
+**`Bz03ThresholdCipher::verifyCiphertext(ct: Bz03Ciphertext) -> bool`**<br>
 `h = H(ct.u, ct.msg)`<br>
 `return ê(g, ct.u_bar) == ê(ct.u, h)`<br><br>
 
-**`BZ03_ThresholdCipher::partialDecrypt(ct: BZ03_Ciphertext, sk: DL_PrivateKey) -> BZ03_DecryptionShare`**<br>
+**`Bz03ThresholdCipher::partialDecrypt(ct: Bz03Ciphertext, sk: DlPrivateKey) -> Bz03DecryptionShare`**<br>
 `if verify_ciphertext(ct) == false then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `ui = ct.u^xi`<br>
-`return BZ03_DecryptionShare(sk.id, ui)`<br><br>
+`return Bz03DecryptionShare(sk.id, ui)`<br><br>
 
-**`BZ03_ThresholdCipher::verifyShare(ct: BZ03_Ciphertext, sh: BZ03_DecryptionShare, pk: PublicKey) -> bool`**<br>
+**`Bz03ThresholdCipher::verifyShare(ct: Bz03Ciphertext, sh: Bz03DecryptionShare, pk: PublicKey) -> bool`**<br>
 `return ê(g, sh.ui) == ê(ct.u, pk.verificationKey[sh.id])`<br><br>
 
-**`BZ03_ThresholdCipher::assemble(ct: BZ03_Ciphertext, shares: [BZ03_DecryptionShare]]) -> Vec<u8>`**<br>
+**`Bz03ThresholdCipher::assemble(ct: Bz03Ciphertext, shares: [Bz03DecryptionShare]]) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
@@ -237,7 +237,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `m = symm_dec(ct.msg, k)`<br>
 `return m`<br><br>
 
-# BLS04_ThresholdSignature 
+# Bls04ThresholdSignature 
 [Reference](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
 Implementation of abstract interface `ThresholdSignature`.
 Again, a GDH group is needed for the following scheme.
@@ -249,25 +249,25 @@ Again, a GDH group is needed for the following scheme.
 
 **Needed objects:**<br>
 
-**BLS04_SignatureShare** implements **SignatureShare**
+**Bls04SignatureShare** implements **SignatureShare**
 - **id**: share identifier
 - **label**: label specifying which shares belong together
 - **data**: signature share
 
 **Scheme**
 
-**`BLS04_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: DL_PrivateKey) -> BLS04_SignatureShare`**<br>
+**`Bls04ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: DlPrivateKey) -> Bls04SignatureShare`**<br>
 `data = H(msg)^sk.xi`<br>
-`return BLS04_SignatureShare(sk.id, label, data)`<br><br>
+`return Bls04SignatureShare(sk.id, label, data)`<br><br>
 
-**`BLS04_ThresholdSignature::verifyShare(share: BLS04_SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
+**`Bls04ThresholdSignature::verifyShare(share: Bls04SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
 `return ê(pk.group.g, pk.verificationKey[share.id]) == ê(H(msg), share.data)`<br><br>
 
-**`BLS04_ThresholdSignature::assemble(shares: Vec<BLS04_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
+**`Bls04ThresholdSignature::assemble(shares: Vec<Bls04SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `sig = interpolate(shares)`<br>
 `return SignedMessage(sig, msg)`<br><br>
 
-**`BLS04_ThresholdSignature::verify(sig: SignedMessage) -> bool`**<br>
+**`Bls04ThresholdSignature::verify(sig: SignedMessage) -> bool`**<br>
 `return ê(pk.group.g, pk.y) == ê(H(sig.msg), sig.sig)`<br><br>

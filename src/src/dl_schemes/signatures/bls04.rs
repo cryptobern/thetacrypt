@@ -8,36 +8,38 @@ use mcore::{hash256::HASH256, rand::RAND};
 use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys};
 use crate::bigint::*;
 
-pub struct BLS04_ThresholdSignature<PE: PairingEngine> {
+pub struct Bls04ThresholdSignature<PE: PairingEngine> {
     g: PE
 }
 
-pub struct BLS04_SignatureShare<PE: PairingEngine> {
+pub struct Bls04SignatureShare<PE: PairingEngine> {
     id:usize,
     label:Vec<u8>,
     data:PE::G2
 }
 
-pub struct BLS04_SignedMessage<PE: PairingEngine> {
+pub struct Bls04SignedMessage<PE: PairingEngine> {
     msg: Vec<u8>,
     sig: PE::G2
 }
 
-pub struct BLS04_PublicKey<PE: PairingEngine> {
+#[derive(Clone)]
+pub struct Bls04PublicKey<PE: PairingEngine> {
     y: PE,
     verificationKey:Vec<PE>
 }  
 
-pub struct BLS04_PrivateKey<PE: PairingEngine> {
+#[derive(Clone)]
+pub struct Bls04PrivateKey<PE: PairingEngine> {
     id: usize,
     xi: BigImpl,
-    pubkey: BLS04_PublicKey<PE>
+    pubkey: Bls04PublicKey<PE>
 }
 
-impl<PE: PairingEngine> PublicKey for BLS04_PublicKey<PE> {}
+impl<PE: PairingEngine> PublicKey for Bls04PublicKey<PE> {}
 
-impl<PE: PairingEngine> PrivateKey for BLS04_PrivateKey<PE> {
-    type PK = BLS04_PublicKey<PE>;
+impl<PE: PairingEngine> PrivateKey for Bls04PrivateKey<PE> {
+    type PK = Bls04PublicKey<PE>;
 
     fn get_id(&self) -> usize {
         self.id
@@ -48,80 +50,68 @@ impl<PE: PairingEngine> PrivateKey for BLS04_PrivateKey<PE> {
     }
 }
 
-impl<PE: PairingEngine> Clone for BLS04_PublicKey<PE> {
-    fn clone(&self) -> Self {
-        Self { y: self.y.clone(), verificationKey: self.verificationKey.clone() }
-    }
-}
-
-impl<PE: PairingEngine> Clone for BLS04_PrivateKey<PE> {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), xi: self.xi.clone(), pubkey: self.pubkey.clone() }
-    }
-}
-
-impl<PE:PairingEngine> BLS04_PrivateKey<PE> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &BLS04_PublicKey<PE>) -> Self {
+impl<PE:PairingEngine> Bls04PrivateKey<PE> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &Bls04PublicKey<PE>) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
     }
 }
 
-impl<PE:PairingEngine> BLS04_PublicKey<PE> {
+impl<PE:PairingEngine> Bls04PublicKey<PE> {
     pub fn new(y: &PE, verificationKey: &Vec<PE>) -> Self {
         Self {y:y.clone(), verificationKey:verificationKey.clone()}
     }
 }
 
-impl<PE: PairingEngine> Share for BLS04_SignatureShare<PE> {
+impl<PE: PairingEngine> Share for Bls04SignatureShare<PE> {
     fn get_id(&self) -> usize {
         self.id
     }
 }
 
-impl<PE: PairingEngine> DlShare<PE::G2> for BLS04_SignatureShare<PE> {
+impl<PE: PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
     fn get_data(&self) -> PE::G2 {
         self.data.clone()
     }
 }
 
-impl<PE: PairingEngine> BLS04_SignedMessage<PE> {
+impl<PE: PairingEngine> Bls04SignedMessage<PE> {
     pub fn get_sig(&self) -> PE::G2 {
         self.sig.clone()
     }
 }
 
-impl<PE: PairingEngine> ThresholdSignature for BLS04_ThresholdSignature<PE> {
-    type SM = BLS04_SignedMessage<PE>;
+impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
+    type SM = Bls04SignedMessage<PE>;
 
-    type PK = BLS04_PublicKey<PE>;
+    type PK = Bls04PublicKey<PE>;
 
-    type SK = BLS04_PrivateKey<PE>;
+    type SK = Bls04PrivateKey<PE>;
 
-    type SH = BLS04_SignatureShare<PE>;
+    type SH = Bls04SignatureShare<PE>;
 
     fn verify(sig: &Self::SM, pk: &Self::PK) -> bool {
         PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
     }
 
-    fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH {
         let mut data = H::<PE::G2>(&msg);
         data.pow(&sk.xi);
 
-        BLS04_SignatureShare{ id: sk.id, label:b"".to_vec(), data:data }
+        Bls04SignatureShare{ id: sk.id, label:label.to_vec(), data:data }
     }
 
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
         PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8]) -> Self::SM {
+    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], _pk: &Self::PK) -> Self::SM {
         let sig = interpolate(&shares);
-        BLS04_SignedMessage{sig:sig, msg:msg.to_vec() } 
+        Bls04SignedMessage{sig:sig, msg:msg.to_vec() } 
     }
 }
 
-impl<D:DlDomain> BLS04_ThresholdSignature<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<BLS04_PrivateKey<D>> {
+impl<D:DlDomain> Bls04ThresholdSignature<D> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<Bls04PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BLS04(domain));
         unwrap_keys!(keys, DlPrivateKey::BLS04)
     }

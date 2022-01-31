@@ -67,16 +67,16 @@ Implementation of abstract interface `KeyGenerator`. The following method genera
 		pk = RSA_PublicKey(N, e, verificationKey, n)
 		secrets = []
 		for each xi in {x₁, .. xₙ} do
-			secrets.push(DL_PrivateKey(i, xi, n)
+			secrets.push(DlPrivateKey(i, xi, n)
 		sk = RSA_PrivateKey(N, e)
 		return (pk, secrets)
 
 
-# SH00_ThresholdSignature
+# Sh00ThresholdSignature
 [reference](https://www.iacr.org/archive/eurocrypt2000/1807/18070209-new.pdf)<br>
 Implementation of abstract interface `ThresholdSignature`.
 
-**SH00_SignatureShare** implements **SignatureShare**
+**Sh00SignatureShare** implements **SignatureShare**
 - **id**: share identifier
 - **label**: label specifying which shares belong together
 - **data**: share value
@@ -92,12 +92,12 @@ Implementation of abstract interface `ThresholdSignature`.
 
 **Scheme**<br>
 
-**`SH00_ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> SH00_SignatureShare`**<br>
+**`Sh00ThresholdSignature::sign(msg: Vec<u8>, label: Vec<u8>, sk: RSA_PrivateKey) -> Sh00SignatureShare`**<br>
 `h = H(msg)`<br>
 `if (h|sk.n) = 1 then`<br>
 `	   x = h`<br>
 `else`<br>
-`      x = h * sk.vk.u^sk.e`<br>
+`      h = h * sk.vk.u^sk.e`<br>
 `si = x^(2*xi)`<br>
 `x* = x^4`<br>
 `r = random(0, 2^(L(n) + 2*L1) - 1)`<br>
@@ -105,14 +105,14 @@ Implementation of abstract interface `ThresholdSignature`.
 `x' = x^r`<br>
 `c = H'(v, x*, vi, si^2, v', x')` <br>
 `z = xi*c + r`<br>
-`return SH00_SignatureShare(i, label, si z, c)`<br><br>
+`return Sh00SignatureShare(i, label, si z, c)`<br><br>
 
 
-**`SH00_ThresholdSignature::verifyShare(share: SH00_SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
+**`Sh00ThresholdSignature::verifyShare(share: Sh00SignatureShare, pk: DL_PublicKey, msg: Vec<u8>) -> bool`**<br>
 `x* = x^4`<br>
 `return share.c == H'(pk.vk.v, x*, pk.vk.vi, share.data^2, pk.vk.v^z*pk.vk.vi^(-c), x*^z*share.data^(-2c))`<br><br>
 
-**`SH00_ThresholdSignature::assemble(shares: Vec<SH00_SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
+**`Sh00ThresholdSignature::assemble(shares: Vec<Sh00SignatureShare>, msg: Vec<u8>) -> SignedMessage`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `x = H(msg)` <br>
@@ -124,5 +124,5 @@ Implementation of abstract interface `ThresholdSignature`.
 `y = w^a*x^b`<br>
 `return SignedMessage(y, msg)`<br><br>
 
-**`SH00_ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey) -> bool`**<br>
+**`Sh00ThresholdSignature::verify(sig: SignedMessage, pk: DL_PublicKey) -> bool`**<br>
 `return sig.sig^pk.e == H(sig.msg)`<br><br>

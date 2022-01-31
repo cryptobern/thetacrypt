@@ -15,32 +15,34 @@ use crate::{
     interface::{PrivateKey, PublicKey, Share, ThresholdCoin},
 };
 
-pub struct CKS05_ThresholdCoin<G: DlGroup> {
+pub struct Cks05ThresholdCoin<G: DlGroup> {
     g: G,
 }
 
-pub struct CKS05_PublicKey<G: DlGroup> {
+#[derive(Clone)]
+pub struct Cks05PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>
 }
 
-pub struct CKS05_PrivateKey<G: DlGroup> {
+#[derive(Clone)]
+pub struct Cks05PrivateKey<G: DlGroup> {
     id: usize,
     xi: BigImpl,
-    pubkey: CKS05_PublicKey<G>,
+    pubkey: Cks05PublicKey<G>,
 }
 
-pub struct CKS05_CoinShare<G: DlGroup> {
+pub struct Cks05CoinShare<G: DlGroup> {
     id: usize,
     data: G,
     c: BigImpl,
     z: BigImpl,
 }
 
-impl<G: DlGroup> PublicKey for CKS05_PublicKey<G> {}
+impl<G: DlGroup> PublicKey for Cks05PublicKey<G> {}
 
-impl<G: DlGroup> PrivateKey for CKS05_PrivateKey<G> {
-    type PK = CKS05_PublicKey<G>;
+impl<G: DlGroup> PrivateKey for Cks05PrivateKey<G> {
+    type PK = Cks05PublicKey<G>;
 
     fn get_id(&self) -> usize {
         self.id
@@ -51,26 +53,7 @@ impl<G: DlGroup> PrivateKey for CKS05_PrivateKey<G> {
     }
 }
 
-impl<G: DlGroup> Clone for CKS05_PublicKey<G> {
-    fn clone(&self) -> Self {
-        Self {
-            y: self.y.clone(),
-            verificationKey: self.verificationKey.clone()
-        }
-    }
-}
-
-impl<G: DlGroup> Clone for CKS05_PrivateKey<G> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            xi: self.xi.clone(),
-            pubkey: self.pubkey.clone(),
-        }
-    }
-}
-
-impl<G: DlGroup> CKS05_PublicKey<G> {
+impl<G: DlGroup> Cks05PublicKey<G> {
     pub fn new(y: &G, verificationKey: &Vec<G>) -> Self {
         Self {
             y: y.clone(),
@@ -79,8 +62,8 @@ impl<G: DlGroup> CKS05_PublicKey<G> {
     }
 }
 
-impl<G: DlGroup> CKS05_PrivateKey<G> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &CKS05_PublicKey<G>) -> Self {
+impl<G: DlGroup> Cks05PrivateKey<G> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &Cks05PublicKey<G>) -> Self {
         Self {
             id,
             xi: xi.clone(),
@@ -89,23 +72,23 @@ impl<G: DlGroup> CKS05_PrivateKey<G> {
     }
 }
 
-impl<G: DlGroup> Share for CKS05_CoinShare<G> {
+impl<G: DlGroup> Share for Cks05CoinShare<G> {
     fn get_id(&self) -> usize {
         self.id
     }
 }
 
-impl<G: DlGroup> DlShare<G> for CKS05_CoinShare<G>{
+impl<G: DlGroup> DlShare<G> for Cks05CoinShare<G>{
     fn get_data(&self) -> G {
         self.data.clone()
     }
 }
-impl<G: DlGroup> ThresholdCoin for CKS05_ThresholdCoin<G> {
-    type PK = CKS05_PublicKey<G>;
+impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
+    type PK = Cks05PublicKey<G>;
 
-    type SK = CKS05_PrivateKey<G>;
+    type SK = Cks05PrivateKey<G>;
 
-    type SH = CKS05_CoinShare<G>;
+    type SH = Cks05CoinShare<G>;
 
     fn create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
         let q = G::get_order();
@@ -135,7 +118,7 @@ impl<G: DlGroup> ThresholdCoin for CKS05_ThresholdCoin<G> {
         z.add(&BigImpl::rmul(&c, &sk.xi, &q));
         z.rmod(&q);
 
-        CKS05_CoinShare { id: sk.id, data, c, z,}
+        Cks05CoinShare { id: sk.id, data, c, z,}
     }
 
     fn verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool {
@@ -175,8 +158,8 @@ impl<G: DlGroup> ThresholdCoin for CKS05_ThresholdCoin<G> {
     }
 }
 
-impl<D:DlDomain> CKS05_ThresholdCoin<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<CKS05_PrivateKey<D>> {
+impl<D:DlDomain> Cks05ThresholdCoin<D> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<Cks05PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::CKS05(domain));
         unwrap_keys!(keys, DlPrivateKey::CKS05)
     }
