@@ -31,7 +31,7 @@ fn main() {
     let mut rng = new_rand();
 
     // prepare message and label
-    let plaintext = "This is a test message! ";
+    let plaintext = "This is a test message!  ";
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label = b"Label";
 
@@ -125,7 +125,7 @@ fn main() {
 
     // generate secret shares for SSH0 with 128 bit primes
     let now = Instant::now();
-    let sk = SH00_ThresholdSignature::generate_keys(K, N, 128, &mut rng);
+    let sk = SH00_ThresholdSignature::generate_keys(K, N, 2048, &mut rng);
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 

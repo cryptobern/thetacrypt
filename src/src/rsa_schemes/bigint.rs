@@ -55,24 +55,41 @@ impl BigInt {
         }
     }
 
-    pub fn new_rand(rng: &mut impl RAND, len: usize) -> Self {
-        unsafe {
-            let mut s = String::with_capacity(2*len + 1);
-            for _ in 0..len {
-                write!(&mut s, "{:02X}", rng.getbyte()).expect("Unable to get random bytes!");
-            }
-
-            let mut z = MaybeUninit::uninit();
-            gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
-            Self { value: z }
-        }
+    pub fn new_rand(rng: &mut impl RAND, bits: usize) -> Self {
+        let mut g = Self::new();
+        g.rand(rng, bits);
+        g
     }
 
-    pub fn rand(&mut self, rng: &mut impl RAND, len: usize) {
+    pub fn rand(&mut self, rng: &mut impl RAND, bits: usize) {
         unsafe {
-            let mut s = String::with_capacity(2*len + 1);
-            for _ in 0..len {
-                write!(&mut s, "{:02X}", rng.getbyte()).expect("Unable to get random bytes!");
+            let bytelen = f64::floor(bits as f64/8 as f64) as usize;
+            let rem = bits%8;
+
+            let mut s = String::with_capacity(bytelen + rem + 1);
+
+            if rem != 0 {
+                let mut mask: u8 = 0;
+                let mut byte = rng.getbyte();
+                for i in 0..rem {
+                    mask += 1 << i;
+
+                    if i == rem-1 {
+                        byte |= 1 << i;
+                    }
+                }   
+                
+                byte &= mask;
+                write!(&mut s, "{:02X}", byte).expect("Unable to get random bytes!");
+            }
+
+            for i in 0..bytelen {
+                let mut byte = rng.getbyte();
+                if i == 0 && rem == 0{
+                    byte |= 1 << 7;
+                }
+                
+                write!(&mut s, "{:02X}", byte).expect("Unable to get random bytes!");
             }
 
             gmp::mpz_set_str(self.value.as_mut_ptr(), s.as_ptr() as *const i8, 16);
@@ -99,122 +116,86 @@ impl BigInt {
         }
     }
 
-    pub fn _add(x: &Self, y:&Self) -> Self {
+    pub fn add(&self, y:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_add(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr());
+            gmp::mpz_add(z.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
             Self { value: z }
         }
     }
 
-    pub fn add(&mut self, y:&Self) {
-        unsafe {
-            gmp::mpz_add(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
-        }
-    }
-
-    pub fn inc(&mut self, k: u64) {
-        unsafe {
-            gmp::mpz_add_ui(self.value.as_mut_ptr(), self.value.as_ptr(), k);
-        }
-    }
-
-    pub fn _sub(x: &Self, y:&Self) -> Self {
+    pub fn inc(&self, k: u64) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_sub(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr());
+            gmp::mpz_add_ui(z.as_mut_ptr(), self.value.as_ptr(), k);
             Self { value: z }
         }
     }
 
-    pub fn sub(&mut self, y:&Self) {
-        unsafe {
-            gmp::mpz_sub(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
-        }
-    }
-
-    pub fn dec(&mut self, k: u64) {
-        unsafe {
-            gmp::mpz_sub_ui(self.value.as_mut_ptr(), self.value.as_ptr(), k);
-        }
-    }
-
-    pub fn _mul(x: &Self, y:&Self) -> Self {
+    pub fn sub(&self, y:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_mul(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr());
+            gmp::mpz_sub(z.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
             Self { value: z }
         }
     }
 
-    pub fn mul(&mut self, y:&Self) {
-        unsafe {
-            gmp::mpz_mul(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
-        }
-    }
-
-    pub fn _rmod(x: &Self, m:&Self) -> Self {
+    pub fn dec(&self, k: u64) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_mod(z.as_mut_ptr(), x.value.as_ptr(), m.value.as_ptr());
+            gmp::mpz_sub_ui(z.as_mut_ptr(), self.value.as_ptr(), k);
             Self { value: z }
         }
     }
 
-    pub fn rmod(&mut self, m: &Self) {
-        unsafe {
-            gmp::mpz_mod(self.value.as_mut_ptr(), self.value.as_ptr(), m.value.as_ptr());
-        }
-    }
-
-    pub fn _mul_mod(x: &Self, y:&Self, m:&Self) -> Self {
+    pub fn mul(&self, y:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_mul(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr()); 
+            gmp::mpz_mul(z.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
+            Self { value: z }
+        }
+    }
+
+    pub fn rmod(&self, m:&Self) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_mod(z.as_mut_ptr(), self.value.as_ptr(), m.value.as_ptr());
+            Self { value: z }
+        }
+    }
+
+    pub fn mul_mod(&self, y:&Self, m:&Self) -> Self {
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_mul(z.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr()); 
             gmp::mpz_mod(z.as_mut_ptr(), z.as_ptr(), m.value.as_ptr());
             Self { value: z }
         }
     }
 
-    pub fn mul_mod(&mut self, y:&Self, m: &Self) {
-        unsafe {
-            gmp::mpz_mul(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr()); 
-            gmp::mpz_mod(self.value.as_mut_ptr(), self.value.as_ptr(), m.value.as_ptr());
-        }
-    }
 
-    pub fn pow(&mut self, y: u64) {
-        unsafe {
-            gmp::mpz_pow_ui(self.value.as_mut_ptr(), self.value.as_ptr(), y as u64);
-        }
-    }
-
-    pub fn _pow(x: &Self, y: u64) -> Self {
+    pub fn pow(&self, y: u64) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_pow_ui(z.as_mut_ptr(), x.value.as_ptr(), y as u64);
+            gmp::mpz_pow_ui(z.as_mut_ptr(), self.value.as_ptr(), y as u64);
             Self { value: z }
         }
     }
 
-    pub fn _pow_mod(x: &Self, e:&Self, m:&Self) -> Self {
+    pub fn pow_mod(&self, e:&Self, m:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_powm(z.as_mut_ptr(), x.value.as_ptr(), e.value.as_ptr(), m.value.as_ptr());
+            gmp::mpz_powm(z.as_mut_ptr(), self.value.as_ptr(), e.value.as_ptr(), m.value.as_ptr());
             Self { value: z }
-        }
-    }
-
-    pub fn pow_mod(&mut self, e:&Self, m: &Self) {
-        unsafe {
-            gmp::mpz_powm(self.value.as_mut_ptr(), self.value.as_ptr(), e.value.as_ptr(), m.value.as_ptr());
         }
     }
 
@@ -227,18 +208,12 @@ impl BigInt {
         }
     }
 
-    pub fn _inv_mod(x: &Self, m:&Self) -> Self {
+    pub fn inv_mod(&self, m:&Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_invert(z.as_mut_ptr(), x.value.as_ptr(), m.value.as_ptr());
+            gmp::mpz_invert(z.as_mut_ptr(), self.value.as_ptr(), m.value.as_ptr());
             Self { value: z }
-        }
-    }
-
-    pub fn inv_mod(&mut self, m:&Self) {
-        unsafe {
-            gmp::mpz_invert(self.value.as_mut_ptr(), self.value.as_ptr(), m.value.as_ptr());
         }
     }
 
@@ -248,17 +223,11 @@ impl BigInt {
         }
     }
 
-    pub fn imul(&mut self, i: isize) {
-        unsafe {
-            gmp::mpz_mul_si(self.value.as_mut_ptr(), self.value.as_ptr(), i as i64);
-        }
-    }
-
-    pub fn _imul(x: &Self, i: isize) -> Self {
+    pub fn imul(&self, i: isize) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());  
-            gmp::mpz_mul_si(z.as_mut_ptr(), x.value.as_ptr(), i as i64);
+            gmp::mpz_mul_si(z.as_mut_ptr(), self.value.as_ptr(), i as i64);
             
             Self { value:z }
         }
@@ -276,9 +245,12 @@ impl BigInt {
         }
     }
 
-    pub fn lshift(&mut self, k: u64) {
+    pub fn lshift(&self, k: u64) -> Self {
         unsafe {
-            gmp::mpz_mul_2exp(self.value.as_mut_ptr(), self.value.as_ptr(), k);
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());          
+            gmp::mpz_mul_2exp(z.as_mut_ptr(), self.value.as_ptr(), k);
+            Self { value: z }
         }
     }
 
@@ -303,18 +275,12 @@ impl BigInt {
         }
     }
 
-    pub fn _div(x: &Self, y: &Self) -> Self {
+    pub fn div(&self, y: &Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());          
-            gmp::mpz_fdiv_q(z.as_mut_ptr(), x.value.as_ptr(), y.value.as_ptr());
+            gmp::mpz_fdiv_q(z.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
             Self { value: z }
-        }
-    }
-
-    pub fn div(&mut self, y: &Self) {
-        unsafe {        
-            gmp::mpz_fdiv_q(self.value.as_mut_ptr(), self.value.as_ptr(), y.value.as_ptr());
         }
     }
 

@@ -1,6 +1,6 @@
 use mcore::{rand::RAND, hash256::HASH256};
 
-use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, rsa_mod::RsaModulus, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT};
+use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT};
 
 
 const BigInt_BYTES:usize = 2048;
@@ -13,7 +13,6 @@ pub struct SH00_ThresholdSignature {
 pub struct SH00_SignatureShare {
     id:usize,
     label:Vec<u8>,
-    delta:usize,
     xi:BigInt,
     z:BigInt,
     c:BigInt
@@ -29,12 +28,12 @@ pub struct SH00_PublicKey {
     e: BigInt,
     verificationKey:SH00_VerificationKey,
     delta:usize,
-    plen:usize
+    modbits:usize
 }  
 
 pub struct SH00_PrivateKey {
     id: usize,
-    modulus: RsaModulus,
+    m: BigInt,
     si: BigInt,
     pubkey: SH00_PublicKey
 }
@@ -55,7 +54,7 @@ impl ThresholdSignature for SH00_ThresholdSignature {
     type SH = SH00_SignatureShare;
 
     fn verify(sig: &Self::SM, pk: &Self::PK) -> bool {
-        BigInt::_pow_mod(&sig.sig, &pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.plen))
+        sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
     }
 
     fn partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH {
@@ -64,29 +63,26 @@ impl ThresholdSignature for SH00_ThresholdSignature {
         let vi = sk.get_public_key().verificationKey.vi[sk.id - 1].clone();
 
         let (x, _) = H(&msg, &sk.get_public_key()); 
-        let xi = BigInt::_pow_mod(&x, &BigInt::_imul(&sk.si, 2), &N); // xi = x^(2*si)
+        let xi = x.pow_mod(&sk.si.lshift(1), &N); // xi = x^(2*si)
 
-        let mut x_hat = x.clone();
-        x_hat.pow(4);
-        x_hat.rmod(&N); // x_hat = x^4
+        let x_hat = x.pow(4).rmod(&N); // x_hat = x^4
 
         // L(n) = bit length of n
-        let r = BIGINT!(777777); //TODO: random value in {0, 2^(2*plen + 2 + 2*L1)}
+        let r = BIGINT!(777777777777777777); //TODO: random value in {0, 2^(2*modbits + 2 + 2*L1)}
 
-        let mut v1 = v.clone();
-        v1.pow_mod(&r, &N); //v1 = v^r
+        let v1 = v.pow_mod(&r, &N); //v1 = v^r
 
-        let mut x1 = x_hat.clone();
-        x1.pow_mod(&r, &N); // x1 = x_hat^r
+        let x1 = x_hat.pow_mod(&r, &N); // x1 = x_hat^r
 
-        let xi2 = BigInt::_pow(&xi, 2); //xi2 = xi^2
+        let xi2 = xi.pow(2).rmod(&N); //xi2 = xi^2
+
+       // println!("v1: {}", v1.to_string());
 
         let c = H2(&v, &x_hat, &vi, &xi2, &v1, &x1);
 
-        let mut z = BigInt::_mul(&sk.si, &c);
-        z.add(&r);  // z = si*c + r
+        let z = sk.si.mul(&c).add(&r); // z = si*c + r
 
-        return Self::SH {id: sk.get_id(), label:b"".to_vec(), delta:sk.get_public_key().delta, xi:xi, z, c }
+        return Self::SH {id: sk.get_id(), label:b"".to_vec(), xi:xi, z, c }
     }
 
     fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
@@ -95,24 +91,20 @@ impl ThresholdSignature for SH00_ThresholdSignature {
         let vi = pk.verificationKey.vi[share.id - 1].clone();
         let (x, _) = H(&msg,  &pk);
         let z = share.z.clone();
+        let c = share.c.clone();
+        let xi = share.get_data();
 
-        let mut neg_c = share.c.clone();
-        neg_c.rmod(&N);
-        neg_c = BigInt::_sub(&N, &neg_c); // neg_c = (-c) mod N
+        let x_hat = x.pow(4).rmod(&N); // x_hat = x^4
 
-        let mut x_hat = x.clone();
-        x_hat.pow(4);
-        x_hat.rmod(&N); // x_hat = x^4
+        let xi2 = share.xi.pow(2); //xi2 = xi^2
 
-        let xi2 = BigInt::_pow(&share.xi, 2); //xi2 = xi^2
+        let T = vi.pow_mod(&c, &N).inv_mod(&N);
+        let v1 = v.pow_mod(&z, &N).mul_mod(&T, &N); // v1 = v^z*vi^(-c) 
 
-        let vz = BigInt::_pow_mod(&v, &z, &N);
-        let vineg_c =  BigInt::_pow_mod(&vi, &neg_c, &N);
-        let v1 = BigInt::_mul_mod(&vz, &vineg_c, &N);  // v1 = v^z*vi^(-c) 
+        let T = xi.pow_mod(&c.lshift(1), &N).inv_mod(&N);
+        let x1 = x_hat.pow_mod(&z, &N).mul_mod(&T, &N);  // x1 = x_hat^z*xi^(-2c)
 
-        let x_hatz = BigInt::_pow_mod(&x_hat, &z, &N);
-        let xi2neg_c =  BigInt::_pow_mod(&vi, &BigInt::_imul(&neg_c, 2), &N);
-        let x1 = BigInt::_mul_mod(&x_hatz, &xi2neg_c, &N);  // x1 = x_hat^z*xi^(-2c)
+       // println!("v1: {}", v1.to_string());
 
         let c = H2(&v, &x_hat, &vi, &xi2, &v1, &x1);
 
@@ -120,34 +112,28 @@ impl ThresholdSignature for SH00_ThresholdSignature {
     }
 
     fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM {
-        let (mut x, j) = H(&msg, &pk);
+        let u = pk.verificationKey.u.clone();
+        let N = pk.N.clone();
+
+        let (a, b) = ext_euclid(&BIGINT!(4), &pk.e); // 4*a + e*b = 1
+
+        let (x, j) = H(&msg, &pk);
         
-        let mut w = interpolate(&shares, &pk.N);
+        let w = interpolate(&shares, &pk.N, pk.delta).pow_mod(&a, &N);
 
-        let e1 = BIGINT!(4);
-        let (a, b) = ext_euclid(&e1, &pk.e);
-
-        let check = BigInt::_pow_mod(&w, &pk.e, &pk.N);
-        let check1 = BigInt::_pow_mod(&x, &e1, &pk.N);
-        println!("check: {}\n{}", check.to_string(), check1.to_string());
-
-        w.pow_mod(&a, &pk.N);
-        x.pow_mod(&b, &pk.N);
-
-        let mut sig = BigInt::_mul_mod(&w, &x, &pk.N);
+        let mut y = w.mul_mod(&x.pow_mod( &b, &pk.N), &pk.N); // y = w^a * x^b
         
         if j == -1 {
-            let u_inv = BigInt::_inv_mod(&pk.verificationKey.u, &pk.N);
-            sig.mul(&u_inv);
+            y = u.inv_mod(&pk.N).mul_mod(&y, &N);
         }
 
-        SH00_SignedMessage{sig, msg:msg.to_vec()} 
+        SH00_SignedMessage{sig:y, msg:msg.to_vec()} 
     }
 }
 
 impl SH00_ThresholdSignature {
-    pub fn generate_keys(k: usize, n: usize, psize: usize, rng: &mut impl RAND) -> Vec<SH00_PrivateKey> {
-        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(psize));
+    pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut impl RAND) -> Vec<SH00_PrivateKey> {
+        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(modsize));
         unwrap_keys!(keys, RsaPrivateKey::SH00)
     }
 }
@@ -159,8 +145,8 @@ impl SH00_PublicKey {
         e: BigInt,
         verificationKey:SH00_VerificationKey,
         delta:usize,
-        plen:usize) -> Self {
-        Self {N, e, verificationKey, delta, plen}
+        modbits:usize) -> Self {
+        Self {N, e, verificationKey, delta, modbits}
     }
 }
 
@@ -172,15 +158,11 @@ impl SH00_SignatureShare {
     pub fn get_data(&self) -> BigInt {
         self.xi.clone()
     }
-
-    pub fn get_delta(&self) -> usize {
-        return self.delta;
-    }
 }
 
 impl Clone for SH00_SignatureShare {
     fn clone(&self) -> Self {
-        Self { id: self.id.clone(), label: self.label.clone(), delta: self.delta.clone(), xi: self.xi.clone(), z: self.z.clone(), c: self.c.clone() }
+        Self { id: self.id.clone(), label: self.label.clone(), xi: self.xi.clone(), z: self.z.clone(), c: self.c.clone() }
     }
 }
 
@@ -198,10 +180,10 @@ impl PrivateKey for SH00_PrivateKey {
 
 impl SH00_PrivateKey {
     pub fn new(id: usize,
-        modulus: RsaModulus,
+        m: BigInt,
         si: BigInt,
         pubkey: SH00_PublicKey) -> Self {
-        Self {id, modulus, si, pubkey}
+        Self {id, m, si, pubkey}
     }
 }
 
@@ -227,12 +209,12 @@ impl Share for SH00_SignatureShare {
 
 impl Clone for SH00_PublicKey {
     fn clone(&self) -> Self {
-        Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), delta: self.delta.clone(), plen: self.plen.clone() }
+        Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), delta: self.delta.clone(), modbits: self.modbits.clone() }
     }
 }
 impl Clone for SH00_PrivateKey {
     fn clone(&self) -> Self {
-        Self { id: self.id.clone(), modulus: self.modulus.clone(), si: self.si.clone(), pubkey: self.pubkey.clone() }
+        Self { id: self.id.clone(), m: self.m.clone(), si: self.si.clone(), pubkey: self.pubkey.clone() }
     }
 }
 
@@ -243,14 +225,10 @@ impl Clone for SH00_VerificationKey {
 }
 
 fn H(m: &[u8], pk: &SH00_PublicKey) -> (BigInt, isize) {
-    let mut x = H1(m, &pk.N, pk.plen);
+    let mut x = H1(m, &pk.N, pk.modbits);
     let j = BigInt::jacobi(&x, &pk.N);
-
-    println!("{}", x.to_string());
-
     if j == -1 {
-        let tmp = BigInt::_pow_mod(&pk.verificationKey.u, &pk.e, &pk.N);
-        x.mul_mod(&tmp, &pk.N);
+        x = pk.verificationKey.u.pow_mod(&pk.e, &pk.N).mul_mod(&x, &pk.N); // x = x * u^e
     } else if j == 0 {
         panic!("jacobi(x, n) == 0"); //TODO: make sure j != 0 by changing hash function H1
     }
@@ -258,7 +236,8 @@ fn H(m: &[u8], pk: &SH00_PublicKey) -> (BigInt, isize) {
     (x, j)
 }
 
-fn H1(m: &[u8], n: &BigInt, plen:usize) -> BigInt {
+// TODO: improve hash function
+fn H1(m: &[u8], n: &BigInt, modbits:usize) -> BigInt {
     let mut hash = HASH256::new();
     hash.process_array(&m);
     let h = hash.hash();
@@ -266,11 +245,9 @@ fn H1(m: &[u8], n: &BigInt, plen:usize) -> BigInt {
     let mut buf = Vec::new();
     buf = [&buf[..], &h].concat();
     
-    let nbits = plen*plen;
-    
-    if nbits > buf.len()*4 {
+    if modbits > buf.len()*4 {
         let mut g:[u8;32];
-        for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
+        for i in 1..(((modbits - buf.len()*4)/buf.len()) as f64).ceil() as isize {
             g = h.clone();
             hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
             g = hash.hash();
@@ -278,10 +255,7 @@ fn H1(m: &[u8], n: &BigInt, plen:usize) -> BigInt {
         }
     }
 
-    let mut res = BigInt::from_bytes(&mut buf);
-    res.rmod(&n);
-
-    res
+    BigInt::from_bytes(&mut buf).rmod(&n)
 }
 
 fn H2(g1: &BigInt, g2: &BigInt, g3: &BigInt, g4: &BigInt, g5: &BigInt, g6: &BigInt) -> BigInt {
