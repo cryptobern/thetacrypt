@@ -1,5 +1,5 @@
 use mcore::{rand::RAND};
-use crate::bigint::*;
+use crate::{bigint::*, rand::RNG};
 
 pub trait DlGroup: 
     Sized 
@@ -15,7 +15,7 @@ pub trait DlGroup:
     fn new_pow_big(x: &BigImpl) -> Self;     
 
     /// returns random element in group
-    fn new_rand(rng: &mut impl RAND) -> Self;   
+    fn new_rand(rng: &mut RNG) -> Self;   
 
     /// creates a copy of a group element
     fn new_copy(g: &Self) -> Self;

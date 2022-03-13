@@ -6,6 +6,8 @@ use mcore::rand::RAND;
 use std::ffi::CStr;
 use std::fmt::Write;
 
+use crate::rand::RNG;
+
 #[macro_export] macro_rules! BIGINT {
     ($x:expr) => {
         BigInt::new_int($x as isize)
@@ -55,13 +57,13 @@ impl BigInt {
         }
     }
 
-    pub fn new_rand(rng: &mut impl RAND, bits: usize) -> Self {
+    pub fn new_rand(rng: &mut RNG, bits: usize) -> Self {
         let mut g = Self::new();
         g.rand(rng, bits);
         g
     }
 
-    pub fn rand(&mut self, rng: &mut impl RAND, bits: usize) {
+    pub fn rand(&mut self, rng: &mut RNG, bits: usize) {
         unsafe {
             let bytelen = f64::floor(bits as f64/8 as f64) as usize;
             let rem = bits%8;
@@ -96,7 +98,7 @@ impl BigInt {
         }
     }
 
-    pub fn new_prime(rng: &mut impl RAND, len: usize) -> Self {
+    pub fn new_prime(rng: &mut RNG, len: usize) -> Self {
         let mut x = BigInt::new();
 
         loop {
@@ -242,21 +244,6 @@ impl BigInt {
     pub fn is_even(&self) -> bool {
         unsafe {
             gmp::mpz_even_p(self.value.as_ptr()) != 0
-        }
-    }
-
-    pub fn lshift(&self, k: u64) -> Self {
-        unsafe {
-            let mut z = MaybeUninit::uninit();
-            gmp::mpz_init(z.as_mut_ptr());          
-            gmp::mpz_mul_2exp(z.as_mut_ptr(), self.value.as_ptr(), k);
-            Self { value: z }
-        }
-    }
-
-    pub fn rshift(&mut self, k: u64) {
-        unsafe {
-            gmp::mpz_tdiv_q_2exp(self.value.as_mut_ptr(), self.value.as_ptr(), k);
         }
     }
 

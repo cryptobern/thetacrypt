@@ -1,5 +1,5 @@
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 use crate::dl_schemes::dl_groups::pairing::*;
 use crate::bigint::*;
 
@@ -44,7 +44,7 @@ impl DlGroup for Bn254 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bn254(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -127,7 +127,7 @@ impl DlGroup for Bn254ECP2 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bn254(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -210,7 +210,7 @@ impl DlGroup for Bn254FP12 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bn254(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -331,7 +331,7 @@ impl BigInt for Bn254BIG {
         BigImpl::Bn254(Self { value:BIG::new_int(i) })
     }
 
-    fn new_rand(q: &BigImpl, rng: &mut impl RAND) -> BigImpl {
+    fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl {
         if let BigImpl::Bn254(v) = q {
             BigImpl::Bn254(Self { value:BIG::randomnum(&v.value, rng) })
         } else {

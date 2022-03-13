@@ -16,6 +16,7 @@ use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::dl_schemes::{DlDomain, DlShare, common::*};
+use crate::rand::RNG;
 use crate::{interface::*, unwrap_keys};
 
 #[derive(Clone)]
@@ -52,7 +53,7 @@ pub struct Bz03ThresholdCipher<PE: PairingEngine> {
 impl<PE: PairingEngine> PublicKey for Bz03PublicKey<PE> {}
 
 impl<PE:PairingEngine> PrivateKey for Bz03PrivateKey<PE> {
-    type PK = Bz03PublicKey<PE>;
+    type TPubKey = Bz03PublicKey<PE>;
     fn get_public_key(&self) -> Bz03PublicKey<PE>{
         self.pubkey.clone()
     }
@@ -92,13 +93,13 @@ impl<PE: PairingEngine> Ciphertext for Bz03Ciphertext<PE> {
 impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
     type CT = Bz03Ciphertext<PE>;
 
-    type PK = Bz03PublicKey<PE>;
+    type TPubKey = Bz03PublicKey<PE>;
 
-    type SK = Bz03PrivateKey<PE>;
+    type TPrivKey = Bz03PrivateKey<PE>;
 
-    type SH = Bz03DecryptionShare<PE::G2>;
+    type TShare = Bz03DecryptionShare<PE::G2>;
 
-    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::PK, rng: &mut impl RAND) -> Self::CT {
+    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey, rng: &mut RNG) -> Self::CT {
         let r = PE::BigInt::new_rand(&PE::G2::get_order(), rng);
         let mut u = PE::G2::new();
         u.pow(&r);
@@ -122,24 +123,24 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
         c
     }
 
-    fn verify_ciphertext(ct: &Self::CT, _pk: &Self::PK) -> bool {
+    fn verify_ciphertext(ct: &Self::CT, _pk: &Self::TPubKey) -> bool {
         let h = H::<PE::G2, PE>(&ct.u, &ct.msg);
 
         PE::ddh(&ct.u, &h, &PE::G2::new(), &ct.hr)
     }
 
-    fn verify_share(share: &Self::SH, ct: &Self::CT, pk: &Self::PK) -> bool {
+    fn verify_share(share: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool {
         PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, _rng: &mut impl RAND) -> Self::SH {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _rng: &mut RNG) -> Self::TShare {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 
         Bz03DecryptionShare {id:sk.id, data: u}
     }
 
-    fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8> {
+    fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8> {
         let rY = interpolate(shares);
         
         let k = xor(G(&rY), ct.c_k.clone());
@@ -154,7 +155,7 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 }
 
 impl<D:DlDomain> Bz03ThresholdCipher<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<Bz03PrivateKey<D>> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bz03PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BZ03(domain));
         unwrap_keys!(keys, DlPrivateKey::BZ03)
     }

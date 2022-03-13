@@ -5,6 +5,8 @@
 
 use std::time::Instant;
 
+use mcore::rand::RAND_impl;
+
 use crate::dl_schemes::ciphers::sg02::Sg02ThresholdCipher;
 use crate::dl_schemes::coins::cks05::Cks05ThresholdCoin;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
@@ -14,7 +16,7 @@ use crate::dl_schemes::{
 };
 
 use crate::interface::*;
-use crate::rsa_schemes::signatures::sh00::Sh00ThresholdSignature;
+use crate::rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00Params};
 use crate::util::*;
 
 use std::fmt::Write;
@@ -24,6 +26,7 @@ mod dl_schemes;
 mod interface;
 mod util;
 mod rsa_schemes;
+mod rand;
 
 fn main() {
     const K: usize = 3; // threshold
@@ -39,7 +42,7 @@ fn main() {
 
     println!("Message: {}", plaintext);
 
-
+    /*
     // perform threshold encryption using SG02 scheme 
     println!("\n--SG02 Threshold Cipher--");
 
@@ -169,22 +172,24 @@ fn main() {
     let valid = Bls04ThresholdSignature::verify(&signature, &sk[0].get_public_key());
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tSignature valid: {}", elapsed_time, valid);
-
+    */
 
     // create threshold signatures using SH00 scheme
     println!("\n--SH00 Threshold Signature--");
 
     // generate secret shares for SSH0 with 128 bit primes
     let now = Instant::now();
-    let sk = Sh00ThresholdSignature::generate_keys(K, N, 512, &mut rng);
+    let sk = Sh00ThresholdSignature::generate_keys(K, N, 1024, &mut rng);
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 
     let mut shares = Vec::new();
 
+    let mut params = Sh00Params::new(rng);
+
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Sh00ThresholdSignature::partial_sign(&msg, label, &sk[i as usize]));
+        shares.push(Sh00ThresholdSignature::partial_sign(&msg, label, &sk[i as usize], Option::Some(&mut params)));
         let elapsed_time = now.elapsed().as_millis();
         println!("\n[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
         let now = Instant::now();
@@ -205,7 +210,7 @@ fn main() {
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tSignature valid: {}", elapsed_time, valid);
 
-    
+    /*
     // create threshold coin using CKS05 scheme //
     println!("\n--CKS05 Threshold Coin--");
 
@@ -228,5 +233,5 @@ fn main() {
     let now = Instant::now();
     let coin = Cks05ThresholdCoin::assemble(&shares);
     let elapsed_time = now.elapsed().as_millis();
-    println!("[{}ms]\tCoin: {}", elapsed_time, coin.to_string());
+    println!("[{}ms]\tCoin: {}", elapsed_time, coin.to_string());*/
 }

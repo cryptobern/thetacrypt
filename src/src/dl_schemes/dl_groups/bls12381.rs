@@ -1,6 +1,6 @@
 use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}, rand::RAND};
 use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag, types::{OctetString}};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 use crate::dl_schemes::dl_groups::pairing::*;
 use crate::bigint::*;
 
@@ -45,7 +45,7 @@ impl DlGroup for Bls12381 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bls12381(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -128,7 +128,7 @@ impl DlGroup for Bls12381ECP2 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bls12381(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -211,7 +211,7 @@ impl DlGroup for Bls12381FP12 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Bls12381(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -332,7 +332,7 @@ impl BigInt for Bls12381BIG {
         BigImpl::Bls12381(Self { value:BIG::new_int(i) })
     }
 
-    fn new_rand(q: &BigImpl, rng: &mut impl RAND) -> BigImpl {
+    fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl {
         if let BigImpl::Bls12381(v) = q {
             BigImpl::Bls12381(Self { value:BIG::randomnum(&v.value, rng) })
         } else {

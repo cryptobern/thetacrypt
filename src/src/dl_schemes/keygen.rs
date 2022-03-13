@@ -4,6 +4,7 @@ use crate::bigint::*;
 use crate::dl_schemes::common::*;
 use crate::dl_schemes::ciphers::bz03::*;
 use crate::dl_schemes::ciphers::sg02::*;
+use crate::rand::RNG;
 
 use super::DlDomain;
 use super::coins::cks05::Cks05PrivateKey;
@@ -48,7 +49,7 @@ macro_rules! unwrap_keys {
 pub struct DlKeyGenerator {}
 
 impl DlKeyGenerator {
-    pub fn generate_keys<D: DlDomain>(k: usize, n: usize, rng: &mut impl RAND, scheme: &DlScheme<D>) -> Vec<DlPrivateKey<D>> {
+    pub fn generate_keys<D: DlDomain>(k: usize, n: usize, rng: &mut RNG, scheme: &DlScheme<D>) -> Vec<DlPrivateKey<D>> {
         match scheme {
             DlScheme::BZ03(_D) => {
                 if !D::is_pairing_friendly() {

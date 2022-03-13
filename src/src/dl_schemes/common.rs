@@ -1,11 +1,11 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::dl_schemes::dl_groups::dl_group::*;
+use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG};
 use crate::bigint::*;
 
 use super::{DlShare};
 
-pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut impl RAND) -> (Vec<BigImpl>, Vec<G>) {
+pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<G>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
     let q = G::get_order();
 
@@ -60,7 +60,7 @@ pub fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
     v3
 }
 
-pub fn gen_symm_key(rng: &mut impl RAND) -> [u8; 32] {
+pub fn gen_symm_key(rng: &mut RNG) -> [u8; 32] {
     let prk: &mut [u8] = &mut[0;32];
     let mut ikm: Vec<u8> = Vec::new();
     for _ in 0..32 {
