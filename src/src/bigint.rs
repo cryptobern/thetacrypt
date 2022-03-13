@@ -3,6 +3,7 @@ use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
+use crate::rand::RNG;
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
@@ -16,7 +17,7 @@ pub trait BigInt:
     fn new_ints(a: &[Chunk]) -> BigImpl;
     fn new_int(i: isize) -> BigImpl;
     fn new_copy(y: &BigImpl) -> BigImpl;
-    fn new_rand(q: &BigImpl, rng: &mut impl RAND) -> BigImpl;
+    fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl;
     fn from_bytes(bytes: &[u8]) -> BigImpl;
     fn rmod(&mut self, y: &BigImpl);
     fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl);

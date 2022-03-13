@@ -1,5 +1,5 @@
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}, rand::RAND};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}};
+use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 
 use super::{pairing::PairingEngine};
 use crate::bigint::*;
@@ -44,7 +44,7 @@ impl DlGroup for Ed25519 {
         }
     }
 
-    fn new_rand(rng: &mut impl mcore::rand::RAND) -> Self {
+    fn new_rand(rng: &mut RNG) -> Self {
         Self::new_pow_big(&BigImpl::Ed25519(Self::BigInt { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
     }
 
@@ -143,7 +143,7 @@ impl BigInt for Ed25519BIG {
         BigImpl::Ed25519(Self { value:BIG::new_int(i) })
     }
 
-    fn new_rand(q: &BigImpl, rng: &mut impl RAND) -> BigImpl {
+    fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl {
         if let BigImpl::Ed25519(v) = q {
             BigImpl::Ed25519(Self { value:BIG::randomnum(&v.value, rng) })
         } else {

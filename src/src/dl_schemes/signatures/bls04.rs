@@ -5,7 +5,7 @@
 
 use mcore::{hash256::HASH256, rand::RAND};
 
-use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys};
+use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys, rand::RNG};
 use crate::bigint::*;
 
 pub struct Bls04ThresholdSignature<PE: PairingEngine> {
@@ -39,13 +39,13 @@ pub struct Bls04PrivateKey<PE: PairingEngine> {
 impl<PE: PairingEngine> PublicKey for Bls04PublicKey<PE> {}
 
 impl<PE: PairingEngine> PrivateKey for Bls04PrivateKey<PE> {
-    type PK = Bls04PublicKey<PE>;
+    type TPubKey = Bls04PublicKey<PE>;
 
     fn get_id(&self) -> usize {
         self.id
     }
 
-    fn get_public_key(&self) -> Self::PK {
+    fn get_public_key(&self) -> Self::TPubKey {
         self.pubkey.clone()
     }
 }
@@ -80,38 +80,43 @@ impl<PE: PairingEngine> Bls04SignedMessage<PE> {
     }
 }
 
+pub struct Bls04Params {
+}
+
 impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
-    type SM = Bls04SignedMessage<PE>;
+    type TSig = Bls04SignedMessage<PE>;
 
-    type PK = Bls04PublicKey<PE>;
+    type TPubKey = Bls04PublicKey<PE>;
 
-    type SK = Bls04PrivateKey<PE>;
+    type TPrivKey = Bls04PrivateKey<PE>;
 
-    type SH = Bls04SignatureShare<PE>;
+    type TShare = Bls04SignatureShare<PE>;
 
-    fn verify(sig: &Self::SM, pk: &Self::PK) -> bool {
+    type TParams = Bls04Params;
+
+    fn verify(sig: &Self::TSig, pk: &Self::TPubKey) -> bool {
         PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: Option<&mut Bls04Params>) -> Self::TShare {
         let mut data = H::<PE::G2>(&msg);
         data.pow(&sk.xi);
 
         Bls04SignatureShare{ id: sk.id, label:label.to_vec(), data:data }
     }
 
-    fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool {
+    fn verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool {
         PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
     }
 
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], _pk: &Self::PK) -> Self::SM {
+    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], _pk: &Self::TPubKey) -> Self::TSig {
         let sig = interpolate(&shares);
         Bls04SignedMessage{sig:sig, msg:msg.to_vec() } 
     }
 }
 
 impl<D:DlDomain> Bls04ThresholdSignature<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<Bls04PrivateKey<D>> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bls04PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BLS04(domain));
         unwrap_keys!(keys, DlPrivateKey::BLS04)
     }

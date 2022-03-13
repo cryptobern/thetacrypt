@@ -6,35 +6,36 @@ In Rust, no such concept as inheritance exists. Instead, the language uses the c
 The following three traits define the main interface of the different schemes. Additionally, each implementation of those traits should have a method `generate_keys`, that isn't included in the traits as the parameters may change depending on the underlying implementation.
 
 **ThresholdCoin**<br>
-- **`type PK: PublicKey`**
-- **`type SK: PrivateKey`**
-- **`type SH: Share`**<br><br>
-- **`create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH`**
-- **`verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool`**
-- **`assemble(shares: &Vec<Self::SH>) -> u8`**
+- **`type TPubKey: PublicKey`**
+- **`type TPrivKey: PrivateKey`**
+- **`type TShare: Share`**<br><br>
+- **`create_share(name: &[u8], sk: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare`**
+- **`verify_share(share: &Self::TShare, name: &[u8], pk: &Self::TPubKey) -> bool`**
+- **`assemble(shares: &Vec<Self::TShare>) -> u8`**
 <br><br>
 
 **ThresholdCipher**<br>
 - **`type CT: Ciphertext`**
-- **`type PK: PublicKey`**
-- **`type SK: PrivateKey`**
-- **`type SH: Share`**  <br><br>
-- **`encrypt(msg: &[u8], label: &[u8], pk: &Self::PK) -> Self::CT`**
-- **`verify_ciphertext(ct: &Self::CT, pk: &Self::PK) -> bool`**
-- **`partial_decrypt(ct: &Self::CT, sk: &Self::SK) -> Self::SH`**
-- **`verify_share(sh: &Self::SH, ct: &Self::CT, pk: &Self::PK) -> bool`**
-- **`assemble(ct: &Self::CT, shares: &Vec<Self::SH>]) -> Vec<u8>`**
+- **`type TPubKey: PublicKey`**
+- **`type TPrivKey: PrivateKey`**
+- **`type TShare: Share`**  <br><br>
+- **`encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey) -> Self::CT`**
+- **`verify_ciphertext(ct: &Self::CT, pk: &Self::TPubKey) -> bool`**
+- **`partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey) -> Self::TShare`**
+- **`verify_share(sh: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool`**
+- **`assemble(ct: &Self::CT, shares: &Vec<Self::TShare>]) -> Vec<u8>`**
 <br><br>
 
 **ThresholdSignature**<br>
-- **`type SM`**
-- **`type PK: PublicKey`**
-- **`type SK: PrivateKey`**
-- **`type SH: Share`**<br><br>
-- **`verify(sig: &Self::SM, &pk: &Self::PK) -> bool`**
-- **`partial_sign(msg: &[u8], sk: &Self::SK) -> Self::SH`**
-- **`verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool`**
-- **`assemble(shares: &Vec<Self::SH>, msg: &Vec<u8>) -> bool`**
+- **`type TSig`**
+- **`type TPubKey: PublicKey`**
+- **`type TPrivKey: PrivateKey`**
+- **`type TShare: Share`**
+- **`type TParams`**<br><br>
+- **`verify(sig: &Self::TSig, &pk: &Self::TPubKey) -> bool`**
+- **`partial_sign(msg: &[u8], sk: &Self::TPrivKey) -> Self::TShare`**
+- **`verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool`**
+- **`assemble(shares: &Vec<Self::TShare>, msg: &Vec<u8>) -> bool`**
 <br><br>
 
 The above traits define the types that are used in the corresponding scheme such as the public/private keys and shares. Those types rely on the following traits:
@@ -52,9 +53,9 @@ The above traits define the types that are used in the corresponding scheme such
 <br>
 
 **PrivateKey** <br>
-- **`type PK: PublicKey`**
+- **`type TPubKey: PublicKey`**
 - **`get_id(&self) -> usize`**
-- **`get_public_key(&self) -> Self::PK`**
+- **`get_public_key(&self) -> Self::TPubKey`**
 <br><br>
 
 ## **Miracl Core Integration**
@@ -69,7 +70,7 @@ Miracl implements new structs `BIG` and `ECP` for each curve containing the corr
 - **`new_ints(a: &[Chunk]) -> BigImpl`**
 - **`new_int(i: isize) -> BigImpl`**
 - **`new_copy(y: &BigImpl) -> BigImpl`**
-- **`new_rand(q: &BigImpl, rng: &mut impl RAND) -> BigImpl`**
+- **`new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl`**
 - **`from_bytes(bytes: &[u8]) -> BigImpl`**
 - **`rmod(&mut self, y: &BigImpl)`**
 - **`mul_mod(&mut self, y: &BigImpl, m: &BigImpl)`**
@@ -100,7 +101,7 @@ The second layer is the enum `BigImpl`, indicating which implementation a partic
 - **`get_order(&self) -> BIG`**
 - **`new() -> Self`** returns generator                            
 - **`new_big(x: &BigImpl) -> Self`** returns generator^x
-- **`new_rand(rng: &mut impl RAND) -> Self`** returns random element in group
+- **`new_rand(rng: &mut RNG) -> Self`** returns random element in group
 - **`mul(&mut self, g: &Self)`**            
 - **`pow(&mut self, x: &BigImpl)`**                        
 - **`div(&mut self, g: &Self)`**            

@@ -2,6 +2,8 @@ use std::time::SystemTime;
 
 use mcore::rand::{RAND_impl, RAND};
 
+use crate::rand::RNG;
+
 /// print a vector of bytes to the console
 pub fn printbinary(array: &[u8], caption: Option<&str>) {
     if caption.is_some() {
@@ -14,7 +16,7 @@ pub fn printbinary(array: &[u8], caption: Option<&str>) {
 }
 
 /// create new RAND_impl instance and feed it with some entropy (current time)
-pub fn new_rand() -> RAND_impl {
+pub fn new_rand() -> RNG {
     let mut raw: [u8; 100] = [0; 100];
     let mut rng = RAND_impl::new();
     rng.clean();
@@ -39,7 +41,7 @@ pub fn new_rand() -> RAND_impl {
         }
     }
 
-    rng
+    RNG::MarsagliaZaman(rng)
 }
 
 /// convert a vector of bytes to an ASCII string

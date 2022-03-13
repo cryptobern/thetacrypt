@@ -1,11 +1,11 @@
-use mcore::rand::{RAND};
+use crate::rand::RNG;
 
 pub trait PublicKey {}
 
 pub trait PrivateKey {
-    type PK: PublicKey;
+    type TPubKey: PublicKey;
     fn get_id(&self) -> usize;
-    fn get_public_key(&self) -> Self::PK;
+    fn get_public_key(&self) -> Self::TPubKey;
 }
 
 pub trait Ciphertext {
@@ -15,38 +15,38 @@ pub trait Ciphertext {
 pub trait Share {
     fn get_id(&self) -> usize;
 }
-
 pub trait ThresholdCipher {
     type CT: Ciphertext;
-    type PK: PublicKey;
-    type SK: PrivateKey;
-    type SH: Share;
+    type TPubKey: PublicKey;
+    type TPrivKey: PrivateKey;
+    type TShare: Share;
 
-    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::PK, rng: &mut impl RAND) -> Self::CT;
-    fn verify_ciphertext(ct: &Self::CT, pk: &Self::PK) -> bool;
-    fn verify_share(share: &Self::SH, ct: &Self::CT, pk: &Self::PK) -> bool;
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::SK, rng: &mut impl RAND) -> Self::SH;
-    fn assemble(shares: &Vec<Self::SH>, ct: &Self::CT) -> Vec<u8>;
+    fn encrypt(msg: &[u8], label: &[u8], TPubKey: &Self::TPubKey, rng: &mut RNG) -> Self::CT;
+    fn verify_ciphertext(ct: &Self::CT, TPubKey: &Self::TPubKey) -> bool;
+    fn verify_share(share: &Self::TShare, ct: &Self::CT, TPubKey: &Self::TPubKey) -> bool;
+    fn partial_decrypt(ct: &Self::CT, TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
+    fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8>;
 }
 
 pub trait ThresholdSignature {
-    type SM;
-    type PK: PublicKey;
-    type SK: PrivateKey;
-    type SH: Share;
+    type TSig;
+    type TPubKey: PublicKey;
+    type TPrivKey: PrivateKey;
+    type TShare: Share;
+    type TParams;
 
-    fn verify(sig: &Self::SM, pk: &Self::PK) -> bool;
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::SK) -> Self::SH;
-    fn verify_share(share: &Self::SH, msg: &[u8], pk: &Self::PK) -> bool;
-    fn assemble(shares: &Vec<Self::SH>, msg: &[u8], pk: &Self::PK) -> Self::SM;
+    fn verify(sig: &Self::TSig, TPubKey: &Self::TPubKey) -> bool;
+    fn partial_sign(msg: &[u8], label: &[u8], TPrivKey: &Self::TPrivKey, params: Option<&mut Self::TParams>) -> Self::TShare;
+    fn verify_share(share: &Self::TShare, msg: &[u8], TPubKey: &Self::TPubKey) -> bool;
+    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], TPubKey: &Self::TPubKey) -> Self::TSig;
 }
 
 pub trait ThresholdCoin {
-    type PK: PublicKey;
-    type SK: PrivateKey;
-    type SH: Share;
+    type TPubKey: PublicKey;
+    type TPrivKey: PrivateKey;
+    type TShare: Share;
 
-    fn create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH;
-    fn verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool;
-    fn assemble(shares: &Vec<Self::SH>) -> u8;
+    fn create_share(name: &[u8], TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
+    fn verify_share(share: &Self::TShare, name: &[u8], TPubKey: &Self::TPubKey) -> bool;
+    fn assemble(shares: &Vec<Self::TShare>) -> u8;
 }

@@ -1,6 +1,5 @@
 use std::time::Instant;
-use mcore::rand::RAND;
-
+use crate::rand::RNG;
 use crate::{rsa_schemes::{common::{gen_strong_prime, fac}, bigint::BigInt}, BIGINT, ONE};
 
 use super::{common::shamir_share, signatures::sh00::{Sh00PrivateKey, Sh00PublicKey, Sh00VerificationKey}};
@@ -18,7 +17,7 @@ pub enum RsaPrivateKey {
 pub struct RsaKeyGenerator {}
 
 impl RsaKeyGenerator {
-    pub fn generate_keys(k: usize, n: usize, rng: &mut impl RAND, scheme: RsaScheme) -> Vec<RsaPrivateKey> {
+    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: RsaScheme) -> Vec<RsaPrivateKey> {
         match scheme {
             RsaScheme::SH00(MODSIZE) => {
                 let PLEN = MODSIZE/2 - 2; 

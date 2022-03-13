@@ -8,6 +8,7 @@ use mcore::{hash256::HASH256, rand::RAND};
 
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
+use crate::rand::RNG;
 use crate::{bigint::*, unwrap_keys};
 use crate::dl_schemes::{DlDomain, DlShare};
 use crate::{
@@ -42,13 +43,13 @@ pub struct Cks05CoinShare<G: DlGroup> {
 impl<G: DlGroup> PublicKey for Cks05PublicKey<G> {}
 
 impl<G: DlGroup> PrivateKey for Cks05PrivateKey<G> {
-    type PK = Cks05PublicKey<G>;
+    type TPubKey = Cks05PublicKey<G>;
 
     fn get_id(&self) -> usize {
         self.id
     }
 
-    fn get_public_key(&self) -> Self::PK {
+    fn get_public_key(&self) -> Self::TPubKey {
         self.pubkey.clone()
     }
 }
@@ -84,13 +85,13 @@ impl<G: DlGroup> DlShare<G> for Cks05CoinShare<G>{
     }
 }
 impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
-    type PK = Cks05PublicKey<G>;
+    type TPubKey = Cks05PublicKey<G>;
 
-    type SK = Cks05PrivateKey<G>;
+    type TPrivKey = Cks05PrivateKey<G>;
 
-    type SH = Cks05CoinShare<G>;
+    type TShare = Cks05CoinShare<G>;
 
-    fn create_share(name: &[u8], sk: &Self::SK, rng: &mut impl RAND) -> Self::SH {
+    fn create_share(name: &[u8], sk: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare {
         let q = G::get_order();
 
         let c_bar = H::<G>(name);
@@ -121,7 +122,7 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         Cks05CoinShare { id: sk.id, data, c, z,}
     }
 
-    fn verify_share(share: &Self::SH, name: &[u8], pk: &Self::PK) -> bool {
+    fn verify_share(share: &Self::TShare, name: &[u8], pk: &Self::TPubKey) -> bool {
         let c_bar = H::<G>(name);
 
         let mut h = G::new();
@@ -152,14 +153,14 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         share.c.equals(&c)
     }
 
-    fn assemble(shares: &Vec<Self::SH>) -> u8 {
+    fn assemble(shares: &Vec<Self::TShare>) -> u8 {
         let coin = interpolate(shares);
         H2(&coin)
     }
 }
 
 impl<D:DlDomain> Cks05ThresholdCoin<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut impl RAND) -> Vec<Cks05PrivateKey<D>> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Cks05PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::CKS05(domain));
         unwrap_keys!(keys, DlPrivateKey::CKS05)
     }
