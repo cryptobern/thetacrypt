@@ -22,7 +22,7 @@ pub enum DlScheme<D: DlDomain> {
 
 pub enum DlPrivateKey<D: DlDomain> {
     BZ03(Bz03PrivateKey<D>),
-    SG02(SG02_PrivateKey<D>),
+    SG02(Sg02PrivateKey<D>),
     BLS04(Bls04PrivateKey<D>),
     CKS05(Cks05PrivateKey<D>)
 }
@@ -79,10 +79,10 @@ impl DlKeyGenerator {
 
                 let g_bar = D::new_rand(rng);
 
-                let publicKey = SG02_PublicKey::new(&y,&h, &g_bar );
+                let publicKey = Sg02PublicKey::new(&y,&h, &g_bar );
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::SG02(SG02_PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::SG02(Sg02PrivateKey::new(i+1, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;

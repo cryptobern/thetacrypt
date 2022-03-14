@@ -25,21 +25,25 @@ use crate::bigint::*;
 
 use crate::dl_schemes::{DlDomain, DlShare};
 
+pub struct Sg02ThresholdCipher<G: DlGroup> {
+    g: G
+}
+
 #[derive(Clone)]
-pub struct SG02_PublicKey<G: DlGroup> {
+pub struct Sg02PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>,
     g_bar: G
 }
 
 #[derive(Clone)]
-pub struct SG02_PrivateKey<G: DlGroup> {
+pub struct Sg02PrivateKey<G: DlGroup> {
     id: usize,
     xi: BigImpl,
-    pubkey: SG02_PublicKey<G>,
+    pubkey: Sg02PublicKey<G>,
 }
 
-pub struct SG02_Ciphertext<G: DlGroup> {
+pub struct Sg02Ciphertext<G: DlGroup> {
     label: Vec<u8>,
     msg: Vec<u8>,
     u: G,
@@ -49,7 +53,7 @@ pub struct SG02_Ciphertext<G: DlGroup> {
     c_k: Vec<u8>,
 }
 
-pub struct SG02_DecryptionShare<G: DlGroup>  {
+pub struct Sg02DecryptionShare<G: DlGroup>  {
     id: usize,
     label: Vec<u8>,
     data: G,
@@ -57,11 +61,21 @@ pub struct SG02_DecryptionShare<G: DlGroup>  {
     fi: BigImpl,
 }
 
-impl<G: DlGroup> PublicKey for SG02_PublicKey<G> {}
+pub struct Sg02Params {
+    rng: RNG
+}
 
-impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
-    type TPubKey = SG02_PublicKey<G>;
-    fn get_public_key(&self) -> SG02_PublicKey<G> {
+impl Sg02Params {
+    pub fn new(rng: RNG) -> Self {
+        Self { rng }
+    }
+}
+
+impl<G: DlGroup> PublicKey for Sg02PublicKey<G> {}
+
+impl<G: DlGroup> PrivateKey for Sg02PrivateKey<G> {
+    type TPubKey = Sg02PublicKey<G>;
+    fn get_public_key(&self) -> Sg02PublicKey<G> {
         self.pubkey.clone()
     }
 
@@ -70,19 +84,19 @@ impl<G: DlGroup> PrivateKey for SG02_PrivateKey<G> {
     }
 }
 
-impl<G: DlGroup> SG02_PrivateKey<G> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &SG02_PublicKey<G>) -> Self {
+impl<G: DlGroup> Sg02PrivateKey<G> {
+    pub fn new(id: usize, xi: &BigImpl, pubkey: &Sg02PublicKey<G>) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
     }
 }
 
-impl<G: DlGroup> SG02_PublicKey<G> {
+impl<G: DlGroup> Sg02PublicKey<G> {
     pub fn new(y: &G, verificationKey: &Vec<G>, g_bar:&G) -> Self {
         Self {y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
     }
 }
 
-impl<G: DlGroup> Ciphertext for SG02_Ciphertext<G> {
+impl<G: DlGroup> Ciphertext for Sg02Ciphertext<G> {
     fn get_msg(&self) -> Vec<u8> {
         self.msg.clone()
     }
@@ -92,29 +106,27 @@ impl<G: DlGroup> Ciphertext for SG02_Ciphertext<G> {
     }
 }
 
-impl<G: DlGroup> Share for SG02_DecryptionShare<G> {
+impl<G: DlGroup> Share for Sg02DecryptionShare<G> {
     fn get_id(&self) -> usize {
         self.id as usize
     }
 }
 
-impl<G: DlGroup> DlShare<G> for SG02_DecryptionShare<G> {
+impl<G: DlGroup> DlShare<G> for Sg02DecryptionShare<G> {
     fn get_data(&self) -> G {
         self.data.clone()
     }
 }
 
-pub struct Sg02ThresholdCipher<G: DlGroup> {
-    g: G
-}
 
 impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
-    type TPubKey = SG02_PublicKey<G>;
-    type TPrivKey = SG02_PrivateKey<G>;
-    type CT = SG02_Ciphertext<G>;
-    type TShare = SG02_DecryptionShare<G>;
+    type TPubKey = Sg02PublicKey<G>;
+    type TPrivKey = Sg02PrivateKey<G>;
+    type CT = Sg02Ciphertext<G>;
+    type TShare = Sg02DecryptionShare<G>;
+    type TParams = Sg02Params;
 
-    fn encrypt(msg: &[u8], label: &[u8], pk: &SG02_PublicKey<G>, rng: &mut RNG) -> Self::CT {
+    fn encrypt(msg: &[u8], label: &[u8], pk: &Sg02PublicKey<G>, rng: &mut RNG) -> Self::CT {
         let r = G::BigInt::new_rand(&G::get_order(), rng);
         let mut u = G::new();
         u.pow(&r);
@@ -147,7 +159,7 @@ impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
         f.add(&BigImpl::rmul(&e, &r, &G::get_order()));
         f.rmod(&G::get_order());
 
-        let c = SG02_Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
+        let c = Sg02Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
         c
     }
 
@@ -195,11 +207,15 @@ impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
         share.ei.equals(&ei2)
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, params: Option<&mut Sg02Params>) -> Self::TShare {
+        if params.is_none() {
+            panic!("No parameters supplied!")
+        }
+
         let mut data = ct.u.clone();
         data.pow(&sk.xi);
 
-        let si = G::BigInt::new_rand(&G::get_order(), rng);
+        let si = G::BigInt::new_rand(&G::get_order(), &mut params.unwrap().rng);
 
         let mut ui_bar = ct.u.clone();
         ui_bar.pow(&si);
@@ -212,7 +228,7 @@ impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
         fi.add(&BigImpl::rmul(&sk.xi, &ei, &G::get_order()));
         fi.rmod(&G::get_order());
 
-        SG02_DecryptionShare { id:sk.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
+        Sg02DecryptionShare { id:sk.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
     }
 
     fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8> {
@@ -230,7 +246,7 @@ impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
 }
 
 impl<D:DlDomain> Sg02ThresholdCipher<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<SG02_PrivateKey<D>> {
+    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Sg02PrivateKey<D>> {
         let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::SG02(domain));
         unwrap_keys!(keys, DlPrivateKey::SG02)
     }

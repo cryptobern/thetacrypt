@@ -115,13 +115,13 @@ Implementation of abstract interface `ThresholdCipher`.
 ```H2(g0, g1, g2)```: Hashes three group elements to a single group element<br>
 <br>
 
-**SG02_DecryptionShare** implements **DecryptionShare**
+**Sg02DecryptionShare** implements **DecryptionShare**
 - **id**: share identifier
 - **data**: decryption share
 - **ei**: zkp parameter
 - **fi**:&nbsp; zkp parameter
 
-**SG02_Ciphertext** implements **Ciphertext**
+**Sg02Ciphertext** implements **Ciphertext**
 - **c_k**: encrypted symmetric key
 - **label**:&nbsp;&nbsp;&nbsp;&nbsp; label
 - **u**:&nbsp;&nbsp;&nbsp;&nbsp; interpolation parameter needed to reconstruct symmetric key
@@ -132,7 +132,7 @@ Implementation of abstract interface `ThresholdCipher`.
 
 **Scheme:**
 
-**`Sg02ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> SG02_Ciphertext`**<br>
+**`Sg02ThresholdCipher::encrypt(m: bytes, pk: DL_PublicKey, label:Vec<u8>) -> Sg02Ciphertext`**<br>
 `k = gen_symm_key()`<br>
 `c = symm_enc(m, k)`<br>
 `r = random(2, pk.group.q-1)` <br>
@@ -145,28 +145,28 @@ Implementation of abstract interface `ThresholdCipher`.
 `w_bar = pk.group.g_bar^s` <br>
 `e = H1(c_k, L, u, w, u_bar, w_bar)` <br>
 `f = s + re` <br>
-`return SG02_Ciphertext(c_k, label, u, u_bar, e, f, c)`<br><br>
+`return Sg02Ciphertext(c_k, label, u, u_bar, e, f, c)`<br><br>
 
-**`Sg02ThresholdCipher::verifyCiphertext(ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+**`Sg02ThresholdCipher::verifyCiphertext(ct: Sg02Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `w = g^ct.f / ct.u^ct.e`<br>
 `w_bar = pk.group.g_bar^ct.f / ct.u_bar^ct.e`<br>
 `return ct.e == H1(ct.c_k, ct.label, ct.u, w, ct.u_bar, w_bar)`<br>
 
-**`Sg02ThresholdCipher::partialDecrypt(ct: SG02_Ciphertext, sk: DlPrivateKey) -> SG02_DecryptionShare`**<br>
+**`Sg02ThresholdCipher::partialDecrypt(ct: Sg02Ciphertext, sk: DlPrivateKey) -> Sg02DecryptionShare`**<br>
 `data = ct.u^sk.xi`<br>
 `si = random(2, sk.group.q-1)` <br>
 `ui_bar = ct.u^si` <br>
 `hi_bar = sk.group.g^si` <br>
 `ei = H2(data, ui_bar, hi_bar)` <br>
 `fi = si + sk.xi*ei` <br>
-`return SG02_DecryptionShare(sk.id, data, ei, fi)`<br><br>
+`return Sg02DecryptionShare(sk.id, data, ei, fi)`<br><br>
 
-**`Sg02ThresholdCipher::verifyShare(sh: SG02_DecryptionShare, ct: SG02_Ciphertext, pk: DL_PublicKey) -> bool`**<br>
+**`Sg02ThresholdCipher::verifyShare(sh: Sg02DecryptionShare, ct: Sg02Ciphertext, pk: DL_PublicKey) -> bool`**<br>
 `ui_bar = ct.u^sh.fi / sh.data^sh.ei`<br>
 `hi_bar = pk.group.g^sh.fi / pk.verificationKey[sh.id]^sh.ei`<br>
 `return ct.e == H2(sh.data, ui_bar, hi_bar)`<br><br>
 
-**`Sg02ThresholdCipher::assemble(ct: SG02_Ciphertext, shares: Vec<SG02_DecryptionShare>) -> Vec<u8>`**<br>
+**`Sg02ThresholdCipher::assemble(ct: Sg02Ciphertext, shares: Vec<Sg02DecryptionShare>) -> Vec<u8>`**<br>
 `if k > shares.size then`<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`return null`<br>
 `z = interpolate(shares)`<br>
