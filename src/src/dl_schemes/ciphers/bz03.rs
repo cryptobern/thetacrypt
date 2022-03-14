@@ -49,6 +49,9 @@ pub struct Bz03ThresholdCipher<PE: PairingEngine> {
     g: PE
 }
 
+pub struct Bz03Params {
+}
+
 
 impl<PE: PairingEngine> PublicKey for Bz03PublicKey<PE> {}
 
@@ -99,6 +102,8 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 
     type TShare = Bz03DecryptionShare<PE::G2>;
 
+    type TParams = Bz03Params;
+
     fn encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey, rng: &mut RNG) -> Self::CT {
         let r = PE::BigInt::new_rand(&PE::G2::get_order(), rng);
         let mut u = PE::G2::new();
@@ -133,7 +138,7 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
         PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _rng: &mut RNG) -> Self::TShare {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, params: Option<&mut Bz03Params>) -> Self::TShare {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 

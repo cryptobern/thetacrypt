@@ -31,7 +31,6 @@ impl RsaKeyGenerator {
                 let e = BIGINT!(65537); // Question: Should we be able to change this?
 
                 if DEBUG { println!("generating strong primes..."); }
-                
 
                 let now = Instant::now();
                 gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN);

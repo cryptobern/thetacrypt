@@ -20,11 +20,12 @@ pub trait ThresholdCipher {
     type TPubKey: PublicKey;
     type TPrivKey: PrivateKey;
     type TShare: Share;
+    type TParams;
 
     fn encrypt(msg: &[u8], label: &[u8], TPubKey: &Self::TPubKey, rng: &mut RNG) -> Self::CT;
     fn verify_ciphertext(ct: &Self::CT, TPubKey: &Self::TPubKey) -> bool;
     fn verify_share(share: &Self::TShare, ct: &Self::CT, TPubKey: &Self::TPubKey) -> bool;
-    fn partial_decrypt(ct: &Self::CT, TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
+    fn partial_decrypt(ct: &Self::CT, TPrivKey: &Self::TPrivKey, params: Option<&mut Self::TParams>) -> Self::TShare;
     fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8>;
 }
 
