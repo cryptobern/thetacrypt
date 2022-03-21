@@ -1,4 +1,3 @@
-use mcore::rand::RAND;
 use crate::{BIGINT, ONE, ZERO, rand::RNG};
 
 use super::{bigint::BigInt, signatures::sh00::Sh00SignatureShare};

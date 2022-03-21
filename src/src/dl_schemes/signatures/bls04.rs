@@ -3,7 +3,7 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::zero_prefixed_literal)]
 
-use mcore::{hash256::HASH256, rand::RAND};
+use mcore::{hash256::HASH256};
 
 use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys, rand::RNG};
 use crate::bigint::*;
@@ -36,7 +36,15 @@ pub struct Bls04PrivateKey<PE: PairingEngine> {
     pubkey: Bls04PublicKey<PE>
 }
 
-impl<PE: PairingEngine> PublicKey for Bls04PublicKey<PE> {}
+impl<PE: PairingEngine> PublicKey for Bls04PublicKey<PE> {
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 
 impl<PE: PairingEngine> PrivateKey for Bls04PrivateKey<PE> {
     type TPubKey = Bls04PublicKey<PE>;
@@ -47,6 +55,14 @@ impl<PE: PairingEngine> PrivateKey for Bls04PrivateKey<PE> {
 
     fn get_public_key(&self) -> Self::TPubKey {
         self.pubkey.clone()
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 
@@ -65,6 +81,14 @@ impl<PE:PairingEngine> Bls04PublicKey<PE> {
 impl<PE: PairingEngine> Share for Bls04SignatureShare<PE> {
     fn get_id(&self) -> usize {
         self.id
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 
@@ -98,7 +122,7 @@ impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
         PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: Option<&mut Bls04Params>) -> Self::TShare {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, _params: Option<&mut Bls04Params>) -> Self::TShare {
         let mut data = H::<PE::G2>(&msg);
         data.pow(&sk.xi);
 

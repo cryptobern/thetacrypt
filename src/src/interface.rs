@@ -1,19 +1,28 @@
 use crate::rand::RNG;
 
-pub trait PublicKey {}
+pub trait PublicKey {
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: Vec<u8>) -> Self;
+}
 
 pub trait PrivateKey {
     type TPubKey: PublicKey;
     fn get_id(&self) -> usize;
     fn get_public_key(&self) -> Self::TPubKey;
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: Vec<u8>) -> Self;
 }
 
 pub trait Ciphertext {
     fn get_msg(&self) -> Vec<u8>;
     fn get_label(&self) -> Vec<u8>;
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: Vec<u8>) -> Self;
 }
 pub trait Share {
     fn get_id(&self) -> usize;
+    fn encode(&self) -> Vec<u8>;
+    fn decode(bytes: Vec<u8>) -> Self;
 }
 pub trait ThresholdCipher {
     type CT: Ciphertext;

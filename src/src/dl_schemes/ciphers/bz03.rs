@@ -6,7 +6,6 @@
 
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
-use mcore::rand::RAND;
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag};
@@ -53,7 +52,15 @@ pub struct Bz03Params {
 }
 
 
-impl<PE: PairingEngine> PublicKey for Bz03PublicKey<PE> {}
+impl<PE: PairingEngine> PublicKey for Bz03PublicKey<PE> {
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 
 impl<PE:PairingEngine> PrivateKey for Bz03PrivateKey<PE> {
     type TPubKey = Bz03PublicKey<PE>;
@@ -63,6 +70,14 @@ impl<PE:PairingEngine> PrivateKey for Bz03PrivateKey<PE> {
 
     fn get_id(&self) -> usize {
         self.id as usize
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 
@@ -80,6 +95,14 @@ impl<PE:PairingEngine> Bz03PublicKey<PE> {
 
 impl<G: DlGroup> Share for Bz03DecryptionShare<G> {
     fn get_id(&self) -> usize { self.id.clone() }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
 }
 
 impl<G: DlGroup> DlShare<G> for Bz03DecryptionShare<G> {
@@ -91,6 +114,14 @@ impl<G: DlGroup> DlShare<G> for Bz03DecryptionShare<G> {
 impl<PE: PairingEngine> Ciphertext for Bz03Ciphertext<PE> {
     fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     fn get_label(&self) -> Vec<u8> { self.label.clone() }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
 }
 
 impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
@@ -138,7 +169,7 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
         PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, params: Option<&mut Bz03Params>) -> Self::TShare {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _params: Option<&mut Bz03Params>) -> Self::TShare {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 
