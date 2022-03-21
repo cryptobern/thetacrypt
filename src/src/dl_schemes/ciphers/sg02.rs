@@ -4,18 +4,18 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-
-use mcore::rand::RAND;
 use mcore::hash256::*;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
+use rasn::{Encoder, Encode};
+use rasn::der::{encode, decode};
 
 use crate::dl_schemes::common::gen_symm_key;
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::common::xor;
 use crate::dl_schemes::dl_groups::dl_group::*;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
-use crate::rand::RNG;
+use crate::rand::{RNG, RngAlgorithm};
 use crate::{interface::*, unwrap_keys};
 use crate::interface::PrivateKey;
 use crate::interface::PublicKey;
@@ -53,6 +53,7 @@ pub struct Sg02Ciphertext<G: DlGroup> {
     c_k: Vec<u8>,
 }
 
+#[derive(rasn::AsnType)]
 pub struct Sg02DecryptionShare<G: DlGroup>  {
     id: usize,
     label: Vec<u8>,
@@ -66,12 +67,21 @@ pub struct Sg02Params {
 }
 
 impl Sg02Params {
-    pub fn new(rng: RNG) -> Self {
+    pub fn new(alg: RngAlgorithm) -> Self {
+        let rng = RNG::new(alg);
         Self { rng }
     }
 }
 
-impl<G: DlGroup> PublicKey for Sg02PublicKey<G> {}
+impl<G: DlGroup> PublicKey for Sg02PublicKey<G> {
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 
 impl<G: DlGroup> PrivateKey for Sg02PrivateKey<G> {
     type TPubKey = Sg02PublicKey<G>;
@@ -81,6 +91,14 @@ impl<G: DlGroup> PrivateKey for Sg02PrivateKey<G> {
 
     fn get_id(&self) -> usize {
         self.id 
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 
@@ -104,11 +122,47 @@ impl<G: DlGroup> Ciphertext for Sg02Ciphertext<G> {
     fn get_label(&self) -> Vec<u8> {
         self.label.clone()
     }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
 }
 
 impl<G: DlGroup> Share for Sg02DecryptionShare<G> {
     fn get_id(&self) -> usize {
         self.id as usize
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let msg = "error encoding decryption share";
+
+        let mut bytes = encode(&self.id).expect(msg);
+        bytes = [bytes, encode(&self.label).expect(msg)].concat();
+        bytes = [bytes, self.data.to_bytes()].concat();
+        bytes = [bytes, self.ei.to_bytes()].concat();
+        bytes = [bytes, self.fi.to_bytes()].concat();
+        bytes
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        let msg = "error decoding decryption share";
+
+
+
+        let bytes:Vec<u8> = decode(&bytes).expect(msg);
+
+        todo!()
+    }
+}
+
+
+impl<G: DlGroup> Encode for Sg02DecryptionShare<G> {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
     }
 }
 

@@ -1,4 +1,5 @@
-use mcore::{rand::RAND};
+use rasn::Encode;
+
 use crate::{bigint::*, rand::RNG};
 
 pub trait DlGroup: 

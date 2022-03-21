@@ -1,4 +1,4 @@
-use mcore::rand::RAND;
+use std::convert::TryInto;
 
 use crate::bigint::*;
 use crate::dl_schemes::common::*;
@@ -82,7 +82,7 @@ impl DlKeyGenerator {
                 let publicKey = Sg02PublicKey::new(&y,&h, &g_bar );
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::SG02(Sg02PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::SG02(Sg02PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &publicKey)))
                 }
 
                 return privateKeys;
@@ -98,7 +98,7 @@ impl DlKeyGenerator {
                 let publicKey = Bls04PublicKey::new(&y, &h);
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::BLS04(Bls04PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::BLS04(Bls04PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &publicKey)))
                 }
 
                 return privateKeys;

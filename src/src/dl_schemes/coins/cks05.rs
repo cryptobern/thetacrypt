@@ -4,7 +4,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use mcore::{hash256::HASH256, rand::RAND};
+use mcore::{hash256::HASH256};
 
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
@@ -40,7 +40,15 @@ pub struct Cks05CoinShare<G: DlGroup> {
     z: BigImpl,
 }
 
-impl<G: DlGroup> PublicKey for Cks05PublicKey<G> {}
+impl<G: DlGroup> PublicKey for Cks05PublicKey<G> {
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 
 impl<G: DlGroup> PrivateKey for Cks05PrivateKey<G> {
     type TPubKey = Cks05PublicKey<G>;
@@ -51,6 +59,14 @@ impl<G: DlGroup> PrivateKey for Cks05PrivateKey<G> {
 
     fn get_public_key(&self) -> Self::TPubKey {
         self.pubkey.clone()
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 
@@ -76,6 +92,14 @@ impl<G: DlGroup> Cks05PrivateKey<G> {
 impl<G: DlGroup> Share for Cks05CoinShare<G> {
     fn get_id(&self) -> usize {
         self.id
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 

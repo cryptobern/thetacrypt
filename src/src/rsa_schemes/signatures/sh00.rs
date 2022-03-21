@@ -1,7 +1,7 @@
-use std::{vec, borrow::BorrowMut};
+use std::borrow::BorrowMut;
 
-use mcore::{hash256::HASH256, rand::RAND};
-use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT, rand::RNG};
+use mcore::{hash256::HASH256};
+use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT, rand::{RNG, RngAlgorithm}};
 
 
 pub struct Sh00ThresholdSignature {
@@ -46,7 +46,8 @@ pub struct Sh00Params {
 }
 
 impl Sh00Params {
-    pub fn new(rng: RNG) -> Self {
+    pub fn new(alg: RngAlgorithm) -> Self {
+        let rng = RNG::new(alg);
         Self { rng }
     }
 }
@@ -145,7 +146,15 @@ impl Sh00ThresholdSignature {
     }
 }
 
-impl PublicKey for Sh00PublicKey {}
+impl PublicKey for Sh00PublicKey {
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
+}
 
 impl Sh00PublicKey {
     pub fn new(N: BigInt,
@@ -183,6 +192,14 @@ impl PrivateKey for Sh00PrivateKey {
     fn get_public_key(&self) -> Self::TPubKey {
         self.pubkey.clone()
     }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
+    }
 }
 
 impl Sh00PrivateKey {
@@ -211,6 +228,14 @@ impl Sh00SignedMessage {
 impl Share for Sh00SignatureShare {
     fn get_id(&self) -> usize {
         self.id
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn decode(bytes: Vec<u8>) -> Self {
+        todo!()
     }
 }
 

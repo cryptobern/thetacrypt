@@ -1,4 +1,4 @@
-use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}, rand::RAND};
+use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}};
 use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 
 use super::{pairing::PairingEngine};
