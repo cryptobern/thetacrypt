@@ -6,9 +6,10 @@
 
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
+use derive::{PublicKey, PrivateKey, Share, DlShare, Ciphertext};
 use mcore::bls12381::big;
 use mcore::hash256::*;
-use rasn::{AsnType, Tag};
+use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::bigint::*;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
@@ -18,24 +19,63 @@ use crate::dl_schemes::{DlDomain, DlShare, common::*};
 use crate::rand::RNG;
 use crate::{interface::*, unwrap_keys};
 
-#[derive(Clone)]
+
+#[derive(Clone, PublicKey, AsnType)]
 pub struct Bz03PublicKey<PE: PairingEngine> {
     y: PE::G2,
     verificationKey: Vec<PE>
 }
 
-#[derive(Clone)]
+impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<PE:PairingEngine> Decode for Bz03PublicKey<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Clone, PrivateKey, AsnType)]
 pub struct Bz03PrivateKey<PE: PairingEngine> {
     id: usize,
     xi: BigImpl,
     pubkey: Bz03PublicKey<PE>
 }
 
+impl<PE:PairingEngine> Encode for Bz03PrivateKey<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<PE:PairingEngine> Decode for Bz03PrivateKey<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Clone, Share, DlShare, AsnType)]
 pub struct Bz03DecryptionShare<G: DlGroup> {
     id: usize,
     data: G
 }
 
+impl<G:DlGroup> Encode for Bz03DecryptionShare<G> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<G:DlGroup> Decode for Bz03DecryptionShare<G> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Clone, Ciphertext, AsnType)]
 pub struct Bz03Ciphertext<PE: PairingEngine> {
     label: Vec<u8>,
     msg: Vec<u8>,
@@ -44,41 +84,23 @@ pub struct Bz03Ciphertext<PE: PairingEngine> {
     hr: PE
 }
 
+impl<PE:PairingEngine> Encode for Bz03Ciphertext<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<PE:PairingEngine> Decode for Bz03Ciphertext<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
 pub struct Bz03ThresholdCipher<PE: PairingEngine> {
     g: PE
 }
 
 pub struct Bz03Params {
-}
-
-
-impl<PE: PairingEngine> PublicKey for Bz03PublicKey<PE> {
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl<PE:PairingEngine> PrivateKey for Bz03PrivateKey<PE> {
-    type TPubKey = Bz03PublicKey<PE>;
-    fn get_public_key(&self) -> Bz03PublicKey<PE>{
-        self.pubkey.clone()
-    }
-
-    fn get_id(&self) -> usize {
-        self.id as usize
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
 }
 
 impl<PE:PairingEngine> Bz03PrivateKey<PE> {
@@ -93,37 +115,6 @@ impl<PE:PairingEngine> Bz03PublicKey<PE> {
     }
 }
 
-impl<G: DlGroup> Share for Bz03DecryptionShare<G> {
-    fn get_id(&self) -> usize { self.id.clone() }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl<G: DlGroup> DlShare<G> for Bz03DecryptionShare<G> {
-    fn get_data(&self) -> G {
-        self.data.clone()
-    }
-}
-
-impl<PE: PairingEngine> Ciphertext for Bz03Ciphertext<PE> {
-    fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
-    fn get_label(&self) -> Vec<u8> { self.label.clone() }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
 impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
     type CT = Bz03Ciphertext<PE>;
 
@@ -133,17 +124,15 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 
     type TShare = Bz03DecryptionShare<PE::G2>;
 
-    type TParams = Bz03Params;
-
-    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey, rng: &mut RNG) -> Self::CT {
-        let r = PE::BigInt::new_rand(&PE::G2::get_order(), rng);
+    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey, params: &mut ThresholdCipherParams) -> Self::CT {
+        let r = PE::BigInt::new_rand(&PE::G2::get_order(), &mut params.rng);
         let mut u = PE::G2::new();
         u.pow(&r);
 
         let mut rY = pk.y.clone();
         rY.pow(&r);
 
-        let k = gen_symm_key(rng);
+        let k = gen_symm_key(&mut params.rng);
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let encryption: Vec<u8> = cipher
@@ -169,7 +158,7 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
         PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _params: Option<&mut Bz03Params>) -> Self::TShare {
+    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _params: &mut ThresholdCipherParams) -> Self::TShare {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 
@@ -223,8 +212,3 @@ fn G<G: DlGroup>(x: &G) -> Vec<u8> {
     let r = h.hash().to_vec();
     r
 }
-
-impl<PE: PairingEngine> AsnType for Bz03PrivateKey<PE> {
-    const TAG: Tag = Tag::SEQUENCE;
-}
-
