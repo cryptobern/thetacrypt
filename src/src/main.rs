@@ -5,7 +5,7 @@
 
 use std::time::Instant;
 
-use crate::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02Params};
+use crate::dl_schemes::ciphers::sg02::Sg02ThresholdCipher;
 use crate::dl_schemes::coins::cks05::Cks05ThresholdCoin;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::{
@@ -15,7 +15,7 @@ use crate::dl_schemes::{
 
 use crate::interface::*;
 use crate::rand::{RngAlgorithm, RNG};
-use crate::rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00Params};
+use crate::rsa_schemes::signatures::sh00::{Sh00ThresholdSignature};
 use crate::util::*;
 
 use std::fmt::Write;
@@ -47,12 +47,13 @@ fn main() {
     // generate secret shares for SG02 scheme over Bls12381 curve
     let now = Instant::now();
     let sk = Sg02ThresholdCipher::generate_keys(K, N, Bls12381::new(), &mut rng);
+    let mut params = ThresholdCipherParams::new();
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 
     // a public key is stored inside each secret share, so those can be used for encryption
     let now = Instant::now();
-    let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut rng);
+    let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut params);
     let elapsed_time = now.elapsed().as_millis();
 
     let mut s = String::with_capacity(25);
@@ -67,12 +68,12 @@ fn main() {
     
     // create decryption shares and verify them 
     let mut shares = Vec::new();
-    let mut params = Sg02Params::new(RngAlgorithm::MarsagliaZaman);
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Sg02ThresholdCipher::partial_decrypt(&ciphertext,&sk[i as usize], Option::Some(&mut params)));
+        shares.push(Sg02ThresholdCipher::partial_decrypt(&ciphertext,&sk[i as usize], &mut params));
         let elapsed_time = now.elapsed().as_millis();
+
         println!("\n[{}ms]\tGenerated decryption share {}", elapsed_time, shares[i].get_id());
 
         let now = Instant::now();
@@ -88,7 +89,6 @@ fn main() {
     println!("[{}ms]\tDecrypted message: {}", elapsed_time, hex2string(&msg));
 
 
-
     // perform threshold encryption using BZ03 scheme 
     println!("\n--BZ03 Threshold Cipher--");
 
@@ -100,7 +100,7 @@ fn main() {
 
     // a public key is stored inside each secret share, so those can be used for encryption
     let now = Instant::now();
-    let ciphertext = Bz03ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut rng);
+    let ciphertext = Bz03ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut params);
     let elapsed_time = now.elapsed().as_millis();
 
     let mut s = String::with_capacity(25);
@@ -119,7 +119,7 @@ fn main() {
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Bz03ThresholdCipher::partial_decrypt(&ciphertext,&sk[i as usize], Option::None));
+        shares.push(Bz03ThresholdCipher::partial_decrypt(&ciphertext,&sk[i as usize], &mut params));
         let elapsed_time = now.elapsed().as_millis();
         println!("\n[{}ms]\tGenerated decryption share {}", elapsed_time, shares[i].get_id());
 
@@ -137,6 +137,9 @@ fn main() {
 
 
 
+
+
+
     // create threshold signatures using BLS04 scheme 
     println!("\n--BLS04 Threshold Signature--");
 
@@ -147,10 +150,11 @@ fn main() {
     println!("[{}ms]\tKeys generated", elapsed_time);
 
     let mut shares = Vec::new();
+    let mut params = ThresholdSignatureParams::new();
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Bls04ThresholdSignature::partial_sign(&msg, label, &sk[i as usize], Option::None));
+        shares.push(Bls04ThresholdSignature::partial_sign(&msg, label, &sk[i as usize], &mut params));
         let elapsed_time = now.elapsed().as_millis();
         println!("\n[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
 
@@ -183,11 +187,10 @@ fn main() {
     println!("[{}ms]\tKeys generated", elapsed_time);
 
     let mut shares = Vec::new();
-    let mut params = Sh00Params::new(RngAlgorithm::MarsagliaZaman);
 
     for i in 0..K {
         let now = Instant::now();
-        shares.push(Sh00ThresholdSignature::partial_sign(&msg, label, &sk[i as usize], Option::Some(&mut params)));
+        shares.push(Sh00ThresholdSignature::partial_sign(&msg, label, &sk[i as usize], &mut params));
         let elapsed_time = now.elapsed().as_millis();
         println!("\n[{}ms]\tGenerated signature share {}", elapsed_time, shares[i].get_id());
         let now = Instant::now();
