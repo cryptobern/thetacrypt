@@ -3,68 +3,81 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::zero_prefixed_literal)]
 
+use derive::{PublicKey, Serializable, DlShare, Share, PrivateKey};
 use mcore::{hash256::HASH256};
+use rasn::{AsnType, Encode, Decode};
 
-use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, unwrap_keys, rand::RNG};
+use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature, Serializable, ThresholdSignatureParams}, unwrap_keys, rand::RNG};
 use crate::bigint::*;
 
 pub struct Bls04ThresholdSignature<PE: PairingEngine> {
     g: PE
 }
 
+#[derive(Clone, AsnType, Share)]
 pub struct Bls04SignatureShare<PE: PairingEngine> {
     id:usize,
     label:Vec<u8>,
     data:PE::G2
 }
 
-pub struct Bls04SignedMessage<PE: PairingEngine> {
-    msg: Vec<u8>,
-    sig: PE::G2
+impl <PE:PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
+    fn get_data(&self) -> PE::G2 {
+        self.data.clone()
+    }
 }
 
-#[derive(Clone)]
+impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl <PE: PairingEngine>  Decode for Bls04SignatureShare<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+
+#[derive(Clone, AsnType, PublicKey)]
 pub struct Bls04PublicKey<PE: PairingEngine> {
     y: PE,
     verificationKey:Vec<PE>
 }  
 
-#[derive(Clone)]
+impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl <PE: PairingEngine>  Decode for Bls04PublicKey<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+
+#[derive(Clone, PrivateKey, AsnType)]
 pub struct Bls04PrivateKey<PE: PairingEngine> {
     id: usize,
     xi: BigImpl,
     pubkey: Bls04PublicKey<PE>
 }
 
-impl<PE: PairingEngine> PublicKey for Bls04PublicKey<PE> {
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
+impl <PE: PairingEngine> Encode for Bls04PrivateKey<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         todo!()
     }
 }
 
-impl<PE: PairingEngine> PrivateKey for Bls04PrivateKey<PE> {
-    type TPubKey = Bls04PublicKey<PE>;
-
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn get_public_key(&self) -> Self::TPubKey {
-        self.pubkey.clone()
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
+impl <PE: PairingEngine>  Decode for Bls04PrivateKey<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         todo!()
     }
 }
+
 
 impl<PE:PairingEngine> Bls04PrivateKey<PE> {
     pub fn new(id: usize, xi: &BigImpl, pubkey: &Bls04PublicKey<PE>) -> Self {
@@ -78,33 +91,26 @@ impl<PE:PairingEngine> Bls04PublicKey<PE> {
     }
 }
 
-impl<PE: PairingEngine> Share for Bls04SignatureShare<PE> {
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl<PE: PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
-    fn get_data(&self) -> PE::G2 {
-        self.data.clone()
-    }
+#[derive(Clone, AsnType, Serializable)]
+pub struct Bls04SignedMessage<PE: PairingEngine> {
+    msg: Vec<u8>,
+    sig: PE::G2
 }
 
 impl<PE: PairingEngine> Bls04SignedMessage<PE> {
-    pub fn get_sig(&self) -> PE::G2 {
-        self.sig.clone()
+    pub fn get_sig(&self) -> PE::G2 { self.sig.clone() }
+}
+
+impl <PE: PairingEngine> Encode for Bls04SignedMessage<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
     }
 }
 
-pub struct Bls04Params {
+impl <PE: PairingEngine>  Decode for Bls04SignedMessage<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
 }
 
 impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
@@ -116,13 +122,11 @@ impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
 
     type TShare = Bls04SignatureShare<PE>;
 
-    type TParams = Bls04Params;
-
     fn verify(sig: &Self::TSig, pk: &Self::TPubKey) -> bool {
         PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, _params: Option<&mut Bls04Params>) -> Self::TShare {
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, _params: &mut ThresholdSignatureParams) -> Self::TShare {
         let mut data = H::<PE::G2>(&msg);
         data.pow(&sk.xi);
 

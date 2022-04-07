@@ -1,25 +1,11 @@
 use std::borrow::BorrowMut;
 
+use derive::{PublicKey, PrivateKey, Share, Serializable};
 use mcore::{hash256::HASH256};
-use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT, rand::{RNG, RngAlgorithm}};
+use rasn::{AsnType, Encode, Decode};
+use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature, ThresholdSignatureParams}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT, rand::{RNG, RngAlgorithm}};
 
-
-pub struct Sh00ThresholdSignature {
-}
-
-pub struct Sh00SignatureShare {
-    id:usize,
-    label:Vec<u8>,
-    xi:BigInt,
-    z:BigInt,
-    c:BigInt
-}
-
-pub struct Sh00SignedMessage {
-    msg: Vec<u8>,
-    sig: BigInt
-}
-
+#[derive(PublicKey, AsnType, Clone)]
 pub struct Sh00PublicKey {
     N: BigInt,
     e: BigInt,
@@ -28,6 +14,29 @@ pub struct Sh00PublicKey {
     modbits:usize
 }  
 
+impl Sh00PublicKey {
+    pub fn new(N: BigInt,
+        e: BigInt,
+        verificationKey:Sh00VerificationKey,
+        delta:usize,
+        modbits:usize) -> Self {
+        Self {N, e, verificationKey, delta, modbits}
+    }
+}
+
+impl Encode for Sh00PublicKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl Decode for Sh00PublicKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(PrivateKey, AsnType, Clone)]
 pub struct Sh00PrivateKey {
     id: usize,
     m: BigInt,
@@ -35,22 +44,112 @@ pub struct Sh00PrivateKey {
     pubkey: Sh00PublicKey
 }
 
+impl Sh00PrivateKey {
+    pub fn new(id: usize,
+        m: BigInt,
+        si: BigInt,
+        pubkey: Sh00PublicKey) -> Self {
+        Self {id, m, si, pubkey}
+    }
+}
+
+impl Encode for Sh00PrivateKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl Decode for Sh00PrivateKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Share, AsnType, Clone)]
+pub struct Sh00SignatureShare {
+    id:usize,
+    label:Vec<u8>,
+    xi:BigInt,
+    z:BigInt,
+    c:BigInt
+}
+
+impl Sh00SignatureShare {
+    pub fn get_id(&self) -> usize {
+        self.id.clone()
+    }
+
+    pub fn get_data(&self) -> BigInt {
+        self.xi.clone()
+    }
+}
+
+impl Encode for Sh00SignatureShare {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl Decode for Sh00SignatureShare {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Clone, AsnType, Serializable)]
+pub struct Sh00SignedMessage {
+    msg: Vec<u8>,
+    sig: BigInt
+}
+
+impl Sh00SignedMessage {
+    pub fn get_sig(&self) -> BigInt {
+        self.sig.clone()
+    }
+}
+
+impl Encode for Sh00SignedMessage {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl Decode for Sh00SignedMessage {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(Clone, AsnType, Serializable)]
 pub struct Sh00VerificationKey {
     v: BigInt,
     vi: Vec<BigInt>,
     u: BigInt
 }
 
-pub struct Sh00Params {
-    rng: RNG
+impl Sh00VerificationKey {
+    pub fn new(v: BigInt,
+        vi: Vec<BigInt>,
+        u: BigInt) -> Self {
+            Self{ v, vi, u}
+        }
 }
 
-impl Sh00Params {
-    pub fn new(alg: RngAlgorithm) -> Self {
-        let rng = RNG::new(alg);
-        Self { rng }
+impl Encode for Sh00VerificationKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
     }
 }
+
+impl Decode for Sh00VerificationKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+pub struct Sh00ThresholdSignature {
+}
+
 
 impl ThresholdSignature for Sh00ThresholdSignature {
     type TSig = Sh00SignedMessage;
@@ -61,17 +160,11 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
     type TShare = Sh00SignatureShare;
 
-    type TParams = Sh00Params;
-
     fn verify(sig: &Self::TSig, pk: &Self::TPubKey) -> bool {
         sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: Option<&mut Sh00Params>) -> Self::TShare {
-        if params.is_none() {
-            panic!("no random number generator provided!");
-        }
-
+    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: &mut ThresholdSignatureParams) -> Self::TShare {
         let N = sk.get_public_key().N.clone();
         let v = sk.get_public_key().verificationKey.v.clone();
         let vi = sk.get_public_key().verificationKey.vi[sk.id - 1].clone();
@@ -84,8 +177,7 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
         
         let bits = 2*sk.pubkey.modbits + 2 + 2*8;
-        let rng = params.unwrap().rng.borrow_mut();
-        let r = BigInt::new_rand(rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
+        let r = BigInt::new_rand(&mut params.rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
 
         let v1 = v.pow_mod(&r, &N); //v1 = v^r
         let x1 = x_hat.pow_mod(&r, &N); // x1 = x_hat^r
@@ -143,116 +235,6 @@ impl Sh00ThresholdSignature {
     pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut RNG) -> Vec<Sh00PrivateKey> {
         let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(modsize));
         unwrap_keys!(keys, RsaPrivateKey::SH00)
-    }
-}
-
-impl PublicKey for Sh00PublicKey {
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl Sh00PublicKey {
-    pub fn new(N: BigInt,
-        e: BigInt,
-        verificationKey:Sh00VerificationKey,
-        delta:usize,
-        modbits:usize) -> Self {
-        Self {N, e, verificationKey, delta, modbits}
-    }
-}
-
-impl Sh00SignatureShare {
-    pub fn get_id(&self) -> usize {
-        self.id.clone()
-    }
-
-    pub fn get_data(&self) -> BigInt {
-        self.xi.clone()
-    }
-}
-
-impl Clone for Sh00SignatureShare {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), label: self.label.clone(), xi: self.xi.clone(), z: self.z.clone(), c: self.c.clone() }
-    }
-}
-
-impl PrivateKey for Sh00PrivateKey {
-    type TPubKey = Sh00PublicKey;
-
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn get_public_key(&self) -> Self::TPubKey {
-        self.pubkey.clone()
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl Sh00PrivateKey {
-    pub fn new(id: usize,
-        m: BigInt,
-        si: BigInt,
-        pubkey: Sh00PublicKey) -> Self {
-        Self {id, m, si, pubkey}
-    }
-}
-
-impl Sh00VerificationKey {
-    pub fn new(v: BigInt,
-        vi: Vec<BigInt>,
-        u: BigInt) -> Self {
-            Self{ v, vi, u}
-        }
-}
-
-impl Sh00SignedMessage {
-    pub fn get_sig(&self) -> BigInt {
-        self.sig.clone()
-    }
-}
-
-impl Share for Sh00SignatureShare {
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl Clone for Sh00PublicKey {
-    fn clone(&self) -> Self {
-        Self { N: self.N.clone(), e: self.e.clone(), verificationKey: self.verificationKey.clone(), delta: self.delta.clone(), modbits: self.modbits.clone() }
-    }
-}
-impl Clone for Sh00PrivateKey {
-    fn clone(&self) -> Self {
-        Self { id: self.id.clone(), m: self.m.clone(), si: self.si.clone(), pubkey: self.pubkey.clone() }
-    }
-}
-
-impl Clone for Sh00VerificationKey {
-    fn clone(&self) -> Self {
-        Self { v: self.v.clone(), vi: self.vi.clone(), u: self.u.clone() }
     }
 }
 

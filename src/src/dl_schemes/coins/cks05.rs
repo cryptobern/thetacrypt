@@ -4,7 +4,9 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+use derive::{DlShare, Share, PrivateKey, PublicKey};
 use mcore::{hash256::HASH256};
+use rasn::{AsnType, Encode, Decode};
 
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
@@ -20,54 +22,10 @@ pub struct Cks05ThresholdCoin<G: DlGroup> {
     g: G,
 }
 
-#[derive(Clone)]
+#[derive(AsnType, PublicKey, Clone)]
 pub struct Cks05PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>
-}
-
-#[derive(Clone)]
-pub struct Cks05PrivateKey<G: DlGroup> {
-    id: usize,
-    xi: BigImpl,
-    pubkey: Cks05PublicKey<G>,
-}
-
-pub struct Cks05CoinShare<G: DlGroup> {
-    id: usize,
-    data: G,
-    c: BigImpl,
-    z: BigImpl,
-}
-
-impl<G: DlGroup> PublicKey for Cks05PublicKey<G> {
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
-}
-
-impl<G: DlGroup> PrivateKey for Cks05PrivateKey<G> {
-    type TPubKey = Cks05PublicKey<G>;
-
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn get_public_key(&self) -> Self::TPubKey {
-        self.pubkey.clone()
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
-        todo!()
-    }
 }
 
 impl<G: DlGroup> Cks05PublicKey<G> {
@@ -77,6 +35,25 @@ impl<G: DlGroup> Cks05PublicKey<G> {
             verificationKey: verificationKey.clone()
         }
     }
+}
+
+impl<G: DlGroup> Encode for Cks05PublicKey<G> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<G: DlGroup> Decode for Cks05PublicKey<G> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
+#[derive(AsnType, PrivateKey, Clone)]
+pub struct Cks05PrivateKey<G: DlGroup> {
+    id: usize,
+    xi: BigImpl,
+    pubkey: Cks05PublicKey<G>,
 }
 
 impl<G: DlGroup> Cks05PrivateKey<G> {
@@ -89,25 +66,38 @@ impl<G: DlGroup> Cks05PrivateKey<G> {
     }
 }
 
-impl<G: DlGroup> Share for Cks05CoinShare<G> {
-    fn get_id(&self) -> usize {
-        self.id
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn decode(bytes: Vec<u8>) -> Self {
+impl<G: DlGroup> Encode for Cks05PrivateKey<G> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         todo!()
     }
 }
 
-impl<G: DlGroup> DlShare<G> for Cks05CoinShare<G>{
-    fn get_data(&self) -> G {
-        self.data.clone()
+impl<G: DlGroup> Decode for Cks05PrivateKey<G> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
     }
 }
+
+#[derive(Share, DlShare, AsnType, Clone)]
+pub struct Cks05CoinShare<G: DlGroup> {
+    id: usize,
+    data: G,
+    c: BigImpl,
+    z: BigImpl,
+}
+
+impl<G: DlGroup> Encode for Cks05CoinShare<G> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        todo!()
+    }
+}
+
+impl<G: DlGroup> Decode for Cks05CoinShare<G> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        todo!()
+    }
+}
+
 impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
     type TPubKey = Cks05PublicKey<G>;
 
