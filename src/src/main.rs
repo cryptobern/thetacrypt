@@ -137,9 +137,6 @@ fn main() {
 
 
 
-
-
-
     // create threshold signatures using BLS04 scheme 
     println!("\n--BLS04 Threshold Signature--");
 
