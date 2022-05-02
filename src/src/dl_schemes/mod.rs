@@ -8,6 +8,7 @@ pub mod common;
 pub mod ciphers;
 pub mod signatures;
 pub mod coins;
+pub mod bigint;
 
 pub trait DlDomain: PairingEngine {
     fn is_pairing_friendly() -> bool;

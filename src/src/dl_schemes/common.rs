@@ -1,7 +1,7 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
 use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG};
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
 use super::{DlShare};
 

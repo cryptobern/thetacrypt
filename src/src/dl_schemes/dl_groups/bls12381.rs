@@ -1,11 +1,20 @@
+use derive::Serializable;
 use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}};
-use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag, types::{OctetString}};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
+use rasn::{AsnType, Decode, Decoder, Encode, Encoder, Tag, types::{OctetString, BitString}};
+use crate::{dl_schemes::bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 use crate::dl_schemes::dl_groups::pairing::*;
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
+#[derive(Debug, Serializable)]
 pub struct Bls12381 {
     value: ECP
+}
+
+
+impl PartialEq for Bls12381 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
 }
 
 impl PairingEngine for Bls12381 {
@@ -108,8 +117,15 @@ impl DlGroup for Bls12381 {
     }
 }
 
+#[derive(Debug, Serializable)]
 pub struct Bls12381ECP2 {
     value: ECP2
+}
+
+impl PartialEq for Bls12381ECP2 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
 }
 
 impl DlGroup for Bls12381ECP2 {
@@ -191,8 +207,37 @@ impl DlGroup for Bls12381ECP2 {
     }
 }
 
+#[derive(Serializable)]
 pub struct Bls12381FP12 {
     value: FP12
+}
+
+impl rasn::AsnType for Bls12381FP12 {
+    const TAG: rasn::Tag = rasn::Tag::OCTET_STRING;
+}
+
+impl Encode for Bls12381FP12 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bls12381FP12 {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        Ok(Self::from_bytes(&bytes))
+    }
+}
+
+impl PartialEq for Bls12381FP12 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
 }
 
 impl DlGroup for Bls12381FP12 {
@@ -296,8 +341,39 @@ impl Clone for Bls12381ECP2 {
     }
 }
 
+#[derive(Debug, AsnType, Serializable)]
 pub struct Bls12381BIG {
     value: BIG
+}
+
+impl Encode for Bls12381BIG {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bls12381BIG {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+
+        let val = Self::from_bytes(&bytes);
+
+        match val {
+            BigImpl::Bls12381(x) => Ok(x),
+            _ => panic!("Wrong type after deserializing big integer") // TODO: Change this
+        }
+    }
+}
+
+impl PartialEq for Bls12381BIG {
+    fn eq(&self, other: &Self) -> bool {
+        self.equals(&BigImpl::Bls12381(other.clone()))
+    }
 }
 
 impl BigInt for Bls12381BIG {

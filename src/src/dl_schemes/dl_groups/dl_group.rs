@@ -1,10 +1,12 @@
 use rasn::Encode;
 
-use crate::{bigint::*, rand::RNG};
+use crate::{dl_schemes::bigint::*, rand::RNG, interface::Serializable};
 
 pub trait DlGroup: 
     Sized 
     + Clone
+    + PartialEq
+    + Serializable
     + 'static {
     type BigInt: BigInt;
     type DataType;

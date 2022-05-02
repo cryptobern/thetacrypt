@@ -36,16 +36,22 @@ impl Decode for Sh00PublicKey {
     }
 }
 
+impl PartialEq for Sh00PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.N == other.N && self.e == other.e && self.verificationKey == other.verificationKey && self.delta == other.delta && self.modbits == other.modbits
+    }
+}
+
 #[derive(PrivateKey, AsnType, Clone)]
 pub struct Sh00PrivateKey {
-    id: usize,
+    id: u32,
     m: BigInt,
     si: BigInt,
     pubkey: Sh00PublicKey
 }
 
 impl Sh00PrivateKey {
-    pub fn new(id: usize,
+    pub fn new(id: u32,
         m: BigInt,
         si: BigInt,
         pubkey: Sh00PublicKey) -> Self {
@@ -65,9 +71,15 @@ impl Decode for Sh00PrivateKey {
     }
 }
 
+impl PartialEq for Sh00PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.m == other.m && self.si == other.si && self.pubkey == other.pubkey
+    }
+}
+
 #[derive(Share, AsnType, Clone)]
 pub struct Sh00SignatureShare {
-    id:usize,
+    id:u32,
     label:Vec<u8>,
     xi:BigInt,
     z:BigInt,
@@ -75,7 +87,7 @@ pub struct Sh00SignatureShare {
 }
 
 impl Sh00SignatureShare {
-    pub fn get_id(&self) -> usize {
+    pub fn get_id(&self) -> u32 {
         self.id.clone()
     }
 
@@ -93,6 +105,12 @@ impl Encode for Sh00SignatureShare {
 impl Decode for Sh00SignatureShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         todo!()
+    }
+}
+
+impl PartialEq for Sh00SignatureShare {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.label == other.label && self.xi == other.xi && self.z == other.z && self.c == other.c
     }
 }
 
@@ -117,6 +135,12 @@ impl Encode for Sh00SignedMessage {
 impl Decode for Sh00SignedMessage {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         todo!()
+    }
+}
+
+impl PartialEq for Sh00SignedMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.msg == other.msg && self.sig == other.sig
     }
 }
 
@@ -147,6 +171,12 @@ impl Decode for Sh00VerificationKey {
     }
 }
 
+impl PartialEq for Sh00VerificationKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.v == other.v && self.vi == other.vi && self.u == other.u
+    }
+}
+
 pub struct Sh00ThresholdSignature {
 }
 
@@ -167,7 +197,7 @@ impl ThresholdSignature for Sh00ThresholdSignature {
     fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: &mut ThresholdSignatureParams) -> Self::TShare {
         let N = sk.get_public_key().N.clone();
         let v = sk.get_public_key().verificationKey.v.clone();
-        let vi = sk.get_public_key().verificationKey.vi[sk.id - 1].clone();
+        let vi = sk.get_public_key().verificationKey.vi[(sk.id - 1) as usize].clone();
         let si = sk.si.clone();
 
         let (x, _) = H(&msg, &sk.get_public_key()); 
@@ -193,7 +223,7 @@ impl ThresholdSignature for Sh00ThresholdSignature {
     fn verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool {
         let N = pk.N.clone();
         let v = pk.verificationKey.v.clone();
-        let vi = pk.verificationKey.vi[share.id - 1].clone();
+        let vi = pk.verificationKey.vi[(share.id - 1) as usize].clone();
         let (x, _) = H(&msg,  &pk);
         let z = share.z.clone();
         let c = share.c.clone();

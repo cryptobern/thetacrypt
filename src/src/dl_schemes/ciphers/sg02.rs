@@ -24,7 +24,7 @@ use crate::interface::PrivateKey;
 use crate::interface::PublicKey;
 use crate::interface::Share;
 use crate::interface::ThresholdCipher;
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
 use crate::dl_schemes::{DlDomain, DlShare};
 
@@ -32,7 +32,7 @@ pub struct Sg02ThresholdCipher<G: DlGroup> {
     g: G
 }
 
-#[derive(Clone, PublicKey, AsnType)]
+#[derive(Clone, Debug, PublicKey, AsnType)]
 pub struct Sg02PublicKey<G: DlGroup> {
     y: G,
     verificationKey: Vec<G>,
@@ -41,38 +41,77 @@ pub struct Sg02PublicKey<G: DlGroup> {
 
 impl <G:DlGroup> Encode for Sg02PublicKey<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        self.y.encode(encoder)?;
+        self.verificationKey.encode(encoder)?;
+        self.g_bar.encode(encoder)?;
+        Ok(())
     }
 }
 
 impl <G:DlGroup> Decode for Sg02PublicKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        let y: G = G::decode(decoder)?;
+        let verificationKey = Vec::<G>::decode(decoder)?;
+        let g_bar = G::decode(decoder)?;
+
+        Ok(Self{y, verificationKey, g_bar})
     }
 }
 
-#[derive(Clone, PrivateKey, AsnType)]
+impl<G:DlGroup> PartialEq for Sg02PublicKey<G> {
+    fn eq(&self, other: &Self) -> bool {
+        for i in 0..self.verificationKey.len() {
+            if !self.verificationKey[i].equals(&other.verificationKey[i]) {
+                return false;
+            }
+        }
+
+        self.y.equals(&other.y)  && self.g_bar.equals(&other.g_bar)
+    }
+}
+
+#[derive(Clone, Debug, PrivateKey, AsnType)]
 pub struct Sg02PrivateKey<G: DlGroup> {
-    id: usize,
+    id: u32,
     xi: BigImpl,
     pubkey: Sg02PublicKey<G>,
 }
 
 impl <G:DlGroup> Encode for Sg02PrivateKey<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.xi.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl <G:DlGroup> Decode for Sg02PrivateKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = Sg02PublicKey::<G>::decode(sequence)?;
+            let xi = G::BigInt::from_bytes(&xi_bytes);
+
+            Ok(Self {id, xi, pubkey})
+        })
     }
 }
 
 impl<G: DlGroup> Sg02PrivateKey<G> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &Sg02PublicKey<G>) -> Self {
+    pub fn new(id: u32, xi: &BigImpl, pubkey: &Sg02PublicKey<G>) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+}
+
+impl<G: DlGroup> PartialEq for Sg02PrivateKey<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
     }
 }
 
@@ -89,19 +128,51 @@ pub struct Sg02Ciphertext<G: DlGroup> {
 
 impl <G:DlGroup> Encode for Sg02Ciphertext<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |encoder| {
+            self.label.encode(encoder)?;
+            self.msg.encode(encoder)?;
+            self.u.encode(encoder)?;
+            self.u_bar.encode(encoder)?;
+            self.e.to_bytes().encode(encoder)?;
+            self.f.to_bytes().encode(encoder)?;
+            self.c_k.encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl <G:DlGroup> Decode for Sg02Ciphertext<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let label:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let u = G::decode(sequence)?;
+            let u_bar = G::decode(sequence)?;
+            let e_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let f_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+
+            let e = G::BigInt::from_bytes(&e_bytes);
+            let f = G::BigInt::from_bytes(&f_bytes);
+
+            Ok(Self {label, msg, u, u_bar, e, f, c_k})
+        })
+    }
+}
+
+impl<G: DlGroup> PartialEq for Sg02Ciphertext<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.label.eq(&other.label) && self.msg.eq(&other.msg) && self.u.equals(&other.u) && 
+        self.u_bar.equals(&other.u_bar) && self.e.equals(&other.e) && self.f.equals(&other.f) && 
+        self.c_k.eq(&other.c_k)
     }
 }
 
 #[derive(Clone, AsnType, Share)]
 pub struct Sg02DecryptionShare<G: DlGroup>  {
-    id: usize,
+    id: u32,
     label: Vec<u8>,
     data: G,
     ei: BigImpl,
@@ -119,7 +190,7 @@ impl<G:DlGroup> Encode for Sg02DecryptionShare<G> {
         encoder.encode_sequence(tag, |encoder| {
             self.id.encode(encoder)?;
             self.label.encode(encoder)?;
-            self.data.to_bytes().encode(encoder)?;
+            self.data.encode(encoder)?;
             self.ei.to_bytes().encode(encoder)?;
             self.fi.to_bytes().encode(encoder)?;
             Ok(())
@@ -131,14 +202,13 @@ impl<G:DlGroup> Encode for Sg02DecryptionShare<G> {
 
 impl<G: DlGroup>Decode for Sg02DecryptionShare<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |decoder| {
-            let id = usize::decode(decoder)?;
-            let label:Vec<u8> = BitString::decode(decoder)?.into();
-            let data_bytes:Vec<u8> = BitString::decode(decoder)?.into();
-            let ei_bytes:Vec<u8> = BitString::decode(decoder)?.into();
-            let fi_bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let label = Vec::<u8>::decode(sequence)?.into();
+            let data = G::decode(sequence)?;
+            let ei_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let fi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
 
-            let data = G::from_bytes(&data_bytes);
             let ei = G::BigInt::from_bytes(&ei_bytes);
             let fi = G::BigInt::from_bytes(&fi_bytes);
             Ok(Self {id, label, data, ei, fi})
@@ -149,6 +219,12 @@ impl<G: DlGroup>Decode for Sg02DecryptionShare<G> {
 impl<G: DlGroup> DlShare<G> for Sg02DecryptionShare<G> {
     fn get_data(&self) -> G {
         self.data.clone()
+    }
+}
+
+impl<G: DlGroup> PartialEq for Sg02DecryptionShare<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.label == other.label && self.data == other.data && self.ei == other.ei && self.fi == other.fi
     }
 }
 

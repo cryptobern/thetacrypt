@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 use crate::dl_schemes::common::*;
 use crate::dl_schemes::ciphers::bz03::*;
 use crate::dl_schemes::ciphers::sg02::*;
@@ -64,7 +64,7 @@ impl DlKeyGenerator {
                 let publicKey = Bz03PublicKey::new(&y, &h );
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::BZ03(Bz03PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::BZ03(Bz03PrivateKey::new((i+1) as u32, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;
@@ -114,7 +114,7 @@ impl DlKeyGenerator {
                 let publicKey = Cks05PublicKey::new(&y,&h);
 
                 for i in 0..shares.len() {
-                    privateKeys.push(DlPrivateKey::CKS05(Cks05PrivateKey::new(i+1, &shares[i], &publicKey)))
+                    privateKeys.push(DlPrivateKey::CKS05(Cks05PrivateKey::new((i+1) as u32, &shares[i], &publicKey)))
                 }
 
                 return privateKeys;

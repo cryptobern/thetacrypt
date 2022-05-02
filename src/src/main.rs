@@ -20,7 +20,6 @@ use crate::util::*;
 
 use std::fmt::Write;
 
-mod bigint;
 mod dl_schemes;
 mod interface;
 mod util;

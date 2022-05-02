@@ -3,7 +3,6 @@ extern crate proc_macro;
 use crate::proc_macro::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
-use syn::Ident;
 
 #[proc_macro_derive(PublicKey)]
 pub fn public_key_derive(input:TokenStream) -> TokenStream {
@@ -34,7 +33,7 @@ pub fn private_key_derive(input:TokenStream) -> TokenStream {
         impl #impl_generics crate::interface::PrivateKey for #name #ty_generics #where_clause {
             type TPubKey = #public_key_name #ty_generics;
 
-            fn get_id(&self) -> usize {
+            fn get_id(&self) -> u32 {
                 self.id
             }
 
@@ -57,8 +56,6 @@ pub fn serializable_derive(input:TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let expanded = quote! {
-        impl #impl_generics crate::interface::PublicKey for #name #ty_generics #where_clause {}
-
         impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
     };
 
@@ -74,7 +71,7 @@ pub fn share_derive(input:TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #impl_generics Share for #name #ty_generics #where_clause {
-            fn get_id(&self) -> usize { self.id.clone() }
+            fn get_id(&self) -> u32 { self.id.clone() }
         }
 
         impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
@@ -117,6 +114,38 @@ pub fn ciphertext_derive(input:TokenStream) -> TokenStream {
         }
 
         impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(AsnSequenceTag)]
+pub fn derive_asntag_sequence(input:TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let generics = input.generics;
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let expanded = quote! {
+        impl #impl_generics AsnType for #name #ty_generics #where_clause {
+            const TAG: rasn::Tag = Tag::SEQUENCE;
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(AsnBitstringTag)]
+pub fn derive_asntag_bitstring(input:TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let generics = input.generics;
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    
+    let expanded = quote! {
+        impl #impl_generics AsnType for #name #ty_generics #where_clause {
+            const TAG: rasn::Tag = Tag::BITSTRING;
+        }
     };
 
     TokenStream::from(expanded)

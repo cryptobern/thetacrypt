@@ -9,7 +9,7 @@ pub trait PublicKey:
 pub trait PrivateKey:
     Serializable {
     type TPubKey: PublicKey;
-    fn get_id(&self) -> usize;
+    fn get_id(&self) -> u32;
     fn get_public_key(&self) -> Self::TPubKey;
 }
 
@@ -20,17 +20,18 @@ pub trait Ciphertext:
 }
 pub trait Share:
     Serializable {
-    fn get_id(&self) -> usize;
+    fn get_id(&self) -> u32;
 }
 
 pub trait Serializable:
     Sized
     + Encode
-    + Decode {
-    fn encode(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
+    + Decode
+    + PartialEq {
+    fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
         encode(self)
     }
-    fn decode(bytes: Vec<u8>) -> Result<Self, rasn::ber::de::Error>  {
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, rasn::ber::de::Error>  {
         decode(&bytes)
     }
 }
