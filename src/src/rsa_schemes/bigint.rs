@@ -30,6 +30,12 @@ pub struct BigInt {
     value: MaybeUninit<mpz_t>
 }
 
+impl PartialEq for BigInt {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(&other) == 0
+    }
+}
+
 impl BigInt {
 
     pub fn new() -> Self {
@@ -110,6 +116,13 @@ impl BigInt {
         } 
         
         x
+    }
+
+    pub fn cmp(&self, y: &Self) -> i32 {
+        unsafe {
+            let res = gmp::mpz_cmp(self.value.as_ptr(), y.value.as_ptr());
+            res
+        }
     }
 
     pub fn set(&mut self, y: &Self) {

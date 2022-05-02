@@ -11,7 +11,7 @@ use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
 
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
@@ -38,9 +38,23 @@ impl<PE:PairingEngine> Decode for Bz03PublicKey<PE> {
     }
 }
 
+impl<PE:PairingEngine> PartialEq for Bz03PublicKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        for k1 in self.verificationKey.clone() {
+            for k2 in other.verificationKey.clone() {
+                if !k1.equals(&k2) {
+                    return false;
+                }
+            }
+        }
+
+        self.y.equals(&other.y)
+    }
+}
+
 #[derive(Clone, PrivateKey, AsnType)]
 pub struct Bz03PrivateKey<PE: PairingEngine> {
-    id: usize,
+    id: u32,
     xi: BigImpl,
     pubkey: Bz03PublicKey<PE>
 }
@@ -57,9 +71,15 @@ impl<PE:PairingEngine> Decode for Bz03PrivateKey<PE> {
     }
 }
 
+impl<PE:PairingEngine> PartialEq for Bz03PrivateKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
+    }
+}
+
 #[derive(Clone, Share, DlShare, AsnType)]
 pub struct Bz03DecryptionShare<G: DlGroup> {
-    id: usize,
+    id: u32,
     data: G
 }
 
@@ -72,6 +92,12 @@ impl<G:DlGroup> Encode for Bz03DecryptionShare<G> {
 impl<G:DlGroup> Decode for Bz03DecryptionShare<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         todo!()
+    }
+}
+
+impl<G:DlGroup> PartialEq for Bz03DecryptionShare<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.data == other.data
     }
 }
 
@@ -96,6 +122,12 @@ impl<PE:PairingEngine> Decode for Bz03Ciphertext<PE> {
     }
 }
 
+impl<PE:PairingEngine> PartialEq for Bz03Ciphertext<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label && self.msg == other.msg && self.c_k == other.c_k && self.u == other.u && self.hr == other.hr
+    }
+}
+
 pub struct Bz03ThresholdCipher<PE: PairingEngine> {
     g: PE
 }
@@ -104,7 +136,7 @@ pub struct Bz03Params {
 }
 
 impl<PE:PairingEngine> Bz03PrivateKey<PE> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &Bz03PublicKey<PE>) -> Self {
+    pub fn new(id: u32, xi: &BigImpl, pubkey: &Bz03PublicKey<PE>) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
     }
 }
@@ -155,7 +187,7 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
     }
 
     fn verify_share(share: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool {
-        PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1)])
+        PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1) as usize])
     }
 
     fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _params: &mut ThresholdCipherParams) -> Self::TShare {

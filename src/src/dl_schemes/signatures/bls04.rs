@@ -8,7 +8,7 @@ use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
 
 use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature, Serializable, ThresholdSignatureParams}, unwrap_keys, rand::RNG};
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
 pub struct Bls04ThresholdSignature<PE: PairingEngine> {
     g: PE
@@ -16,7 +16,7 @@ pub struct Bls04ThresholdSignature<PE: PairingEngine> {
 
 #[derive(Clone, AsnType, Share)]
 pub struct Bls04SignatureShare<PE: PairingEngine> {
-    id:usize,
+    id:u32,
     label:Vec<u8>,
     data:PE::G2
 }
@@ -36,6 +36,12 @@ impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
 impl <PE: PairingEngine>  Decode for Bls04SignatureShare<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         todo!()
+    }
+}
+
+impl<PE:PairingEngine> PartialEq for Bls04SignatureShare<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.label == other.label && self.data == other.data
     }
 }
 
@@ -61,7 +67,7 @@ impl <PE: PairingEngine>  Decode for Bls04PublicKey<PE> {
 
 #[derive(Clone, PrivateKey, AsnType)]
 pub struct Bls04PrivateKey<PE: PairingEngine> {
-    id: usize,
+    id: u32,
     xi: BigImpl,
     pubkey: Bls04PublicKey<PE>
 }
@@ -80,14 +86,34 @@ impl <PE: PairingEngine>  Decode for Bls04PrivateKey<PE> {
 
 
 impl<PE:PairingEngine> Bls04PrivateKey<PE> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &Bls04PublicKey<PE>) -> Self {
+    pub fn new(id: u32, xi: &BigImpl, pubkey: &Bls04PublicKey<PE>) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+}
+
+impl<PE:PairingEngine> PartialEq for Bls04PrivateKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
     }
 }
 
 impl<PE:PairingEngine> Bls04PublicKey<PE> {
     pub fn new(y: &PE, verificationKey: &Vec<PE>) -> Self {
         Self {y:y.clone(), verificationKey:verificationKey.clone()}
+    }
+}
+
+impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        for k1 in self.verificationKey.clone() {
+            for k2 in other.verificationKey.clone() {
+                if !k1.equals(&k2) {
+                    return false;
+                }
+            }
+        }
+
+        self.y.equals(&other.y)
     }
 }
 
@@ -113,6 +139,12 @@ impl <PE: PairingEngine>  Decode for Bls04SignedMessage<PE> {
     }
 }
 
+impl<PE:PairingEngine> PartialEq for Bls04SignedMessage<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.msg == other.msg && self.sig == other.sig
+    }
+}
+
 impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
     type TSig = Bls04SignedMessage<PE>;
 
@@ -134,7 +166,7 @@ impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
     }
 
     fn verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool {
-        PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[share.id - 1], &share.data, &PE::new())
+        PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[(share.id - 1) as usize], &share.data, &PE::new())
     }
 
     fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], _pk: &Self::TPubKey) -> Self::TSig {

@@ -11,7 +11,7 @@ use rasn::{AsnType, Encode, Decode};
 use crate::dl_schemes::common::interpolate;
 use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::rand::RNG;
-use crate::{bigint::*, unwrap_keys};
+use crate::{dl_schemes::bigint::*, unwrap_keys};
 use crate::dl_schemes::{DlDomain, DlShare};
 use crate::{
     dl_schemes::dl_groups::{dl_group::DlGroup},
@@ -49,15 +49,29 @@ impl<G: DlGroup> Decode for Cks05PublicKey<G> {
     }
 }
 
+impl<G:DlGroup> PartialEq for Cks05PublicKey<G> {
+    fn eq(&self, other: &Self) -> bool {
+        for k1 in self.verificationKey.clone() {
+            for k2 in other.verificationKey.clone() {
+                if !k1.equals(&k2) {
+                    return false;
+                }
+            }
+        }
+
+        self.y.equals(&other.y) 
+    }
+}
+
 #[derive(AsnType, PrivateKey, Clone)]
 pub struct Cks05PrivateKey<G: DlGroup> {
-    id: usize,
+    id: u32,
     xi: BigImpl,
     pubkey: Cks05PublicKey<G>,
 }
 
 impl<G: DlGroup> Cks05PrivateKey<G> {
-    pub fn new(id: usize, xi: &BigImpl, pubkey: &Cks05PublicKey<G>) -> Self {
+    pub fn new(id: u32, xi: &BigImpl, pubkey: &Cks05PublicKey<G>) -> Self {
         Self {
             id,
             xi: xi.clone(),
@@ -78,9 +92,15 @@ impl<G: DlGroup> Decode for Cks05PrivateKey<G> {
     }
 }
 
+impl<G: DlGroup> PartialEq for Cks05PrivateKey<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
+    }
+}
+
 #[derive(Share, DlShare, AsnType, Clone)]
 pub struct Cks05CoinShare<G: DlGroup> {
-    id: usize,
+    id: u32,
     data: G,
     c: BigImpl,
     z: BigImpl,
@@ -95,6 +115,12 @@ impl<G: DlGroup> Encode for Cks05CoinShare<G> {
 impl<G: DlGroup> Decode for Cks05CoinShare<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         todo!()
+    }
+}
+
+impl<G: DlGroup> PartialEq for Cks05CoinShare<G> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.data == other.data && self.c == other.c && self.z == other.z
     }
 }
 
@@ -122,7 +148,7 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
 
         let c = H1(
             &G::new(),
-            &sk.pubkey.verificationKey[sk.id - 1],
+            &sk.pubkey.verificationKey[(sk.id - 1) as usize],
             &h,
             &c_bar,
             &data,
@@ -142,7 +168,7 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         let mut h = G::new();
         h.pow(&share.z);
 
-        let mut rhs = pk.verificationKey[share.id -1].clone();
+        let mut rhs = pk.verificationKey[(share.id -1) as usize].clone();
         rhs.pow(&share.c);
 
         h.div(&rhs);
@@ -157,7 +183,7 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
 
         let c = H1(
             &G::new(),
-            &pk.verificationKey[share.id - 1],
+            &pk.verificationKey[(share.id - 1) as usize],
             &h,
             &c_bar,
             &share.data,

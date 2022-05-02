@@ -1,11 +1,32 @@
+use derive::Serializable;
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
+use rasn::{AsnType, Encode, Decode, Encoder, types::BitString, de::Error};
+use crate::{dl_schemes::bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 
 use super::{pairing::PairingEngine};
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
+#[derive(AsnType, Debug, Serializable)]
 pub struct Ed25519 {
     value: ECP
+}
+
+impl Encode for Ed25519 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Ed25519 {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        Ok(Self::from_bytes(&bytes))
+    }
 }
 
 impl PairingEngine for Ed25519 {
@@ -107,8 +128,39 @@ impl DlGroup for Ed25519 {
     }
 }
 
+impl PartialEq for Ed25519 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
+}
+
+#[derive(AsnType, Debug, Serializable)]
 pub struct Ed25519BIG {
     value: BIG
+}
+
+impl Encode for Ed25519BIG {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Ed25519BIG {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+
+        let val = Self::from_bytes(&bytes);
+
+        match val {
+            BigImpl::Ed25519(x) => Ok(x),
+            _ => panic!("Wrong type after deserializing big integer") // TODO: Change this
+        }
+    }
 }
 
 impl BigInt for Ed25519BIG {
@@ -224,6 +276,12 @@ impl BigInt for Ed25519BIG {
         } else {
             false
         }  
+    }
+}
+
+impl PartialEq for Ed25519BIG {
+    fn eq(&self, other: &Self) -> bool {
+        self.equals(&BigImpl::Ed25519(other.clone()))
     }
 }
 

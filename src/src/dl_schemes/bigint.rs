@@ -2,12 +2,15 @@ use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
+use rasn::AsnType;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
+use crate::interface::Serializable;
 use crate::rand::RNG;
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
     Sized 
+    + Serializable
     + Clone
     + 'static {
     type DataType;
@@ -31,10 +34,22 @@ pub trait BigInt:
     fn equals(&self, y: &BigImpl) -> bool;
 }
 
+#[derive(Debug)]
 pub enum BigImpl {
     Bls12381(Bls12381BIG),
     Bn254(Bn254BIG),
     Ed25519(Ed25519BIG)
+}
+
+impl PartialEq for BigImpl{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bls12381(l0), Self::Bls12381(r0)) => l0.equals(&BigImpl::Bls12381(r0.clone())),
+            (Self::Bn254(l0), Self::Bn254(r0)) => l0.equals(&BigImpl::Bn254(r0.clone())),
+            (Self::Ed25519(l0), Self::Ed25519(r0)) => l0.equals(&BigImpl::Ed25519(r0.clone())),
+            _ => false
+        }
+    }
 }
 
 impl BigImpl {

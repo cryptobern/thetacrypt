@@ -1,10 +1,37 @@
+use derive::Serializable;
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::ECP, ecp2::ECP2, fp12::FP12, pair, rom}};
-use crate::{bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
+use rasn::{Encode, Decode, AsnType, Encoder, types::BitString};
+use crate::{dl_schemes::bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 use crate::dl_schemes::dl_groups::pairing::*;
-use crate::bigint::*;
+use crate::dl_schemes::bigint::*;
 
+#[derive(AsnType, Debug, Serializable)]
 pub struct Bn254 {
     value: ECP
+}
+
+impl Encode for Bn254 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bn254 {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        Ok(Self::from_bytes(&bytes))
+    }
+}
+
+impl PartialEq for Bn254 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
 }
 
 impl PairingEngine for Bn254 {
@@ -107,8 +134,27 @@ impl DlGroup for Bn254 {
     }
 }
 
+#[derive(AsnType, Debug, Serializable)]
 pub struct Bn254ECP2 {
     value: ECP2
+}
+
+impl Encode for Bn254ECP2 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bn254ECP2 {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        Ok(Self::from_bytes(&bytes))
+    }
 }
 
 impl DlGroup for Bn254ECP2 {
@@ -190,8 +236,33 @@ impl DlGroup for Bn254ECP2 {
     }
 }
 
+#[derive(AsnType, Debug, Serializable)]
 pub struct Bn254FP12 {
     value: FP12
+}
+
+impl Encode for Bn254FP12 {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bn254FP12 {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        Ok(Self::from_bytes(&bytes))
+    }
+}
+
+impl PartialEq for Bn254FP12 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
 }
 
 impl DlGroup for Bn254FP12 {
@@ -295,8 +366,45 @@ impl Clone for Bn254ECP2 {
     }
 }
 
+impl PartialEq for Bn254ECP2 {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.equals(&other.value)
+    }
+}
+
+#[derive(Debug, AsnType, Serializable)]
 pub struct Bn254BIG {
     value: BIG
+}
+
+impl Encode for Bn254BIG {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for Bn254BIG {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+
+        let val = Self::from_bytes(&bytes);
+
+        match val {
+            BigImpl::Bn254(x) => Ok(x),
+            _ => panic!("Wrong type after deserializing big integer") // TODO: Change this
+        }
+    }
+}
+
+impl PartialEq for Bn254BIG {
+    fn eq(&self, other: &Self) -> bool {
+        self.equals(&BigImpl::Bn254(other.clone()))
+    }
 }
 
 impl BigInt for Bn254BIG {
