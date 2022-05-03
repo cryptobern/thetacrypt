@@ -1,0 +1,23 @@
+[package]
+name = "protocols"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cosmos_crypto = {path = "../", version = "0.1.0"}
+tonic = "0.7"
+prost = "0.10"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+mcore = {path="../mcore", version="0.1.0", features=["std"]}
+rand = "0.8.5"
+
+[build-dependencies]
+tonic-build = "0.7"
+
+# [[bin]]
+# name = "server"
+# path = "src/server.rs"
+
+# [[bin]] 
+# name = "client"
+# path = "src/client.rs"

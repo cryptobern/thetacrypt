@@ -1,0 +1,27 @@
+syntax = "proto3";
+package requests;
+
+service ThresholdProtocol {
+    rpc decrypt (ThresholdDecryptionRequest) returns (ThresholdDecryptionResponse);
+}
+
+message ThresholdDecryptionRequest {
+    ThresholdCipher algorithm = 1;
+    DlGroup dl_group = 2;
+    bytes ciphertext = 3;
+}
+
+message ThresholdDecryptionResponse {
+    bytes label = 1;
+}
+
+enum ThresholdCipher {
+  Bz02 = 0;
+  Sg02 = 1;
+}
+
+enum DlGroup {
+  Bls12381 = 0;
+}
+
+
