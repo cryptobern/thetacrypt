@@ -5,26 +5,21 @@
 
 use std::time::Instant;
 
-use crate::dl_schemes::ciphers::sg02::Sg02ThresholdCipher;
-use crate::dl_schemes::coins::cks05::Cks05ThresholdCoin;
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
-use crate::dl_schemes::{
+use cosmos_crypto::dl_schemes::ciphers::sg02::Sg02ThresholdCipher;
+use cosmos_crypto::dl_schemes::coins::cks05::Cks05ThresholdCoin;
+use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
+use cosmos_crypto::dl_schemes::{
     ciphers::bz03::Bz03ThresholdCipher, dl_groups::bls12381::Bls12381,
     signatures::bls04::Bls04ThresholdSignature,
 };
 
-use crate::interface::*;
-use crate::rand::{RngAlgorithm, RNG};
-use crate::rsa_schemes::signatures::sh00::{Sh00ThresholdSignature};
-use crate::util::*;
+use cosmos_crypto::interface::*;
+use cosmos_crypto::rand::{RngAlgorithm, RNG};
+use cosmos_crypto::rsa_schemes::signatures::sh00::{Sh00ThresholdSignature};
+use cosmos_crypto::util::*;
 
 use std::fmt::Write;
 
-mod dl_schemes;
-mod interface;
-mod util;
-mod rsa_schemes;
-mod rand;
 
 fn main() {
     const K: usize = 3; // threshold

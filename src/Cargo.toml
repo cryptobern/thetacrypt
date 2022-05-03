@@ -20,3 +20,4 @@ derive = { path="derive", version = "0.1.0" }
 std = []
 
 [workspace]
+members = ["derive", "protocols"]
