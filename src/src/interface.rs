@@ -31,8 +31,8 @@ pub trait Serializable:
     fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
         encode(self)
     }
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, rasn::ber::de::Error>  {
-        decode(&bytes)
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, rasn::ber::de::Error>  {
+        decode(bytes)
     }
 }
 
