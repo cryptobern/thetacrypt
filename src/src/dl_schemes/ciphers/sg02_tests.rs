@@ -14,7 +14,7 @@ fn test_public_key_serialization() {
     let secret_key = keys[0].clone();
     let public_key = secret_key.get_public_key();
     let public_key_encoded = public_key.serialize().unwrap();
-    let public_key_decoded = Sg02PublicKey::<Bls12381>::deserialize(public_key_encoded).unwrap();
+    let public_key_decoded = Sg02PublicKey::<Bls12381>::deserialize(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
 }
 
@@ -23,7 +23,7 @@ fn test_secret_key_serialization() {
     let keys = Sg02ThresholdCipher::generate_keys(3, 5, Bls12381::new(), &mut RNG::new(RngAlgorithm::MarsagliaZaman));
     let secret_key = keys[0].clone();
     let secret_key_encoded = secret_key.serialize().unwrap();
-    let secret_key_decoded = Sg02PrivateKey::<Bls12381>::deserialize(secret_key_encoded).unwrap();
+    let secret_key_decoded = Sg02PrivateKey::<Bls12381>::deserialize(&secret_key_encoded).unwrap();
     assert!(secret_key.eq(&secret_key_decoded));
 }
 
@@ -45,7 +45,7 @@ fn test_ciphertext_serialization() {
     let label = b"Label";
     let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label, &keys[0].get_public_key(), &mut params);
     let ciphertext_encoded = ciphertext.serialize().unwrap();
-    let ciphertext_decoded = Sg02Ciphertext::<Bls12381>::deserialize(ciphertext_encoded).unwrap();
+    let ciphertext_decoded = Sg02Ciphertext::<Bls12381>::deserialize(&ciphertext_encoded).unwrap();
     assert!(ciphertext.eq(&ciphertext_decoded));
 }
 
@@ -78,7 +78,7 @@ fn test_share_serialization() {
     let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label, &keys[0].get_public_key(), &mut params);
     let share = Sg02ThresholdCipher::partial_decrypt(&ciphertext,&keys[0], &mut params);
     let share_encoded = share.serialize().unwrap();
-    let share_decoded = Sg02DecryptionShare::<Bls12381>::deserialize(share_encoded).unwrap();
+    let share_decoded = Sg02DecryptionShare::<Bls12381>::deserialize(&share_encoded).unwrap();
     assert!(share.eq(&share_decoded));
 }
 
