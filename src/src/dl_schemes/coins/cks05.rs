@@ -39,27 +39,30 @@ impl<G: DlGroup> Cks05PublicKey<G> {
 
 impl<G: DlGroup> Encode for Cks05PublicKey<G> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.y.encode(sequence)?;
+            self.verificationKey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<G: DlGroup> Decode for Cks05PublicKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let y: G = G::decode(sequence)?;
+            let verificationKey = Vec::<G>::decode(sequence)?;
+
+            Ok(Self{y, verificationKey})
+        })
     }
 }
 
 impl<G:DlGroup> PartialEq for Cks05PublicKey<G> {
     fn eq(&self, other: &Self) -> bool {
-        for k1 in self.verificationKey.clone() {
-            for k2 in other.verificationKey.clone() {
-                if !k1.equals(&k2) {
-                    return false;
-                }
-            }
-        }
-
-        self.y.equals(&other.y) 
+        self.verificationKey.eq(&other.verificationKey) &&  self.y.equals(&other.y) 
     }
 }
 
@@ -82,13 +85,27 @@ impl<G: DlGroup> Cks05PrivateKey<G> {
 
 impl<G: DlGroup> Encode for Cks05PrivateKey<G> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.xi.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<G: DlGroup> Decode for Cks05PrivateKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = Cks05PublicKey::<G>::decode(sequence)?;
+            let xi = G::BigInt::from_bytes(&xi_bytes);
+
+            Ok(Self {id, xi, pubkey})
+        })
     }
 }
 
@@ -108,19 +125,36 @@ pub struct Cks05CoinShare<G: DlGroup> {
 
 impl<G: DlGroup> Encode for Cks05CoinShare<G> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.data.encode(sequence)?;
+            self.c.to_bytes().encode(sequence)?;
+            self.z.to_bytes().encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<G: DlGroup> Decode for Cks05CoinShare<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let data = G::decode(sequence)?;
+            let c_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let z_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+
+            let c = G::BigInt::from_bytes(&c_bytes);
+            let z = G::BigInt::from_bytes(&z_bytes);
+            Ok(Self {id, data, c, z})
+        })
     }
 }
 
 impl<G: DlGroup> PartialEq for Cks05CoinShare<G> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.data == other.data && self.c == other.c && self.z == other.z
+        self.id == other.id && self.data.equals(&other.data) && self.c.equals(&other.c) && self.z.equals(&other.z)
     }
 }
 

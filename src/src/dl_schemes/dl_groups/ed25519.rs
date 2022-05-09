@@ -1,6 +1,6 @@
 use derive::Serializable;
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}};
-use rasn::{AsnType, Encode, Decode, Encoder, types::BitString, de::Error};
+use rasn::{AsnType, Encode, Decode, Encoder, types::BitString};
 use crate::{dl_schemes::bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
 
 use super::{pairing::PairingEngine};
