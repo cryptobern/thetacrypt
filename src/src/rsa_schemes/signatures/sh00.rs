@@ -26,19 +26,37 @@ impl Sh00PublicKey {
 
 impl Encode for Sh00PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.N.encode(sequence)?;
+            self.e.encode(sequence)?;
+            self.verificationKey.encode(sequence)?;
+            self.delta.encode(sequence)?;
+            self.modbits.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let N = BigInt::decode(sequence)?;
+            let e = BigInt::decode(sequence)?;
+            let verificationKey = Sh00VerificationKey::decode(sequence)?;
+            let delta = usize::decode(sequence)?;
+            let modbits = usize::decode(sequence)?;
+
+            Ok(Self{N, e, verificationKey, delta, modbits})
+        })
     }
 }
 
 impl PartialEq for Sh00PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.N == other.N && self.e == other.e && self.verificationKey == other.verificationKey && self.delta == other.delta && self.modbits == other.modbits
+        self.N.equals(&other.N) && self.e.equals(&other.e) && self.verificationKey.eq(&other.verificationKey) 
+        && self.delta == other.delta && self.modbits == other.modbits
     }
 }
 
@@ -61,19 +79,36 @@ impl Sh00PrivateKey {
 
 impl Encode for Sh00PrivateKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.m.to_bytes().encode(sequence)?;
+            self.si.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let mut m_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let mut si_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = Sh00PublicKey::decode(sequence)?;
+
+            let m = BigInt::from_bytes(&mut m_bytes);
+            let si = BigInt::from_bytes(&mut si_bytes);
+            Ok(Self {id, m, si, pubkey})
+        })
     }
 }
 
 impl PartialEq for Sh00PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.m == other.m && self.si == other.si && self.pubkey == other.pubkey
+        self.id == other.id && self.m.equals(&other.m) && self.si.equals(&other.si) && self.pubkey.eq(&other.pubkey)
     }
 }
 
@@ -98,13 +133,37 @@ impl Sh00SignatureShare {
 
 impl Encode for Sh00SignatureShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.label.encode(sequence)?;
+            self.xi.encode(sequence)?;
+            self.z.encode(sequence)?;
+            self.c.encode(sequence)?;
+            Ok(())
+        })?;
+
+        println!("id: {} xi: {} z: {} c: {}", self.id, self.xi.to_string(), self.z.to_string(), self.c.to_string());
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00SignatureShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            println!("id ok");
+            let label = Vec::<u8>::decode(sequence)?;
+            println!("label ok");
+            let xi = BigInt::decode(sequence)?;
+            println!("xi ok");
+            let z = BigInt::decode(sequence)?;
+            let c = BigInt::decode(sequence)?;
+
+            println!("id: {} xi: {} z: {} c: {}", id, xi.to_string(), z.to_string(), c.to_string());
+
+            Ok(Self {id, label, xi, z, c})
+        })
     }
 }
 
@@ -161,13 +220,25 @@ impl Sh00VerificationKey {
 
 impl Encode for Sh00VerificationKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.v.encode(sequence)?;
+            self.vi.encode(sequence)?;
+            self.u.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00VerificationKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let v = BigInt::decode(sequence)?;
+            let vi = Vec::<BigInt>::decode(sequence)?;
+            let u = BigInt::decode(sequence)?;
+            Ok(Self {v, vi, u})
+        })
     }
 }
 

@@ -1,8 +1,10 @@
 use std::mem::MaybeUninit;
 
+use derive::Serializable;
 use gmp_mpfr_sys::gmp::{mpz_t, self};
 use hex::FromHex;
 use mcore::rand::RAND;
+use rasn::{Encode, AsnType, Encoder, Decode};
 use std::ffi::CStr;
 use std::fmt::Write;
 
@@ -26,8 +28,23 @@ use crate::rand::RNG;
     };
 }
 
+#[derive(Serializable, AsnType)]
 pub struct BigInt {
     value: MaybeUninit<mpz_t>
+}
+
+impl Encode for BigInt {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        self.to_bytes().encode(encoder)?;
+        Ok(())
+    }
+}
+
+impl Decode for BigInt {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        let mut bytes = Vec::<u8>::decode(decoder)?;
+        Ok(BigInt::from_bytes(&mut bytes))
+    }
 }
 
 impl PartialEq for BigInt {
@@ -37,7 +54,6 @@ impl PartialEq for BigInt {
 }
 
 impl BigInt {
-
     pub fn new() -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
@@ -194,7 +210,6 @@ impl BigInt {
             Self { value: z }
         }
     }
-
 
     pub fn pow(&self, y: u64) -> Self {
         unsafe {
