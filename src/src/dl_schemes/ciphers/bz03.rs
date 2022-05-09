@@ -28,27 +28,30 @@ pub struct Bz03PublicKey<PE: PairingEngine> {
 
 impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.y.encode(sequence)?;
+            self.verificationKey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<PE:PairingEngine> Decode for Bz03PublicKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let y = PE::G2::decode(sequence)?;
+            let verificationKey = Vec::<PE>::decode(sequence)?;
+
+            Ok(Self{y, verificationKey})
+        })
     }
 }
 
 impl<PE:PairingEngine> PartialEq for Bz03PublicKey<PE> {
     fn eq(&self, other: &Self) -> bool {
-        for k1 in self.verificationKey.clone() {
-            for k2 in other.verificationKey.clone() {
-                if !k1.equals(&k2) {
-                    return false;
-                }
-            }
-        }
-
-        self.y.equals(&other.y)
+        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
     }
 }
 
@@ -61,13 +64,27 @@ pub struct Bz03PrivateKey<PE: PairingEngine> {
 
 impl<PE:PairingEngine> Encode for Bz03PrivateKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.xi.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<PE:PairingEngine> Decode for Bz03PrivateKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = Bz03PublicKey::<PE>::decode(sequence)?;
+            let xi = PE::BigInt::from_bytes(&xi_bytes);
+
+            Ok(Self {id, xi, pubkey})
+        })
     }
 }
 
@@ -85,13 +102,23 @@ pub struct Bz03DecryptionShare<G: DlGroup> {
 
 impl<G:DlGroup> Encode for Bz03DecryptionShare<G> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.data.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<G:DlGroup> Decode for Bz03DecryptionShare<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let data = G::decode(sequence)?;
+            Ok(Self {id, data})
+        })
     }
 }
 
@@ -112,13 +139,30 @@ pub struct Bz03Ciphertext<PE: PairingEngine> {
 
 impl<PE:PairingEngine> Encode for Bz03Ciphertext<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.label.encode(sequence)?;
+            self.msg.encode(sequence)?;
+            self.c_k.encode(sequence)?;
+            self.u.encode(sequence)?;
+            self.hr.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl<PE:PairingEngine> Decode for Bz03Ciphertext<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let label:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let u = PE::G2::decode(sequence)?;
+            let hr = PE::decode(sequence)?;
+
+            Ok(Self {label, msg, u, c_k, hr})
+        })
     }
 }
 

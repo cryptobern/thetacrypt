@@ -4,3 +4,4 @@ pub mod ed25519;
 pub mod dl_group;
 pub mod pairing;
 
+pub mod bls12381_tests;
