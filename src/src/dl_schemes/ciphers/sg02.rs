@@ -41,32 +41,34 @@ pub struct Sg02PublicKey<G: DlGroup> {
 
 impl <G:DlGroup> Encode for Sg02PublicKey<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        self.y.encode(encoder)?;
-        self.verificationKey.encode(encoder)?;
-        self.g_bar.encode(encoder)?;
+        encoder.encode_sequence(tag, |sequence| {
+            self.y.encode(sequence)?;
+            self.verificationKey.encode(sequence)?;
+            self.g_bar.encode(sequence)?;
+            Ok(())
+        })?;
+
+
         Ok(())
     }
 }
 
 impl <G:DlGroup> Decode for Sg02PublicKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        let y: G = G::decode(decoder)?;
-        let verificationKey = Vec::<G>::decode(decoder)?;
-        let g_bar = G::decode(decoder)?;
+        decoder.decode_sequence(tag, |sequence| {
+            let y: G = G::decode(sequence)?;
+            let verificationKey = Vec::<G>::decode(sequence)?;
+            let g_bar = G::decode(sequence)?;
 
-        Ok(Self{y, verificationKey, g_bar})
+            Ok(Self{y, verificationKey, g_bar})
+        })
     }
 }
 
 impl<G:DlGroup> PartialEq for Sg02PublicKey<G> {
     fn eq(&self, other: &Self) -> bool {
-        for i in 0..self.verificationKey.len() {
-            if !self.verificationKey[i].equals(&other.verificationKey[i]) {
-                return false;
-            }
-        }
-
-        self.y.equals(&other.y)  && self.g_bar.equals(&other.g_bar)
+        self.verificationKey.eq(&other.verificationKey) && self.y.equals(&other.y)  
+        && self.g_bar.equals(&other.g_bar)
     }
 }
 
@@ -128,14 +130,14 @@ pub struct Sg02Ciphertext<G: DlGroup> {
 
 impl <G:DlGroup> Encode for Sg02Ciphertext<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |encoder| {
-            self.label.encode(encoder)?;
-            self.msg.encode(encoder)?;
-            self.u.encode(encoder)?;
-            self.u_bar.encode(encoder)?;
-            self.e.to_bytes().encode(encoder)?;
-            self.f.to_bytes().encode(encoder)?;
-            self.c_k.encode(encoder)?;
+        encoder.encode_sequence(tag, |sequence| {
+            self.label.encode(sequence)?;
+            self.msg.encode(sequence)?;
+            self.u.encode(sequence)?;
+            self.u_bar.encode(sequence)?;
+            self.e.to_bytes().encode(sequence)?;
+            self.f.to_bytes().encode(sequence)?;
+            self.c_k.encode(sequence)?;
             Ok(())
         })?;
 
@@ -187,12 +189,12 @@ impl<G: DlGroup> Sg02PublicKey<G> {
 
 impl<G:DlGroup> Encode for Sg02DecryptionShare<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |encoder| {
-            self.id.encode(encoder)?;
-            self.label.encode(encoder)?;
-            self.data.encode(encoder)?;
-            self.ei.to_bytes().encode(encoder)?;
-            self.fi.to_bytes().encode(encoder)?;
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.label.encode(sequence)?;
+            self.data.encode(sequence)?;
+            self.ei.to_bytes().encode(sequence)?;
+            self.fi.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
