@@ -14,38 +14,6 @@ pub struct Bls04ThresholdSignature<PE: PairingEngine> {
     g: PE
 }
 
-#[derive(Clone, AsnType, Share)]
-pub struct Bls04SignatureShare<PE: PairingEngine> {
-    id:u32,
-    label:Vec<u8>,
-    data:PE::G2
-}
-
-impl <PE:PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
-    fn get_data(&self) -> PE::G2 {
-        self.data.clone()
-    }
-}
-
-impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
-    }
-}
-
-impl <PE: PairingEngine>  Decode for Bls04SignatureShare<PE> {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
-    }
-}
-
-impl<PE:PairingEngine> PartialEq for Bls04SignatureShare<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.label == other.label && self.data == other.data
-    }
-}
-
-
 #[derive(Clone, AsnType, PublicKey)]
 pub struct Bls04PublicKey<PE: PairingEngine> {
     y: PE,
@@ -54,13 +22,24 @@ pub struct Bls04PublicKey<PE: PairingEngine> {
 
 impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.y.encode(sequence)?;
+            self.verificationKey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl <PE: PairingEngine>  Decode for Bls04PublicKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let y = PE::decode(sequence)?;
+            let verificationKey = Vec::<PE>::decode(sequence)?;
+
+            Ok(Self{y, verificationKey})
+        })
     }
 }
 
@@ -74,13 +53,27 @@ pub struct Bls04PrivateKey<PE: PairingEngine> {
 
 impl <PE: PairingEngine> Encode for Bls04PrivateKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.xi.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl <PE: PairingEngine>  Decode for Bls04PrivateKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = Bls04PublicKey::<PE>::decode(sequence)?;
+            let xi = PE::BigInt::from_bytes(&xi_bytes);
+
+            Ok(Self {id, xi, pubkey})
+        })
     }
 }
 
@@ -105,15 +98,50 @@ impl<PE:PairingEngine> Bls04PublicKey<PE> {
 
 impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
     fn eq(&self, other: &Self) -> bool {
-        for k1 in self.verificationKey.clone() {
-            for k2 in other.verificationKey.clone() {
-                if !k1.equals(&k2) {
-                    return false;
-                }
-            }
-        }
+        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
+    }
+}
 
-        self.y.equals(&other.y)
+#[derive(Clone, AsnType, Share)]
+pub struct Bls04SignatureShare<PE: PairingEngine> {
+    id:u32,
+    label:Vec<u8>,
+    data:PE::G2
+}
+
+impl <PE:PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
+    fn get_data(&self) -> PE::G2 {
+        self.data.clone()
+    }
+}
+
+impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.label.encode(sequence)?;
+            self.data.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl <PE: PairingEngine>  Decode for Bls04SignatureShare<PE> {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u32::decode(sequence)?;
+            let label = Vec::<u8>::decode(sequence)?;
+            let data = PE::G2::decode(sequence)?;
+            Ok(Self {id, label, data})
+        })
+    }
+}
+
+impl<PE:PairingEngine> PartialEq for Bls04SignatureShare<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.label == other.label && self.data == other.data
     }
 }
 
@@ -129,13 +157,24 @@ impl<PE: PairingEngine> Bls04SignedMessage<PE> {
 
 impl <PE: PairingEngine> Encode for Bls04SignedMessage<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.msg.encode(sequence)?;
+            self.sig.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl <PE: PairingEngine>  Decode for Bls04SignedMessage<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let sig = PE::G2::decode(sequence)?;
+
+            Ok(Self {msg, sig})
+        })
     }
 }
 
