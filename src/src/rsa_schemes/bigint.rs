@@ -49,7 +49,7 @@ impl Decode for BigInt {
 
 impl PartialEq for BigInt {
     fn eq(&self, other: &Self) -> bool {
-        self.cmp(&other) == 0
+        self.equals(&other)
     }
 }
 
@@ -248,9 +248,7 @@ impl BigInt {
     }
 
     pub fn equals(&self, y:&Self) -> bool {
-        unsafe {
-            gmp::mpz_cmp(self.value.as_ptr(), y.value.as_ptr()) == 0
-        }
+        self.cmp(&y) == 0
     }
 
     pub fn imul(&self, i: isize) -> Self {
@@ -318,6 +316,7 @@ impl BigInt {
         if s.len() % 2 == 1 {
             s.insert(0, '0');
         }
+
         Vec::from_hex(s).expect("Invalid hex string")
     }
 

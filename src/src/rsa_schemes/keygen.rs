@@ -65,7 +65,7 @@ impl RsaKeyGenerator {
                 }
 
                 let verificationKey = Sh00VerificationKey::new(v, vi, u);
-                let pubkey = Sh00PublicKey::new(N,  e.clone(), verificationKey, delta, MODSIZE);
+                let pubkey = Sh00PublicKey::new(k as u32, N,  e.clone(), verificationKey, delta, MODSIZE);
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {

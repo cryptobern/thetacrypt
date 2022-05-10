@@ -24,13 +24,15 @@ pub struct Cks05ThresholdCoin<G: DlGroup> {
 
 #[derive(AsnType, PublicKey, Clone)]
 pub struct Cks05PublicKey<G: DlGroup> {
+    t: u32,
     y: G,
     verificationKey: Vec<G>
 }
 
 impl<G: DlGroup> Cks05PublicKey<G> {
-    pub fn new(y: &G, verificationKey: &Vec<G>) -> Self {
+    pub fn new(t:u32, y: &G, verificationKey: &Vec<G>) -> Self {
         Self {
+            t: t.clone(),
             y: y.clone(),
             verificationKey: verificationKey.clone()
         }
@@ -40,6 +42,7 @@ impl<G: DlGroup> Cks05PublicKey<G> {
 impl<G: DlGroup> Encode for Cks05PublicKey<G> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.t.encode(sequence)?;
             self.y.encode(sequence)?;
             self.verificationKey.encode(sequence)?;
             Ok(())
@@ -52,10 +55,11 @@ impl<G: DlGroup> Encode for Cks05PublicKey<G> {
 impl<G: DlGroup> Decode for Cks05PublicKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let t = u32::decode(sequence)?;
             let y: G = G::decode(sequence)?;
             let verificationKey = Vec::<G>::decode(sequence)?;
 
-            Ok(Self{y, verificationKey})
+            Ok(Self{t, y, verificationKey})
         })
     }
 }

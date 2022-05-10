@@ -61,7 +61,7 @@ impl DlKeyGenerator {
 
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
-                let publicKey = Bz03PublicKey::new(&y, &h );
+                let publicKey = Bz03PublicKey::new(k as u32, &y, &h );
 
                 for i in 0..shares.len() {
                     privateKeys.push(DlPrivateKey::BZ03(Bz03PrivateKey::new((i+1) as u32, &shares[i], &publicKey)))
@@ -79,7 +79,7 @@ impl DlKeyGenerator {
 
                 let g_bar = D::new_rand(rng);
 
-                let publicKey = Sg02PublicKey::new(&y,&h, &g_bar );
+                let publicKey = Sg02PublicKey::new(k as u32, &y,&h, &g_bar );
 
                 for i in 0..shares.len() {
                     privateKeys.push(DlPrivateKey::SG02(Sg02PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &publicKey)))
@@ -95,7 +95,7 @@ impl DlKeyGenerator {
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
 
-                let publicKey = Bls04PublicKey::new(&y, &h);
+                let publicKey = Bls04PublicKey::new(k as u32, &y, &h);
 
                 for i in 0..shares.len() {
                     privateKeys.push(DlPrivateKey::BLS04(Bls04PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &publicKey)))
@@ -111,7 +111,7 @@ impl DlKeyGenerator {
                 let (shares, h): (Vec<BigImpl>, Vec<D>) = shamir_share(&x, k, n, rng);
                 let mut privateKeys = Vec::new();
 
-                let publicKey = Cks05PublicKey::new(&y,&h);
+                let publicKey = Cks05PublicKey::new(k as u32, &y,&h);
 
                 for i in 0..shares.len() {
                     privateKeys.push(DlPrivateKey::CKS05(Cks05PrivateKey::new((i+1) as u32, &shares[i], &publicKey)))
