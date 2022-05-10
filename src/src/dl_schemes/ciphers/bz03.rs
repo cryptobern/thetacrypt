@@ -22,6 +22,7 @@ use crate::{interface::*, unwrap_keys};
 
 #[derive(Clone, PublicKey, AsnType)]
 pub struct Bz03PublicKey<PE: PairingEngine> {
+    t: u32,
     y: PE::G2,
     verificationKey: Vec<PE>
 }
@@ -29,6 +30,7 @@ pub struct Bz03PublicKey<PE: PairingEngine> {
 impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.t.encode(sequence)?;
             self.y.encode(sequence)?;
             self.verificationKey.encode(sequence)?;
             Ok(())
@@ -41,10 +43,11 @@ impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
 impl<PE:PairingEngine> Decode for Bz03PublicKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let t = u32::decode(sequence)?;
             let y = PE::G2::decode(sequence)?;
             let verificationKey = Vec::<PE>::decode(sequence)?;
 
-            Ok(Self{y, verificationKey})
+            Ok(Self{t, y, verificationKey})
         })
     }
 }
@@ -186,8 +189,8 @@ impl<PE:PairingEngine> Bz03PrivateKey<PE> {
 }
 
 impl<PE:PairingEngine> Bz03PublicKey<PE> {
-    pub fn new(y: &PE::G2, verificationKey: &Vec<PE>) -> Self {
-        Self {y:y.clone(), verificationKey:verificationKey.clone()}
+    pub fn new(t: u32, y: &PE::G2, verificationKey: &Vec<PE>) -> Self {
+        Self { t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
     }
 }
 

@@ -4,6 +4,7 @@ use crate::rand::{RNG, RngAlgorithm};
 
 pub trait PublicKey:
     Serializable {
+    fn get_threshold(&self) -> u32;
 }
 
 pub trait PrivateKey:
@@ -11,6 +12,7 @@ pub trait PrivateKey:
     type TPubKey: PublicKey;
     fn get_id(&self) -> u32;
     fn get_public_key(&self) -> Self::TPubKey;
+    fn get_threshold(&self) -> u32;
 }
 
 pub trait Ciphertext:

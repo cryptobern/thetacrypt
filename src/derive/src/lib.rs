@@ -12,7 +12,11 @@ pub fn public_key_derive(input:TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let expanded = quote! {
-        impl #impl_generics crate::interface::PublicKey for #name #ty_generics #where_clause {}
+        impl #impl_generics crate::interface::PublicKey for #name #ty_generics #where_clause {
+            fn get_threshold(&self) -> u32 {
+                self.t
+            }
+        }
 
         impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
     };
@@ -39,6 +43,10 @@ pub fn private_key_derive(input:TokenStream) -> TokenStream {
 
             fn get_public_key(&self) -> Self::TPubKey {
                 self.pubkey.clone()
+            }
+
+            fn get_threshold(&self) -> u32 {
+                self.pubkey.get_threshold()
             }
         }
 

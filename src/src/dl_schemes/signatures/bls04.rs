@@ -16,6 +16,7 @@ pub struct Bls04ThresholdSignature<PE: PairingEngine> {
 
 #[derive(Clone, AsnType, PublicKey)]
 pub struct Bls04PublicKey<PE: PairingEngine> {
+    t: u32,
     y: PE,
     verificationKey:Vec<PE>
 }  
@@ -23,6 +24,7 @@ pub struct Bls04PublicKey<PE: PairingEngine> {
 impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.t.encode(sequence)?;
             self.y.encode(sequence)?;
             self.verificationKey.encode(sequence)?;
             Ok(())
@@ -35,10 +37,11 @@ impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
 impl <PE: PairingEngine>  Decode for Bls04PublicKey<PE> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let t = u32::decode(sequence)?;
             let y = PE::decode(sequence)?;
             let verificationKey = Vec::<PE>::decode(sequence)?;
 
-            Ok(Self{y, verificationKey})
+            Ok(Self{t, y, verificationKey})
         })
     }
 }
@@ -91,8 +94,8 @@ impl<PE:PairingEngine> PartialEq for Bls04PrivateKey<PE> {
 }
 
 impl<PE:PairingEngine> Bls04PublicKey<PE> {
-    pub fn new(y: &PE, verificationKey: &Vec<PE>) -> Self {
-        Self {y:y.clone(), verificationKey:verificationKey.clone()}
+    pub fn new(t:u32, y: &PE, verificationKey: &Vec<PE>) -> Self {
+        Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
     }
 }
 

@@ -7,6 +7,7 @@ use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature, Thresh
 
 #[derive(PublicKey, AsnType, Clone)]
 pub struct Sh00PublicKey {
+    t: u32,
     N: BigInt,
     e: BigInt,
     verificationKey:Sh00VerificationKey,
@@ -15,18 +16,20 @@ pub struct Sh00PublicKey {
 }  
 
 impl Sh00PublicKey {
-    pub fn new(N: BigInt,
+    pub fn new(t:u32,
+        N: BigInt,
         e: BigInt,
         verificationKey:Sh00VerificationKey,
         delta:usize,
         modbits:usize) -> Self {
-        Self {N, e, verificationKey, delta, modbits}
+        Self {t, N, e, verificationKey, delta, modbits}
     }
 }
 
 impl Encode for Sh00PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.t.encode(sequence)?;
             self.N.encode(sequence)?;
             self.e.encode(sequence)?;
             self.verificationKey.encode(sequence)?;
@@ -42,13 +45,14 @@ impl Encode for Sh00PublicKey {
 impl Decode for Sh00PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let t = u32::decode(sequence)?;
             let N = BigInt::decode(sequence)?;
             let e = BigInt::decode(sequence)?;
             let verificationKey = Sh00VerificationKey::decode(sequence)?;
             let delta = usize::decode(sequence)?;
             let modbits = usize::decode(sequence)?;
 
-            Ok(Self{N, e, verificationKey, delta, modbits})
+            Ok(Self{t, N, e, verificationKey, delta, modbits})
         })
     }
 }
@@ -142,8 +146,6 @@ impl Encode for Sh00SignatureShare {
             Ok(())
         })?;
 
-        println!("id: {} xi: {} z: {} c: {}", self.id, self.xi.to_string(), self.z.to_string(), self.c.to_string());
-
         Ok(())
     }
 }
@@ -152,15 +154,10 @@ impl Decode for Sh00SignatureShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
             let id = u32::decode(sequence)?;
-            println!("id ok");
             let label = Vec::<u8>::decode(sequence)?;
-            println!("label ok");
             let xi = BigInt::decode(sequence)?;
-            println!("xi ok");
             let z = BigInt::decode(sequence)?;
             let c = BigInt::decode(sequence)?;
-
-            println!("id: {} xi: {} z: {} c: {}", id, xi.to_string(), z.to_string(), c.to_string());
 
             Ok(Self {id, label, xi, z, c})
         })

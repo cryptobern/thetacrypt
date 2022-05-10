@@ -34,6 +34,7 @@ pub struct Sg02ThresholdCipher<G: DlGroup> {
 
 #[derive(Clone, Debug, PublicKey, AsnType)]
 pub struct Sg02PublicKey<G: DlGroup> {
+    t: u32,
     y: G,
     verificationKey: Vec<G>,
     g_bar: G
@@ -42,6 +43,7 @@ pub struct Sg02PublicKey<G: DlGroup> {
 impl <G:DlGroup> Encode for Sg02PublicKey<G> {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.t.encode(sequence)?;
             self.y.encode(sequence)?;
             self.verificationKey.encode(sequence)?;
             self.g_bar.encode(sequence)?;
@@ -56,11 +58,12 @@ impl <G:DlGroup> Encode for Sg02PublicKey<G> {
 impl <G:DlGroup> Decode for Sg02PublicKey<G> {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let t = u32::decode(sequence)?;
             let y: G = G::decode(sequence)?;
             let verificationKey = Vec::<G>::decode(sequence)?;
             let g_bar = G::decode(sequence)?;
 
-            Ok(Self{y, verificationKey, g_bar})
+            Ok(Self{t, y, verificationKey, g_bar})
         })
     }
 }
@@ -182,8 +185,8 @@ pub struct Sg02DecryptionShare<G: DlGroup>  {
 }
 
 impl<G: DlGroup> Sg02PublicKey<G> {
-    pub fn new(y: &G, verificationKey: &Vec<G>, g_bar:&G) -> Self {
-        Self {y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
+    pub fn new(t: u32, y: &G, verificationKey: &Vec<G>, g_bar:&G) -> Self {
+        Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
     }
 }
 
