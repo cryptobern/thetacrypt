@@ -16,3 +16,6 @@ rasn = "=0.3.1"
 
 [features]
 std = []
+
+[workspace]
+members = ["network", "network_test"]
