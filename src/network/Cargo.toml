@@ -7,3 +7,8 @@ edition = "2021"
 
 [dependencies]
 cosmos_crypto = {path = "../", version = "0.1.0"}
+reqwest = "0.11.10" # reqwest with JSON parsing support
+futures = "0.3.21" # for our async / await blocks
+tokio = { version = "1.12.0", features = ["full"] } # for our async runtime
+# libp2p = "0.44.0"
+# async-std = { version = "1.11.0", features = ["attributes"] }

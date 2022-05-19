@@ -1,23 +1,14 @@
+// use std::error::Error;
+
+// #[tokio::main]
+// pub async fn main() -> Result<(), Box<dyn Error>> {
+//     network::get_addresses();
+
+//     Ok(())
+// }
+
 use reqwest;
 use std::error::Error;
-use serde::Deserialize;
-
-
-#[derive(Deserialize, Debug)]
-struct Peer {
-    node_id: i16,
-    url: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct Response {
-    listening: bool,
-    listeners: Vec<String>,
-    n_peers: i32,
-    peers: Vec<Peer>,
-}
-
-use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
