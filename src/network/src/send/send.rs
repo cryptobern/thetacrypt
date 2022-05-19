@@ -1,4 +1,4 @@
-// use cosmos_crypto::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
+use cosmos_crypto::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
 
 pub struct SendMessage<T> {
     pub from: u32,

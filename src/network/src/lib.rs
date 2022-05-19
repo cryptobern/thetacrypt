@@ -5,3 +5,5 @@ pub fn test() {
 pub fn get_addresses() {
     println!("get addresses...");
 }
+
+mod bla;

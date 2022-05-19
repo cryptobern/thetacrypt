@@ -3,20 +3,15 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use crate::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
-use crate::dl_schemes::coins::cks05::CKS05_ThresholdCoin;
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
-use crate::dl_schemes::{
+use cosmos_crypto::dl_schemes::ciphers::sg02::SG02_ThresholdCipher;
+use cosmos_crypto::dl_schemes::coins::cks05::CKS05_ThresholdCoin;
+use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
+use cosmos_crypto::dl_schemes::{
     ciphers::bz03::BZ03_ThresholdCipher, dl_groups::bls12381::Bls12381,
     signatures::bls04::BLS04_ThresholdSignature,
 };
-use crate::interface::*;
-use crate::util::*;
-
-mod bigint;
-mod dl_schemes;
-mod interface;
-mod util;
+use cosmos_crypto::interface::*;
+use cosmos_crypto::util::*;
 
 fn main() {
     const K: usize = 3; // threshold
