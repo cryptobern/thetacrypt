@@ -1,41 +1,40 @@
-use prost::Message;
-use protocols::requests::threshold_protocol_server::{ThresholdProtocol,ThresholdProtocolServer};
-use protocols::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, self};
+use protocols::keychain::KeyChain;
+use protocols::requests::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
+use protocols::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse};
 use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
 use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, Serializable};
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use rasn::der::decode;
 use tokio::sync::mpsc::error::TryRecvError;
 use tonic::{transport::Server, Request, Response, Status};
 use std::convert::TryInto;
+use std::fs::{File, self};
+use std::str::from_utf8;
 use std::{collections::HashSet, thread, sync::mpsc};
 use cosmos_crypto::{dl_schemes::{ciphers::{sg02::{Sg02PublicKey, Sg02PrivateKey, Sg02ThresholdCipher, Sg02Ciphertext}, bz03::{Bz03ThresholdCipher, Bz03PrivateKey, Bz03PublicKey, Bz03Ciphertext}}, dl_groups::bls12381::Bls12381}, interface::{ThresholdCipher, PublicKey, PrivateKey, Share}};
-use protocols::threshold_cipher_protocol::ThresholdCipherProtocol;
+use protocols::threshold_cipher_protocol::{ThresholdCipherProtocol, Protocol};
 use std::collections::{self, HashMap};
-
+use serde::{Serialize, Deserialize};
 
 enum StateUpdateCommand {
     AddNetToProtChannel {
-        instance_id: Vec<u8>,
+        instance_id: String,
         sender: tokio::sync::mpsc::Sender<Vec<u8>>
     },
     AddProtToNetChannel {
-        instance_id: Vec<u8>,
+        instance_id: String,
         receiver: tokio::sync::mpsc::Receiver<Vec<u8>>
     },
     ForwardMessageToProt {
-        instance_id: Vec<u8>,
+        instance_id: String,
         message: Vec<u8>,
     }
 }
 
 pub struct Context {
-    pub threshold: usize,
-    pub pk_sg02_bls12381: Sg02PublicKey<Bls12381>,
-    pub sk_sg02_bls12381: Sg02PrivateKey<Bls12381>,
-    pub pk_bz03_bls12381: Bz03PublicKey<Bls12381>,
-    pub sk_bz03_bls12381: Bz03PrivateKey<Bls12381>,
+    key_chain: KeyChain,
 }
 
 /*
@@ -53,95 +52,148 @@ There exists a seperate tokio task, the StateManager, responsible for the folloq
 1) Handling the state of the request handler,
 i.e., the sender ends of the network-to-protocol channels and the receiver ends of protocol-to-network channels.
 The StateManager is created once, in the tokio::main function. It exposes a sender channel end to the request handler,
-called state_manager_tx. All updates to the state (i.e., adding and removing network-to-protocol and protocol-to-network
-channels) take place by sending a StateUpdateCommand on state_manager_tx.
+called state_manager_sender. All updates to the state (i.e., adding and removing network-to-protocol and protocol-to-network
+channels) take place by sending a StateUpdateCommand on state_manager_sender.
 2) When the Request Handler receives a share it uses the State Manager to forward it to the intended protocol instance
 through the appropriate network-to-protocol channel. Shares are received asynchronously, hence we do not give the Request
 Handler direct access to the network-to-protocol channels. Instead, the Request Hadler sends the share to the State Manager
 as a StateUpdateCommand and the State Manager sends it over the appropriate channel.
 3) It loops over all protocol-to-network channels and forwards the messages to the Network.
+
+Key management:
+Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
+There is one key for every possible combination of algorithm and domain. In the future, the user should
+be able to ask our library to create more keys.
+Each key is uniquely identified by a key-id and contains the secret key (through which we have access
+to the corresponding public key and the threshold) and the key metadata (for now, the algorithm and domain
+it can be used for).
+When a request is received, we use the key that corresponds to the algorithm and DlGroup fields of the request.
+todo: Redesign this. The user should not have to specify all of the algorithm, domain, and key. Probably only key?
+
+Context:
+Context variable that contains all the variables required by the Reuest Handler and the protocols.
+There must exist only one instance of Context.
+
+TODOs:
+- There are many clone() calls, see if you can avoid them (especially in the request handler methods that are executed often, eg cloning keys).
+- There are many unwrap(). Handle failures.
 */
 
 // #[derive(Debug, Default)]
-pub struct ThresholdProtocolService {
+pub struct RequestHandler {
     context: Context,
-    state_manager_tx: tokio::sync::mpsc::Sender<StateUpdateCommand>, 
+    state_manager_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>, 
     // ctxt_sg02: Sg02Ciphertext<Bls12381>,
     // ctxt_bz03: Bz03Ciphertext<Bls12381>,
 }
 
-#[tonic::async_trait]
-impl ThresholdProtocol for ThresholdProtocolService {
-    async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
-        println!("Got a request: {:?}", request);
-        let decryption_request = request.get_ref();
-        // if self.existing_seq_numbers.contains(&decryption_request.sn.try_into().unwrap()) {
-        //     return Err(Status::already_exists(format!("A decryption request with the given sn {} already exists.", decryption_request.sn)));
-        // };
-        // self.existing_seq_numbers.insert(decryption_request.sn.try_into().unwrap());
-      
-        // todo: See how you can simplify the code by extracting the declaration of prot here:
-        // let mut prot: ThresholdCipherProtocol<_>; 
-        match (requests::ThresholdCipher::from_i32(decryption_request.algorithm).unwrap(), requests::DlGroup::from_i32(decryption_request.dl_group).unwrap()) {
-            (requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381)  => {
-                let ciphertext = Sg02Ciphertext::deserialize(decryption_request.ciphertext.clone()).unwrap(); 
-
-                // Create a channel for network-to-protocol communication and one for protocol-to-network communication.
-                let (net_to_prot_tx, net_to_prot_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-                let (prot_to_net_tx, prot_to_net_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+impl RequestHandler{
+    async fn start_decryption_instance<C: ThresholdCipher>(&self, 
+                                                           req: ThresholdDecryptionRequest,
+                                                           sk: C::TPrivKey,
+                                                           pk: C::TPubKey) 
+                                                        -> Result<Response<ThresholdDecryptionResponse>, Status>
+        where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send,
+            <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send,
+            <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send,
+            <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send,
+            C: 'static
+    {
+        let ciphertext = C::CT::deserialize(&req.ciphertext).unwrap(); 
                 
-                // Update the state. We need to keep the sender end of net_to_prot channel and the receiver end of prot_to_net. The state manager takes ownership.
-                let cmd = StateUpdateCommand::AddNetToProtChannel { instance_id: ciphertext.get_label() , sender:net_to_prot_tx };
-                let c = self.state_manager_tx.send(cmd).await;
-                let cmd = StateUpdateCommand::AddProtToNetChannel { instance_id: ciphertext.get_label() , receiver:prot_to_net_rx };
-                let c = self.state_manager_tx.send(cmd).await;
+        // let sk = decode::<Sg02PrivateKey<Bls12381>>(&self.context.key_chain.get("sg02_bls12381").unwrap().sk).unwrap();
+        // todo: remove rasn dependency if you keep this version
+        
+        // Identify each protocol instance with a unique id. This id will be used to forward decryption shares to the
+        // corresponding protocol instance. Right now we use the label of the ciphertext as id/
+        let instance_id = String::from_utf8(ciphertext.get_label()).unwrap();
 
-                // The receiver end of net_to_prot channel and the sender end of prot_to_net are given to the protocol. The protocol takes ownership.
-                let mut prot = ThresholdCipherProtocol::<Sg02ThresholdCipher<Bls12381>>::new(
-                    self.context.threshold, 
-                    self.context.pk_sg02_bls12381.clone(), 
-                    self.context.sk_sg02_bls12381.clone(), 
-                    ciphertext,
-                    net_to_prot_rx,
-                    prot_to_net_tx);
-              
-                // Start the new protocol instance as a new tokio task
-                tokio::spawn( async move {
-                    prot.run();
-                });
+        // Create a channel for network-to-protocol communication and one for protocol-to-network communication.
+        let (net_to_prot_tx, net_to_prot_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        let (prot_to_net_tx, prot_to_net_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        
+        // Update the state. We need to keep the sender end of net_to_prot channel and the receiver end of prot_to_net. The state manager takes ownership.
+        let cmd = StateUpdateCommand::AddNetToProtChannel { instance_id: instance_id.clone(), sender: net_to_prot_tx };
+        let _ = self.state_manager_sender.send(cmd).await;
+        let cmd = StateUpdateCommand::AddProtToNetChannel { instance_id: instance_id.clone(), receiver: prot_to_net_rx };
+        let _ = self.state_manager_sender.send(cmd).await;
+
+        // The receiver end of net_to_prot channel and the sender end of prot_to_net are given to the protocol. The protocol takes ownership.
+        let mut prot = ThresholdCipherProtocol::<C>::new(
+            sk.clone(),
+            pk.clone(),
+            ciphertext,
+            net_to_prot_rx,
+            prot_to_net_tx,
+            instance_id.clone());
+        
+        // Start the new protocol instance as a new tokio task
+        println!("Spawning new protocol instance with instance_id: {:?}", &instance_id);
+        tokio::spawn( async move {
+            prot.run(); // Which primitive values are Send? Arc? Does it make sense to use or does it introduce locks/race connditions?
+        });
+
+        Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id }))
+    }
+}
+
+#[tonic::async_trait]
+impl ThresholdCryptoLibrary for RequestHandler {
+    
+    async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
+        let req = request.get_ref();
+        println!("Received a decryption request. Key_id: {:?}", req.key_id);
+        
+        let req_scheme = requests::ThresholdCipher::from_i32(req.algorithm).unwrap();
+        let req_domain = requests::DlGroup::from_i32(req.dl_group).unwrap();
+        let key = self.context.key_chain.get_key(req_scheme, req_domain, None);
+        if let Err(err) = key {
+            return Err(Status::new(tonic::Code::InvalidArgument, "Key"))
+        }
+        let serialized_key = key.unwrap();
+
+        // todo: implement these enums in cosmos_crypto library, not in proto
+        match (req_scheme, req_domain) {
+            (requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381)  => {
+                let sk = Sg02PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
+                let pk = sk.get_public_key();
+                // todo: The reason we retrieve the pk here (and not inside the protocol instance) is because of the ThresholdCipher::TPrivKey vs PrivateKey::TPrivKey compiler error.
+                self.start_decryption_instance::<Sg02ThresholdCipher<Bls12381>>(req.clone(), sk, pk).await
             },
             (requests::ThresholdCipher::Bz02, requests::DlGroup::Bls12381) => {
-                // let ciphertext = Bz03Ciphertext::deserialize(decryption_request.ciphertext).unwrap(); 
-                // let mut prot = ThresholdCipherProtocol::<Bz03ThresholdCipher<Bls12381>>::new(
-                //     self.context.threshold, 
-                //     self.context.pk_bz03_bls12381.clone(), 
-                //     self.context.sk_bz03_bls12381.clone(), 
-                //     ciphertext,);
-                // thread::spawn( move || {
-                //     prot.run();
-                // });
+                let sk = Bz03PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
+                let pk = sk.get_public_key();
+                self.start_decryption_instance::<Bz03ThresholdCipher<Bls12381>>(req.clone(), sk, pk).await
             },
-        };
-        let reply = requests::ThresholdDecryptionResponse {
-            // label: format!("Received request {}.", decryption_request.get_label()).encode_to_vec(),
-            label: format!("Received request ").encode_to_vec(),
-        };
-
-        Ok(Response::new(reply))
+            (_, _) => {
+                Err(Status::new(tonic::Code::InvalidArgument, "Requested scheme and domain.s"))
+            }
+        }
     }
+
+    async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
+        let req = request.get_ref();
+        println!("Received a decryption share. Instance_id: {:?}", req.instance_id);
+        let cmd = StateUpdateCommand::ForwardMessageToProt { instance_id: req.instance_id.clone(), message: req.decryption_share.clone() };
+        let _ = self.state_manager_sender.send(cmd).await;
+        let response = requests::PushDecryptionShareResponse{};
+        Ok(Response::new(response))
+    }
+
+    
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn the State Manager
-    let (state_manager_tx, mut state_manager_rx) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
+    let (state_manager_sender, mut state_manager_receiver) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
     tokio::spawn(async move {
-        let mut channels_net_to_prot: HashMap<Vec<u8>, tokio::sync::mpsc::Sender<Vec<u8>> > = HashMap::new();
-        let mut channels_prot_to_net: HashMap<Vec<u8>, tokio::sync::mpsc::Receiver<Vec<u8>> > = HashMap::new();
+        let mut channels_net_to_prot: HashMap<String, tokio::sync::mpsc::Sender<Vec<u8>> > = HashMap::new();
+        let mut channels_prot_to_net: HashMap<String, tokio::sync::mpsc::Receiver<Vec<u8>> > = HashMap::new();
         loop {
             // Handle incoming commands (i.e., requests to modify the state).
-            match state_manager_rx.try_recv() { 
-                Ok(cmd) => {
+            match state_manager_receiver.try_recv() { 
+                Ok(cmd) => {`
                     match cmd {
                         StateUpdateCommand::AddNetToProtChannel { instance_id, sender } => {
                             channels_net_to_prot.insert(instance_id, sender); // todo: right now sender will be updated if instance_id already exists
@@ -150,9 +202,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             channels_prot_to_net.insert(instance_id, receiver); // todo: right now receiver will be updated if instance_id already exists
                         },
                         StateUpdateCommand::ForwardMessageToProt { instance_id, message } => {
+                            println!("State manager forwarding decryption share in net_to_prot. Instance_id: {:?}", instance_id);
                             if channels_net_to_prot.contains_key(&instance_id) { // todo: Handle case where channel does not exist
                                 let sender = channels_net_to_prot.get(&instance_id).unwrap();
-                                sender.send(message);
+                                sender.send(message).await.unwrap(); //todo: This should be spawned in a separate task, so that the task manager does not stall
                             }
                         },
                     }
@@ -162,10 +215,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             // Handle messages from protocol instances (by sending them through the network)
             // todo: Move into a separate module?
-            for (instance, receiver) in channels_prot_to_net.iter_mut(){
+            for (instance_id, receiver) in channels_prot_to_net.iter_mut(){
                 match receiver.try_recv() {
                     Ok(message) => {
-                        // Broadcast this message to everyone.
+                        println!("State manager received decryption share in prot_to_net. Instance_id: {:?}", instance_id);
+                        // todo: Broadcast this message to everyone using Tendermint Core.
                     },
                     Err(TryRecvError::Disconnected) => {}, // sender end closed
                     Err(_) => {}
@@ -175,32 +229,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     
-
-    // Setup the request handler
-    // todo: Remove code, read keys, id, IP address from config files, once you can (de)serialize
-    const k: usize = 3; // threshold
-    const n: usize = 4; // total number of secret shares
-    let id = 0;
-    let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
-    let sk_sg02_bls12381 = Sg02ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
-    let sk_bz03_bls12381 = Bz03ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
+    // Read keys from file
+    println!("Reading keys from keychain.");
+    let keyfile = format!("keys_0.json");
+    let key_chain_str = fs::read_to_string(keyfile).unwrap();
+    let key_chain: KeyChain = serde_json::from_str(&key_chain_str).unwrap();
+    println!("Reading keys done");
     
+    // Setup the request handler
     let context = Context {
-        threshold: k,
-        pk_sg02_bls12381: sk_sg02_bls12381[id].get_public_key(),
-        sk_sg02_bls12381: sk_sg02_bls12381[id].clone(),
-        pk_bz03_bls12381: sk_bz03_bls12381[id].get_public_key(),
-        sk_bz03_bls12381: sk_bz03_bls12381[id].clone(),
+        key_chain
     };
 
+    // Start
     let addr = "[::1]:50051".parse()?;
-    let service = ThresholdProtocolService{
+    let service = RequestHandler{
         context,
-        state_manager_tx,
+        state_manager_sender,
     };
-
+    
     Server::builder()
-        .add_service(ThresholdProtocolServer::new(service))
+        .add_service(ThresholdCryptoLibraryServer::new(service))
         .serve(addr)
         .await?;
     Ok(())
