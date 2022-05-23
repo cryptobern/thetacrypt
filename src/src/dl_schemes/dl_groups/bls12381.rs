@@ -218,18 +218,14 @@ impl rasn::AsnType for Bls12381FP12 {
 
 impl Encode for Bls12381FP12 {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |encoder| {
-            self.to_bytes().encode(encoder)?;
-            Ok(())
-        })?;
-
+        self.to_bytes().encode(encoder)?;
         Ok(())
     }
 }
 
 impl Decode for Bls12381FP12 {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        let bytes:Vec<u8> = Vec::<u8>::decode(decoder)?.into();
         Ok(Self::from_bytes(&bytes))
     }
 }
@@ -348,18 +344,14 @@ pub struct Bls12381BIG {
 
 impl Encode for Bls12381BIG {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |encoder| {
-            self.to_bytes().encode(encoder)?;
-            Ok(())
-        })?;
-
+        self.to_bytes().encode(encoder)?;
         Ok(())
     }
 }
 
 impl Decode for Bls12381BIG {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        let bytes:Vec<u8> = BitString::decode(decoder)?.into();
+        let bytes:Vec<u8> = Vec::<u8>::decode(decoder)?.into();
 
         let val = Self::from_bytes(&bytes);
 
