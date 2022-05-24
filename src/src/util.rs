@@ -10,7 +10,6 @@ pub fn printbinary(array: &[u8], caption: Option<&str>) {
 }
 
 
-
 /// convert a vector of bytes to an ASCII string
 pub fn hex2string(msg: &Vec<u8>) -> String {
     let mut res: String = String::new();
