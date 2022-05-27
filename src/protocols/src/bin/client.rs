@@ -3,6 +3,7 @@
 // }
 
 use std::fs;
+use std::{thread, time};
 
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey};
@@ -12,7 +13,7 @@ use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, PrivateKe
 use cosmos_crypto::rand::{RngAlgorithm, RNG};
 use protocols::keychain::KeyChain;
 use protocols::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, self};
+use protocols::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, PushDecryptionShareRequest, PushDecryptionShareResponse, self};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
@@ -25,29 +26,93 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read keys from file
     println!("Reading keys from keychain.");
-    let keyfile = format!("keys_0.json");
-    let key_chain_str = fs::read_to_string(keyfile).unwrap();
-    let key_chain: KeyChain = serde_json::from_str(&key_chain_str).unwrap();
+    let key_chain_0: KeyChain = KeyChain::from_file("conf/keys_0.json"); 
+    let key_entry = &key_chain_0.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
+    let sk_sg02_bls12381 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry).unwrap();
     println!("Reading keys done.");
-
-    let sk_sg02_bls12381 = Sg02PrivateKey::<Bls12381>::deserialize(
-                                                                            &key_chain.get_key(
-                                                                                requests::ThresholdCipher::Sg02,
-                                                                                requests::DlGroup::Bls12381,
-                                                                                None)
-                                                                            .unwrap())
-                                                                            .unwrap();
-    let request = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &sk_sg02_bls12381.get_public_key());
-    let response = client.decrypt(request).await?;
-
-    println!("RESPONSE={:?}", response);
-
-    let shares = get_decryption_shares_permuted(3,)
     
+    // sk of rep 1 to create share. Only for test
+    let key_chain_1: KeyChain = KeyChain::from_file("keys_1.json");
+    let key_entry_1 = &key_chain_1.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
+    let sk_sg02_bls12381_1 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_1).unwrap();
+
+    // sk of rep 2 to create share. Only for test
+    let key_chain_2: KeyChain = KeyChain::from_file("keys_2.json");
+    let key_entry_2 = &key_chain_2.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
+    let sk_sg02_bls12381_2 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_2).unwrap();
+
+    // sk of rep 3 to create share. Only for test
+    let key_chain_3: KeyChain = KeyChain::from_file("keys_3.json");
+    let key_entry_3 = &key_chain_3.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
+    let sk_sg02_bls12381_3 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_3).unwrap();
+
+    let k = sk_sg02_bls12381.get_threshold();
+    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &sk_sg02_bls12381.get_public_key());
+    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &sk_sg02_bls12381.get_public_key());
+    
+    // Decryption request 1 
+    println!(">> Sending decryption request 1.");
+    let response = client.decrypt(request).await.unwrap();
+    println!("RESPONSE={:?}", response);
+    let decrypt_response = response.get_ref();
+    
+    // Decryption request 1, share id: 2
+    println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response.instance_id.clone());
+    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_1.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+    
+
+    // Decryption request 2
+    println!(">> Sending decryption request 2.");
+    let response2 = client.decrypt(request2).await.unwrap();
+    println!("RESPONSE={:?}", response2);
+    let decrypt_response2 = response2.get_ref();
+
+    // Decryption request 2, share id: 2
+    println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response2.instance_id.clone());
+    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_1.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+    
+
+    // Decryption request 1, Test what happens with duplicate shares
+    println!(">> Sending DUPLICATE decryption share. instance id: {:?}, share id: 2", decrypt_response.instance_id.clone());
+    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_1.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+    
+    // Decryption request 1, share id 3
+    println!(">> Sending decryption share. instance id: {:?}, share id: 3", decrypt_response.instance_id.clone());
+    let share_2 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_2.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+
+    // Decryption request 1, Test what happens with redundant shares
+    println!(">> Sending REDUNDANT decryption share. instance id: {:?}, share id: 4", decrypt_response.instance_id.clone());
+    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_3.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+    
+    // Decryption request 1, Test what happens with redundant shares
+    thread::sleep(time::Duration::from_millis(1000));
+    println!(">> Sending REDUNDANT decryption share. instance id: {:?}, share id: 4", decrypt_response.instance_id.clone());
+    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_3.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+
+
+    // Decryption request 2, share id 3
+    println!(">> Sending decryption share. instance id: {:?}, share id: 3", decrypt_response2.instance_id.clone());
+    let share_2 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_2.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
+    println!("RESPONSE={:?}", put_share_response);
+ 
+
     Ok(())
 }
 
-fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> tonic::Request<ThresholdDecryptionRequest> {
+fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (tonic::Request<ThresholdDecryptionRequest>, C::CT) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
@@ -59,15 +124,27 @@ fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> ton
         ciphertext: ciphertext.serialize().unwrap(),
         key_id: String::from("sg02_bls12381")
     };
-    Request::new(req)
+    (Request::new(req), ciphertext)
 }
 
-fn get_decryption_shares_permuted<C: ThresholdCipher>(K: usize, ctxt: &C::CT, sk: &Vec<C::TPrivKey>) -> Vec<C::TShare> {
+fn get_decryption_shares_permuted<C: ThresholdCipher>(k: u32, ctxt: &C::CT, sk: Vec<C::TPrivKey>) -> Vec<C::TShare> {
     let mut params = ThresholdCipherParams::new();
     let mut shares = Vec::new();
-    for i in sk.get {
+    for i in 0..k {
         shares.push(C::partial_decrypt(ctxt,&sk[i as usize], &mut params));
     }
     shares.shuffle(&mut thread_rng());
     shares
+}
+
+fn get_push_share_request<C: ThresholdCipher>(k: u32, ctxt: &C::CT, sk: C::TPrivKey, instance_id: String) -> PushDecryptionShareRequest {
+    let mut params = ThresholdCipherParams::new();
+    // let mut shares = Vec::new();
+    // for i in sk.get_threshold() {
+    //     shares.push(C::partial_decrypt(ctxt,&sk[i as usize], &mut params));
+    // }
+    // shares.shuffle(&mut thread_rng());
+    // shares
+    let decryption_share = C::partial_decrypt(ctxt,&sk, &mut params);
+    PushDecryptionShareRequest {instance_id, decryption_share: decryption_share.serialize().unwrap()}
 }

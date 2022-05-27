@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 use cosmos_crypto::{dl_schemes::{keygen::DlScheme, DlDomain, ciphers::sg02::Sg02PrivateKey}, rsa_schemes::keygen::RsaScheme, interface::{PrivateKey, ThresholdCipher}};
 
@@ -18,6 +18,11 @@ pub struct KeyChain {
 }
 
 impl KeyChain{
+    pub fn from_file(filename: &str) -> Self {
+        let key_chain_str = fs::read_to_string(filename).unwrap();
+        serde_json::from_str(&key_chain_str).unwrap()
+    }
+
     pub fn new() -> Self {
         KeyChain {
             key_chain: HashMap::new(),

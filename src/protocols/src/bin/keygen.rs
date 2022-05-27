@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Write;
 
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
-use cosmos_crypto::dl_schemes::ciphers::sg02::Sg02ThresholdCipher;
+use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey};
 use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
 use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
 use cosmos_crypto::interface::Serializable;
@@ -19,8 +19,10 @@ fn main(){
 fn generate_keys(k: usize, n: usize) {
     let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
     let sk_sg02_bls12381 = Sg02ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
-    let sk_bz03_bls12381 = Bz03ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
+    // let sk_bz03_bls12381 = Bz03ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
     let mut key_chain = KeyChain::new();
+    // let ser = sk_sg02_bls12381[0].serialize().unwrap();
+    // let deser = Sg02PrivateKey::<Bls12381>::deserialize(&ser).unwrap();
     for node_id in 0..n {
         key_chain.insert_key(requests::ThresholdCipher::Sg02, 
                              requests::DlGroup::Bls12381, 
@@ -30,7 +32,7 @@ fn generate_keys(k: usize, n: usize) {
         //                      requests::DlGroup::Bls12381, 
         //                      String::from("bz03_bls12381"),
         //                      sk_bz03_bls12381[node_id].serialize().unwrap());
-        let keyfile = format!("keys_{}.json", node_id);
+        let keyfile = format!("conf/keys_{}.json", node_id);
         let mut file = File::create(keyfile).unwrap();
         println!("{}", serde_json::to_string(&key_chain).unwrap());
         writeln!(&mut file, "{}", serde_json::to_string(&key_chain).unwrap()).unwrap();

@@ -8,6 +8,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rasn::der::decode;
 use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
 use std::convert::TryInto;
 use std::fs::{File, self};
@@ -27,9 +28,9 @@ enum StateUpdateCommand {
         instance_id: String,
         receiver: tokio::sync::mpsc::Receiver<Vec<u8>>
     },
-    ForwardMessageToProt {
+    GetNetToProtSender {
         instance_id: String,
-        message: Vec<u8>,
+        responder: tokio::sync::oneshot::Sender<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>
     }
 }
 
@@ -60,6 +61,16 @@ Handler direct access to the network-to-protocol channels. Instead, the Request 
 as a StateUpdateCommand and the State Manager sends it over the appropriate channel.
 3) It loops over all protocol-to-network channels and forwards the messages to the Network.
 
+The State Manager is spawned in a dedicated os thread, not on a Tokio "green" thread, for the following reason:
+Currently, the best way I have found to make the State manager loop over the state_manager_receiver and all the
+prot_to_net channels is by having a loop() and try_receive() inside (maybe this is possible with tokio::select!,
+but don't know how). But this means the State Manager will be running a busy loop forever (there is no .await).
+If we run this as a Tokio task, it will be constantly running, causing other Tokio tasks to starve.
+
+todo: Set tokio::runtime to use default - 1 worker threads, since we are using 1 for the state manager.
+https://docs.rs/tokio/1.2.0/tokio/attr.main.html
+https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#examples-2
+
 Key management:
 Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
 There is one key for every possible combination of algorithm and domain. In the future, the user should
@@ -83,8 +94,6 @@ TODOs:
 pub struct RequestHandler {
     context: Context,
     state_manager_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>, 
-    // ctxt_sg02: Sg02Ciphertext<Bls12381>,
-    // ctxt_bz03: Bz03Ciphertext<Bls12381>,
 }
 
 impl RequestHandler{
@@ -93,10 +102,10 @@ impl RequestHandler{
                                                            sk: C::TPrivKey,
                                                            pk: C::TPubKey) 
                                                         -> Result<Response<ThresholdDecryptionResponse>, Status>
-        where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send,
-            <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send,
-            <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send,
-            <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send,
+        where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send + 'static,
+            <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send + 'static,
+            <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send + 'static + Sync,
+            <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send + 'static,
             C: 'static
     {
         let ciphertext = C::CT::deserialize(&req.ciphertext).unwrap(); 
@@ -128,9 +137,9 @@ impl RequestHandler{
             instance_id.clone());
         
         // Start the new protocol instance as a new tokio task
-        println!("Spawning new protocol instance with instance_id: {:?}", &instance_id);
+        println!(">> RH: Spawning new protocol instance with instance_id: {:?}", &instance_id);
         tokio::spawn( async move {
-            prot.run(); // Which primitive values are Send? Arc? Does it make sense to use or does it introduce locks/race connditions?
+            prot.run().await; 
         });
 
         Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id }))
@@ -142,7 +151,7 @@ impl ThresholdCryptoLibrary for RequestHandler {
     
     async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
         let req = request.get_ref();
-        println!("Received a decryption request. Key_id: {:?}", req.key_id);
+        println!(">> RH: Received a decryption request. Key_id: {:?}", req.key_id);
         
         let req_scheme = requests::ThresholdCipher::from_i32(req.algorithm).unwrap();
         let req_domain = requests::DlGroup::from_i32(req.dl_group).unwrap();
@@ -166,34 +175,53 @@ impl ThresholdCryptoLibrary for RequestHandler {
                 self.start_decryption_instance::<Bz03ThresholdCipher<Bls12381>>(req.clone(), sk, pk).await
             },
             (_, _) => {
-                Err(Status::new(tonic::Code::InvalidArgument, "Requested scheme and domain.s"))
+                Err(Status::new(tonic::Code::InvalidArgument, "Requested scheme and domain."))
             }
         }
     }
 
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
-        println!("Received a decryption share. Instance_id: {:?}", req.instance_id);
-        let cmd = StateUpdateCommand::ForwardMessageToProt { instance_id: req.instance_id.clone(), message: req.decryption_share.clone() };
-        let _ = self.state_manager_sender.send(cmd).await;
-        let response = requests::PushDecryptionShareResponse{};
-        Ok(Response::new(response))
+        println!(">> RH: Received a decryption share. Instance_id: {:?}", req.instance_id);
+        let (responder_tx, responder_rx) = oneshot::channel::<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>();
+        let cmd = StateUpdateCommand::GetNetToProtSender { instance_id: req.instance_id.clone(), responder: responder_tx};
+        self.state_manager_sender.send(cmd).await;
+        let res =  responder_rx.await;
+        match res{
+            Ok(v) => {
+                match v {
+                    Some(sender) => {
+                        println!(">> RH: Pushing decryption share in net_to_prot. Instance_id: {:?}", req.instance_id.clone());
+                        if let Err(_) = sender.send(req.decryption_share.clone()).await{
+                            println!(">> RH: Pushing decryption share FAILED. Maybe thread already finished? Instance_id: {:?}", req.instance_id.clone());
+                        }
+                        Ok(Response::new(requests::PushDecryptionShareResponse{}))
+                    },
+                    None => {
+                        // todo: Handle this. instance_id might not exist because decryption request has not arrived yet, or beacause protocol terminated
+                        Err(Status::new(tonic::Code::NotFound, "instance_id not found"))
+                    },
+                }
+                // let sender2 = sender.clone();
+            }
+            Err(_) => { // responder_tx was dropped
+                Err(Status::new(tonic::Code::Internal, "responder_tx was dropped"))
+            },
+        }
     }
-
-    
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn the State Manager
     let (state_manager_sender, mut state_manager_receiver) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
-    tokio::spawn(async move {
+    thread::spawn( move || {
         let mut channels_net_to_prot: HashMap<String, tokio::sync::mpsc::Sender<Vec<u8>> > = HashMap::new();
         let mut channels_prot_to_net: HashMap<String, tokio::sync::mpsc::Receiver<Vec<u8>> > = HashMap::new();
         loop {
-            // Handle incoming commands (i.e., requests to modify the state).
+            // Handle incoming commands (i.e., requests to modify or read the state).
             match state_manager_receiver.try_recv() { 
-                Ok(cmd) => {`
+                Ok(cmd) => {
                     match cmd {
                         StateUpdateCommand::AddNetToProtChannel { instance_id, sender } => {
                             channels_net_to_prot.insert(instance_id, sender); // todo: right now sender will be updated if instance_id already exists
@@ -201,28 +229,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         StateUpdateCommand::AddProtToNetChannel { instance_id, receiver } => {
                             channels_prot_to_net.insert(instance_id, receiver); // todo: right now receiver will be updated if instance_id already exists
                         },
-                        StateUpdateCommand::ForwardMessageToProt { instance_id, message } => {
-                            println!("State manager forwarding decryption share in net_to_prot. Instance_id: {:?}", instance_id);
-                            if channels_net_to_prot.contains_key(&instance_id) { // todo: Handle case where channel does not exist
-                                let sender = channels_net_to_prot.get(&instance_id).unwrap();
-                                sender.send(message).await.unwrap(); //todo: This should be spawned in a separate task, so that the task manager does not stall
+                        StateUpdateCommand::GetNetToProtSender { instance_id, responder } => {
+                            // if there is channel sender for that instance_id send it back throught the responder. Otherwise send a None.
+                            match channels_net_to_prot.get(&instance_id) {
+                                Some(sender) => {
+                                    if let Err(_) = responder.send(Some(sender.clone())){
+                                        println!("The receiver dropped. Instance_id: {:?}", instance_id);    
+                                    }
+                                },
+                                None => {
+                                    responder.send(None);
+                                }
                             }
                         },
                     }
                 },
+                Err(Empty) => {} //it's ok, just no new message
                 Err(TryRecvError::Disconnected) => {}, // sender end closed
-                Err(_) => {}
             };
             // Handle messages from protocol instances (by sending them through the network)
             // todo: Move into a separate module?
             for (instance_id, receiver) in channels_prot_to_net.iter_mut(){
                 match receiver.try_recv() {
                     Ok(message) => {
-                        println!("State manager received decryption share in prot_to_net. Instance_id: {:?}", instance_id);
+                        println!(">> SM: Received decryption share in prot_to_net. Instance_id: {:?}", instance_id);
                         // todo: Broadcast this message to everyone using Tendermint Core.
                     },
+                    Err(Empty) => {}
                     Err(TryRecvError::Disconnected) => {}, // sender end closed
-                    Err(_) => {}
                 };
             }
             
@@ -231,7 +265,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Read keys from file
     println!("Reading keys from keychain.");
-    let keyfile = format!("keys_0.json");
+    let keyfile = format!("conf/keys_0.json");
     let key_chain_str = fs::read_to_string(keyfile).unwrap();
     let key_chain: KeyChain = serde_json::from_str(&key_chain_str).unwrap();
     println!("Reading keys done");
