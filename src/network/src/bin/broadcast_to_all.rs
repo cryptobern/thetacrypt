@@ -1,15 +1,15 @@
+// use tokio_stream::{self as stream};
 use futures::StreamExt;
 use std::error::Error;
 use libp2p::{
     core::upgrade,
-    floodsub::{self, Floodsub, FloodsubEvent},
+    floodsub::{self, Floodsub},
     identity,
-    mdns::{Mdns, MdnsEvent},
+    mdns::{Mdns},
     mplex,
     Multiaddr,
-    NetworkBehaviour,
     noise,
-    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder, SwarmEvent},
+    swarm::{SwarmBuilder, SwarmEvent},
     // `TokioTcpConfig` is available through the `tcp-tokio` feature.
     tcp::TokioTcpConfig,
     Transport,
@@ -17,23 +17,12 @@ use libp2p::{
 };
 use floodsub::Topic;
 use tokio::io::{self, AsyncBufReadExt};
+use deliver::deliver::MyBehaviour;
+use broadcast::broadcast::{send, send_async};
+// use tokio::time::{sleep, Duration};
 
-    // We create a custom network behaviour that combines floodsub and mDNS.
-    // The derive generates a delegating `NetworkBehaviour` impl which in turn
-    // requires the implementations of `NetworkBehaviourEventProcess` for
-    // the events of each behaviour.
-    #[derive(NetworkBehaviour)]
-    #[behaviour(event_process = true)]
-    struct MyBehaviour {
-        floodsub: Floodsub,
-        mdns: Mdns, // automatically discovers other libp2p nodes on the local network.
-    }
-
-
-fn send(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic) {
-    let my_share: Vec<u8> = [0b01001100u8, 0b01001100u8, 0b01001100u8].to_vec();
-    swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), my_share);
-}
+mod deliver;
+mod broadcast;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -61,51 +50,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a Floodsub topic
     // let floodsub_topic = floodsub::Topic::new("shares");
     let floodsub_topic = Topic::new("shares");
-
-    impl NetworkBehaviourEventProcess<FloodsubEvent> for MyBehaviour {
-        // Called when `floodsub` produces an event.
-        fn inject_event(&mut self, message: FloodsubEvent) {
-            if let FloodsubEvent::Message(message) = message {
-                // println!(
-                //     "Received: '{:?}' from {:?}",
-                //     String::from_utf8_lossy(&message.data),
-                //     message.source
-                // );
-                handle_share(message.data, message.source);
-            }
-        }
-    }
-
-    fn handle_share(data: Vec<u8>, source: PeerId) {
-        println!(
-            "Received: '{:?}' from {:?}",
-            String::from_utf8_lossy(&data),
-            source
-        );
-        // let result = serde_json::from_slice(&content)?;
-        // Ok(result)
-        // Ok(data)
-    }
-
-    impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
-        // Called when `mdns` produces an event.
-        fn inject_event(&mut self, event: MdnsEvent) {
-            match event {
-                MdnsEvent::Discovered(list) => {
-                    for (peer, _) in list {
-                        self.floodsub.add_node_to_partial_view(peer);
-                    }
-                }
-                MdnsEvent::Expired(list) => {
-                    for (peer, _) in list {
-                        if !self.mdns.has_node(&peer) {
-                            self.floodsub.remove_node_from_partial_view(&peer);
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // Create a Swarm to manage peers and events.
     let mut swarm = {
@@ -138,15 +82,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-    
-    // Kick it off
+
     loop {
         tokio::select! {
+            // _ = send_async(&mut swarm, &floodsub_topic, &a) => {
+            //     println!("do_stuff_async() completed first")
+            // }
             line = stdin.next_line() => {
                 let line = line?.expect("stdin closed");
-                send(&mut swarm, &floodsub_topic);
-                // let my_share: Vec<u8> = [0b01001100u8, 0b01001100u8, 0b01001100u8].to_vec();
-                // swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), my_share);
+                // by hitting "enter" the send function is triggered
+                let my_share: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+                send(&mut swarm, &floodsub_topic, my_share);
+                // send_async(&mut swarm, &floodsub_topic);
+                
             }
             event = swarm.select_next_some() => {
                 if let SwarmEvent::NewListenAddr { address, .. } = event {
@@ -155,4 +103,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+
 }

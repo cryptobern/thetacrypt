@@ -13,7 +13,9 @@ tcp-tokio = ["libp2p-tcp", "libp2p-tcp/tokio"]
 cosmos_crypto = {path = "../", version = "0.1.0"}
 reqwest = "0.11.10" # reqwest with JSON parsing support
 futures = "0.3.21" # for our async / await blocks
-tokio = { version = "1.15", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread"] }
+# tokio = { version = "1.15", features = ["io-util", "io-std", "macros", "rt", "rt-multi-thread", "time", "fs"] }
+tokio = { version = "1.15", features = ["full"] }
+tokio-stream = { version = "0.1" }
 libp2p = { version = "0.44.0", features = ["tcp-tokio", "mdns"]}
 async-std = { version = "1.11.0", features = ["attributes"] }
 log = { version = "0.4.16" }
@@ -22,3 +24,6 @@ libp2p-mdns = { version = "0.36.0", optional = true }
 libp2p-tcp = { version = "0.32.0", optional = true }
 serde = {version = "=1.0", features = ["derive"] }
 serde_json = "1.0"
+time = {version = "0.3.9"}
+# libp2p-gossipsub = { version = "0.37.0" }
+# libp2p-core = "0.32.1"
