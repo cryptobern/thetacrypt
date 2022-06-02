@@ -3,7 +3,7 @@ use env_logger::{Builder, Env};
 use futures::{prelude::*, select};
 use libp2p::gossipsub::MessageId;
 use libp2p::gossipsub::{
-    GossipsubEvent, GossipsubMessage, IdentTopic as Topic, MessageAuthenticity, ValidationMode,
+    GossipsubEvent, GossipsubMessage, IdentTopic as GossibsubTopic, MessageAuthenticity, ValidationMode,
 };
 use libp2p::{gossipsub, identity, swarm::SwarmEvent, Multiaddr, PeerId};
 use std::collections::hash_map::DefaultHasher;
@@ -14,6 +14,9 @@ use std::time::Duration;
 // use deliver::deliver::handle_gossip_msg;
 use deliver::deliver::HandleMsg;
 mod deliver;
+
+use send::send::send_gossipsub_msg;
+mod send;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -28,7 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let transport = libp2p::development_transport(local_key.clone()).await?;
 
     // Create a Gossipsub topic
-    let topic = Topic::new("gossip-share");
+    let topic = GossibsubTopic::new("gossip-share");
 
     // Create a Swarm to manage peers and events
     let mut swarm = {
@@ -92,21 +95,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Kick it off
     loop {
         select! {
-            line = stdin.select_next_some() => {
-                if let Err(e) = swarm
-                    .behaviour_mut()
-                    .publish(topic.clone(), line.expect("Stdin not to close").as_bytes())
-                {
-                    println!("Publish error: {:?}", e);
-                }
-            },
+            line = stdin.select_next_some() => send_gossipsub_msg(&mut swarm, &topic, line),
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(GossipsubEvent::Message {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
-                }) => message.handle_share(),
-                // }) => handle_gossip_msg(peer_id, id, message),
+                }) => message.handle_msg(),
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Listening on {:?}", address);
                 }

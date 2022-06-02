@@ -15,18 +15,18 @@ pub struct MyBehaviour {
 }
 
 pub trait HandleMsg {
-    fn handle_share(&self);
+    fn handle_msg(&self);
 }
 
 // default behaviour for HandleMsg: print received data and sender (peerID)
 impl HandleMsg for FloodsubMessage {
-    fn handle_share(&self) {
+    fn handle_msg(&self) {
         println!("Received: '{:?}' from {:?}", self.data, self.source);
     }
 }
 
 impl HandleMsg for GossipsubMessage {
-    fn handle_share(&self) {
+    fn handle_msg(&self) {
         println!("Gossipsub msg: '{:?}'", self.data);
         println!("type of msg: {}", type_of(&self.data));
         println!("From: '{:?}'", self.source);
@@ -39,7 +39,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for MyBehaviour {
     // Called when `floodsub` produces an event.
     fn inject_event(&mut self, message: FloodsubEvent) {
         if let FloodsubEvent::Message(message) = message {
-            message.handle_share();
+            message.handle_msg();
         }
     }
 }

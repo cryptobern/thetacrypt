@@ -18,11 +18,11 @@ use libp2p::{
 use floodsub::Topic;
 use tokio::io::{self, AsyncBufReadExt};
 use deliver::deliver::MyBehaviour;
-use broadcast::broadcast::{send, send_async};
+use send::send::{send, send_async};
 // use tokio::time::{sleep, Duration};
 
 mod deliver;
-mod broadcast;
+mod send;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         behaviour.floodsub.subscribe(floodsub_topic.clone());
 
         SwarmBuilder::new(transport, behaviour, peer_id)
-            // We want the connection background tasks to be spawned
+            // We want the connection backgro&mut und tasks to be spawned
             // onto the tokio runtime.
             .executor(Box::new(|fut| {
                 tokio::spawn(fut);
@@ -91,8 +91,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let line = line?.expect("stdin closed");
                 // by hitting "enter" the send function is triggered
                 let my_share: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-                send(&mut swarm, &floodsub_topic, my_share);
-                // send_async(&mut swarm, &floodsub_topic);
+                // send(&mut swarm, &floodsub_topic, my_share);
+                send_async(&mut swarm, &floodsub_topic);
                 
             }
             event = swarm.select_next_some() => {
