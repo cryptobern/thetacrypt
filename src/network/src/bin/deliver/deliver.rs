@@ -1,9 +1,11 @@
+// use std::any::type_name;
 use libp2p::{
     floodsub::{Floodsub, FloodsubEvent, FloodsubMessage},
     mdns::{Mdns, MdnsEvent},
     NetworkBehaviour,
-    swarm::NetworkBehaviourEventProcess, gossipsub::{GossipsubEvent, Gossipsub, GossipsubMessage, MessageId}, PeerId,
+    swarm::NetworkBehaviourEventProcess, gossipsub::{GossipsubMessage, MessageId}, PeerId,
 };
+use network::lib::type_of;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(event_process = true)]
@@ -12,33 +14,25 @@ pub struct MyBehaviour {
     pub mdns: Mdns, // automatically discovers other libp2p nodes on the local network.
 }
 
-#[derive(NetworkBehaviour)]
-#[behaviour(event_process = true)]
-pub struct GossipBehaviour {
-    pub gossipsub: Gossipsub,
-}
-
-pub trait HandleShare {
+pub trait HandleMsg {
     fn handle_share(&self);
 }
 
-// default behaviour for HandleShare is to print the received data and the sender (peerID)
-impl HandleShare for FloodsubMessage {
+// default behaviour for HandleMsg: print received data and sender (peerID)
+impl HandleMsg for FloodsubMessage {
     fn handle_share(&self) {
         println!("Received: '{:?}' from {:?}", self.data, self.source);
     }
 }
 
-impl HandleShare for GossipsubMessage {
+impl HandleMsg for GossipsubMessage {
     fn handle_share(&self) {
-        println!("Received gossipsub message: '{:?}' from {:?}", self.data, self.source);
+        println!("Gossipsub msg: '{:?}'", self.data);
+        println!("type of msg: {}", type_of(&self.data));
+        println!("From: '{:?}'", self.source);
+        println!("Sequence number: '{:?}'", self.sequence_number);
+        println!("Topic: '{:?}'", self.topic);
     }
-}
-
-pub fn handle_gossip_msg(peer_id: PeerId, message_id: MessageId, message: GossipsubMessage) {
-    println!("Received gossipsub message: '{:?}'", message.data);
-    println!("With: {:?}", message_id);
-    println!("From: {:?}", peer_id);
 }
 
 impl NetworkBehaviourEventProcess<FloodsubEvent> for MyBehaviour {
@@ -66,19 +60,6 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
                     }
                 }
             }
-        }
-    }
-}
-
-impl NetworkBehaviourEventProcess<GossipsubEvent> for GossipBehaviour {
-    // Called when `gossipsub` produces an event.
-    fn inject_event(&mut self, message: GossipsubEvent) {
-        if let GossipsubEvent::Message {
-            propagation_source: peer_id,
-            message_id: id,
-            message} = message {
-            // message.handle_share();
-            // handle_gossip_msg();
         }
     }
 }

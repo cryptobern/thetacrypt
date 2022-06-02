@@ -48,7 +48,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .boxed();
 
     // Create a Floodsub topic
-    // let floodsub_topic = floodsub::Topic::new("shares");
     let floodsub_topic = Topic::new("shares");
 
     // Create a Swarm to manage peers and events.

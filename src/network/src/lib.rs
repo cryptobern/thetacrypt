@@ -1,10 +1,7 @@
-pub fn test() {
-    println!("Test");
+pub mod lib {
+    use std::any::type_name;
+    
+    pub fn type_of<T>(_: T) -> &'static str {
+        type_name::<T>()
+    }
 }
-
-pub fn get_addresses() {
-    println!("get addresses...");
-}
-
-// mod bla;
-

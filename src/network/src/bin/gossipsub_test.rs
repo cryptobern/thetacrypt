@@ -11,7 +11,8 @@ use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-use deliver::deliver::handle_gossip_msg;
+// use deliver::deliver::handle_gossip_msg;
+use deliver::deliver::HandleMsg;
 mod deliver;
 
 #[async_std::main]
@@ -27,7 +28,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let transport = libp2p::development_transport(local_key.clone()).await?;
 
     // Create a Gossipsub topic
-    let topic = Topic::new("test-net");
+    let topic = Topic::new("gossip-share");
 
     // Create a Swarm to manage peers and events
     let mut swarm = {
@@ -49,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut gossipsub: gossipsub::Gossipsub =
             gossipsub::Gossipsub::new(MessageAuthenticity::Signed(local_key), gossipsub_config)
                 .expect("Correct configuration");
-
+                
         // subscribes to our topic
         gossipsub.subscribe(&topic).unwrap();
 
@@ -70,6 +71,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     swarm
         .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
         .unwrap();
+
+    // let swarm = match swarm {
+    //     Ok(listener_id) => listener_id,
+    //     Err(error) => println!("error with listener_addr {}", error),
+    // };
 
     // Reach out to another node if specified
     if let Some(to_dial) = std::env::args().nth(1) {
@@ -99,13 +105,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
-                }) => handle_gossip_msg(peer_id, id, message),
-                // println!(
-                //     "Got message: {} with id: {} from peer: {:?}",
-                //     String::from_utf8_lossy(&message.data),
-                //     id,
-                //     peer_id
-                // ),
+                }) => message.handle_share(),
+                // }) => handle_gossip_msg(peer_id, id, message),
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Listening on {:?}", address);
                 }
