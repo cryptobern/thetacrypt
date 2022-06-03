@@ -95,7 +95,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Kick it off
     loop {
         select! {
-            line = stdin.select_next_some() => send_gossipsub_msg(&mut swarm, &topic, line),
+            line = stdin.select_next_some() => {
+                // let my_msg: Vec<u8> = [0b01101100u8, 0b11001100u8, 0b01101100u8].to_vec();
+                send_gossipsub_msg(&mut swarm, &topic, line)
+            },
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(GossipsubEvent::Message {
                     propagation_source: peer_id,
