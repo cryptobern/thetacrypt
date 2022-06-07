@@ -9,13 +9,16 @@ use crate::deliver::deliver::MyBehaviour;
 // use std::{thread, time, string};
 use crate::io::Error;
 
-// sends a share to all nodes in the network using the floodsub protocol
-pub fn send_floodsub_msg(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: String) {
-// pub fn send(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: Result<String, Error>) {
+// sends command line input to all nodes in the network using the floodsub protocol
+pub fn send_floodsub_cmd_line(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: String) {
     println!("SEND: {:#?}", data);
-    // let my_share: Vec<u8> = [0b01001100u8, 0b01001100u8, 0b01001100u8].to_vec();
-    // swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data);
     swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data.as_bytes());
+}
+
+// sends a Vec<u8> to all nodes in the network using the floodsub protocol
+pub fn send_floodsub_msg(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: Vec<u8>) {
+    // println!("SEND: {:#?}", data);
+    swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data);
 }
 
 // pub async fn send_async(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, share: [Vec<u8>; 5]) {

@@ -17,7 +17,7 @@ use libp2p::{
 use floodsub::Topic;
 use tokio::io::{self, AsyncBufReadExt};
 use deliver::deliver::MyBehaviour;
-use send::send::{send_floodsub_msg};
+use send::send::{send_floodsub_msg, send_floodsub_cmd_line};
 
 mod deliver;
 mod send;
@@ -84,12 +84,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         tokio::select! {
             line = stdin.next_line() => {
                 let line = line?.expect("stdin closed");
-                // by hitting "enter" the send function is triggered
+                // sends the input from the command line
+                // send_floodsub_cmd_line(&mut swarm, &floodsub_topic, line);
+
+                // a vec<u8> message is created and submitted when hitting "enter" (in the command line)
                 // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-                // send(&mut swarm, &floodsub_topic, my_msg);
-                send_floodsub_msg(&mut swarm, &floodsub_topic, line);
-                // send_async(&mut swarm, &floodsub_topic);
-                
+                let my_msg: Vec<u8> = [].to_vec();
+                send_floodsub_msg(&mut swarm, &floodsub_topic, my_msg);                
             }
             event = swarm.select_next_some() => {
                 if let SwarmEvent::NewListenAddr { address, .. } = event {

@@ -18,17 +18,18 @@ pub trait HandleMsg {
     fn handle_msg(&self);
 }
 
-// default behaviour for HandleMsg: print received data and sender (peerID)
+// default handling behaviour for a FloodsubMessage
 impl HandleMsg for FloodsubMessage {
     fn handle_msg(&self) {
-        println!("RECEIVED floodsub msg: '{:?}'", self.data);
-        println!("data type: {}", type_of(&self.data));
+        // println!("RECEIVED floodsub msg: '{:?}'", self.data);
+        // println!("data type: {}", type_of(&self.data));
         println!("From: '{:?}'", self.source);
-        println!("Sequence number: '{:?}'", self.sequence_number);
-        println!("Topic: '{:?}'", self.topics);
+        // println!("Sequence number: '{:?}'", self.sequence_number);
+        // println!("Topic: '{:?}'", self.topics);
     }
 }
 
+// default handling behaviour for a GossipsubMessage
 impl HandleMsg for GossipsubMessage {
     fn handle_msg(&self) {
         println!("RECEIVED gossipsub msg: '{:?}'", self.data);
