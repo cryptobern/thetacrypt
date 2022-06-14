@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use network::lib::get_node_ids;
+use network::lib::get_peers;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Response {
@@ -16,7 +16,7 @@ struct Peers {
 #[tokio::main]
 async fn main() {
     let test_addr = "http://127.0.0.1:26660";
-    match get_node_ids(test_addr.to_string()).await {
+    match get_peers(test_addr.to_string()).await {
         Ok(peers) => {
             println!("{:#?}", peers);
             // for peer in peers {

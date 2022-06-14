@@ -24,7 +24,7 @@ pub mod lib {
         pub url: String,
     }
 
-    pub async fn get_node_ids(address: String) -> Result<Vec<Peer>, Box<dyn Error>> {
+    pub async fn get_peers(address: String) -> Result<Vec<Peer>, Box<dyn Error>> {
         let req_url = address + "/net_info";
         let response = reqwest::get(req_url).await?.json::<Response>().await?;
         Ok(response.peers)
