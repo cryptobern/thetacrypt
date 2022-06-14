@@ -13,9 +13,10 @@ pub mod lib {
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]
-    struct Response {
-        listening: bool,
-        peers: Vec<Peer>,
+    pub struct Response {
+        pub listening: bool,
+        pub n_peers: String,
+        pub peers: Vec<Peer>,
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -24,9 +25,9 @@ pub mod lib {
         pub url: String,
     }
 
-    pub async fn get_peers(address: String) -> Result<Vec<Peer>, Box<dyn Error>> {
+    pub async fn get_peers(address: String) -> Result<Response, Box<dyn Error>> {
         let req_url = address + "/net_info";
         let response = reqwest::get(req_url).await?.json::<Response>().await?;
-        Ok(response.peers)
+        Ok(response)
     }
 }

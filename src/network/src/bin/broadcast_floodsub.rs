@@ -88,13 +88,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;   
 
-    // tokio::spawn(swarm_event(&mut swarm));
-    // tokio::spawn(send_async(swarm, &floodsub_topic));
-
     loop {
         tokio::select! {
             my_msg = do_stuff_async() => {
-                println!("my_msg: {:?}", my_msg);
+                match my_msg {
+                    Some(m) => {
+                        send_floodsub_msg(&mut swarm, &FLOODSUB_TOPIC, m);
+                    },
+                    None => println!("NONE"),
+                }
                 // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
                 // let my_msg = "hello".to_string();
                 // send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, my_msg);
@@ -108,7 +110,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
                 // let my_msg: Vec<u8> = [].to_vec();
                 // println!("input");
-                // send_floodsub_msg(&mut swarm, &floodsub_topic, my_msg);                
+                // send_floodsub_msg(&mut swarm, &FLOODSUB_TOPIC, my_msg);                
             }
             event = swarm.select_next_some() => {
                 if let SwarmEvent::NewListenAddr { address, .. } = event {
@@ -129,17 +131,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 }
 
-async fn swarm_event(swarm: &mut Swarm<MyBehaviour>) {
-    loop {
-        tokio::select! {
-            event = swarm.select_next_some() => {
-                if let SwarmEvent::NewListenAddr { address, .. } = event {
-                    println!("Listening on {:?}", address);
-                }
-            }
-        }
-    }
-}
+// async fn swarm_event(swarm: &mut Swarm<MyBehaviour>) {
+//     loop {
+//         tokio::select! {
+//             event = swarm.select_next_some() => {
+//                 if let SwarmEvent::NewListenAddr { address, .. } = event {
+//                     println!("Listening on {:?}", address);
+//                 }
+//             }
+//         }
+//     }
+// }
 
 // async fn init_buffer() -> std::io::Result<()> {
 //     let shares = [[0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec(),
@@ -159,10 +161,13 @@ async fn swarm_event(swarm: &mut Swarm<MyBehaviour>) {
 //     Ok(())
 // }
 
-async fn do_stuff_async() -> Option<u32> {
-    // async work
-    let x: Option<u32> = Some(2);
+async fn do_stuff_async() -> Option<Vec<u8>> {
+    let mut vec = Vec::new();
+    vec.push(2);
+    vec.push(5);
+    vec.push(1);
+    vec.push(222);
+    let opt_vec: Option<Vec<u8>> = Some(vec);
     thread::sleep(time::Duration::from_secs(5));
-    // return "hello".to_string();
-    return x;
+    return opt_vec;
 }
