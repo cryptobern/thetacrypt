@@ -16,11 +16,15 @@ use libp2p::{
 };
 use floodsub::Topic;
 use tokio::io::{self, AsyncBufReadExt};
+use std::str::FromStr;
 
 use deliver::deliver::MyBehaviour;
 use send::send::{send_floodsub_msg, send_floodsub_cmd_line, send_async};
+use crate::network_info::local_node::get_peer_info;
 mod deliver;
 mod send;
+mod network_info;
+
 use std::{thread, time, string};
 use once_cell::sync::Lazy;
 use network::lib::type_of;
@@ -37,9 +41,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a random PeerId
     let id_keys = identity::Keypair::generate_ed25519();
-    let peer_id = PeerId::from(id_keys.public());
+    let mut peer_id = PeerId::from(id_keys.public());
     println!("Local peer id: {:?}", peer_id);
 
+    // local RPC endpoint
+    let my_rpc_addr = "http://127.0.0.1:26657";
+    // get local PeerId
+    // let peer_id: PeerId;
+    match get_peer_info(my_rpc_addr.to_string()).await {
+        Ok(response) => {
+            println!("local node id: {:#?}", response.node_info.id);
+            println!("node id type: {:#?}", type_of(&response.node_info.id));
+            peer_id = PeerId::from_str(&response.node_info.id).unwrap(); 
+            // match PeerId::from_str(&response.node_info.id) {
+            //     Ok(p_id) => {
+            //         println!("Local peer id: {:?}", p_id);
+            //         peer_id = p_id;
+            //     },
+            //     Err(parse_err) => {
+            //         println!("Parse Error: {}", parse_err);
+            //         peer_id = PeerId::from(id_keys.public());
+            //     },
+            // }
+        },
+        Err(err) => {
+            println!("Error: {}", err);
+            // peer_id = PeerId::from(id_keys.public());
+        },
+    }
+
+    // println!("Local peer id: {:?}", peer_id);
     // Create a keypair for authenticated encryption of the transport.
     let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
         .into_authentic(&id_keys)
