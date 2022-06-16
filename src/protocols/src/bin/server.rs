@@ -6,7 +6,6 @@ use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, Serializable};
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-use rasn::der::decode;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
@@ -31,7 +30,11 @@ enum StateUpdateCommand {
     GetNetToProtSender {
         instance_id: String,
         responder: tokio::sync::oneshot::Sender<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>
-    }
+    },
+    AddResultChannel {
+        instance_id: String,
+        receiver: tokio::sync::mpsc::Receiver<Option<Vec<u8>>>
+    },
 }
 
 pub struct Context {
@@ -109,31 +112,32 @@ impl RequestHandler{
             C: 'static
     {
         let ciphertext = C::CT::deserialize(&req.ciphertext).unwrap(); 
-                
-        // let sk = decode::<Sg02PrivateKey<Bls12381>>(&self.context.key_chain.get("sg02_bls12381").unwrap().sk).unwrap();
-        // todo: remove rasn dependency if you keep this version
         
         // Identify each protocol instance with a unique id. This id will be used to forward decryption shares to the
         // corresponding protocol instance. Right now we use the label of the ciphertext as id/
         let instance_id = String::from_utf8(ciphertext.get_label()).unwrap();
 
         // Create a channel for network-to-protocol communication and one for protocol-to-network communication.
-        let (net_to_prot_tx, net_to_prot_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-        let (prot_to_net_tx, prot_to_net_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        let (result_sender, result_receiver) = tokio::sync::mpsc::channel::<Option<Vec<u8>>>(32);
         
         // Update the state. We need to keep the sender end of net_to_prot channel and the receiver end of prot_to_net. The state manager takes ownership.
-        let cmd = StateUpdateCommand::AddNetToProtChannel { instance_id: instance_id.clone(), sender: net_to_prot_tx };
+        let cmd = StateUpdateCommand::AddNetToProtChannel { instance_id: instance_id.clone(), sender: net_to_prot_sender };
         let _ = self.state_manager_sender.send(cmd).await;
-        let cmd = StateUpdateCommand::AddProtToNetChannel { instance_id: instance_id.clone(), receiver: prot_to_net_rx };
+        let cmd = StateUpdateCommand::AddProtToNetChannel { instance_id: instance_id.clone(), receiver: prot_to_net_receiver };
         let _ = self.state_manager_sender.send(cmd).await;
-
+        let cmd = StateUpdateCommand::AddResultChannel { instance_id: instance_id.clone(), receiver: result_receiver };
+        let _ = self.state_manager_sender.send(cmd).await;
+        
         // The receiver end of net_to_prot channel and the sender end of prot_to_net are given to the protocol. The protocol takes ownership.
         let mut prot = ThresholdCipherProtocol::<C>::new(
             sk.clone(),
             pk.clone(),
             ciphertext,
-            net_to_prot_rx,
-            prot_to_net_tx,
+            net_to_prot_receiver,
+            prot_to_net_sender,
+            result_sender,
             instance_id.clone());
         
         // Start the new protocol instance as a new tokio task
@@ -184,22 +188,29 @@ impl ThresholdCryptoLibrary for RequestHandler {
         let req = request.get_ref();
         println!(">> RH: Received a decryption share. Instance_id: {:?}", req.instance_id);
         let (responder_tx, responder_rx) = oneshot::channel::<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>();
+        // Retrieve the sender (channel ens) that sends to the protocol instance with instance_id.
+        // The State Manager will search for the that sender and will hand it back to as through the responder_tx-responder_rx channel.
+        // If no such sender exists, the State Manager will send a None value.
         let cmd = StateUpdateCommand::GetNetToProtSender { instance_id: req.instance_id.clone(), responder: responder_tx};
         self.state_manager_sender.send(cmd).await;
-        let res =  responder_rx.await;
-        match res{
+        match responder_rx.await{
             Ok(v) => {
                 match v {
                     Some(sender) => {
                         println!(">> RH: Pushing decryption share in net_to_prot. Instance_id: {:?}", req.instance_id.clone());
                         if let Err(_) = sender.send(req.decryption_share.clone()).await{
+                            // receiver end has already been closed
                             println!(">> RH: Pushing decryption share FAILED. Maybe thread already finished? Instance_id: {:?}", req.instance_id.clone());
                         }
                         Ok(Response::new(requests::PushDecryptionShareResponse{}))
                     },
                     None => {
-                        // todo: Handle this. instance_id might not exist because decryption request has not arrived yet, or beacause protocol terminated
-                        Err(Status::new(tonic::Code::NotFound, "instance_id not found"))
+                        // todo: Handle this:
+                        // instance_id might not exist because the instance has already finished -> That's ok.
+                        println!(">> RH: Could not push decryption share in net_to_prot. Protocol already finished. Instance_id: {:?}", req.instance_id.clone());
+                        Ok(Response::new(requests::PushDecryptionShareResponse{}))
+                        // instance_id might not exist because the decryption request has not arrived yet -> Backlog these messages.
+                        // Err(Status::new(tonic::Code::NotFound, "instance_id not found"))
                     },
                 }
                 // let sender2 = sender.clone();
@@ -215,9 +226,14 @@ impl ThresholdCryptoLibrary for RequestHandler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn the State Manager
     let (state_manager_sender, mut state_manager_receiver) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
+    // todo: The following runs a busy loop. For this reason we spawn it to a new thread (and not a tokio task).
+    // Not a good solution, because the thread will always be looping, even if no new message arrives. 
     thread::spawn( move || {
         let mut channels_net_to_prot: HashMap<String, tokio::sync::mpsc::Sender<Vec<u8>> > = HashMap::new();
         let mut channels_prot_to_net: HashMap<String, tokio::sync::mpsc::Receiver<Vec<u8>> > = HashMap::new();
+        // todo: Do we really need a different channel for every protocol instance?
+        let mut result_channels: HashMap<String, tokio::sync::mpsc::Receiver<Option<Vec<u8>>> > = HashMap::new();
+        let mut results: HashMap<String, Option<Vec<u8>> > = HashMap::new();
         loop {
             // Handle incoming commands (i.e., requests to modify or read the state).
             match state_manager_receiver.try_recv() { 
@@ -242,13 +258,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                         },
+                        StateUpdateCommand::AddResultChannel { instance_id, receiver } => {
+                            result_channels.insert(instance_id.clone(), receiver); // todo: right now receiver will be updated if instance_id already exists
+                            results.insert(instance_id.clone(), None);
+                        },
                     }
                 },
                 Err(Empty) => {} //it's ok, just no new message
                 Err(TryRecvError::Disconnected) => {}, // sender end closed
             };
-            // Handle messages from protocol instances (by sending them through the network)
-            // todo: Move into a separate module?
+            // Handle messages from protocol instances (send them through the network)
+            // todo: Move into a separate module? Network Manager?
             for (instance_id, receiver) in channels_prot_to_net.iter_mut(){
                 match receiver.try_recv() {
                     Ok(message) => {
@@ -256,18 +276,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // todo: Broadcast this message to everyone using Tendermint Core.
                     },
                     Err(Empty) => {}
+                    Err(TryRecvError::Disconnected) => {}, // sender end dropped
+                };
+            }
+            // Handle results (i.e., return values) from terminated protocol instances.
+            // Since the instances are terminated, close all related channel (1 - 3) ends and remove them from state 
+            let mut instances_to_remove: Vec<String> = Vec::new();
+            for (instance_id, receiver) in result_channels.iter_mut(){
+                match receiver.try_recv() {
+                    Ok(message) => {
+                        println!(">> SM: Received result in result_channel. Instance_id: {:?}", instance_id);
+                        results.insert(instance_id.clone(), message);
+                        // 1. Remove sender from channels_net_to_prot
+                        channels_net_to_prot.remove(instance_id);
+                        println!(">> SM: Removed channel from channels_net_to_prot. Instance_id: {:?}", instance_id);
+                        // 2. Close and remove receiver from channels_prot_to_net. Also check for outstanding messages in the channel and handle them.
+                        match channels_prot_to_net.get_mut(instance_id){
+                            Some(receiver) => {
+                                receiver.close();
+                                println!(">> SM: Closed receiver end from channels_prot_to_net. Instance_id: {:?}", instance_id);
+                                // todo: code inside this while loop is duplicate. Can we avoid this
+                                while let Some(message) = receiver.blocking_recv() {
+                                    println!(">> SM: Received decryption share in prot_to_net. Instance_id: {:?}", instance_id);
+                                    // todo: Broadcast this message to everyone using Tendermint Core.
+                                };
+                                channels_prot_to_net.remove(instance_id);
+                                println!(">> SM: Removed channel from channels_prot_to_net. Instance_id: {:?}", instance_id);
+                            },
+                            None => {
+                                println!(">> SM: Warning: Channel already removed from channels_prot_to_net. Instance_id: {:?}", instance_id);
+                            },
+                        }
+                        // 3. Close and remove receiver from result_channels.
+                        instances_to_remove.push(instance_id.clone());
+                    },    
+                    Err(Empty) => {} //it's ok, just no new message
                     Err(TryRecvError::Disconnected) => {}, // sender end closed
                 };
             }
-            
+            for instance_id in instances_to_remove{
+                result_channels.remove(&instance_id);
+                println!(">> SM: Removed channel from result_channels. Instance_id: {:?}", instance_id);
+            }
         }
     });
     
     // Read keys from file
     println!("Reading keys from keychain.");
-    let keyfile = format!("conf/keys_0.json");
-    let key_chain_str = fs::read_to_string(keyfile).unwrap();
-    let key_chain: KeyChain = serde_json::from_str(&key_chain_str).unwrap();
+    let key_chain: KeyChain = KeyChain::from_file("conf/keys_0.json"); 
     println!("Reading keys done");
     
     // Setup the request handler

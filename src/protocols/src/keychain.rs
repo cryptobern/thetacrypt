@@ -1,12 +1,7 @@
 use std::{collections::HashMap, fs};
-
-use cosmos_crypto::{dl_schemes::{keygen::DlScheme, DlDomain, ciphers::sg02::Sg02PrivateKey}, rsa_schemes::keygen::RsaScheme, interface::{PrivateKey, ThresholdCipher}};
-
-use crate::requests;
-
 use serde::{Serialize, Deserialize, Serializer};
 use serde_with::serde_as;
-
+    
 // Each (crate::requests::ThresholdCipher, crate::requests::DlGroup) pair maps to HashMap of (possibly more than one) key entries.
 // Each key entry is a key-pair map from a key-id (string) to the actual key content (Vec<u8>).
 // Keys in the KeyChain are store in a serialized form.
@@ -18,6 +13,7 @@ pub struct KeyChain {
 }
 
 impl KeyChain{
+    // todo: When the new version of deseralize (that returns the key wrapped in an enum) is ready, update this function.
     pub fn from_file(filename: &str) -> Self {
         let key_chain_str = fs::read_to_string(filename).unwrap();
         serde_json::from_str(&key_chain_str).unwrap()
