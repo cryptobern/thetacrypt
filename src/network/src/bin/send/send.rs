@@ -17,9 +17,22 @@ pub fn send_floodsub_cmd_line(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &T
 }
 
 // sends a Vec<u8> to all nodes in the network using the floodsub protocol
-pub fn send_floodsub_msg(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: Vec<u8>) {
+pub fn send_floodsub_vecu8_msg(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: Vec<u8>) {
     println!("SEND: {:#?}", data);
     swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data);
+}
+
+// sends a command line input to all nodes in the network using the gossipsub protocol
+pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, data: Result<String, Error>) {
+// pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, data: Vec<u8>) {
+    println!("SEND: {:#?}", data);
+    if let Err(e) = swarm
+        .behaviour_mut()
+        .publish(topic.clone(), data.expect("Stdin not to close").as_bytes())
+        // .publish(topic.clone(), data)
+    {
+        println!("Publish error: {:?}", e);
+    }
 }
 
 pub async fn send_async(mut swarm: Swarm<MyBehaviour>, floodsub_topic: &Topic) {
@@ -36,19 +49,6 @@ pub async fn send_async(mut swarm: Swarm<MyBehaviour>, floodsub_topic: &Topic) {
         // sleep(Duration::from_secs(2)).await;
         println!("send: {:#?}", s);
         swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), s.to_vec());
-    }
-}
-
-// sends a command line input to all nodes in the network using the gossipsub protocol
-pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, data: Result<String, Error>) {
-// pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, data: Vec<u8>) {
-    println!("SEND: {:#?}", data);
-    if let Err(e) = swarm
-        .behaviour_mut()
-        .publish(topic.clone(), data.expect("Stdin not to close").as_bytes())
-        // .publish(topic.clone(), data)
-    {
-        println!("Publish error: {:?}", e);
     }
 }
 

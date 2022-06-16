@@ -1,5 +1,7 @@
+// use cosmos_crypto::dl_schemes::dl_groups::ed25519::Ed25519;
 use futures::StreamExt;
-use std::{error::Error};
+// use core::num::dec2flt::parse;
+use std::{error::Error, str::FromStr, string::ParseError};
 use libp2p::{
     core::upgrade,
     floodsub::{self, Floodsub},
@@ -12,26 +14,24 @@ use libp2p::{
     // `TokioTcpConfig` is available through the `tcp-tokio` feature.
     tcp::TokioTcpConfig,
     Transport,
-    PeerId, Swarm,
+    PeerId,
 };
 use floodsub::Topic;
 use tokio::io::{self, AsyncBufReadExt};
-use std::str::FromStr;
+// use std::str::FromStr;
 
 use deliver::deliver::MyBehaviour;
-use send::send::{send_floodsub_msg, send_floodsub_cmd_line, send_async};
-use crate::network_info::local_node::get_peer_info;
+use send::send::{send_floodsub_vecu8_msg, send_floodsub_cmd_line};
+use network_info::local_node::{get_peer_info};
 mod deliver;
 mod send;
 mod network_info;
 
-use std::{thread, time, string};
+use std::{thread, time};
 use once_cell::sync::Lazy;
 use network::lib::type_of;
-use std::fs::File;
-use std::path::Path;
-
-// use std::{thread, time, string};
+// use std::fs::File;
+// use std::path::Path;
 
 static FLOODSUB_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("share"));
 
@@ -46,31 +46,66 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // local RPC endpoint
     let my_rpc_addr = "http://127.0.0.1:26657";
+
     // get local PeerId
-    // let peer_id: PeerId;
     match get_peer_info(my_rpc_addr.to_string()).await {
         Ok(response) => {
-            println!("local node id: {:#?}", response.node_info.id);
-            println!("node id type: {:#?}", type_of(&response.node_info.id));
-            peer_id = PeerId::from_str(&response.node_info.id).unwrap(); 
-            // match PeerId::from_str(&response.node_info.id) {
+            let my_node_id = response.node_info.id;
+            let my_pub_key = response.validator_info.pub_key.value;
+            println!("local node id: {:#?}", my_node_id);
+            println!("local node pub_key: {:#?}", my_pub_key);
+
+            // --- try to convert pub_key / node_id into PubKey or PeerId ----
+
+            // let my_peer = PeerId::from_bytes(response.node_info.id.as_bytes());
+            // match PeerId::from_bytes(response.node_info.id.as_bytes()) {
+            //     Ok(peer_id) => {
+            //         println!("peer_id from bytes: {:?}", peer_id);
+            //         println!("peer_id type: {:#?}", type_of(&peer_id));
+            //     },
+            //     Err(parse_err) => {
+            //         println!("byte Error: {:?}", parse_err);
+            //     },
+            // }
+            // let test_id: Vec<u8> = response.node_info.id.as_bytes().to_vec();
+            // println!("node id type: {:#?}", type_of(&my_peer));
+            // println!("node id type: {:#?}", type_of(&response.node_info.id.as_str()));
+
+            let pub_key_vec = my_pub_key.as_bytes();
+            // let pub_key = identity::PublicKey::from_protobuf_encoding(&pub_key_vec).unwrap();
+            // println!("pub_key: {:#?}", pub_key);
+
+            // let my_keys: identity::PublicKey = identity::PublicKey::Ed25519(response.validator_info.pub_key.value);
+            // let mut bytes = std::fs::read(response.validator_info.pub_key.value).unwrap();
+            // let key_pair = Keypair::rsa_from_pkcs8(&mut bytes);
+            match identity::PublicKey::from_protobuf_encoding(pub_key_vec) {
+                Ok(ok_pub_key) => println!("ok_pub_key: {:?}", ok_pub_key),
+                Err(pub_key_error) => println!("pub key error: {}", pub_key_error),
+            }
+            // let pub_key2 = identity::PublicKey::from_protobuf_encoding(pub_key_vec).unwrap();
+
+            // let my_pub_key = Ed25519::Keypair::from_pkcs8(&mut bytes);
+            // peer_id = PeerId::from_str(response.node_info.id.as_str()).unwrap();
+            // match PeerId::try_from(response.node_info.id.as_bytes().to_vec()) {
+            // match PeerId::from_str(response.node_info.id.as_str()) {
             //     Ok(p_id) => {
-            //         println!("Local peer id: {:?}", p_id);
+            //         println!("peer_id from string: {:?}", p_id);
+            //         println!("peer_id from string type: {}", type_of(p_id));
             //         peer_id = p_id;
             //     },
             //     Err(parse_err) => {
-            //         println!("Parse Error: {}", parse_err);
+            //         println!("str Error: {:?}", parse_err);
+            //         // let string2: String = String::from_utf8(parse_err.clone()).unwrap();
+            //         // println!("error as string: {:?}", string2);
             //         peer_id = PeerId::from(id_keys.public());
             //     },
             // }
         },
         Err(err) => {
             println!("Error: {}", err);
-            // peer_id = PeerId::from(id_keys.public());
         },
     }
 
-    // println!("Local peer id: {:?}", peer_id);
     // Create a keypair for authenticated encryption of the transport.
     let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
         .into_authentic(&id_keys)
@@ -84,9 +119,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .authenticate(noise::NoiseConfig::xx(noise_keys).into_authenticated())
         .multiplex(mplex::MplexConfig::new())
         .boxed();
-
-    // Create a Floodsub topic
-    // let floodsub_topic = Topic::new("shares");
 
     // Create a Swarm to manage peers and events.
     let mut swarm = {
@@ -121,44 +153,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         tokio::select! {
-            my_msg = do_stuff_async() => {
-                match my_msg {
-                    Some(m) => {
-                        send_floodsub_msg(&mut swarm, &FLOODSUB_TOPIC, m);
-                    },
-                    None => println!("NONE"),
-                }
-                // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-                // let my_msg = "hello".to_string();
-                // send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, my_msg);
-            }
+            // testing select! with other function
+            // my_msg = do_stuff_async() => {
+            //     match my_msg {
+            //         Some(m) => {
+            //             send_floodsub_vecu8_msg(&mut swarm, &FLOODSUB_TOPIC, m);
+            //         },
+            //         None => println!("NONE"),
+            //     }
+            //     // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+            //     // let my_msg = "hello".to_string();
+            //     // send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, my_msg);
+            // }
             line = stdin.next_line() => {
                 let line = line?.expect("stdin closed");
                 // sends the input from the command line
-                send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, line);
-
-                // a vec<u8> message is created and submitted when hitting "enter" (in the command line)
-                // let my_msg: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-                // let my_msg: Vec<u8> = [].to_vec();
-                // println!("input");
-                // send_floodsub_msg(&mut swarm, &FLOODSUB_TOPIC, my_msg);                
+                send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, line);            
             }
             event = swarm.select_next_some() => {
                 if let SwarmEvent::NewListenAddr { address, .. } = event {
                     println!("Listening on {:?}", address);
-                // } if let SwarmEvent::Flood = event {
-                //     println!("floddsubmessage {:?}", event);
-                } else {
-                    println!("-------------------------------------");
-                    println!("other event {:?}", event);
-                    println!("event type {:?}", type_of(event));
-                    println!("-------------------------------------");
                 }
+                // else {
+                //     println!("-------------------------------------");
+                //     println!("other event {:?}", event);
+                //     println!("event type {:?}", type_of(event));
+                //     println!("-------------------------------------");
+                // }
             }
         }
     }
-
-    // Ok(())
 
 }
 
