@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]
     pub struct SyncInfo {
-        pub latest_block_hash: String,
+        pub latest_block_hash: String,  
         pub latest_block_height: String,
         pub latest_block_time: String,
     }
@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]
     pub struct PubKey {
-        // pub type: String,
+        pub r#type: String, // escape `type` with r# to use it as an identifier
         pub value: String,
     }
 
