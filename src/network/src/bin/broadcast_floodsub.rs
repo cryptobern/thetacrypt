@@ -22,7 +22,12 @@ use tokio::io::{self, AsyncBufReadExt};
 mod deliver;
 use deliver::deliver::MyBehaviour;
 mod send;
-use send::send::{send_floodsub_cmd_line};
+use send::send::{send_floodsub_cmd_line, message_sender};
+
+use futures::future; // 0.3.19
+use tokio::{
+    sync::mpsc,
+};
 
 static FLOODSUB_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("share"));
 
@@ -80,8 +85,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
+    // create channel, spawn sender
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    tokio::spawn(message_sender("foo", tx));
+
     loop {
         tokio::select! {
+            msg = rx.recv() => {
+                if let Some(msg) = &msg {
+                    // println!("{msg}");
+                    send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, msg.to_string())
+                }
+            }
             line = stdin.next_line() => {
                 let line = line?.expect("stdin closed");
                 // sends the input from the command line

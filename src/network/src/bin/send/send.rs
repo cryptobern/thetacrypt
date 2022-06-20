@@ -6,6 +6,11 @@ use libp2p::{
 use libp2p::gossipsub::IdentTopic as GossibsubTopic;
 use crate::deliver::deliver::MyBehaviour;
 use crate::io::Error;
+use std::time::Duration;
+use tokio::{
+    sync::mpsc::UnboundedSender,
+    time,
+};
 
 // sends command line input to all nodes in the network using the floodsub protocol
 pub fn send_floodsub_cmd_line(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: String) {
@@ -29,5 +34,15 @@ pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, 
         // .publish(topic.clone(), data)
     {
         println!("Publish error: {:?}", e);
+    }
+}
+
+// for channel testing
+pub async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
+    for count in 0.. {
+        let message = format!("{msg}{count}");
+        tx.send(message).unwrap();
+
+        time::sleep(Duration::from_millis(500)).await;
     }
 }

@@ -5,7 +5,7 @@ use tokio::{
     time,
 }; // 1.16.1
 
-async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
+pub async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
     for count in 0.. {
         let message = format!("{msg}{count}");
         tx.send(message).unwrap();
