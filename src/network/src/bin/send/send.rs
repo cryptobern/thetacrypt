@@ -37,11 +37,14 @@ pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, 
     }
 }
 
-// for channel testing
-pub async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
+// sends msg to the channel
+pub async fn message_sender(msg: Vec<u8>, tx: UnboundedSender<Vec<u8>>) {
+// pub async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
     for count in 0.. {
-        let message = format!("{msg}{count}");
-        tx.send(message).unwrap();
+        // let message = format!("{msg}{count}");
+        // tx.send(message).unwrap();
+        // let message = format!("{msg}{count}");
+        tx.send(msg.to_vec()).unwrap();
 
         time::sleep(Duration::from_millis(500)).await;
     }

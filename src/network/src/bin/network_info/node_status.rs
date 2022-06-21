@@ -1,9 +1,9 @@
 use tendermint_rpc::{HttpClient, Client};
-// use tendermint_rpc::Response;
-// use serde::ser::Error;
+use tendermint_rpc::Response;
+use serde::ser::Error;
 
-pub async fn get_local_peer_id() {
-// pub async fn get_local_peer_id() -> Result<dyn Response, Box<dyn Error>> {
+// pub async fn get_local_peer_id() {
+pub async fn get_local_peer_id() -> Result<Box<dyn Response>, Box<dyn Error>> {
     let client = HttpClient::new("http://127.0.0.1:26657")
         .unwrap();
 

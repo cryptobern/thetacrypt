@@ -22,7 +22,7 @@ use tokio::io::{self, AsyncBufReadExt};
 mod deliver;
 use deliver::deliver::MyBehaviour;
 mod send;
-use send::send::{send_floodsub_cmd_line, message_sender};
+use send::send::{send_floodsub_cmd_line, send_floodsub_vecu8_msg, message_sender};
 
 use futures::future; // 0.3.19
 use tokio::{
@@ -87,21 +87,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // create channel, spawn sender
     let (tx, mut rx) = mpsc::unbounded_channel();
-    tokio::spawn(message_sender("foo", tx));
+
+    // sends a Vec<u8> into the channel 
+    let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+    tokio::spawn(message_sender(my_vec, tx));
 
     loop {
         tokio::select! {
+            // reads msgs from the channel and broadcasts it to the network
             msg = rx.recv() => {
                 if let Some(msg) = &msg {
-                    // println!("{msg}");
-                    send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, msg.to_string())
+                    send_floodsub_vecu8_msg(&mut swarm, &FLOODSUB_TOPIC, msg.to_vec())
                 }
             }
-            line = stdin.next_line() => {
-                let line = line?.expect("stdin closed");
-                // sends the input from the command line
-                send_floodsub_cmd_line(&mut swarm, &FLOODSUB_TOPIC, line);            
-            }
+            // handles events produced by the swarm
             event = swarm.select_next_some() => {
                 if let SwarmEvent::NewListenAddr { address, .. } = event {
                     println!("Listening on {:?}", address);
