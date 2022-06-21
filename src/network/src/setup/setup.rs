@@ -13,11 +13,11 @@ use libp2p::{
     Transport, Swarm, mdns::Mdns, swarm::{SwarmBuilder, SwarmEvent}};
 use floodsub::Topic;
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, self};
 use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
-use crate::send::send::send_floodsub_vecu8;
+use crate::send::send::{send_floodsub_vecu8, message_sender};
 
-pub async fn setup(topic: Lazy<Topic>, listen_addr: String, channel_receiver: UnboundedReceiver<Vec<u8>>) {
+pub async fn init_setup(topic: Lazy<Topic>, listen_addr: String, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     env_logger::init();
 
     // Create a random PeerId
@@ -26,6 +26,24 @@ pub async fn setup(topic: Lazy<Topic>, listen_addr: String, channel_receiver: Un
     let peer_id = PeerId::from(id_keys.public());
     println!("Local peer id: {:?}", peer_id);
 
+    // test get_noise_keys
+    let noise_keys = create_noise_keys(id_keys);
+
+    // test create_transport
+    let transport = create_tcp_transport(noise_keys);
+
+    // crate a Swarm to manage peers and events from floodsub protocol
+    let mut swarm = create_floodsub_swarm_behaviour(
+        topic.clone(), peer_id, transport).await.unwrap();
+
+    // bind port to given listener address
+    match listen_on(&mut swarm, listen_addr.to_string()).await {
+        Ok(()) => (),
+        Err(err) => println!("error: {}", err),
+    }
+
+    // kick off tokio::select event loop to handle events
+    run_event_loop(channel_receiver, &mut swarm, topic).await;
 
 }
 
