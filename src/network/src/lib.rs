@@ -1,5 +1,8 @@
-pub mod lib {
+pub mod deliver;
+pub mod send;
+pub mod setup;
 
+pub mod lib {
     use std::any::type_name;
 
     // get data type

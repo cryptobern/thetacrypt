@@ -11,12 +11,8 @@ use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-// use deliver::deliver::handle_gossip_msg;
-use deliver::deliver::HandleMsg;
-mod deliver;
-
-use send::send::send_gossipsub_msg;
-mod send;
+use network::deliver::deliver::HandleMsg;
+use network::send::send::send_gossipsub_msg;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {

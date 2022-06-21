@@ -4,8 +4,11 @@ use libp2p::{
     swarm::Swarm, gossipsub::Gossipsub,
 };
 use libp2p::gossipsub::IdentTopic as GossibsubTopic;
-use crate::deliver::deliver::MyBehaviour;
-use crate::io::Error;
+// use crate::deliver::deliver::FloodsubMdnsBehaviour;
+// use network::deliver::deliver::FloodsubMdnsBehaviour;
+// use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
+use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
+use async_std::io::Error;
 use std::time::Duration;
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -13,13 +16,13 @@ use tokio::{
 };
 
 // sends command line input to all nodes in the network using the floodsub protocol
-pub fn send_floodsub_cmd_line(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: String) {
+pub fn send_floodsub_cmd_line(swarm: &mut Swarm<FloodsubMdnsBehaviour>, floodsub_topic: &Topic, data: String) {
     println!("SEND: {:#?}", data);
     swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data.as_bytes());
 }
 
 // sends a Vec<u8> to all nodes in the network using the floodsub protocol
-pub fn send_floodsub_vecu8_msg(swarm: &mut Swarm<MyBehaviour>, floodsub_topic: &Topic, data: Vec<u8>) {
+pub fn send_floodsub_vecu8(swarm: &mut Swarm<FloodsubMdnsBehaviour>, floodsub_topic: &Topic, data: Vec<u8>) {
     println!("SEND: {:#?}", data);
     swarm.behaviour_mut().floodsub.publish(floodsub_topic.clone(), data);
 }
@@ -39,13 +42,10 @@ pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, 
 
 // sends msg to the channel
 pub async fn message_sender(msg: Vec<u8>, tx: UnboundedSender<Vec<u8>>) {
-// pub async fn message_sender(msg: &'static str, tx: UnboundedSender<String>) {
+    // sends repeatedly msgs to the channel
     for count in 0.. {
-        // let message = format!("{msg}{count}");
-        // tx.send(message).unwrap();
-        // let message = format!("{msg}{count}");
         tx.send(msg.to_vec()).unwrap();
-
+        // waits for the next message
         time::sleep(Duration::from_millis(500)).await;
     }
 }

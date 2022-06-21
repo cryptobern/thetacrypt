@@ -1,7 +1,6 @@
 // use cosmos_crypto::dl_schemes::dl_groups::ed25519::Ed25519;
 use floodsub::Topic;
 use futures::StreamExt;
-use std::error::Error;
 use libp2p::{
     core::upgrade,
     floodsub::{self, Floodsub},
@@ -17,17 +16,13 @@ use libp2p::{
     PeerId,
 };
 use once_cell::sync::Lazy;
-use tokio::io::{self, AsyncBufReadExt};
-
-mod deliver;
-use deliver::deliver::MyBehaviour;
-mod send;
-use send::send::{send_floodsub_cmd_line, send_floodsub_vecu8_msg, message_sender};
-
-use futures::future; // 0.3.19
+use std::error::Error;
 use tokio::{
     sync::mpsc,
 };
+
+use network::setup::swarm_behaviour::FloodsubMdnsBehaviour;
+use network::send::send::{send_floodsub_vecu8, message_sender};
 
 static FLOODSUB_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("share"));
 
@@ -57,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a Swarm to manage peers and events.
     let mut swarm = {
         let mdns = Mdns::new(Default::default()).await?;
-        let mut behaviour = MyBehaviour {
+        let mut behaviour = FloodsubMdnsBehaviour {
             floodsub: Floodsub::new(peer_id.clone()),
             mdns,
         };
@@ -79,9 +74,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Dialed {:?}", to_dial);
     }
 
-    // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines();
-
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
@@ -97,7 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // reads msgs from the channel and broadcasts it to the network
             msg = rx.recv() => {
                 if let Some(msg) = &msg {
-                    send_floodsub_vecu8_msg(&mut swarm, &FLOODSUB_TOPIC, msg.to_vec())
+                    send_floodsub_vecu8(&mut swarm, &FLOODSUB_TOPIC, msg.to_vec())
                 }
             }
             // handles events produced by the swarm
@@ -108,5 +100,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-
 }

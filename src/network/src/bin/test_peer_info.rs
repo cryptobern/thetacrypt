@@ -7,6 +7,7 @@ mod network_info;
 async fn main() {
     let test_addr = "http://127.0.0.1:26657";
 
+    // test tendermint RPC endpoint /net_info with reqwest
     match get_peers(test_addr.to_string()).await {
         Ok(response) => {
             println!("{:#?}", response);
@@ -19,6 +20,7 @@ async fn main() {
         Err(err) => println!("Error: {}", err),
     }
 
+    // test tendermint RPC endpoint /status with reqwest
     match get_peer_info(test_addr.to_string()).await {
         Ok(response) => {
             println!("{:#?}", response);
