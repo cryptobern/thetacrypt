@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::{thread, time};
-
+use protocols::pb::requests;
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
 use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
@@ -12,8 +12,8 @@ use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
 use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, PrivateKey, Serializable};
 use cosmos_crypto::rand::{RngAlgorithm, RNG};
 use protocols::keychain::KeyChain;
-use protocols::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, PushDecryptionShareRequest, PushDecryptionShareResponse, self};
+use protocols::pb::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, PushDecryptionShareRequest, PushDecryptionShareResponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
@@ -50,11 +50,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &sk_sg02_bls12381.get_public_key());
     let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &sk_sg02_bls12381.get_public_key());
     
+
     // Decryption request 1 
     println!(">> Sending decryption request 1.");
-    let response = client.decrypt(request).await.unwrap();
+    let response = client.decrypt(request.clone()).await.unwrap();
     println!("RESPONSE={:?}", response);
     let decrypt_response = response.get_ref();
+
+    // RESEND Decryption request 1 
+    println!(">> Sending AGAIN decryption request 1.");
+    let response = client.decrypt(request).await;
+    println!("RESPONSE={:?}", response);
     
     // Decryption request 1, share id: 2
     println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response.instance_id.clone());
@@ -147,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (tonic::Request<ThresholdDecryptionRequest>, C::CT) {
+fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (ThresholdDecryptionRequest, C::CT) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
@@ -159,7 +165,8 @@ fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (to
         ciphertext: ciphertext.serialize().unwrap(),
         key_id: String::from("sg02_bls12381")
     };
-    (Request::new(req), ciphertext)
+    (req, ciphertext)
+    // (Request::new(req), ciphertext)
 }
 
 fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey<Bls12381>) -> (tonic::Request<ThresholdDecryptionRequest>, Sg02Ciphertext<Bls12381>) {

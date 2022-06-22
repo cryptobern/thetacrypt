@@ -2,14 +2,14 @@ use std::{collections::HashMap, fs};
 use serde::{Serialize, Deserialize, Serializer};
 use serde_with::serde_as;
     
-// Each (crate::requests::ThresholdCipher, crate::requests::DlGroup) pair maps to HashMap of (possibly more than one) key entries.
+// Each (crate::pb::requests::ThresholdCipher, crate::pb::requests::DlGroup) pair maps to HashMap of (possibly more than one) key entries.
 // Each key entry is a key-pair map from a key-id (string) to the actual key content (Vec<u8>).
 // Keys in the KeyChain are store in a serialized form.
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KeyChain {
     #[serde_as(as = "Vec<(_, _)>")]
-    key_chain: HashMap<(crate::requests::ThresholdCipher, crate::requests::DlGroup), HashMap<String, Vec<u8>>>
+    key_chain: HashMap<(crate::pb::requests::ThresholdCipher, crate::pb::requests::DlGroup), HashMap<String, Vec<u8>>>
 }
 
 impl KeyChain{
@@ -27,7 +27,7 @@ impl KeyChain{
 
     // Inserts a key to the key_chain. A key_id must be given here.
     // Keys are stored in serialized form in the key_chain.
-    pub fn insert_key(&mut self, scheme: crate::requests::ThresholdCipher, domain: crate::requests::DlGroup, key_id: String, key: Vec<u8>){
+    pub fn insert_key(&mut self, scheme: crate::pb::requests::ThresholdCipher, domain: crate::pb::requests::DlGroup, key_id: String, key: Vec<u8>){
         if !self.key_chain.contains_key(&(scheme, domain)){
             self.key_chain.insert((scheme, domain), HashMap::new());
         }
@@ -38,7 +38,7 @@ impl KeyChain{
     // If there are more than one, then we return the one with identifier key_id (if any, otherwise error).
     // In other words, we use the parameter key_id only in case more than one keys could match the given (scheme, domain).
     // todo: Probably better to refactor this into two functions, one with (scheme, domain) parameters and one with the key_id parameter..
-    pub fn get_key(&self, scheme: crate::requests::ThresholdCipher, domain: crate::requests::DlGroup, key_id: Option<String>) -> Result<Vec<u8>, String>{
+    pub fn get_key(&self, scheme: crate::pb::requests::ThresholdCipher, domain: crate::pb::requests::DlGroup, key_id: Option<String>) -> Result<Vec<u8>, String>{
         match self.key_chain.get(&(scheme, domain)){
             Some(matching_keys) => {
                 match matching_keys.len() {

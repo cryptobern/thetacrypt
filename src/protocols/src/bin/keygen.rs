@@ -11,7 +11,7 @@ use cosmos_crypto::dl_schemes::keygen::DlKeyGenerator;
 use cosmos_crypto::interface::Serializable;
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
 use protocols::keychain::KeyChain;
-use protocols::requests;
+use protocols::pb::requests;
 
 fn main(){
     let args: Vec<String> = env::args().collect();
