@@ -13,6 +13,7 @@ async fn main() {
 
     // create channel
     let (tx, rx) = mpsc::unbounded_channel();
+    
     // sends a Vec<u8> into the spawned channel
     let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
     tokio::spawn(message_sender(my_vec, tx));

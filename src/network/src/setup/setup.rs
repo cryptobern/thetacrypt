@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use futures::StreamExt;
-// use futures::{Stream, channel::mpsc::UnboundedReceiver};
 use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
     floodsub::{self, Floodsub},
@@ -13,15 +12,15 @@ use libp2p::{
     Transport, Swarm, mdns::Mdns, swarm::{SwarmBuilder, SwarmEvent}};
 use floodsub::Topic;
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc::{UnboundedReceiver, self};
+use tokio::sync::mpsc::UnboundedReceiver;
 use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
-use crate::send::send::{send_floodsub_vecu8, message_sender};
+use crate::send::send::send_floodsub_vecu8;
 
 pub async fn init_setup(topic: Lazy<Topic>, listen_addr: String, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     env_logger::init();
 
     // Create a random PeerId
-    // TODO: get local keypair and peer id
+    // TODO: get local keypair and peer id from tendermint RPC endpoint
     let id_keys = identity::Keypair::generate_ed25519();
     let peer_id = PeerId::from(id_keys.public());
     println!("Local peer id: {:?}", peer_id);

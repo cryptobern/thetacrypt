@@ -7,12 +7,6 @@ use libp2p::{
 };
 use crate::lib::type_of;
 
-// #[derive(NetworkBehaviour)]
-// #[behaviour(event_process = true)]
-// pub struct FloodsubMdnsBehaviour {
-//     pub floodsub: Floodsub,
-//     pub mdns: Mdns, // automatically discovers other libp2p nodes on the local network.
-// }
 pub trait HandleMsg {
     fn handle_msg(&self);
 }
@@ -20,9 +14,9 @@ pub trait HandleMsg {
 // default handling behaviour for a FloodsubMessage
 impl HandleMsg for FloodsubMessage {
     fn handle_msg(&self) {
-        println!("RECEIVED floodsub msg: '{:?}'", self.data);
+        println!("RECEIVED: {:?} FROM: {:?}", self.data, self.source);
         // println!("data type: {}", type_of(&self.data));
-        println!("From: '{:?}'", self.source);
+        // println!("From: '{:?}'", self.source);
         // println!("Sequence number: '{:?}'", self.sequence_number);
         // println!("Topic: '{:?}'", self.topics);
     }
@@ -38,32 +32,3 @@ impl HandleMsg for GossipsubMessage {
         println!("Topic: '{:?}'", self.topic);
     }
 }
-
-// impl NetworkBehaviourEventProcess<FloodsubEvent> for FloodsubMdnsBehaviour {
-//     // Called when `floodsub` produces an event.
-//     fn inject_event(&mut self, message: FloodsubEvent) {
-//         if let FloodsubEvent::Message(message) = message {
-//             message.handle_msg();
-//         }
-//     }
-// }
-
-// impl NetworkBehaviourEventProcess<MdnsEvent> for FloodsubMdnsBehaviour {
-//     // Called when `mdns` produces an event.
-//     fn inject_event(&mut self, event: MdnsEvent) {
-//         match event {
-//             MdnsEvent::Discovered(list) => {
-//                 for (peer, _) in list {
-//                     self.floodsub.add_node_to_partial_view(peer);
-//                 }
-//             }
-//             MdnsEvent::Expired(list) => {
-//                 for (peer, _) in list {
-//                     if !self.mdns.has_node(&peer) {
-//                         self.floodsub.remove_node_from_partial_view(&peer);
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }

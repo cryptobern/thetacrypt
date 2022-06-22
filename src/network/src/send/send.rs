@@ -4,9 +4,6 @@ use libp2p::{
     swarm::Swarm, gossipsub::Gossipsub,
 };
 use libp2p::gossipsub::IdentTopic as GossibsubTopic;
-// use crate::deliver::deliver::FloodsubMdnsBehaviour;
-// use network::deliver::deliver::FloodsubMdnsBehaviour;
-// use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
 use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
 use async_std::io::Error;
 use std::time::Duration;
@@ -41,11 +38,12 @@ pub fn send_gossipsub_msg(swarm: &mut Swarm<Gossipsub>, topic: &GossibsubTopic, 
 }
 
 // sends msg to the channel
-pub async fn message_sender(msg: Vec<u8>, tx: UnboundedSender<Vec<u8>>) {
+pub async fn message_sender(mut msg: Vec<u8>, tx: UnboundedSender<Vec<u8>>) {
     // sends repeatedly msgs to the channel
     for count in 0.. {
+        msg[0] = count;
         tx.send(msg.to_vec()).unwrap();
-        // waits for the next message
+        // waits for sending the next message
         time::sleep(Duration::from_millis(500)).await;
     }
 }
