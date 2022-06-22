@@ -1,4 +1,3 @@
-// use cosmos_crypto::dl_schemes::dl_groups::ed25519::Ed25519;
 use floodsub::Topic;
 use futures::StreamExt;
 use libp2p::{
@@ -22,7 +21,6 @@ use tokio::{
 };
 
 use network::setup::swarm_behaviour::FloodsubMdnsBehaviour;
-use network::send::send::{send_floodsub_vecu8, message_sender};
 
 static FLOODSUB_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("share"));
 
@@ -89,7 +87,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // reads msgs from the channel and broadcasts it to the network
             msg = rx.recv() => {
                 if let Some(msg) = &msg {
-                    send_floodsub_vecu8(&mut swarm, &FLOODSUB_TOPIC, msg.to_vec())
+                    println!("SEND: {:#?}", msg.to_vec());
+                    swarm.behaviour_mut().floodsub.publish(FLOODSUB_TOPIC.clone(), msg.to_vec());
                 }
             }
             // handles events produced by the swarm

@@ -12,7 +12,6 @@ use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 use network::deliver::deliver::HandleMsg;
-use network::send::send::send_gossipsub_msg;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -92,8 +91,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         select! {
             line = stdin.select_next_some() => {
-                // let my_msg: Vec<u8> = [0b01101100u8, 0b11001100u8, 0b01101100u8].to_vec();
-                send_gossipsub_msg(&mut swarm, &topic, line)
+                if let Err(e) = swarm
+                    .behaviour_mut()
+                    .publish(topic.clone(), line.expect("Stdin not to close").as_bytes())
+                {
+                    println!("Publish error: {:?}", e);
+                }
             },
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(GossipsubEvent::Message {

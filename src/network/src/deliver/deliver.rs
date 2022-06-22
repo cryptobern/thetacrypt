@@ -1,9 +1,7 @@
 // use std::any::type_name;
 use libp2p::{
-    floodsub::{Floodsub, FloodsubEvent, FloodsubMessage},
-    mdns::{Mdns, MdnsEvent},
-    NetworkBehaviour,
-    swarm::NetworkBehaviourEventProcess, gossipsub::{GossipsubMessage}
+    floodsub::FloodsubMessage,
+    gossipsub::GossipsubMessage
 };
 use crate::lib::type_of;
 
