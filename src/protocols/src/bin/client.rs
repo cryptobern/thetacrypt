@@ -22,7 +22,11 @@ use tonic::Request;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = ThresholdCryptoLibraryClient::connect("http://[::1]:50051").await?;
+    test_multiple_local_servers().await
+}
+
+async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = ThresholdCryptoLibraryClient::connect("http://[::1]:50050").await?;
 
     // Read keys from file
     println!("Reading keys from keychain.");
@@ -152,6 +156,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
+    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
+    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    
+    let peers = vec![
+        (0, String::from("::1"), 50050),
+        (1, String::from("::1"), 50051),
+        (2, String::from("::1"), 50052),
+        (3, String::from("::1"), 50053)
+    ];
+    
+    let mut connections = Vec::new();
+    for peer in peers.iter() {
+        let (id, ip, port) = peer.clone();
+        let addr = format!("http://[{ip}]:{port}");
+        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
+    }            
+    for conn in connections.iter_mut(){
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        let response2 = conn.decrypt(request2.clone()).await.unwrap();
+        println!("RESPONSE={:?}", response);
+    }
+    Ok(())
+}
+
 
 fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (ThresholdDecryptionRequest, C::CT) {
     let mut params = ThresholdCipherParams::new();

@@ -7,6 +7,8 @@ use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02
 use tokio::sync::mpsc::error::TryRecvError;
 use {cosmos_crypto::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
 
+
+type InstanceId = String;
 /*
 A protocol must expose two functions, run() and terminate().
 The caller should only have to call run() to start the protocol instance.
@@ -40,8 +42,8 @@ pub struct ThresholdCipherProtocol<C: ThresholdCipher> {
     pk: C::TPubKey,
     ciphertext: C::CT,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<Vec<u8>>,
-    result_chan_out: tokio::sync::mpsc::Sender<Option<Vec<u8>>>,
+    chan_out: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>,
+    result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
     instance_id: String,
     threshold: u32,
     valid_shares: Vec<C::TShare>,
@@ -61,8 +63,8 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
             pk: C::TPubKey,
             ciphertext: C::CT,
             chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-            chan_out: tokio::sync::mpsc::Sender<Vec<u8>>,
-            result_chan_out: tokio::sync::mpsc::Sender<Option<Vec<u8>>>,
+            chan_out: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>,
+            result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>> )>,
             instance_id: String,
             ) -> Self {
         ThresholdCipherProtocol{
@@ -82,9 +84,9 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
     }
 
     pub async fn run(&mut self){
-        println!(">> CP: instance_id: {:?} starting.", &self.instance_id);
+        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
         if ! C::verify_ciphertext(&self.ciphertext, &self.pk){
-            println!(">> CP: instance_id: {:?} found INVALID ciphertext. label: {:?}. Protocol instance will quit.", &self.instance_id,&String::from_utf8(self.ciphertext.get_label()).unwrap());
+            println!(">> PROT: instance_id: {:?} found INVALID ciphertext. label: {:?}. Protocol instance will quit.", &self.instance_id,&String::from_utf8(self.ciphertext.get_label()).unwrap());
             self.terminate().await;
             return;
         }
@@ -99,7 +101,7 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
                     }
                 },
                 None => {
-                    println!(">> CP: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
                     self.terminate().await;
                     break;
                 }
@@ -111,27 +113,27 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
     async fn on_init(&mut self) {
         // compute and send decryption share
         let mut params = ThresholdCipherParams::new();
-        println!(">> CP: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
+        println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
         let share: C::TShare = C::partial_decrypt(&self.ciphertext, &self.sk, &mut params);
-        println!(">> CP: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-        self.chan_out.send(share.serialize().unwrap()).await.unwrap();
+        println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
+        self.chan_out.send((self.instance_id.clone(), share.serialize().unwrap())).await.unwrap();
         self.valid_shares.push(share);
     }
 
     fn on_receive_decryption_share(&mut self, share: C::TShare) {
-        println!(">> CP: instance_id: {:?} received share with share_id: {:?}.", &self.instance_id, share.get_id());
+        println!(">> PROT: instance_id: {:?} received share with share_id: {:?}.", &self.instance_id, share.get_id());
         if self.decrypted {
             return; 
         }
 
         if self.received_share_ids.contains(&share.get_id()){
-            println!(">> CP: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}.", &self.instance_id, share.get_id());
+            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}.", &self.instance_id, share.get_id());
             return;
         }
         self.received_share_ids.insert(share.get_id());
 
         if ! C::verify_share(&share, &self.ciphertext, &self.pk){
-            println!(">> CP: instance_id: {:?} received INVALID share with share_id: {:?}.", &self.instance_id, share.get_id());
+            println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}.", &self.instance_id, share.get_id());
             return;
         }
         self.valid_shares.push(share);
@@ -139,18 +141,21 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
         if self.valid_shares.len() >= self.threshold as usize { 
             self.decrypted_plaintext = C::assemble(&self.valid_shares, &self.ciphertext);
             self.decrypted = true;
-            println!(">> CP: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.", &self.instance_id, String::from_utf8(self.decrypted_plaintext.clone()).unwrap());
+            println!(">> PROT: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.", &self.instance_id, String::from_utf8(self.decrypted_plaintext.clone()).unwrap());
         }
     }
 
     async fn terminate(&mut self){
-        println!(">> CP: instance_id: {:?} finished.", &self.instance_id);
+        println!(">> PROT: instance_id: {:?} finished.", &self.instance_id);
         if self.decrypted {
-            self.result_chan_out.send(Some(self.decrypted_plaintext.clone())).await.unwrap();
+            self.result_chan_out.send((self.instance_id.clone(), Some(self.decrypted_plaintext.clone()))).await.unwrap();
         }
         else {
-            self.result_chan_out.send(None).await.unwrap();
+            self.result_chan_out.send((self.instance_id.clone(), None)).await.unwrap();
         }
         self.chan_in.close();
+        while let Some(share) = self.chan_in.recv().await {
+            println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, C::TShare::deserialize(&share).unwrap().get_id());
+        }
     }
 }
