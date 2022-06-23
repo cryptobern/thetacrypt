@@ -70,11 +70,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap())
         .unwrap();
 
-    // let swarm = match swarm {
-    //     Ok(listener_id) => listener_id,
-    //     Err(error) => println!("error with listener_addr {}", error),
-    // };
-
     // Reach out to another node if specified
     if let Some(to_dial) = std::env::args().nth(1) {
         let address: Multiaddr = to_dial.parse().expect("User to provide valid address.");

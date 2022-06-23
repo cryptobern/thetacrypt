@@ -14,9 +14,11 @@ use once_cell::sync::Lazy;
 use std::error::Error;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-pub async fn init(topic: Lazy<Topic>, listen_addr: String, channel_receiver: UnboundedReceiver<Vec<u8>>) {
+pub async fn init(topic: Lazy<Topic>, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     env_logger::init();
 
+    // TODO: get listen address from tendermint RPC endpoint
+    let listen_addr = "/ip4/0.0.0.0/tcp/0";
     // Create a random PeerId
     // TODO: get local keypair and peer id from tendermint RPC endpoint
     let id_keys = identity::Keypair::generate_ed25519();

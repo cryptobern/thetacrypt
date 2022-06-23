@@ -10,7 +10,6 @@ use tokio::time;
 async fn main() {
     
     let topic: Lazy<Topic> = Lazy::new(|| Topic::new("floodsub broadcast"));
-    let listen_addr = "/ip4/0.0.0.0/tcp/0";
 
     // create channel to send messages to the floodsub broadcast
     let (channel_sender, channel_receiver) = create_channel();
@@ -30,7 +29,7 @@ async fn main() {
         }
     });
 
-    // setup swarm and event loop
-    init(topic, listen_addr.to_string(), channel_receiver).await;
+    // setup swarm, listener and event loop
+    init(topic, channel_receiver).await;
 
 }

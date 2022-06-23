@@ -16,9 +16,7 @@ use libp2p::{
 };
 use once_cell::sync::Lazy;
 use std::error::Error;
-use tokio::{
-    sync::mpsc,
-};
+use tokio::io::{self, AsyncBufReadExt};
 
 use network::setup::swarm_behaviour::FloodsubMdnsBehaviour;
 
@@ -72,24 +70,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Dialed {:?}", to_dial);
     }
 
+    // Read full lines from stdin
+    let mut stdin = io::BufReader::new(io::stdin()).lines();
+
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
     // create channel, spawn sender
-    let (tx, mut rx) = mpsc::unbounded_channel();
+    // let (tx, mut rx) = mpsc::unbounded_channel();
 
     // sends a Vec<u8> into the channel 
-    let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-    tokio::spawn(message_sender(my_vec, tx));
+    // let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+    // tokio::spawn(message_sender(my_vec, tx));
 
     loop {
         tokio::select! {
             // reads msgs from the channel and broadcasts it to the network
-            msg = rx.recv() => {
-                if let Some(msg) = &msg {
-                    println!("SEND: {:#?}", msg.to_vec());
-                    swarm.behaviour_mut().floodsub.publish(FLOODSUB_TOPIC.clone(), msg.to_vec());
-                }
+            // msg = rx.recv() => {
+            //     if let Some(msg) = &msg {
+            //         println!("SEND: {:#?}", msg.to_vec());
+            //         swarm.behaviour_mut().floodsub.publish(FLOODSUB_TOPIC.clone(), msg.to_vec());
+            //     }
+            // }
+            line = stdin.next_line() => {
+                let line = line?.expect("stdin closed");
+                swarm.behaviour_mut().floodsub.publish(FLOODSUB_TOPIC.clone(), line.as_bytes());
             }
             // handles events produced by the swarm
             event = swarm.select_next_some() => {
