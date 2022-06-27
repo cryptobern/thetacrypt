@@ -1,13 +1,35 @@
-use libp2p::gossipsub::{IdentTopic as GossibsubTopic};
+use libp2p::gossipsub::IdentTopic as GossibsubTopic;
 use libp2p::Multiaddr;
-use network::setup::gossipsub_setup::init;
+// use network::setup::gossipsub_setup::init;
+use network::setup::gossipsub_tokio_setup::init;
+use network::send::send::create_channel;
+use std::time::Duration;
+use tokio::time;
 
 #[tokio::main]
 async fn main() {
     // Create a Gossipsub topic
-    let topic = GossibsubTopic::new("gossipsub p2p");
+    let topic = GossibsubTopic::new("gossipsub broadcast");
+
+    // create channel to send messages to the floodsub broadcast
+    let (channel_sender, channel_receiver) = create_channel();
+
+    // sends a Vec<u8> into the channel as spawned thread
+    tokio::spawn(async move {
+        // test vector
+        let mut my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+        // repeated sending in endless loop for testing purpose
+        for count in 0.. {
+            my_vec[0] = count; // to keep track of the messages
+            my_vec[1] = rand::random(); // to prevent dublicate messages
+            // sends Vec<u8> into the channel
+            channel_sender.send(my_vec.to_vec()).unwrap();
+            // waits for sending the next message
+            time::sleep(Duration::from_millis(1000)).await;
+        }
+    });
     
-    // TODO: get listener address from tendermint RPC endpoint
+    // TODO: get listener address and dialing address from tendermint RPC endpoint
     let base_listen_addr = "/ip4/0.0.0.0/tcp/";
     let base_dial_addr = "/ip4/127.0.0.1/tcp/";
     
@@ -20,17 +42,14 @@ async fn main() {
             let dial = format!("{}{}", base_dial_addr, dial_to);
             let dial_address: Multiaddr = dial.parse().expect("User to provide valid address.");
             // setup swarm and listener, connect to another peer and kick off event loop
-            init(topic, listen_address.parse().unwrap(), dial_address).await;
+            init(topic, listen_address.parse().unwrap(), dial_address, channel_receiver).await;
         } else {
-            println!("provide peer-address to connect with.");
+            // let listen_address_copy = listen_address.clone();
+            // let dial_address: Multiaddr = listen_address_copy.parse().expect("User to provide valid address");
+            println!("info: no port number to connect with provided.");
+            // init(topic, listen_address.parse().unwrap(), dial_address, channel_receiver).await;
         }
+    } else {
+        println!("provide a port number as listener address.");
     }
-
-    // // specify peer address to dial (now: command line parameter)
-    // if let Some(to_dial) = std::env::args().nth(2) {
-    //     let dial_address: Multiaddr = to_dial.parse().expect("User to provide valid address.");
-    //     init(topic, listen_address.to_string(), dial_address).await;
-    // } else {
-    //     println!("provide peer-address to connect with.");
-    // }
 }

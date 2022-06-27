@@ -17,7 +17,7 @@ async fn main() {
     // test vector
     let mut my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
 
-    // sends a Vec<u8> into the channel as spawned thread
+    // spawn a separate thread with the channel sender
     tokio::spawn(async move {
         // repeated sending in endless loop for testing purpose
         for count in 0.. {
@@ -29,7 +29,6 @@ async fn main() {
         }
     });
 
-    // setup swarm, listener and event loop
+    // kick off floodsub broadcast for given topic and channel
     init(topic, channel_receiver).await;
-
 }

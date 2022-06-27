@@ -2,6 +2,7 @@ use async_std::io;
 use env_logger::{Builder, Env};
 use futures::{prelude::*, select};
 use libp2p::Swarm;
+use libp2p::core::connection::ListenerId;
 use libp2p::core::muxing::StreamMuxerBox;
 use libp2p::core::transport::Boxed;
 use libp2p::gossipsub::{MessageId, Gossipsub};
@@ -10,6 +11,7 @@ use libp2p::gossipsub::{
 };
 use libp2p::identity::Keypair;
 use libp2p::{gossipsub, identity, swarm::SwarmEvent, Multiaddr, PeerId};
+use tokio::sync::mpsc::UnboundedReceiver;
 use std::collections::hash_map::DefaultHasher;
 // use std::error::Error;
 use std::hash::{Hash, Hasher};
@@ -19,7 +21,7 @@ use crate::deliver::deliver::HandleMsg;
 
 // use network::deliver::deliver::HandleMsg;
 
-pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Multiaddr) {
+pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Multiaddr, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     Builder::from_env(Env::default().default_filter_or("info")).init();
 
     // Read full lines from stdin
@@ -40,7 +42,11 @@ pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Mult
             let mut swarm = create_swarm(local_key, &topic, transport);
             // Listen on all interfaces and whatever port the OS assigns
             // swarm.listen_on(listen_addr.parse().unwrap());
-            swarm.listen_on(listen_addr); 
+            swarm.listen_on(listen_addr.clone());
+            // match swarm.listen_on(listen_addr.clone()) {
+            //     Ok(_) => (),
+            //     Err(error) => println!("Listening {:?} failed: {:?}", listen_addr, error),
+            // }
 
             // Reach out to another node
             // let address: Multiaddr = dial.parse().expect("User to provide valid address.");
@@ -51,14 +57,15 @@ pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Mult
 
             loop {
                 select! {
-                    line = stdin.select_next_some() => {
-                        if let Err(e) = swarm
-                            .behaviour_mut()
-                            .publish(topic.clone(), line.expect("Stdin not to close").as_bytes())
-                        {
-                            println!("Publish error: {:?}", e);
-                        }
-                    },
+                    // reads msgs from the channel and broadcasts it to the network
+                    // line = stdin.select_next_some() => {
+                    //     if let Err(e) = swarm
+                    //         .behaviour_mut()
+                    //         .publish(topic.clone(), line.expect("Stdin not to close").as_bytes())
+                    //     {
+                    //         println!("Publish error: {:?}", e);
+                    //     }
+                    // },
                     event = swarm.select_next_some() => match event {
                         SwarmEvent::Behaviour(GossipsubEvent::Message {
                             propagation_source: peer_id,
