@@ -14,18 +14,17 @@ async fn main() {
     // create channel to send messages to the floodsub broadcast
     let (channel_sender, channel_receiver) = create_channel();
 
-    // test vector
-    let mut my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-
     // spawn a separate thread with the channel sender
     tokio::spawn(async move {
+        // test vector
+        let mut my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
         // repeated sending in endless loop for testing purpose
         for count in 0.. {
-            my_vec[0] = count;
-            // sends Vec<u8> into the channel
+            my_vec[0] = count; // to keep track of the messages
+            // adds Vec<u8> to the channel
             channel_sender.send(my_vec.to_vec()).unwrap();
             // waits for sending the next message
-            time::sleep(Duration::from_millis(500)).await;
+            time::sleep(Duration::from_millis(1000)).await;
         }
     });
 

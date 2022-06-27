@@ -1,6 +1,5 @@
 use async_std::io;
-use env_logger::{Builder, Env};
-use futures::{prelude::*, select};
+use futures::prelude::*;
 use libp2p::swarm::SwarmBuilder;
 use libp2p::{Transport, mplex, gossipsub};
 use libp2p::tcp::TokioTcpConfig;
@@ -18,7 +17,6 @@ use libp2p::{
     swarm::SwarmEvent,
     Multiaddr,
     PeerId};
-use rand::prelude::*;
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
@@ -114,10 +112,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
-    // create channel, spawn sender
+    // create channel with sender and receiver
     let (tx, mut rx) = mpsc::unbounded_channel();
 
-    // sends a Vec<u8> into the channel 
+    // spawns a thread with the channel sender to add Vec<u8> messages to the channel 
     let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
     tokio::spawn(message_sender(my_vec, tx));
 
@@ -159,7 +157,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 async fn message_sender(mut msg: Vec<u8>, foo_tx: UnboundedSender<Vec<u8>>) {
     for count in 0.. {
-        // let message = format!("{msg}{count}");
         msg[0] = count; // to keep track of the messages
         msg[1] = rand::random(); // to prevent dublicate messages
         foo_tx.send(msg.to_vec()).unwrap();

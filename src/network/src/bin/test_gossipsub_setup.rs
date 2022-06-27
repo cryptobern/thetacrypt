@@ -33,21 +33,19 @@ async fn main() {
     let base_listen_addr = "/ip4/0.0.0.0/tcp/";
     let base_dial_addr = "/ip4/127.0.0.1/tcp/";
     
-    // get listen_address from first cli argument and dial_address from second cli argument
+    // temp solution:
+    // first cli argument: listen_addresse
     if let Some(listen_on) = std::env::args().nth(1) {
         let listen_address = format!("{}{}", base_listen_addr, listen_on);
 
-        // get peer address to dial from second cli
+        // second cli argument: peer address to dial
         if let Some(dial_to) = std::env::args().nth(2) {
             let dial = format!("{}{}", base_dial_addr, dial_to);
             let dial_address: Multiaddr = dial.parse().expect("User to provide valid address.");
-            // setup swarm and listener, connect to another peer and kick off event loop
+            // kick off gossipsub broadcast for given topic, listening and dialing address and channel
             init(topic, listen_address.parse().unwrap(), dial_address, channel_receiver).await;
         } else {
-            // let listen_address_copy = listen_address.clone();
-            // let dial_address: Multiaddr = listen_address_copy.parse().expect("User to provide valid address");
             println!("info: no port number to connect with provided.");
-            // init(topic, listen_address.parse().unwrap(), dial_address, channel_receiver).await;
         }
     } else {
         println!("provide a port number as listener address.");

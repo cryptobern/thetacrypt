@@ -16,7 +16,6 @@ use libp2p::{
 use once_cell::sync::Lazy;
 use std::error::Error;
 use tokio::io::{self, AsyncBufReadExt};
-use futures::future; // 0.3.19
 use std::time::Duration;
 use tokio::{
     sync::mpsc::{self, UnboundedSender},
@@ -111,9 +110,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn message_sender(msg: Vec<u8>, foo_tx: UnboundedSender<Vec<u8>>) {
+async fn message_sender(mut msg: Vec<u8>, foo_tx: UnboundedSender<Vec<u8>>) {
     for count in 0.. {
         // let message = format!("{msg}{count}");
+        msg[0] = count;
         foo_tx.send(msg.to_vec()).unwrap();
 
         time::sleep(Duration::from_millis(500)).await;

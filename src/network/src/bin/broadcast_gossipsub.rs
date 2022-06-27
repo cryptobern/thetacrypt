@@ -10,11 +10,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
-// use futures::future; // 0.3.19
-// use tokio::{
-//     sync::mpsc::{self, UnboundedSender},
-//     time,
-// }; // 1.16.1
 
 use network::deliver::deliver::HandleMsg;
 
@@ -87,25 +82,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
-    // // create channel, spawn sender
-    // let (tx, mut rx) = mpsc::unbounded_channel();
-
-    // // sends a Vec<u8> into the channel 
-    // let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
-    // tokio::spawn(message_sender(my_vec, tx));
-
     // Kick it off
     loop {
         select! {
-            // reads msgs from the channel and broadcasts it to the network
-            // msg = rx.recv() => {
-            //     if let Err(e) = swarm
-            //         .behaviour_mut()
-            //         .publish(topic.clone(), msg.expect("Stdin not to close").to_vec())
-            //     {
-            //         println!("Publish error: {:?}", e);
-            //     }
-            // },
             line = stdin.select_next_some() => {
                 if let Err(e) = swarm
                     .behaviour_mut()
@@ -128,12 +107,3 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 }
-
-// async fn message_sender(msg: Vec<u8>, foo_tx: UnboundedSender<Vec<u8>>) {
-//     for count in 0.. {
-//         // let message = format!("{msg}{count}");
-//         foo_tx.send(msg.to_vec()).unwrap();
-
-//         time::sleep(Duration::from_millis(100)).await;
-//     }
-// }
