@@ -1,6 +1,6 @@
 # Structure
 
-- **bin**: sandbox - code to test the modules (deliver, network_info, send, setup)
+- **bin**: sandbox - code to test the modules (deliver, network_info, send, setup) and examples.
 - **deliver**: in the deliver module you can find the trait `HandleMsg` including the function `handle_msg(&self)` which can be implemented to process incoming messages from the network. Currently the `handle_msg(&self)` function has an implementation for the event FlooodsubMessage and one for GossipsubMessage. For instance, the function is explicitly called in the select-loop in `setup/gossipsub/gossipsub_tokio_setup.rs` or in `setup/floodsub/floodsub_mdns_behaviour.rs`.
 - **network_info**: this module contains requests to the Tendermint RPC endpoint in `rpc_net_info.rs` and `rpc_status.rs`. `deserialize.rs` contains all structs to deserialize the json-response from Tendermint. `address_converter.rs` provides functions to convert the listener-address and the peer addresses from the RPC-responses into a Multiaddr format. 
 - **send**: contains the function to create an internal channel to submit messages into the select-loop for broadcasting. The returned `UnboundedSender` can be used to add messages to the channel and the `UnboundedReceiver` has to be submitted to the `init`-function, such that it can be included in the select-loop.

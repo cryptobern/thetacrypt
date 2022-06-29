@@ -38,7 +38,7 @@ async fn main() {
     let rpc_endpoint = "http://127.0.0.1:26657";
 
     // get local listener address from local tendermint RPC endpoint
-    let mut listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", "26657").parse().unwrap(); // dummy address
+    let mut listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", "26657").parse().unwrap(); // default address
     match get_tendermint_status(rpc_endpoint.to_string()).await {
         Ok(res) => {
             listen_addr = get_listen_multiaddr(res);
@@ -47,7 +47,7 @@ async fn main() {
     }
 
     // get peer addresses from local tendermint RPC endpoint
-    let mut dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", "26657").parse().unwrap();
+    let mut dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", "26657").parse().unwrap(); // default address
     match get_tendermint_net_info(rpc_endpoint.to_string()).await {
         Ok(res) => {
             dial_addr = get_dial_multiaddr(res);
