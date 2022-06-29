@@ -3,7 +3,7 @@ use libp2p::{
     floodsub::FloodsubMessage,
     gossipsub::GossipsubMessage
 };
-use crate::lib::type_of;
+// use crate::lib::type_of;
 
 pub trait HandleMsg {
     fn handle_msg(&self);

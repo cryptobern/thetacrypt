@@ -1,14 +1,16 @@
+use tendermint_rpc::response;
+
 // use network::lib::{get_peers, get_peer_info};
-use crate::network_info::peers::get_peers;
-use crate::network_info::local_node::get_peer_info;
+use crate::network_info::rpc_net_info::get_tendermint_net_info;
+use crate::network_info::rpc_status::get_tendermint_status;
 mod network_info;
 
 #[tokio::main]
 async fn main() {
-    let test_addr = "http://127.0.0.1:26657";
+    let test_addr = "http://127.0.0.1:26660";
 
     // test tendermint RPC endpoint /net_info with reqwest
-    match get_peers(test_addr.to_string()).await {
+    match get_tendermint_net_info(test_addr.to_string()).await {
         Ok(response) => {
             println!("{:#?}", response);
             // println!("no. of other peers {:#?}", response.n_peers);
@@ -21,9 +23,10 @@ async fn main() {
     }
 
     // test tendermint RPC endpoint /status with reqwest
-    match get_peer_info(test_addr.to_string()).await {
+    match get_tendermint_status(test_addr.to_string()).await {
         Ok(response) => {
             println!("{:#?}", response);
+            println!("{:#?}", response.result);
         },
         Err(err) => println!("Error: {}", err),
     }
