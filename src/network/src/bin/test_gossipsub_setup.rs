@@ -1,15 +1,15 @@
-use chrono::format;
 use libp2p::gossipsub::IdentTopic as GossibsubTopic;
 use libp2p::Multiaddr;
 use libp2p::multiaddr::Protocol;
-use network::lib::type_of;
+// use network::lib::type_of;
 // use network::setup::gossipsub_setup::init;
 use network::setup::gossipsub_tokio_setup::init;
 use network::send::send::create_channel;
 use std::time::Duration;
 use tokio::time;
-use crate::network_info::rpc_net_info::get_tendermint_net_info;
-use crate::network_info::rpc_status::get_tendermint_status;
+use network::network_info::rpc_net_info::get_tendermint_net_info;
+use network::network_info::rpc_status::{get_tendermint_status, get_listen_addr, get_dial_addr};
+
 mod network_info;
 
 #[tokio::main]
@@ -35,50 +35,27 @@ async fn main() {
         }
     });
     
-    let rpc_address = "http://127.0.0.1:26657";
-    let multi_addr_prefix = "/ip4/";
+    let rpc_endpoint = "http://127.0.0.1:26657";
 
     // get local listener address from local tendermint RPC endpoint
-    let mut multi_addr_listen: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", "26657").parse().unwrap();
-    match get_tendermint_status(rpc_address.to_string()).await {
-        Ok(response) => {
-            let mut local_node_listen_address = response.result.node_info.listen_addr;
-            let mut iter = local_node_listen_address.chars();
-            iter.by_ref().nth(5); // remove leading 48 characters to retrieve only the ip
-            local_node_listen_address = iter.as_str().to_string();
-            let v: Vec<&str> = local_node_listen_address.split(':').collect(); // separate ip and port
-            let listen_ip = v[0];
-            let listen_port = v[1];
-            // construct valid MultiAddr
-            multi_addr_listen = format!("{}{}", multi_addr_prefix, listen_ip).parse().unwrap();
-            multi_addr_listen.push(Protocol::Tcp(listen_port.parse::<u16>().unwrap()));
+    let mut listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", "26657").parse().unwrap(); // dummy address
+    match get_tendermint_status(rpc_endpoint.to_string()).await {
+        Ok(res) => {
+            listen_addr = get_listen_addr(res);
         },
         Err(err) => println!("Error: {}", err),
     }
 
     // get peer addresses from local tendermint RPC endpoint
-    let mut multi_addr_dial: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", "26657").parse().unwrap();
-    let mut peer_urls: Vec<String> = Vec::new();
-    match get_tendermint_net_info(rpc_address.to_string()).await {
-        Ok(response) => {
-            for peer in response.result.peers {
-                peer_urls.push(peer.url);
-            }
-            let temp_dial_addr = &peer_urls[0]; // take first (or another) peer url in mconn-format (nodeId@)ip)
-            let mut iter = temp_dial_addr.chars();
-            iter.by_ref().nth(48); // remove leading 48 characters to retrieve only the ip
-            let addr_iter = &iter.as_str().to_string();
-            let w: Vec<&str> = addr_iter.split(':').collect(); // separate ip and port
-            let dial_ip = w[0];
-            let dial_port = w[1];
-            // construct valid MultiAddr
-            multi_addr_dial = format!("{}{}", multi_addr_prefix, dial_ip).parse().unwrap();
-            multi_addr_dial.push(Protocol::Tcp(dial_port.parse::<u16>().unwrap()));
+    let mut dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", "26657").parse().unwrap();
+    match get_tendermint_net_info(rpc_endpoint.to_string()).await {
+        Ok(res) => {
+            dial_addr = get_dial_addr(res);
         },
         Err(err) => println!("Error: {}", err),
     }
 
-    init(topic, multi_addr_listen, multi_addr_dial, channel_receiver).await;
+    init(topic, listen_addr, dial_addr, channel_receiver).await;
     
     // temp solution:
     // first cli argument: listen_address

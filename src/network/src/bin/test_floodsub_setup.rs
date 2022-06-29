@@ -1,7 +1,7 @@
 use floodsub::Topic;
 use libp2p::floodsub;
 use network::send::send::create_channel;
-use network::setup::floodsub_setup::init;
+use network::setup::floodsub_tokio_setup::init;
 use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::time;
