@@ -2,7 +2,7 @@ use libp2p::gossipsub::IdentTopic as GossibsubTopic;
 use libp2p::Multiaddr;
 // use network::lib::type_of;
 // use network::setup::gossipsub_setup::init;
-use network::setup::gossipsub_tokio_setup::init;
+use network::setup::gossipsub::gossipsub_tokio_setup::init;
 use network::send::send::create_channel;
 use std::time::Duration;
 use tokio::time;

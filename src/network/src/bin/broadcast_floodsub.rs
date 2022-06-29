@@ -22,7 +22,7 @@ use tokio::{
     time,
 }; // 1.16.1
 
-use network::setup::swarm_behaviour::FloodsubMdnsBehaviour;
+use network::setup::floodsub::floodsub_mdns_behaviour::FloodsubMdnsBehaviour;
 
 static FLOODSUB_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("share"));
 
