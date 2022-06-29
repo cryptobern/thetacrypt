@@ -1,6 +1,5 @@
 use libp2p::gossipsub::IdentTopic as GossibsubTopic;
 use libp2p::Multiaddr;
-use libp2p::multiaddr::Protocol;
 // use network::lib::type_of;
 // use network::setup::gossipsub_setup::init;
 use network::setup::gossipsub_tokio_setup::init;
@@ -8,7 +7,8 @@ use network::send::send::create_channel;
 use std::time::Duration;
 use tokio::time;
 use network::network_info::rpc_net_info::get_tendermint_net_info;
-use network::network_info::rpc_status::{get_tendermint_status, get_listen_addr, get_dial_addr};
+use network::network_info::rpc_status::get_tendermint_status;
+use network::network_info::address_converter::{get_listen_multiaddr, get_dial_multiaddr};
 
 mod network_info;
 
@@ -41,7 +41,7 @@ async fn main() {
     let mut listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", "26657").parse().unwrap(); // dummy address
     match get_tendermint_status(rpc_endpoint.to_string()).await {
         Ok(res) => {
-            listen_addr = get_listen_addr(res);
+            listen_addr = get_listen_multiaddr(res);
         },
         Err(err) => println!("Error: {}", err),
     }
@@ -50,14 +50,14 @@ async fn main() {
     let mut dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", "26657").parse().unwrap();
     match get_tendermint_net_info(rpc_endpoint.to_string()).await {
         Ok(res) => {
-            dial_addr = get_dial_addr(res);
+            dial_addr = get_dial_multiaddr(res);
         },
         Err(err) => println!("Error: {}", err),
     }
 
     init(topic, listen_addr, dial_addr, channel_receiver).await;
     
-    // temp solution:
+    // temp solution (using cli arguments for listener and dialing addresses):
     // first cli argument: listen_address
     // if let Some(listen_on) = std::env::args().nth(1) {
         // let mut listen_address = format!("{}{}", base_listen_addr, listen_on);

@@ -9,7 +9,7 @@ pub trait HandleMsg {
     fn handle_msg(&self);
 }
 
-// default handling behaviour for a FloodsubMessage
+// default implementation for handling an incoming FloodsubMessage
 impl HandleMsg for FloodsubMessage {
     fn handle_msg(&self) {
         println!("RECEIVED: {:?} FROM: {:?}", self.data, self.source);
@@ -20,7 +20,7 @@ impl HandleMsg for FloodsubMessage {
     }
 }
 
-// default handling behaviour for a GossipsubMessage
+// default implementation for handling an incoming GossipsubMessage
 impl HandleMsg for GossipsubMessage {
     fn handle_msg(&self) {
         println!("RECEIVED: {:?} FROM: {:?}", self.data, self.source);

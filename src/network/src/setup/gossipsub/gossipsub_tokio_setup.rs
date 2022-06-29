@@ -23,10 +23,9 @@ use std::time::Duration;
 use tokio::{
     sync::mpsc::UnboundedReceiver,
 };
-
 use crate::deliver::deliver::HandleMsg;
 
-pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Multiaddr, mut channel_receiver: UnboundedReceiver<Vec<u8>>) {
+pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Multiaddr, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     env_logger::init();
 
     println!("listen_addr: {}", listen_addr);
@@ -61,33 +60,6 @@ pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Mult
 
     // kick off tokio::select event loop to handle events
     run_event_loop(channel_receiver, &mut swarm, topic).await;
-
-    // Kick it off
-    // loop {
-    //     tokio::select! {
-    //         // reads msgs from the channel and broadcasts it to the network
-    //         msg = channel_receiver.recv() => {
-    //             println!("SEND: {:?}", msg);
-    //             if let Err(e) = swarm
-    //                 .behaviour_mut()
-    //                 .publish(topic.clone(), msg.expect("Stdin not to close").to_vec())
-    //             {
-    //                 println!("Publish error: {:?}", e);
-    //             }
-    //         },
-    //         event = swarm.select_next_some() => match event {
-    //             SwarmEvent::Behaviour(GossipsubEvent::Message {
-    //                 propagation_source: peer_id,
-    //                 message_id: id,
-    //                 message,
-    //             }) => message.handle_msg(),
-    //             SwarmEvent::NewListenAddr { address, .. } => {
-    //                 println!("Listening on {:?}", address);
-    //             }
-    //             _ => {}
-    //         }
-    //     }
-    // }
 }
 
 // Create a keypair for authenticated encryption of the transport.
@@ -154,7 +126,7 @@ async fn run_event_loop(
     mut channel_receiver: UnboundedReceiver<Vec<u8>>, swarm: &mut Swarm<Gossipsub>, topic: GossibsubTopic) {
         loop {
             tokio::select! {
-                // reads msgs from the channel, broadcasts it to the network as a swarm event
+                // reads msgs from the channel and broadcasts it to the network as a swarm event
                 msg = channel_receiver.recv() => {
                     println!("SEND: {:?}", msg);
                     if let Err(e) = swarm

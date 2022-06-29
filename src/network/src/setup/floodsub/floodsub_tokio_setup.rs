@@ -1,4 +1,4 @@
-use crate::setup::swarm_behaviour::FloodsubMdnsBehaviour;
+use crate::setup::floodsub::floodsub_mdns_behaviour::FloodsubMdnsBehaviour;
 use floodsub::Topic;
 use futures::StreamExt;
 use libp2p::{
@@ -17,10 +17,10 @@ use tokio::sync::mpsc::UnboundedReceiver;
 pub async fn init(topic: Lazy<Topic>, channel_receiver: UnboundedReceiver<Vec<u8>>) {
     env_logger::init();
 
-    // TODO: get listen address from tendermint RPC endpoint
+    // OS assigns random port number
     let listen_addr = "/ip4/0.0.0.0/tcp/0";
+    
     // Create a random PeerId
-    // TODO: get local keypair and peer id from tendermint RPC endpoint
     let id_keys = identity::Keypair::generate_ed25519();
     let peer_id = PeerId::from(id_keys.public());
     println!("Local peer id: {:?}", peer_id);
