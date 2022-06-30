@@ -238,7 +238,7 @@ CDH problem: One is asked to compute g^ab given (g, g^a, g^b) <br>
 `return m`<br><br>
 
 # Bls04ThresholdSignature 
-[Reference](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/papers/short_signatures_weil_pairing-joc04.pdf)<br>
+[Reference](https://link.springer.com/article/10.1007/s00145-004-0314-9)<br>
 Implementation of abstract interface `ThresholdSignature`.
 Again, a GDH group is needed for the following scheme.
 
