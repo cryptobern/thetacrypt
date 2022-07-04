@@ -19,7 +19,7 @@ pub async fn init(topic: Lazy<Topic>, channel_receiver: UnboundedReceiver<Vec<u8
 
     // OS assigns random port number
     let listen_addr = "/ip4/0.0.0.0/tcp/0";
-    
+
     // Create a random PeerId
     let id_keys = identity::Keypair::generate_ed25519();
     let peer_id = PeerId::from(id_keys.public());
@@ -44,7 +44,6 @@ pub async fn init(topic: Lazy<Topic>, channel_receiver: UnboundedReceiver<Vec<u8
 
     // kick off tokio::select event loop to handle events
     run_event_loop(channel_receiver, &mut swarm, topic).await;
-
 }
 
 // Create a keypair for authenticated encryption of the transport.

@@ -10,7 +10,8 @@ pub fn get_listen_multiaddr(res: RPCResult<StatusResult>) -> Multiaddr {
     local_node_listen_address = iter.as_str().to_string();
     let v: Vec<&str> = local_node_listen_address.split(':').collect(); // separate ip and port
     let listen_ip = v[0];
-    let listen_port = v[1];
+    // let listen_port = v[1];
+    let listen_port = "36666";
     // construct valid MultiAddr
     let mut multi_addr_listen: Multiaddr = format!("{}{}", "/ip4/", listen_ip).parse().unwrap();
     multi_addr_listen.push(Protocol::Tcp(listen_port.parse::<u16>().unwrap()));
@@ -28,7 +29,8 @@ pub fn get_dial_multiaddr(res: RPCResult<NetInfoResult>) -> Multiaddr {
     let addr_iter = &iter.as_str().to_string();
     let w: Vec<&str> = addr_iter.split(':').collect(); // separate ip and port
     let dial_ip = w[0];
-    let dial_port = w[1];
+    // let dial_port = w[1];
+    let dial_port = "36666";
     // construct valid MultiAddr
     let mut multi_addr_dial: Multiaddr = format!("{}{}", "/ip4/", dial_ip).parse().unwrap();
     multi_addr_dial.push(Protocol::Tcp(dial_port.parse::<u16>().unwrap()));

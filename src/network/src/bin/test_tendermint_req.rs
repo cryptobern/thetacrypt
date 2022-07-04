@@ -9,12 +9,12 @@ async fn main() {
     // test tendermint RPC endpoint /net_info with reqwest
     match get_tendermint_net_info(test_addr.to_string()).await {
         Ok(response) => {
-            println!("{:#?}", response);
-            // println!("no. of other peers {:#?}", response.n_peers);
-            // for peer in response.peers {
-            //     println!("node id: {:#?}", peer.node_id);
-            //     println!("node url: {:#?}", peer.url);
-            // }
+            // println!("{:#?}", response);
+            println!("no. of other peers {:#?}", response.result.n_peers);
+            for peer in response.result.peers {
+                println!("node id: {:#?}", peer.node_id);
+                println!("node url: {:#?}", peer.url);
+            }
         },
         Err(err) => println!("Error: {}", err),
     }
