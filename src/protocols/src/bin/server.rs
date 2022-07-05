@@ -112,7 +112,7 @@ impl RequestHandler{
             self.result_sender.clone(),
             instance_id.clone()
         );
-        println!(">> REQH: Spawning new protocol instance with instance_id: {:?}", &instance_id);
+        // println!(">> REQH: Spawning new protocol instance with instance_id: {:?}", &instance_id);
         tokio::spawn( async move {
             prot.run().await; 
         });
@@ -126,7 +126,7 @@ impl ThresholdCryptoLibrary for RequestHandler {
     
     async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
         let req = request.get_ref();
-        println!(">> REQH: Received a decryption request. Key_id: {:?}", req.key_id);
+        println!(">> REQH: Received a decryption request. Decrypting with key_id: {:?}", req.key_id);
         
         let req_scheme = requests::ThresholdCipher::from_i32(req.algorithm).unwrap();
         let req_domain = requests::DlGroup::from_i32(req.dl_group).unwrap();
@@ -156,7 +156,7 @@ impl ThresholdCryptoLibrary for RequestHandler {
 
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
-        println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
+        // println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
         self.net_to_demult_sender.send((req.instance_id.clone(), req.decryption_share.clone())).await.expect("net_to_demult_sender.send returned Err");
         Ok(Response::new(requests::PushDecryptionShareResponse{}))
     }
@@ -182,12 +182,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let net_to_demult_sender2 = net_to_demult_sender.clone(); //temp
 
     // Read keys from file
-    println!(">> REQH: Reading keys from keychain.");
+    // println!(">> REQH: Reading keys from keychain.");
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
     
     // Spawn Network
     // Takes ownership of net_to_demult_sender and prot_to_net_receiver
-    println!(">> REQH: Initiating network manager.");
+    // println!(">> REQH: Initiating network manager.");
     tokio::spawn(async move {
         let mut network_manager = RpcNetwork::new(my_id, net_to_demult_sender2, prot_to_net_receiver).await;
         loop {
@@ -200,6 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Spawn State Manager
     // Takes ownership of state_command_receiver
+    // println!(">> REQH: Initiating state manager.");
     tokio::spawn( async move {
         let mut instances_results_map: HashMap<String, Option<Vec<u8>> > = HashMap::new();
         loop {
@@ -224,7 +225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn Demultiplexor
     // Takes ownership of demult_command_receiver and net_to_demult_receiver
-    println!(">> REQH: Initiating message demultiplexor.");
+    // println!(">> REQH: Initiating message demultiplexor.");
     tokio::spawn( async move {
         let mut channels_demult_to_prot: HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>> >= HashMap::new();
         loop {
@@ -235,18 +236,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if let Some(sender) = channels_demult_to_prot.get(&instance_id){  // Found a channel that connects us to instance_id.
                         if sender.is_closed(){
                             remove_channel = true;
-                            println!(">> DEMU: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
+                            // println!(">> DEMU: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
                         }
                         else {
                             sender.send(message).await.expect("sender.send() for net_to_demult channel returned Err"); // Forward the message through that channel
-                            println!(">> DEMU: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
+                            // println!(">> DEMU: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
                         }
                     }
                     else { // Did not find a channel for the given instance_id
                         // todo: Handle this:
                         // instance_id might not exist because the instance has already finished -> That's ok.
                         // But instance_id might not exist because the decryption request has not arrived yet -> Backlog these messages.
-                        println!(">> DEMU: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
+                        // println!(">> DEMU: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
                     }
                     if remove_channel {
                         channels_demult_to_prot.remove(&instance_id);
@@ -270,14 +271,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             let result = result_receiver.recv().await;
             let (instance_id, result) = result.expect("result_receiver.recv() returned None");
-            println!(">> INMO: Received result in result_channel. Instance_id: {:?}", instance_id);
+            // println!(">> INMO: Received result in result_channel. Instance_id: {:?}", instance_id);
             let cmd = StateUpdateCommand::AddInstanceResult { instance_id: instance_id.clone(), result };
             state_command_sender2.send(cmd).await.expect("state_command_sender2.send returned Err");
         }
     });
     
   // Start server
-    println!(">> REQH: Request handler is starting. Running at address: {my_addr}");
+    println!(">> REQH: Request handler is starting. Listening on address: {my_addr}");
     let service = RequestHandler{
         key_chain,
         state_command_sender,

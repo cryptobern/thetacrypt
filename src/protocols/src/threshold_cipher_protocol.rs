@@ -115,7 +115,7 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
         let mut params = ThresholdCipherParams::new();
         println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
         let share: C::TShare = C::partial_decrypt(&self.ciphertext, &self.sk, &mut params);
-        println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
+        // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
         self.chan_out.send((self.instance_id.clone(), share.serialize().unwrap())).await.unwrap();
         self.valid_shares.push(share);
     }
@@ -156,6 +156,7 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
         self.chan_in.close();
         while let Some(share) = self.chan_in.recv().await {
             println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, C::TShare::deserialize(&share).unwrap().get_id());
+            
         }
     }
 }

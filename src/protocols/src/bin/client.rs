@@ -176,10 +176,13 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
         let addr = format!("http://[{ip}]:{port}");
         connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
     }            
+    let mut i = 0;
     for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.unwrap();
-        let response2 = conn.decrypt(request2.clone()).await.unwrap();
-        println!("RESPONSE={:?}", response);
+        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
+        // println!("RESPONSE={:?}", response);
+        i += 1;
     }
     Ok(())
 }
