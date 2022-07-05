@@ -1,4 +1,4 @@
-use crate::setup::floodsub::floodsub_mdns_behaviour::FloodsubMdnsBehaviour;
+use crate::{setup::floodsub::floodsub_mdns_behaviour::FloodsubMdnsBehaviour};
 use floodsub::Topic;
 use futures::StreamExt;
 use libp2p::{

@@ -1,6 +1,6 @@
+pub mod channel;
 pub mod deliver;
 pub mod network_info;
-pub mod send;
 pub mod setup;
 
 pub mod lib {

@@ -1,6 +1,5 @@
 use network::network_info::rpc_net_info::get_tendermint_net_info;
 use network::network_info::rpc_status::get_tendermint_status;
-mod network_info;
 
 #[tokio::main]
 async fn main() {

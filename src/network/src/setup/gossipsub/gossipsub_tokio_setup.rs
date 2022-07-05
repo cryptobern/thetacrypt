@@ -1,31 +1,37 @@
 use futures::prelude::*;
-use libp2p::gossipsub::Gossipsub;
-use libp2p::swarm::SwarmBuilder;
-use libp2p::{Transport, mplex, gossipsub, Swarm};
-use libp2p::tcp::TokioTcpConfig;
 use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
+    gossipsub,
     gossipsub::{
         MessageId,
+        Gossipsub,
         GossipsubEvent,
         GossipsubMessage,
         IdentTopic as GossibsubTopic,
         MessageAuthenticity,
         ValidationMode},
     identity::{self, Keypair},
+    mplex,
     noise::{AuthenticKeypair, X25519Spec, self},
-    swarm::SwarmEvent,
+    Swarm,
+    swarm::{SwarmBuilder, SwarmEvent},
+    tcp::TokioTcpConfig,
+    Transport,
     Multiaddr,
     PeerId};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::{
-    sync::mpsc::UnboundedReceiver,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
-use crate::deliver::deliver::HandleMsg;
 
-pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Multiaddr, channel_receiver: UnboundedReceiver<Vec<u8>>) {
+pub async fn init(
+    topic: GossibsubTopic,
+    listen_addr: Multiaddr,
+    dial_addr: Multiaddr,
+    chn_recv_out: UnboundedReceiver<Vec<u8>>,
+    chn_send_in: UnboundedSender<GossipsubMessage>) {
     env_logger::init();
 
     println!("listen_addr: {}", listen_addr);
@@ -59,7 +65,7 @@ pub async fn init(topic: GossibsubTopic, listen_addr: Multiaddr, dial_addr: Mult
     };
 
     // kick off tokio::select event loop to handle events
-    run_event_loop(channel_receiver, &mut swarm, topic).await;
+    run_event_loop(&mut swarm, topic, chn_recv_out, chn_send_in).await;
 }
 
 // Create a keypair for authenticated encryption of the transport.
@@ -123,12 +129,15 @@ fn create_gossipsub_swarm(
 
 // kick off tokio::select event loop to handle events
 async fn run_event_loop(
-    mut channel_receiver: UnboundedReceiver<Vec<u8>>, swarm: &mut Swarm<Gossipsub>, topic: GossibsubTopic) {
+    swarm: &mut Swarm<Gossipsub>,
+    topic: GossibsubTopic,
+    mut chn_recv_out: UnboundedReceiver<Vec<u8>>,
+    chn_send_in: UnboundedSender<GossipsubMessage>) {
         loop {
             tokio::select! {
                 // reads msgs from the channel and broadcasts it to the network as a swarm event
-                msg = channel_receiver.recv() => {
-                    println!("SEND: {:?}", msg);
+                msg = chn_recv_out.recv() => {
+                    println!("SEND ->: {:?}", msg);
                     if let Err(e) = swarm
                         .behaviour_mut()
                         .publish(topic.clone(), msg.expect("Stdin not to close").to_vec())
@@ -143,7 +152,10 @@ async fn run_event_loop(
                         propagation_source: peer_id,
                         message_id: id,
                         message,
-                    }) => message.handle_msg(), // custom behaviour can be implemented from trait HandleMsg
+                    }) => {
+                        // add incoming message to internal channel
+                        chn_send_in.send(message).unwrap();
+                    }
                     // handles NewListenAddr event
                     SwarmEvent::NewListenAddr { address, .. } => {
                         println!("Listening on {:?}", address);
