@@ -1,10 +1,10 @@
 use floodsub::Topic;
 use libp2p::floodsub;
-use network::setup::floodsub::floodsub_tokio_setup::init;
+use network::p2p::floodsub::floodsub_tokio_setup::init;
+use network::channel::channel::create_u8_chn;
 use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::time;
-use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 
 #[tokio::main]
 async fn main() {
@@ -12,7 +12,7 @@ async fn main() {
     let topic: Lazy<Topic> = Lazy::new(|| Topic::new("floodsub broadcast"));
 
     // create channel to send messages to the floodsub broadcast
-    let (channel_sender_out, channel_receiver_out) = mpsc::unbounded_channel();
+    let (channel_sender_out, channel_receiver_out) = create_u8_chn();
 
     // spawn a separate thread with the channel sender
     tokio::spawn(async move {

@@ -1,7 +1,7 @@
 use libp2p::gossipsub::{IdentTopic as GossibsubTopic};
 use libp2p::Multiaddr;
 use network::channel::channel::{create_u8_chn, create_gossipsub_chn};
-use network::setup::gossipsub::gossipsub_tokio_setup::init;
+use network::p2p::gossipsub::gossipsub_tokio_setup::init;
 use std::time::Duration;
 use tokio::time;
 // use network::network_info::rpc_net_info::get_tendermint_net_info;

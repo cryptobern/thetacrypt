@@ -24,9 +24,7 @@ use std::time::Duration;
 use tokio::{
     sync::mpsc::{self, UnboundedSender},
     time,
-}; // 1.16.1
-
-use network::deliver::deliver::HandleMsg;
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -145,7 +143,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
-                }) => message.handle_msg(),
+                }) => println!(
+                    "Got message: {} with id: {} from peer: {:?}",
+                    String::from_utf8_lossy(&message.data),
+                    id,
+                    peer_id
+                ),
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Listening on {:?}", address);
                 }

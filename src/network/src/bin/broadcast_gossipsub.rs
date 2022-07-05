@@ -11,8 +11,6 @@ use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-use network::deliver::deliver::HandleMsg;
-
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     Builder::from_env(Env::default().default_filter_or("info")).init();
@@ -98,7 +96,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
-                }) => message.handle_msg(),
+                }) => println!(
+                    "Got message: {} with id: {} from peer: {:?}",
+                    String::from_utf8_lossy(&message.data),
+                    id,
+                    peer_id
+                ),
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Listening on {:?}", address);
                 }

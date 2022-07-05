@@ -1,7 +1,6 @@
 pub mod channel;
-pub mod deliver;
 pub mod network_info;
-pub mod setup;
+pub mod p2p;
 
 pub mod lib {
     use std::any::type_name;

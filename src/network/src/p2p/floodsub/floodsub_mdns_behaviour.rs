@@ -4,7 +4,7 @@ use libp2p::{
     NetworkBehaviour,
     swarm::NetworkBehaviourEventProcess,
 };
-use crate::deliver::deliver::HandleMsg;
+use crate::p2p::floodsub::deliver::deliver::HandleMsg;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(event_process = true)]
