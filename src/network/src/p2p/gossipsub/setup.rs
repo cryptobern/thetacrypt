@@ -30,8 +30,8 @@ pub async fn init(
     topic: GossibsubTopic,
     listen_addr: Multiaddr,
     dial_addr: Multiaddr,
-    chn_recv_out: UnboundedReceiver<Vec<u8>>,
-    chn_send_in: UnboundedSender<GossipsubMessage>) {
+    chn_out_recv: UnboundedReceiver<Vec<u8>>,
+    chn_in_send: UnboundedSender<GossipsubMessage>) {
     env_logger::init();
 
     println!("listen_addr: {}", listen_addr);
@@ -66,7 +66,7 @@ pub async fn init(
     };
 
     // kick off tokio::select event loop to handle events
-    run_event_loop(&mut swarm, topic, chn_recv_out, chn_send_in).await;
+    run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
 }
 
 // Create a keypair for authenticated encryption of the transport.
@@ -132,12 +132,12 @@ fn create_gossipsub_swarm(
 async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
-    mut chn_recv_out: UnboundedReceiver<Vec<u8>>,
+    mut chn_out_recv: UnboundedReceiver<Vec<u8>>,
     chn_send_in: UnboundedSender<GossipsubMessage>) {
         loop {
             tokio::select! {
                 // reads msgs from the channel and broadcasts it to the network as a swarm event
-                msg = chn_recv_out.recv() => {
+                msg = chn_out_recv.recv() => {
                     println!("SEND ->: {:?}", msg);
                     if let Err(e) = swarm
                         .behaviour_mut()

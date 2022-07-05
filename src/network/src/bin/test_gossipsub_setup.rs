@@ -14,10 +14,10 @@ async fn main() {
     let topic = GossibsubTopic::new("gossipsub broadcast");
 
     // create channel to submit messages to the floodsub broadcast
-    let (chn_send_out, chn_rec_out) = create_u8_chn();
+    let (chn_out_send, chn_out_recv) = create_u8_chn();
 
     // create channel to submit incoming messages from the floodsub broadcast
-    let (chn_send_in, mut chn_rec_in) = create_gossipsub_chn();
+    let (chn_in_send, mut chn_in_recv) = create_gossipsub_chn();
 
     // sends a Vec<u8> into the channel as spawned thread
     tokio::spawn(async move {
@@ -30,7 +30,7 @@ async fn main() {
             my_vec[0] = count; // to keep track of the messages
             my_vec[1] = rand::random(); // to prevent dublicate messages
             // sends Vec<u8> into the channel
-            chn_send_out.send(my_vec.to_vec()).unwrap();
+            chn_out_send.send(my_vec.to_vec()).unwrap();
         }
     });
     
@@ -73,8 +73,8 @@ async fn main() {
                 init(topic,
                     listen_addr.parse().unwrap(),
                     dial_addr,
-                    chn_rec_out,
-                    chn_send_in).await;
+                    chn_out_recv,
+                    chn_in_send).await;
             });
         } else {
             println!("info: provide a port to connect to.");
@@ -84,7 +84,7 @@ async fn main() {
     }
 
     // receive incoming messages via the internal channel
-    while let Some(message) = chn_rec_in.recv().await {
+    while let Some(message) = chn_in_recv.recv().await {
         print!("RECV <-: {:?}", message.data); // vec<u8>
         println!(" FROM: {:?}", message.source.unwrap());
     }
