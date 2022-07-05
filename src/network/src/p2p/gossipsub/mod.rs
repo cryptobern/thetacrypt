@@ -1,1 +1,1 @@
-pub mod gossipsub_tokio_setup;
+pub mod setup;

@@ -50,6 +50,7 @@ pub async fn init(
     // encryption and Mplex for multiplexing of substreams on a TCP stream.
     let transport = create_tcp_transport(noise_keys);
     
+    // Create a Swarm to manage peers and events.
     let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
 
     // bind port to given listener address
