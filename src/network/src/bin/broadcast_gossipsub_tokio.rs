@@ -1,31 +1,55 @@
 use async_std::io;
-use env_logger::{Builder, Env};
-use futures::{prelude::*, select};
-use libp2p::gossipsub::MessageId;
-use libp2p::gossipsub::{
-    GossipsubEvent, GossipsubMessage, IdentTopic as GossibsubTopic, MessageAuthenticity, ValidationMode,
-};
-use libp2p::{gossipsub, identity, swarm::SwarmEvent, Multiaddr, PeerId};
+use futures::prelude::*;
+use libp2p::swarm::SwarmBuilder;
+use libp2p::{Transport, mplex, gossipsub};
+use libp2p::tcp::TokioTcpConfig;
+use libp2p::{
+    core::upgrade,
+    gossipsub::{
+        MessageId,
+        GossipsubEvent,
+        GossipsubMessage,
+        IdentTopic as GossibsubTopic,
+        MessageAuthenticity,
+        ValidationMode},
+    identity,
+    noise,
+    swarm::SwarmEvent,
+    Multiaddr,
+    PeerId};
 use std::collections::hash_map::DefaultHasher;
 use std::error::Error;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
+use tokio::{
+    sync::mpsc::{self, UnboundedSender},
+    time,
+};
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    Builder::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::init();
 
     // Create a random PeerId
-    let local_key = identity::Keypair::generate_ed25519();
-    let local_peer_id = PeerId::from(local_key.public());
+    let id_keys = identity::Keypair::generate_ed25519();
+    let local_peer_id = PeerId::from(id_keys.public());
     println!("Local peer id: {:?}", local_peer_id);
 
-    // Set up an encrypted TCP Transport over the Mplex and Yamux protocols
-    let transport = libp2p::development_transport(local_key.clone()).await?;
+    // Create a keypair for authenticated encryption of the transport.
+    let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
+        .into_authentic(&id_keys)
+        .expect("Signing libp2p-noise static DH keypair failed.");
 
-    // Create a Gossipsub topic
+    // Create a tokio-based TCP transport use noise for authenticated
+    // encryption and Mplex for multiplexing of substreams on a TCP stream.
+    let transport = TokioTcpConfig::new()
+        .nodelay(true)
+        .upgrade(upgrade::Version::V1)
+        .authenticate(noise::NoiseConfig::xx(noise_keys).into_authenticated())
+        .multiplex(mplex::MplexConfig::new())
+        .boxed();
+
     let topic = GossibsubTopic::new("gossip-share");
-
     // Create a Swarm to manage peers and events
     let mut swarm = {
         // To content-address message, we can take the hash of message and use it as an ID.
@@ -44,7 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Valid config");
         // build a gossipsub network behaviour
         let mut gossipsub: gossipsub::Gossipsub =
-            gossipsub::Gossipsub::new(MessageAuthenticity::Signed(local_key), gossipsub_config)
+            gossipsub::Gossipsub::new(MessageAuthenticity::Signed(id_keys), gossipsub_config)
                 .expect("Correct configuration");
                 
         // subscribes to our topic
@@ -60,7 +84,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // build the swarm
-        libp2p::Swarm::new(transport, gossipsub, local_peer_id)
+        // libp2p::Swarm::new(transport, gossipsub, local_peer_id)
+        SwarmBuilder::new(transport, gossipsub, local_peer_id)
+            // We want the connection backgro&mut und tasks to be spawned onto the tokio runtime.
+            .executor(Box::new(|fut| {
+                tokio::spawn(fut);
+            }))
+            .build()
     };
 
     // Listen on all interfaces and whatever port the OS assigns
@@ -80,9 +110,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
+    // create channel with sender and receiver
+    let (tx, mut rx) = mpsc::unbounded_channel();
+
+    // spawns a thread with the channel sender to add Vec<u8> messages to the channel 
+    let my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
+    tokio::spawn(message_sender(my_vec, tx));
+
     // Kick it off
     loop {
-        select! {
+        tokio::select! {
+            // reads msgs from the channel and broadcasts it to the network
+            msg = rx.recv() => {
+                println!("SEND: {:?}", msg);
+                if let Err(e) = swarm
+                    .behaviour_mut()
+                    .publish(topic.clone(), msg.expect("Stdin not to close").to_vec())
+                {
+                    println!("Publish error: {:?}", e);
+                }
+            },
             line = stdin.select_next_some() => {
                 if let Err(e) = swarm
                     .behaviour_mut()
@@ -108,5 +155,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 _ => {}
             }
         }
+    }
+}
+
+async fn message_sender(mut msg: Vec<u8>, foo_tx: UnboundedSender<Vec<u8>>) {
+    for count in 0.. {
+        msg[0] = count; // to keep track of the messages
+        msg[1] = rand::random(); // to prevent dublicate messages
+        foo_tx.send(msg.to_vec()).unwrap();
+
+        time::sleep(Duration::from_millis(1000)).await;
     }
 }

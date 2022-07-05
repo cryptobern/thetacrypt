@@ -1,5 +1,8 @@
-pub mod lib {
+pub mod channel;
+pub mod network_info;
+pub mod p2p;
 
+pub mod lib {
     use std::any::type_name;
 
     // get data type
