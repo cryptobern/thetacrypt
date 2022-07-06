@@ -164,10 +164,10 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
     let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
     
     let peers = vec![
-        (0, String::from("::1"), 50050),
-        (1, String::from("::1"), 50051),
-        (2, String::from("::1"), 50052),
-        (3, String::from("::1"), 50053)
+        (0, String::from("::1"), 50051),
+        (1, String::from("::1"), 50052),
+        (2, String::from("::1"), 50053),
+        (3, String::from("::1"), 50054)
     ];
     
     let mut connections = Vec::new();

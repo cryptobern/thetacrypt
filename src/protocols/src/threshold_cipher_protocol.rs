@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use cosmos_crypto::interface::{PrivateKey, Serializable, ThresholdCipherParams, Share, Ciphertext};
 use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
+use network::p2p::gossipsub::setup::P2pMessage;
 use tokio::sync::mpsc::error::TryRecvError;
 use {cosmos_crypto::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
 
@@ -42,7 +43,7 @@ pub struct ThresholdCipherProtocol<C: ThresholdCipher> {
     pk: C::TPubKey,
     ciphertext: C::CT,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>,
+    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
     result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
     instance_id: String,
     threshold: u32,
@@ -63,7 +64,7 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
             pk: C::TPubKey,
             ciphertext: C::CT,
             chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-            chan_out: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>,
+            chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
             result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>> )>,
             instance_id: String,
             ) -> Self {
@@ -116,7 +117,11 @@ impl<C:ThresholdCipher> ThresholdCipherProtocol<C>
         println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
         let share: C::TShare = C::partial_decrypt(&self.ciphertext, &self.sk, &mut params);
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-        self.chan_out.send((self.instance_id.clone(), share.serialize().unwrap())).await.unwrap();
+        let message = P2pMessage{
+            instance_id: self.instance_id.clone(),
+            message_data: share.serialize().unwrap(),
+        };
+        self.chan_out.send(message).await.unwrap();
         self.valid_shares.push(share);
     }
 

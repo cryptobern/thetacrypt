@@ -1,4 +1,5 @@
 use mcore::hash256::HASH256;
+use network::p2p::gossipsub::setup::P2pMessage;
 use protocols::keychain::KeyChain;
 use protocols::pb;
 use protocols::pb::requests::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
@@ -24,8 +25,9 @@ use std::collections::{self, HashMap};
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 
-
 type InstanceId = String;
+
+
 
 #[derive(Debug)]
 pub enum DemultUpdateCommand {
@@ -51,16 +53,16 @@ fn assign_decryption_instance_id(ctxt: &impl Ciphertext) -> String {
     let mut ctxt_digest = HASH256::new();
     ctxt_digest.process_array(&ctxt.get_msg());
     let h: &[u8] = &ctxt_digest.hash()[..8];
-    String::from_utf8(ctxt.get_label()).unwrap() + " " + &hex::encode_upper(h)
+    String::from_utf8(ctxt.get_label()).unwrap() + " " + hex::encode_upper(h).as_str()
 }
 
 pub struct RequestHandler {
     key_chain: KeyChain,
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     demult_command_sender: tokio::sync::mpsc::Sender<DemultUpdateCommand>,
-    prot_to_net_sender: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>,
+    prot_to_net_sender: tokio::sync::mpsc::Sender<P2pMessage>,
     result_sender: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
-    net_to_demult_sender: tokio::sync::mpsc::Sender<(InstanceId, Vec<u8>)>, //temp
+    net_to_demult_sender: tokio::sync::mpsc::Sender<P2pMessage>, //temp
 }
 
 impl RequestHandler{
@@ -157,7 +159,11 @@ impl ThresholdCryptoLibrary for RequestHandler {
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
         // println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
-        self.net_to_demult_sender.send((req.instance_id.clone(), req.decryption_share.clone())).await.expect("net_to_demult_sender.send returned Err");
+        let p2p_message = P2pMessage{
+            instance_id: req.instance_id.clone(),
+            message_data: req.decryption_share.clone()
+        };
+        self.net_to_demult_sender.send(p2p_message).await.expect("net_to_demult_sender.send returned Err");
         Ok(Response::new(requests::PushDecryptionShareResponse{}))
     }
 }
@@ -173,31 +179,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let my_addr = format!("[::1]:{my_port}").parse()?;
     let my_keyfile = format!("conf/keys_{my_id}.json");
     
-    let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Vec<u8>)>(32);
-    let (net_to_demult_sender, mut net_to_demult_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Vec<u8>)>(32);
+    let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (net_to_demult_sender, mut net_to_demult_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
     let (state_command_sender, mut state_command_receiver) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
     let state_command_sender2 = state_command_sender.clone();
     let (demult_command_sender, mut demult_command_receiver) = tokio::sync::mpsc::channel::<DemultUpdateCommand>(32);
     let (result_sender, mut result_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Option<Vec<u8>>)>(32);
-    let net_to_demult_sender2 = net_to_demult_sender.clone(); //temp
+    let net_to_demult_sender2 = net_to_demult_sender.clone(); // todo: currenly not needed.
 
     // Read keys from file
-    // println!(">> REQH: Reading keys from keychain.");
+    println!(">> REQH: Reading keys from keychain file: {}", my_keyfile);
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
     
     // Spawn Network
     // Takes ownership of net_to_demult_sender and prot_to_net_receiver
-    // println!(">> REQH: Initiating network manager.");
-    tokio::spawn(async move {
-        let mut network_manager = RpcNetwork::new(my_id, net_to_demult_sender2, prot_to_net_receiver).await;
-        loop {
-            let message_from_protocol = network_manager.prot_to_net_receiver.recv().await;
-            let (instance_id, message) = message_from_protocol.expect("prot_to_net_receiver.recv() returned None");
-            network_manager.send_to_all(instance_id, message).await
-        }
-        // net_to_demult_sender supposed to be used here as well. Send received message through that channel
-    });
+    // println!(">> REQH: Initiating an RPC network instance.");
+    // tokio::spawn(async move {
+    //     let mut network_manager = RpcNetwork::new(my_id, net_to_demult_sender2, prot_to_net_receiver).await;
+    //     loop {
+    //         let message_from_protocol = network_manager.prot_to_net_receiver.recv().await;
+    //         let (instance_id, message) = message_from_protocol.expect("prot_to_net_receiver.recv() returned None");
+    //         network_manager.send_to_all(instance_id, message).await
+    //     }
+    //     // net_to_demult_sender supposed to be used here as well. Send received message through that channel
+    // });
     
+    println!(">> REQH: Initiating lib_P2P-based network instance.");
+    tokio::spawn(async move {
+        network::p2p::gossipsub::setup::init(prot_to_net_receiver,
+                                              net_to_demult_sender,
+                                         true,
+                                                  my_id,
+                                                4).await;
+    });
+
     // Spawn State Manager
     // Takes ownership of state_command_receiver
     // println!(">> REQH: Initiating state manager.");
@@ -231,7 +246,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             tokio::select! {
                 message_net_to_demult = net_to_demult_receiver.recv() => { // Received a message in message_net_to_demult. Forward it to the correct instance.
-                    let (instance_id, message) = message_net_to_demult.expect("net_to_demult_receiver.recv() returned None");
+                    let P2pMessage{instance_id, message_data } = message_net_to_demult.expect("net_to_demult_receiver.recv() returned None");
                     let mut remove_channel = false;
                     if let Some(sender) = channels_demult_to_prot.get(&instance_id){  // Found a channel that connects us to instance_id.
                         if sender.is_closed(){
@@ -239,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // println!(">> DEMU: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
                         }
                         else {
-                            sender.send(message).await.expect("sender.send() for net_to_demult channel returned Err"); // Forward the message through that channel
+                            sender.send(message_data).await.expect("sender.send() for net_to_demult channel returned Err"); // Forward the message through that channel
                             // println!(">> DEMU: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
                         }
                     }
@@ -285,7 +300,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         demult_command_sender,
         prot_to_net_sender,
         result_sender,
-        net_to_demult_sender,
+        net_to_demult_sender: net_to_demult_sender2,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

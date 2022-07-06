@@ -6,7 +6,7 @@ package requests;
 
 service ThresholdCryptoLibrary {
     rpc decrypt (ThresholdDecryptionRequest) returns (ThresholdDecryptionResponse);
-    rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse);
+    rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); //this is an alternative way to send shares
 }
 
 message ThresholdDecryptionRequest {

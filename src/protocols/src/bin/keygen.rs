@@ -22,7 +22,7 @@ fn generate_keys(k: usize, n: usize) {
     let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
     // todo: Change the following to use DlKeyGenerator::generate_keys(), which returns value of type enum DlPrivateKey<D>
     let sk_sg02_bls12381 = Sg02ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
-    for node_id in 0..n {
+    for node_id in 1..n+1 {
         let mut key_chain = KeyChain::new();
         key_chain.insert_key(requests::ThresholdCipher::Sg02, 
                              requests::DlGroup::Bls12381, 
