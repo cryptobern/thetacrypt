@@ -1,18 +1,22 @@
-# Structure
+# The network interface
 
-- **bin**: sandbox - code to test the modules (channel, network_info, p2p) and examples (see "Hot to use").
+![Network interface](network_interface.png)
 
-- **channel**: provides functions to create channels to the network layer to send and receive messages to and from the p2p-broadcast. So far you can create channels to transmit u8-vectors (out-channel) and channels to transmit the libp2p type `GossibsubMessage` (in-channel).
+# Package structure
 
-- **network_info**: this module contains requests to a Tendermint RPC endpoint in `rpc_net_info.rs` and `rpc_status.rs` (https://docs.tendermint.com/v0.35/rpc/) which return the results of the corresponding request. All structs to deserialize the JSON-RPC responses from Tendermint can be found in `deserialize.rs`. A conversion of the addresses from the JSON-RPC-responses into a libp2p `Multiaddr` format can be done with the functions provided in `address_converter.rs`.
+- **bin**: sandbox - code to test the modules (channel, network_info, p2p) and examples (see "How to use").
+
+- **channel**: provides functions to create channels to the network layer to send and receive messages to and from the p2p-broadcast.
+
+- **network_info**: this module contains requests to a Tendermint RPC endpoint in `rpc_net_info.rs` and `rpc_status.rs` (https://docs.tendermint.com/v0.35/rpc/) which return the `Result`s of the corresponding request. All structs to deserialize the JSON-RPC responses from Tendermint can be found in `deserialize.rs`. A conversion of the addresses wrapped in the `Result` into a libp2p `Multiaddr` format can be done with the functions provided in `address_converter.rs` (*warning*: room for improvement!).
 
 - **p2p**: This module contains two sub-modules, one for each implementation of the libp2p pubsub protocols:
 
     ```gossipsub```
     
-    The public function `init(...)` in `setup.rs` can be used to send and receive messages to and from the network using the `Gossipsub` protocol and the `tokio` runtime.
+    The public function `init(...)` in `setup.rs` is the interface to send and receive messages to and from the network using the `Gossipsub` protocol and the `Tokio` runtime.
 
-    The `init` function requires a `GossipsubTopic`, two `MultiAddr` (one listening port and one port from another peer to dial in) along with an `UnboundedReceiver` an `UnboundedSender` from the **out-** and **in-channels**.
+    The `init(...)` function requires a `GossipsubTopic`, the receiver of the **out-channel** (`chn_out_recv`) and the sender of the **in-channel** (`chn_in_send`).
     
     Using a randomly created `KeyPair` and `PeerId` a tokio-based TCP transport and a swarm are created, the listening port is openend and the select-loop is kicked off. The select-loop contains a branch for sending messages to the network (retrieved from the internal **out-channel**) and a branch for handling the `SwarmEvent`s, such as the incoming `GossibsubEvent::Message`. These messages are added to the internal **in-channel** and can be consumed with the corresponding receiver.
 
