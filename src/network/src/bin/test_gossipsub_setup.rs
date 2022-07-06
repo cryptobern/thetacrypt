@@ -10,9 +10,6 @@ use tokio::time;
 
 #[tokio::main]
 async fn main() {
-    // Create a Gossipsub topic
-    let topic = GossibsubTopic::new("gossipsub broadcast");
-
     // create channel to submit messages to the floodsub broadcast
     let (chn_out_send, chn_out_recv) = create_u8_chn();
 
@@ -57,32 +54,12 @@ async fn main() {
 
     // init(topic, listen_addr, dial_addr, channel_receiver).await;
 
+
+    // kick off gossipsub broadcast for given topic, listening and dialing addresses and channels
+    tokio::spawn(async move {
+        init(chn_out_recv,chn_in_send).await;
+    });
     
-    // temp solution (using cli arguments for listener and dialing addresses):
-    // first cli argument: listen_port
-    if let Some(listen_on) = std::env::args().nth(1) {
-        let listen_addr = format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_on); // default address
-
-        // second cli argument: peer address (port) to dial
-        if let Some(dial_to) = std::env::args().nth(2) {
-            let dial = format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_to); // default address
-            let dial_addr: Multiaddr = dial.parse().expect("User to provide valid address.");
-
-            // kick off gossipsub broadcast for given topic, listening and dialing addresses and channels
-            tokio::spawn(async move {
-                init(topic,
-                    listen_addr.parse().unwrap(),
-                    dial_addr,
-                    chn_out_recv,
-                    chn_in_send).await;
-            });
-        } else {
-            println!("info: provide a port to connect to.");
-        }
-    } else {
-        println!("provide a port as listener address.");
-    }
-
     // receive incoming messages via the internal channel
     while let Some(message) = chn_in_recv.recv().await {
         print!("RECV <-: {:?}", message.data); // vec<u8>

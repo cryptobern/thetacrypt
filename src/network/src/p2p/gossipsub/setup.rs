@@ -19,29 +19,70 @@ use libp2p::{
     Transport,
     Multiaddr,
     PeerId};
+use serde::{Serialize, Deserialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{Receiver, Sender},
 };
 
-pub async fn init(
-    topic: GossibsubTopic,
-    listen_addr: Multiaddr,
-    dial_addr: Multiaddr,
-    chn_out_recv: UnboundedReceiver<Vec<u8>>,
-    chn_in_send: UnboundedSender<GossipsubMessage>) {
-    env_logger::init();
 
-    println!("listen_addr: {}", listen_addr);
-    println!("dial_addr: {}", dial_addr);
+const DEFAULT_LISTEN_PORT:u32 = 27000; //todo: Move this into a conf file
+
+//todo: Move this to a new types crate
+#[derive(Serialize, Deserialize, Debug)]
+pub struct P2pMessage {
+    pub instance_id: String,
+    pub message_data: Vec<u8>
+}
+impl From<P2pMessage> for Vec<u8> {
+    fn from(p2p_message: P2pMessage) -> Self {
+        // serde_json::to_string(&p2p_message).unwrap().as_bytes().to_vec()
+        serde_json::to_string(&p2p_message).expect("Error in From<P2pMessage> for Vec<u8>").into_bytes()
+    }
+}
+impl From<Vec<u8>> for P2pMessage {
+    fn from(vec: Vec<u8>) -> Self {
+        serde_json::from_str::<P2pMessage>(&String::from_utf8(vec).expect("Error in From<Vec<u8>> for P2pMessage")).unwrap()
+    }
+}
+
+
+pub async fn init(
+    chn_out_recv: Receiver<P2pMessage>,
+    chn_in_send: Sender<P2pMessage>,
+    local_deployment: bool,
+    peer_id: u32, //todo: probably can also be moved to a conf file
+    num_peers: u32 //todo: remove
+    ){
+    env_logger::init();
+    
+    // Create a Gossipsub topic
+    let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
+    
+    let mut listen_port = DEFAULT_LISTEN_PORT;
+    let mut dial_port = DEFAULT_LISTEN_PORT;
+    if local_deployment {
+        listen_port += peer_id;
+        dial_port += (peer_id  % num_peers) + 1; // dial the next peer
+    }
+    let listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
+                                .parse()
+                                .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port));
+    
+    let dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
+                              .parse()
+                              .expect(&format!(">> NET: Fatal error: Could not dial peer at port {}.", dial_port));
+
+    println!(">> NET: listen_addr: {}", listen_addr);
+    println!(">> NET: dial_addr: {}", dial_addr);
 
     // Create a random PeerId
     // TODO: get local keypair and peer id from tendermint RPC endpoint (?)
     let id_keys = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(id_keys.public());
-    println!("Local peer id: {:?}", local_peer_id);
+    println!(">> NET: Local peer id: {:?}", local_peer_id);
 
     // Create a keypair for authenticated encryption of the transport.
     let noise_keys = create_noise_keys(&id_keys);
@@ -56,14 +97,28 @@ pub async fn init(
     // bind port to given listener address
     match swarm.listen_on(listen_addr.clone()) {
         Ok(_) => (),
-        Err(error) => println!("listen {:?} failed: {:?}", listen_addr, error),
+        Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
     }
 
     // dial to another running peer
     match swarm.dial(dial_addr.clone()) {
-        Ok(_) => println!("Dialed {:?}", dial_addr),
-        Err(e) => println!("Dial {:?} failed: {:?}", dial_addr, e),
+        Ok(_) => {
+            println!(">> NET: Dialed {:?}", dial_addr);
+            loop {
+                match swarm.select_next_some().await {
+                    SwarmEvent::ConnectionEstablished {..} => break,
+                    SwarmEvent::OutgoingConnectionError {..} => 
+                        {
+                            println!(">> NET: Waiting until connection to {dial_addr} is succesful.");
+                        }
+                    _ => {}
+                }
+            }
+            println!(">> NET: Connection to {dial_addr} succesful.");
+        },
+        Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
     };
+    
 
     // kick off tokio::select event loop to handle events
     run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
@@ -115,7 +170,7 @@ fn create_gossipsub_swarm(
         let explicit = explicit.clone();
         match explicit.parse() {
             Ok(id) => gossipsub.add_explicit_peer(&id),
-            Err(err) => println!("Failed to parse explicit peer id: {:?}", err),
+            Err(err) => println!(">>NET: Failed to parse explicit peer id: {:?}", err),
         }
     }
     // build the swarm
@@ -132,19 +187,20 @@ fn create_gossipsub_swarm(
 async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
-    mut chn_out_recv: UnboundedReceiver<Vec<u8>>,
-    chn_send_in: UnboundedSender<GossipsubMessage>) {
+    mut chn_out_recv: Receiver<P2pMessage>,
+    chn_send_in: Sender<P2pMessage>) {
+        println!(">> NET: Starting event loop.");
         loop {
             tokio::select! {
                 // reads msgs from the channel and broadcasts it to the network as a swarm event
                 msg = chn_out_recv.recv() => {
-                    println!("SEND ->: {:?}", msg);
-                    if let Err(e) = swarm
-                        .behaviour_mut()
-                        .publish(topic.clone(), msg.expect("Stdin not to close").to_vec())
-                    {
-                        println!("Publish error: {:?}", e);
-                    }
+                    let data = msg.expect(">> NET: Fatal error: chn_out_recv unexpectedly closed.");
+                    println!(">> NET: Sending a message");
+                    swarm.behaviour_mut()
+                         .publish(topic.clone(), data)
+                         .expect("Publish error");
+                    // todo: Terminate the loop 
+                    // if msg is None (i.e., chn_out has been closed and no new message will ever be received)?
                 },
                 // polls swarm events
                 event = swarm.select_next_some() => match event {
@@ -155,11 +211,12 @@ async fn run_event_loop(
                         message,
                     }) => {
                         // add incoming message to internal channel
-                        chn_send_in.send(message).unwrap();
+                        println!(">> NET: Received a message");
+                        chn_send_in.send(message.data.into()).await.unwrap();
                     }
                     // handles NewListenAddr event
                     SwarmEvent::NewListenAddr { address, .. } => {
-                        println!("Listening on {:?}", address);
+                        println!(">> NET: Listening on {:?}", address);
                     }
                     _ => {}
                 }
