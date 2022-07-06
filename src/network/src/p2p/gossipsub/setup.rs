@@ -65,7 +65,8 @@ pub async fn init(
     let mut dial_port = DEFAULT_LISTEN_PORT;
     if local_deployment {
         listen_port += peer_id;
-        dial_port += (peer_id  % num_peers) + 1; // dial the next peer
+        // dial_port += (peer_id  % num_peers) + 1; // dial the next peer
+        dial_port += peer_id  - 1; // dial the next peer
     }
     let listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
                                 .parse()
@@ -100,25 +101,26 @@ pub async fn init(
         Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
     }
 
+    if peer_id > 1 {
     // dial to another running peer
-    match swarm.dial(dial_addr.clone()) {
-        Ok(_) => {
-            println!(">> NET: Dialed {:?}", dial_addr);
-            loop {
-                match swarm.select_next_some().await {
-                    SwarmEvent::ConnectionEstablished {..} => break,
-                    SwarmEvent::OutgoingConnectionError {..} => 
-                        {
-                            println!(">> NET: Waiting until connection to {dial_addr} is succesful.");
+        loop {
+            match swarm.dial(dial_addr.clone()) {
+                Ok(_) => {
+                    println!(">> NET: Dialed {:?}", dial_addr);
+                    match swarm.select_next_some().await {
+                        SwarmEvent::ConnectionEstablished {..} => break,
+                        SwarmEvent::OutgoingConnectionError {peer_id, error} => {
+                                println!(">> NET: Connection to {dial_addr} not succesful. Retrying in 2 sec.");
+                                tokio::time::sleep(Duration::from_millis(2000)).await;
                         }
-                    _ => {}
-                }
-            }
-            println!(">> NET: Connection to {dial_addr} succesful.");
-        },
-        Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-    };
-    
+                        _ => {}
+                    }
+                },
+                Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+            };
+        }
+        println!(">> NET: Connection to {dial_addr} succesful.");
+    }
 
     // kick off tokio::select event loop to handle events
     run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
@@ -188,7 +190,7 @@ async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
     mut chn_out_recv: Receiver<P2pMessage>,
-    chn_send_in: Sender<P2pMessage>) {
+    chn_send_in: Sender<P2pMessage>) -> ! {
         println!(">> NET: Starting event loop.");
         loop {
             tokio::select! {
@@ -218,6 +220,7 @@ async fn run_event_loop(
                     SwarmEvent::NewListenAddr { address, .. } => {
                         println!(">> NET: Listening on {:?}", address);
                     }
+                    
                     _ => {}
                 }
             }
