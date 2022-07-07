@@ -77,7 +77,7 @@ pub async fn init(
     let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
 
     let listen_addr = get_listen_addr(&config, peer_id);
-    let dial_addr = get_dial_addr(&config, peer_id);
+    let dial_addr = get_dial_addr(&config, peer_id, 0);
 
     println!(">> NET: listen_addr: {}", listen_addr);
     println!(">> NET: dial_addr: {}", dial_addr);
@@ -103,23 +103,24 @@ pub async fn init(
         Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
     }
 
-    loop {
-        match swarm.dial(dial_addr.clone()) {
-            Ok(_) => {
-                println!(">> NET: Dialed {:?}", dial_addr);
-                match swarm.select_next_some().await {
-                    SwarmEvent::ConnectionEstablished {..} => break,
-                    SwarmEvent::OutgoingConnectionError {peer_id, error} => {
-                            println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
-                            tokio::time::sleep(Duration::from_millis(2000)).await;
-                    }
-                    _ => {}
-                }
-            },
-            Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-        };
-    }
-    println!(">> NET: Connection to {dial_addr} successful.");
+    dial(&mut swarm, config, peer_id).await;
+    // loop {
+    //     match swarm.dial(dial_addr.clone()) {
+    //         Ok(_) => {
+    //             println!(">> NET: Dialed {:?}", dial_addr);
+    //             match swarm.select_next_some().await {
+    //                 SwarmEvent::ConnectionEstablished {..} => break,
+    //                 SwarmEvent::OutgoingConnectionError {peer_id, error} => {
+    //                         println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+    //                         tokio::time::sleep(Duration::from_millis(2000)).await;
+    //                 }
+    //                 _ => {}
+    //             }
+    //         },
+    //         Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+    //     };
+    // }
+    // println!(">> NET: Connection to {dial_addr} successful.");
 
     // kick off tokio::select event loop to handle events
     run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
@@ -177,8 +178,8 @@ pub fn get_listen_port(config: &Data, peer_id: u32) -> u32 {
 }
 
 // return dialing address
-pub fn get_dial_addr(config: &Data, peer_id: u32) -> Multiaddr {
-    let dial_port = get_dial_port(config, peer_id);
+pub fn get_dial_addr(config: &Data, peer_id: u32, try_indx: i32) -> Multiaddr {
+    let dial_port = get_dial_port(config, peer_id, try_indx);
 
     format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
         .parse()
@@ -186,15 +187,50 @@ pub fn get_dial_addr(config: &Data, peer_id: u32) -> Multiaddr {
 }
 
 // load port number from config file
-pub fn get_dial_port(config: &Data, peer_id: u32) -> u32 {
+pub fn get_dial_port(config: &Data, peer_id: u32, try_indx: i32) -> u32 {
     let dial_port: u32 = 27000; // default port number
-
-    for (k, id) in config.servers.ids.iter().enumerate() {
+    
+    for id in &config.servers.ids {
         if *id != peer_id {
-            return config.servers.ports[k];
+            return config.servers.ports[try_indx as usize];
         }
     }
+    // for (k, id) in config.servers.ids.iter().enumerate() {
+    //     if *id != peer_id {
+    //         return config.servers.ports[k];
+    //     }
+    // }
     return dial_port;
+}
+
+// dial another node, if it fails, retry another peer
+pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Data, peer_id: u32) {
+    let mut try_indx = 0;
+    let no_peers: i32 = config.servers.ports.len().try_into().unwrap();
+    // let mut dial_addr = get_dial_addr(&config, peer_id, try_indx);
+
+    loop {
+        println!("index: {}", try_indx);
+        let dial_addr = get_dial_addr(&config, peer_id, try_indx);
+        match swarm.dial(dial_addr.clone()) {
+            Ok(_) => {
+                println!(">> NET: Dialed {:?}", dial_addr);
+                match swarm.select_next_some().await {
+                    SwarmEvent::ConnectionEstablished {..} => {
+                        // println!(">> NET: Connection to {dial_addr} successful.");
+                        break},
+                    SwarmEvent::OutgoingConnectionError {peer_id, error} => {
+                            println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                            try_indx = (try_indx + 1) % no_peers;
+                            tokio::time::sleep(Duration::from_millis(2000)).await;
+                    }
+                    _ => {}
+                }
+            },
+            Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+        };
+    }
+    // println!(">> NET: Connection to {dial_addr} successful.");
 }
 
 // Create a keypair for authenticated encryption of the transport.
