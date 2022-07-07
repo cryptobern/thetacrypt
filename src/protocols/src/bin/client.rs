@@ -4,7 +4,7 @@
 
 use std::fs;
 use std::{thread, time};
-use protocols::pb::requests;
+use protocols::pb::requests::{self, PushDecryptionShareRequest};
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
 use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
@@ -13,7 +13,7 @@ use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, PrivateKe
 use cosmos_crypto::rand::{RngAlgorithm, RNG};
 use protocols::keychain::KeyChain;
 use protocols::pb::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, PushDecryptionShareRequest, PushDecryptionShareResponse};
+use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
