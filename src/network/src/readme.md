@@ -18,7 +18,7 @@
 
     The `init(...)` function requires a `GossipsubTopic`, the receiver of the **out-channel** (`chn_out_recv`) and the sender of the **in-channel** (`chn_in_send`).
     
-    Using a randomly created `KeyPair` and `PeerId` a tokio-based TCP transport and a swarm are created, the listening port is openend and the select-loop is kicked off. The select-loop contains a branch for sending messages to the network (retrieved from the internal **out-channel**) and a branch for handling the `SwarmEvent`s, such as the incoming `GossibsubEvent::Message`. These messages are added to the internal **in-channel** and can be consumed with the corresponding receiver.
+    Using a randomly created `KeyPair` and `PeerId` a tokio-based TCP transport and a swarm are created, the listening port is openend and another peer in the network is dialed. Finally, the `select!`-loop is kicked off, which contains one branch for sending messages to the network (received through the internal **out-channel**) and one branch for handling the `SwarmEvent`s, such as the incoming `GossibsubEvent::Message`. These messages are added to the internal **in-channel** and can be consumed with the corresponding receiver.
 
     ```floodsub```
     

@@ -20,15 +20,16 @@ use libp2p::{
     Multiaddr,
     PeerId};
 use serde::{Serialize, Deserialize};
-use std::collections::hash_map::DefaultHasher;
+use std::{collections::hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::{
     sync::mpsc::{Receiver, Sender},
 };
 
-
-const DEFAULT_LISTEN_PORT:u32 = 27000; //todo: Move this into a conf file
+use std::fs;
+use std::process::exit;
+use toml;
 
 //todo: Move this to a new types crate
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,6 +49,18 @@ impl From<Vec<u8>> for P2pMessage {
     }
 }
 
+#[derive(Deserialize)]
+pub struct Data {
+    servers: Server,
+}
+
+#[derive(Deserialize)]
+pub struct Server {
+    ids: Vec<u32>,
+    // ips: Vec<String>,
+    ports: Vec<u32>,
+}
+
 
 pub async fn init(
     chn_out_recv: Receiver<P2pMessage>,
@@ -57,30 +70,19 @@ pub async fn init(
     num_peers: u32 //todo: remove
     ){
     env_logger::init();
+
+    let config = load_config();
     
     // Create a Gossipsub topic
     let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
-    
-    let mut listen_port = DEFAULT_LISTEN_PORT;
-    let mut dial_port = DEFAULT_LISTEN_PORT;
-    if local_deployment {
-        listen_port += peer_id;
-        // dial_port += (peer_id  % num_peers) + 1; // dial the next peer
-        dial_port += peer_id  - 1; // dial the next peer
-    }
-    let listen_addr: Multiaddr = format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
-                                .parse()
-                                .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port));
-    
-    let dial_addr: Multiaddr = format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
-                              .parse()
-                              .expect(&format!(">> NET: Fatal error: Could not dial peer at port {}.", dial_port));
+
+    let listen_addr = get_listen_addr(&config, peer_id);
+    let dial_addr = get_dial_addr(&config, peer_id);
 
     println!(">> NET: listen_addr: {}", listen_addr);
     println!(">> NET: dial_addr: {}", dial_addr);
 
-    // Create a random PeerId
-    // TODO: get local keypair and peer id from tendermint RPC endpoint (?)
+    // Create a random Keypair and PeerId (hash of the public key)
     let id_keys = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(id_keys.public());
     println!(">> NET: Local peer id: {:?}", local_peer_id);
@@ -101,29 +103,98 @@ pub async fn init(
         Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
     }
 
-    if peer_id > 1 {
-    // dial to another running peer
-        loop {
-            match swarm.dial(dial_addr.clone()) {
-                Ok(_) => {
-                    println!(">> NET: Dialed {:?}", dial_addr);
-                    match swarm.select_next_some().await {
-                        SwarmEvent::ConnectionEstablished {..} => break,
-                        SwarmEvent::OutgoingConnectionError {peer_id, error} => {
-                                println!(">> NET: Connection to {dial_addr} not succesful. Retrying in 2 sec.");
-                                tokio::time::sleep(Duration::from_millis(2000)).await;
-                        }
-                        _ => {}
+    loop {
+        match swarm.dial(dial_addr.clone()) {
+            Ok(_) => {
+                println!(">> NET: Dialed {:?}", dial_addr);
+                match swarm.select_next_some().await {
+                    SwarmEvent::ConnectionEstablished {..} => break,
+                    SwarmEvent::OutgoingConnectionError {peer_id, error} => {
+                            println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                            tokio::time::sleep(Duration::from_millis(2000)).await;
                     }
-                },
-                Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-            };
-        }
-        println!(">> NET: Connection to {dial_addr} succesful.");
+                    _ => {}
+                }
+            },
+            Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+        };
     }
+    println!(">> NET: Connection to {dial_addr} successful.");
 
     // kick off tokio::select event loop to handle events
     run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
+}
+
+// load config file
+pub fn load_config() -> Data {
+    let contents = match fs::read_to_string("../network/src/p2p/config.toml") {
+        // If successful return the files text as `contents`.
+        Ok(c) => c,
+        // Handle the `error` case.
+        Err(_) => {
+            // Write `msg` to `stderr`.
+            eprintln!("Could not read file `{}`", "../network/src/p2p/config.toml");
+            // Exit the program with exit code `1`.
+            exit(1);
+        }
+    };
+
+    // Use a `match` block to return the file `contents` as a `Data struct: Ok(d)` or handle any `errors: Err(_)`.
+    let data: Data = match toml::from_str(&contents) {
+        // If successful, return data as `Data` struct.
+        Ok(d) => d,
+        // Handle the `error` case.
+        Err(e) => {
+            // Write `msg` to `stderr`.
+            eprintln!("Unable to load data from `{}`", "../network/src/p2p/config.toml");
+            println!("################ {}", e);
+            // Exit the program with exit code `1`.
+            exit(1);
+        }
+    };
+    return data;
+}
+
+// return listening address
+pub fn get_listen_addr(config: &Data, peer_id: u32) -> Multiaddr {
+    let listen_port = get_listen_port(config, peer_id);
+
+    format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
+        .parse()
+        .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port))
+}
+
+// load port number from config file
+pub fn get_listen_port(config: &Data, peer_id: u32) -> u32 {
+    let listn_port: u32 = 27000; // default port number
+
+    for (k, id) in config.servers.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.servers.ports[k];
+        }
+    }
+    return listn_port;
+}
+
+// return dialing address
+pub fn get_dial_addr(config: &Data, peer_id: u32) -> Multiaddr {
+    let dial_port = get_dial_port(config, peer_id);
+
+    format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
+        .parse()
+        .expect(&format!(">> NET: Fatal error: Could not dial peer at port {}.", dial_port))
+}
+
+// load port number from config file
+pub fn get_dial_port(config: &Data, peer_id: u32) -> u32 {
+    let dial_port: u32 = 27000; // default port number
+
+    for (k, id) in config.servers.ids.iter().enumerate() {
+        if *id != peer_id {
+            return config.servers.ports[k];
+        }
+    }
+    return dial_port;
 }
 
 // Create a keypair for authenticated encryption of the transport.
