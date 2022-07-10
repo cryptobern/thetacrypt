@@ -1,10 +1,10 @@
 use floodsub::Topic;
 use libp2p::floodsub;
 use network::p2p::floodsub::setup::init;
-use network::channel::channel::create_u8_chn;
 use once_cell::sync::Lazy;
 use std::time::Duration;
 use tokio::time;
+use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 
 #[tokio::main]
 async fn main() {
@@ -30,4 +30,11 @@ async fn main() {
 
     // kick off floodsub broadcast for given topic and channel
     init(topic, channel_receiver_out).await;
+}
+
+// creates a channel to send messages for broadcasting to the swarm.
+// returns the sender to add messages to the internal channel
+// and the receiver that retrieves messages from the channel to broadcast them to the network.
+pub fn create_u8_chn() -> (UnboundedSender<Vec<u8>>, UnboundedReceiver<Vec<u8>>) {
+    mpsc::unbounded_channel()
 }

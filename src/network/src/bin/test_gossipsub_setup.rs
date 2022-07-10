@@ -1,9 +1,10 @@
 use libp2p::gossipsub::{IdentTopic as GossibsubTopic};
 use libp2p::Multiaddr;
-use network::channel::channel::{create_u8_chn, create_gossipsub_chn};
 use network::p2p::gossipsub::setup::init;
 use std::time::Duration;
 use tokio::time;
+use libp2p::gossipsub::GossipsubMessage;
+use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 // use network::network_info::rpc_net_info::get_tendermint_net_info;
 // use network::network_info::rpc_status::get_tendermint_status;
 // use network::network_info::address_converter::{get_listen_multiaddr, get_dial_multiaddr};
@@ -65,4 +66,15 @@ async fn main() {
         print!("RECV <-: {:?}", message.data); // vec<u8>
         println!(" FROM: {:?}", message.source.unwrap());
     }
+}
+
+// creates a channel to send messages for broadcasting to the swarm.
+// returns the sender to add messages to the internal channel
+// and the receiver that retrieves messages from the channel to broadcast them to the network.
+pub fn create_u8_chn() -> (UnboundedSender<Vec<u8>>, UnboundedReceiver<Vec<u8>>) {
+    mpsc::unbounded_channel()
+}
+
+pub fn create_gossipsub_chn() -> (UnboundedSender<GossipsubMessage>, UnboundedReceiver<GossipsubMessage>) {
+    mpsc::unbounded_channel()
 }

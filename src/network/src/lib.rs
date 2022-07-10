@@ -1,4 +1,3 @@
-pub mod channel;
 pub mod network_info;
 pub mod p2p;
 
