@@ -1,5 +1,6 @@
 pub mod network_info;
 pub mod p2p;
+pub mod types;
 
 pub mod lib {
     use std::any::type_name;

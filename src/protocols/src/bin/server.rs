@@ -4,7 +4,7 @@ use std::convert::TryInto;
 use std::{env, result};
 use std::fs::{File, self};
 
-use network::p2p::gossipsub::setup::P2pMessage;
+use network::types::message::P2pMessage;
 use protocols::{rpc_request_handler, keychain::KeyChain};
 
 const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;

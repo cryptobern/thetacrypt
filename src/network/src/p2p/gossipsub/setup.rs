@@ -19,7 +19,7 @@ use libp2p::{
     Transport,
     Multiaddr,
     PeerId};
-use serde::{Serialize, Deserialize};
+// use serde::{Serialize, Deserialize};
 use std::{collections::hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -31,35 +31,8 @@ use std::fs;
 use std::process::exit;
 use toml;
 
-//todo: Move this to a new types crate
-#[derive(Serialize, Deserialize, Debug)]
-pub struct P2pMessage {
-    pub instance_id: String,
-    pub message_data: Vec<u8>
-}
-impl From<P2pMessage> for Vec<u8> {
-    fn from(p2p_message: P2pMessage) -> Self {
-        // serde_json::to_string(&p2p_message).unwrap().as_bytes().to_vec()
-        serde_json::to_string(&p2p_message).expect("Error in From<P2pMessage> for Vec<u8>").into_bytes()
-    }
-}
-impl From<Vec<u8>> for P2pMessage {
-    fn from(vec: Vec<u8>) -> Self {
-        serde_json::from_str::<P2pMessage>(&String::from_utf8(vec).expect("Error in From<Vec<u8>> for P2pMessage")).unwrap()
-    }
-}
-
-#[derive(Deserialize)]
-pub struct Data {
-    servers: Server,
-}
-
-#[derive(Deserialize)]
-pub struct Server {
-    ids: Vec<u32>,
-    // ips: Vec<String>,
-    ports: Vec<u32>,
-}
+use crate::p2p::config::deserialize::Config;
+use crate::types::message::P2pMessage;
 
 
 pub async fn init(
@@ -127,37 +100,28 @@ pub async fn init(
 }
 
 // load config file
-pub fn load_config() -> Data {
-    let contents = match fs::read_to_string("../network/src/p2p/config.toml") {
-        // If successful return the files text as `contents`.
+pub fn load_config() -> Config {
+    let contents = match fs::read_to_string("../network/src/p2p/config/config.toml") {
         Ok(c) => c,
-        // Handle the `error` case.
         Err(_) => {
-            // Write `msg` to `stderr`.
             eprintln!("Could not read file `{}`", "../network/src/p2p/config.toml");
-            // Exit the program with exit code `1`.
             exit(1);
         }
     };
 
-    // Use a `match` block to return the file `contents` as a `Data struct: Ok(d)` or handle any `errors: Err(_)`.
-    let data: Data = match toml::from_str(&contents) {
-        // If successful, return data as `Data` struct.
+    let config: Config = match toml::from_str(&contents) {
         Ok(d) => d,
-        // Handle the `error` case.
         Err(e) => {
-            // Write `msg` to `stderr`.
-            eprintln!("Unable to load data from `{}`", "../network/src/p2p/config.toml");
+            eprintln!("Unable to load data from `{}`", "../network/src/p2p/config/config.toml");
             println!("################ {}", e);
-            // Exit the program with exit code `1`.
             exit(1);
         }
     };
-    return data;
+    return config;
 }
 
 // return listening address
-pub fn get_listen_addr(config: &Data, peer_id: u32) -> Multiaddr {
+pub fn get_listen_addr(config: &Config, peer_id: u32) -> Multiaddr {
     let listen_port = get_listen_port(config, peer_id);
 
     format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
@@ -166,19 +130,19 @@ pub fn get_listen_addr(config: &Data, peer_id: u32) -> Multiaddr {
 }
 
 // load port number from config file
-pub fn get_listen_port(config: &Data, peer_id: u32) -> u32 {
+pub fn get_listen_port(config: &Config, peer_id: u32) -> u32 {
     let listn_port: u32 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {
         if *id == peer_id {
-            return config.servers.ports[k];
+            return config.servers.p2p_ports[k];
         }
     }
     return listn_port;
 }
 
 // return dialing address
-pub fn get_dial_addr(config: &Data, peer_id: u32, try_indx: i32) -> Multiaddr {
+pub fn get_dial_addr(config: &Config, peer_id: u32, try_indx: i32) -> Multiaddr {
     let dial_port = get_dial_port(config, peer_id, try_indx);
 
     format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
@@ -187,12 +151,12 @@ pub fn get_dial_addr(config: &Data, peer_id: u32, try_indx: i32) -> Multiaddr {
 }
 
 // load port number from config file
-pub fn get_dial_port(config: &Data, peer_id: u32, try_indx: i32) -> u32 {
+pub fn get_dial_port(config: &Config, peer_id: u32, try_indx: i32) -> u32 {
     let dial_port: u32 = 27000; // default port number
     
     for id in &config.servers.ids {
         if *id != peer_id {
-            return config.servers.ports[try_indx as usize];
+            return config.servers.p2p_ports[try_indx as usize];
         }
     }
     // for (k, id) in config.servers.ids.iter().enumerate() {
@@ -204,9 +168,9 @@ pub fn get_dial_port(config: &Data, peer_id: u32, try_indx: i32) -> u32 {
 }
 
 // dial another node, if it fails, retry another peer
-pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Data, peer_id: u32) {
+pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, peer_id: u32) {
     let mut try_indx = 0;
-    let no_peers: i32 = config.servers.ports.len().try_into().unwrap();
+    let no_peers: i32 = config.servers.p2p_ports.len().try_into().unwrap();
     // let mut dial_addr = get_dial_addr(&config, peer_id, try_indx);
 
     loop {

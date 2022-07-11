@@ -1,5 +1,5 @@
 use mcore::hash256::HASH256;
-use network::p2p::gossipsub::setup::P2pMessage;
+use network::types::message::P2pMessage;
 use crate::keychain::KeyChain;
 use crate::pb;
 use crate::pb::requests::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};

@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use cosmos_crypto::interface::{PrivateKey, Serializable, ThresholdCipherParams, Share, Ciphertext};
 use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
-use network::p2p::gossipsub::setup::P2pMessage;
+use network::types::message::P2pMessage;
 use tokio::sync::mpsc::error::TryRecvError;
 use {cosmos_crypto::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
 
