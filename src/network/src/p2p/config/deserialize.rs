@@ -8,6 +8,8 @@ pub struct Config {
 #[derive(Deserialize)]
 pub struct Server {
     pub ids: Vec<u32>,
-    // ips: Vec<String>,
+    pub ips: Vec<String>,
     pub p2p_ports: Vec<u32>,
+    pub rpc_ports: Vec<u32>,
+    pub listen_address: String,
 }

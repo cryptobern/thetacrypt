@@ -17,9 +17,11 @@ use libp2p::{
     swarm::{SwarmBuilder, SwarmEvent},
     tcp::TokioTcpConfig,
     Transport,
-    Multiaddr,
+    multiaddr::{Multiaddr, Protocol},
+    // Multiaddr,
     PeerId};
 // use serde::{Serialize, Deserialize};
+// use libp2p::multiaddr::{Multiaddr, Protocol};
 use std::{collections::hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -50,10 +52,9 @@ pub async fn init(
     let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
 
     let listen_addr = get_listen_addr(&config, peer_id);
-    let dial_addr = get_dial_addr(&config, peer_id, 0);
+    // let dial_addr = get_dial_addr(&config, peer_id);
 
     println!(">> NET: listen_addr: {}", listen_addr);
-    println!(">> NET: dial_addr: {}", dial_addr);
 
     // Create a random Keypair and PeerId (hash of the public key)
     let id_keys = identity::Keypair::generate_ed25519();
@@ -122,15 +123,15 @@ pub fn load_config() -> Config {
 
 // return listening address
 pub fn get_listen_addr(config: &Config, peer_id: u32) -> Multiaddr {
-    let listen_port = get_listen_port(config, peer_id);
+    let listen_port = get_p2p_port(config, peer_id);
 
-    format!("{}{}", "/ip4/0.0.0.0/tcp/", listen_port)
+    format!("{}{}", config.servers.listen_address, listen_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port))
 }
 
 // load port number from config file
-pub fn get_listen_port(config: &Config, peer_id: u32) -> u32 {
+pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
     let listn_port: u32 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {
@@ -141,60 +142,63 @@ pub fn get_listen_port(config: &Config, peer_id: u32) -> u32 {
     return listn_port;
 }
 
-// return dialing address
-pub fn get_dial_addr(config: &Config, peer_id: u32, try_indx: i32) -> Multiaddr {
-    let dial_port = get_dial_port(config, peer_id, try_indx);
+// load ip from config file
+pub fn get_ip(config: &Config, peer_id: u32) -> String {
+    let listn_port: String = "127.0.0.1".to_string(); // default ip
 
-    format!("{}{}", "/ip4/127.0.0.1/tcp/", dial_port)
-        .parse()
-        .expect(&format!(">> NET: Fatal error: Could not dial peer at port {}.", dial_port))
-}
-
-// load port number from config file
-pub fn get_dial_port(config: &Config, peer_id: u32, try_indx: i32) -> u32 {
-    let dial_port: u32 = 27000; // default port number
-    
-    for id in &config.servers.ids {
-        if *id != peer_id {
-            return config.servers.p2p_ports[try_indx as usize];
+    for (k, id) in config.servers.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.servers.ips[k].to_string();
         }
     }
-    // for (k, id) in config.servers.ids.iter().enumerate() {
-    //     if *id != peer_id {
-    //         return config.servers.ports[k];
-    //     }
-    // }
-    return dial_port;
+    return listn_port.to_string();
+}
+
+pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
+    let ip_format = "/ip4/";
+
+    let dial_ip = get_ip(config, peer_id);
+    let dial_port = get_p2p_port(config, peer_id);
+
+    // create Multiaddr from config data
+    let dial_base_addr = format!("{}{}", ip_format, dial_ip);
+    let mut dial_addr: Multiaddr = dial_base_addr.parse().unwrap();
+    dial_addr.push(Protocol::Tcp(dial_port.try_into().unwrap()));
+    return dial_addr;
 }
 
 // dial another node, if it fails, retry another peer
-pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, peer_id: u32) {
-    let mut try_indx = 0;
-    let no_peers: i32 = config.servers.p2p_ports.len().try_into().unwrap();
-    // let mut dial_addr = get_dial_addr(&config, peer_id, try_indx);
+pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, my_peer_id: u32) {
+
+    let mut index = 0;
+    let n = config.servers.ids.len();
 
     loop {
-        println!("index: {}", try_indx);
-        let dial_addr = get_dial_addr(&config, peer_id, try_indx);
-        match swarm.dial(dial_addr.clone()) {
-            Ok(_) => {
-                println!(">> NET: Dialed {:?}", dial_addr);
-                match swarm.select_next_some().await {
-                    SwarmEvent::ConnectionEstablished {..} => {
-                        // println!(">> NET: Connection to {dial_addr} successful.");
-                        break},
-                    SwarmEvent::OutgoingConnectionError {peer_id, error} => {
+        let peer_id = config.servers.ids[index];
+        if peer_id == my_peer_id {
+            index = (index + 1) % n;
+            continue;
+        } else {
+            let dial_addr = get_dial_addr(&config, peer_id);
+            match swarm.dial(dial_addr.clone()) {
+                Ok(_) => {
+                    println!(">> NET: Dialed {:?}", dial_addr);
+                    match swarm.select_next_some().await {
+                        SwarmEvent::ConnectionEstablished {..} => {
+                            println!(">> NET: Connection to {dial_addr} successful.");
+                            break},
+                        SwarmEvent::OutgoingConnectionError {peer_id: _, error: _} => {
+                            index = (index + 1) % n;
                             println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
-                            try_indx = (try_indx + 1) % no_peers;
                             tokio::time::sleep(Duration::from_millis(2000)).await;
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                }
-            },
-            Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-        };
+                },
+                Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+            };    
+        }
     }
-    // println!(">> NET: Connection to {dial_addr} successful.");
 }
 
 // Create a keypair for authenticated encryption of the transport.
@@ -279,8 +283,8 @@ async fn run_event_loop(
                 event = swarm.select_next_some() => match event {
                     // handles (incoming) Gossipsub-Message
                     SwarmEvent::Behaviour(GossipsubEvent::Message {
-                        propagation_source: peer_id,
-                        message_id: id,
+                        propagation_source: _peer_id,
+                        message_id: _id,
                         message,
                     }) => {
                         // add incoming message to internal channel
