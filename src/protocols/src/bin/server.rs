@@ -33,10 +33,10 @@ fn main()  -> Result<(), Box<dyn std::error::Error>> {
     println!(">> MAIN: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
         network::p2p::gossipsub::setup::init(protocols_to_net_receiver,
-                                              net_to_protocols_sender,
-                                         true,
-                                                  my_id,
-                                                4).await;
+                                            net_to_protocols_sender,
+                                            my_id,
+                                            )
+                                            .await;
     });
 
     // Start the Rpc request handler

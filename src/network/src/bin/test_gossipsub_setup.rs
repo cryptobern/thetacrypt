@@ -38,11 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> MAIN: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub::setup::init(protocols_to_net_receiver,
-                                              net_to_protocols_sender,
-                                         true,
-                                                  my_id,
-                                                4).await;
+        network::p2p::gossipsub::setup::init(protocols_to_net_receiver,                                           net_to_protocols_sender,
+                                            my_id,)
+                                            .await;
     });
     // // create channel to submit messages to the floodsub broadcast
     // let (chn_out_send, chn_out_recv) = create_u8_chn();

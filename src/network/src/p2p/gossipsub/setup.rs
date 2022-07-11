@@ -18,94 +18,72 @@ use libp2p::{
     tcp::TokioTcpConfig,
     Transport,
     multiaddr::{Multiaddr, Protocol},
-    // Multiaddr,
     PeerId};
-// use serde::{Serialize, Deserialize};
-// use libp2p::multiaddr::{Multiaddr, Protocol};
-use std::{collections::hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
-use std::time::Duration;
-use tokio::{
-    sync::mpsc::{Receiver, Sender},
+use std::{
+    collections::hash_map::DefaultHasher,
+    fs,
+    hash::{Hash, Hasher},
+    process::exit,
+    time::Duration,
 };
-
-use std::fs;
-use std::process::exit;
+use tokio::sync::mpsc::{Receiver, Sender};
 use toml;
 
-use crate::p2p::config::deserialize::Config;
+use crate::config::deserialize::Config;
 use crate::types::message::P2pMessage;
 
+const CONFIG_PATH: &str = "../network/src/config/config.toml";
 
 pub async fn init(
     chn_out_recv: Receiver<P2pMessage>,
     chn_in_send: Sender<P2pMessage>,
-    local_deployment: bool,
-    peer_id: u32, //todo: probably can also be moved to a conf file
-    num_peers: u32 //todo: remove
-    ){
-    env_logger::init();
+    my_peer_id: u32, //todo: probably can also be moved to a conf file
+    ) {
+        env_logger::init();
 
-    let config = load_config();
-    
-    // Create a Gossipsub topic
-    let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
+        let config = load_config();
+        
+        // Create a Gossipsub topic
+        let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
 
-    let listen_addr = get_listen_addr(&config, peer_id);
-    // let dial_addr = get_dial_addr(&config, peer_id);
+        // Create a random Keypair and PeerId (hash of the public key)
+        let id_keys = identity::Keypair::generate_ed25519();
+        let local_peer_id = PeerId::from(id_keys.public());
+        println!(">> NET: Local peer id: {:?}", local_peer_id);
 
-    println!(">> NET: listen_addr: {}", listen_addr);
+        // Create a keypair for authenticated encryption of the transport.
+        let noise_keys = create_noise_keys(&id_keys);
 
-    // Create a random Keypair and PeerId (hash of the public key)
-    let id_keys = identity::Keypair::generate_ed25519();
-    let local_peer_id = PeerId::from(id_keys.public());
-    println!(">> NET: Local peer id: {:?}", local_peer_id);
+        // Create a tokio-based TCP transport, use noise for authenticated
+        // encryption and Mplex for multiplexing of substreams on a TCP stream.
+        let transport = create_tcp_transport(noise_keys);
+        
+        // Create a Swarm to manage peers and events.
+        let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
 
-    // Create a keypair for authenticated encryption of the transport.
-    let noise_keys = create_noise_keys(&id_keys);
+        // load listener address from config file
+        let listen_addr = get_listen_addr(&config, my_peer_id);
+        println!(">> NET: Listening on: {}", listen_addr);
 
-    // Create a tokio-based TCP transport, use noise for authenticated
-    // encryption and Mplex for multiplexing of substreams on a TCP stream.
-    let transport = create_tcp_transport(noise_keys);
-    
-    // Create a Swarm to manage peers and events.
-    let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
+        // bind port to listener address
+        match swarm.listen_on(listen_addr.clone()) {
+            Ok(_) => (),
+            Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
+        }
 
-    // bind port to given listener address
-    match swarm.listen_on(listen_addr.clone()) {
-        Ok(_) => (),
-        Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
-    }
+        // dial another peer in the network
+        dial(&mut swarm, config, my_peer_id).await;
 
-    dial(&mut swarm, config, peer_id).await;
-    // loop {
-    //     match swarm.dial(dial_addr.clone()) {
-    //         Ok(_) => {
-    //             println!(">> NET: Dialed {:?}", dial_addr);
-    //             match swarm.select_next_some().await {
-    //                 SwarmEvent::ConnectionEstablished {..} => break,
-    //                 SwarmEvent::OutgoingConnectionError {peer_id, error} => {
-    //                         println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
-    //                         tokio::time::sleep(Duration::from_millis(2000)).await;
-    //                 }
-    //                 _ => {}
-    //             }
-    //         },
-    //         Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-    //     };
-    // }
-    // println!(">> NET: Connection to {dial_addr} successful.");
-
-    // kick off tokio::select event loop to handle events
-    run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
+        // kick off tokio::select event loop to handle events
+        run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
 }
 
 // load config file
 pub fn load_config() -> Config {
-    let contents = match fs::read_to_string("../network/src/p2p/config/config.toml") {
+    let contents = match fs::read_to_string(CONFIG_PATH) {
         Ok(c) => c,
         Err(_) => {
-            eprintln!("Could not read file `{}`", "../network/src/p2p/config.toml");
+            eprintln!("Could not read file `{}`", CONFIG_PATH);
             exit(1);
         }
     };
@@ -113,7 +91,7 @@ pub fn load_config() -> Config {
     let config: Config = match toml::from_str(&contents) {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("Unable to load data from `{}`", "../network/src/p2p/config/config.toml");
+            eprintln!("Unable to load data from `{}`", CONFIG_PATH);
             println!("################ {}", e);
             exit(1);
         }
@@ -122,8 +100,8 @@ pub fn load_config() -> Config {
 }
 
 // return listening address
-pub fn get_listen_addr(config: &Config, peer_id: u32) -> Multiaddr {
-    let listen_port = get_p2p_port(config, peer_id);
+pub fn get_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
+    let listen_port = get_p2p_port(config, my_peer_id);
 
     format!("{}{}", config.servers.listen_address, listen_port)
         .parse()
@@ -154,6 +132,7 @@ pub fn get_ip(config: &Config, peer_id: u32) -> String {
     return listn_port.to_string();
 }
 
+// return Multiaddr from config file
 pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
     let ip_format = "/ip4/";
 
