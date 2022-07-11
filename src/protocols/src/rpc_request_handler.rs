@@ -24,25 +24,44 @@ type InstanceId = String;
 
 const BACKLOG_MAX_RETRIES: u32 = 10;
 const BACKLOG_WAIT_INTERVAL: u32 = 5; //seconds. todo: exponential backoff
+const CHECK_TERMINATED_CHANNES_INTERVAL: u32 = 30;
 
 #[derive(Debug)]
 pub enum MessageForwarderCommand {
     GetReceiverForNewInstance {
         instance_id: String,
         responder: tokio::sync::oneshot::Sender< tokio::sync::mpsc::Receiver<Vec<u8>> >
+    },
+    RemoveReceiverForInstance {
+        instance_id: String
     }
 }
 
+// InstanceStatus describes the currenct state of a protocol instance. 
+// The field result has meaning only when terminated == true. 
+// The result can be None, e.g. when the ciphertext is invalid.
+#[derive(Debug, Clone)]
+struct InstanceStatus {
+    started: bool,
+    terminated: bool,
+    result: Option<Vec<u8>>, 
+}
+
 #[derive(Debug)]
-pub enum StateUpdateCommand {
-    AddInstanceResult { // Adds (possibly overwrites) the given result as result of instnace instance_id
+enum StateUpdateCommand {
+    // Initiate the status for a new instance. The caller must make sure the instance does not already exist, otherwise the status will be overwritten.
+    AddNewInstance { 
         instance_id: String,
-        result: Option<Vec<u8>>
     },
-    // todo: fix this. Now returns None if instance does not exist and if instance has terminated with a None result
-    GetInstanceResult { // Returns (by writting on the responser channel) the result of instance_id, or None, if instance_id does not exeist or has not terminated yet.
+    // Return the current status of a protocol instance
+    GetInstanceStatus { 
         instance_id: String,
-        responder: tokio::sync::oneshot::Sender< Option<Vec<u8>> >
+        responder: tokio::sync::oneshot::Sender< InstanceStatus >
+    },
+    // Update the status of an instance.
+    UpdateInstanceStatus { 
+        instance_id: String,
+        new_status: InstanceStatus
     },
 }
 
@@ -84,25 +103,24 @@ impl RpcRequestHandler{
         let instance_id = assign_decryption_instance_id(&ciphertext);
         
         // Check whether an instance with this instance_id already exists
-        // todo: Fix this
-        let (response_sender, response_receiver) = oneshot::channel::<Option<Vec<u8>>>();
-        let cmd = StateUpdateCommand::GetInstanceResult { instance_id: instance_id.clone(), responder: response_sender };
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
         self.state_command_sender.send(cmd).await.expect("state_command_sender.send() returned Err");
         let response = response_receiver.await.expect("response_receiver.await returned Err");
-        if let Some(_) = response {
+        if response.started {
              println!(">> REQH: A request with the same id already exists. Instance_id: {:?}", instance_id);
-             return Err(Status::new(tonic::Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists")))
-         }
-        // todo: Add this instance_id to state
-        // let cmd = StateUpdateCommand::AddInstanceResult { instance_id: instance_id.clone(), result: None};
-        // self.state_command_sender.send(cmd).await.expect("state_command_sender.send() returned Err");
+             return Err(Status::new(tonic::Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
+        }
+        
+        // Initiate the state of the new instance.
+        let cmd = StateUpdateCommand::AddNewInstance { instance_id: instance_id.clone()};
+        self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
 
         // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
         let (response_sender, response_receiver) = oneshot::channel::<tokio::sync::mpsc::Receiver::<Vec<u8>>>();
         let cmd = MessageForwarderCommand::GetReceiverForNewInstance { instance_id: instance_id.clone(), responder: response_sender };
         self.forwarder_command_sender.send(cmd).await.expect("Receiver for forwarder_command_sender closed.");
         let receiver_for_new_instance = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
-
 
         // Start the new protocol instance as a new tokio task
         let mut prot = ThresholdCipherProtocol::<C>::new(
@@ -180,8 +198,8 @@ pub async fn init(rpc_listen_address: String,
     
     // Channel to send commands to the StateManager. There are three places in the code such a command can be sent from:
     // - The RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
-    // - The InstanceMonitor, when an instance is finished (it takes ownership of state_command_sender2)
-    // - The MessageForwarder, when it wants to know whether an instance has already finished (it takes ownership of state_command_sender3)
+    // - The MessageForwarder, when it wants to know whether an instance has already finished (it takes ownership of state_command_sender2)
+    // - The InstanceMonitor, when it updated the StateManger with the result of an instance (it takes ownership of state_command_sender3)
     // The channel must never be closed. In fact, both senders must remain open for ever.
     let (state_command_sender, mut state_command_receiver) = tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
     let state_command_sender2 = state_command_sender.clone();
@@ -190,7 +208,8 @@ pub async fn init(rpc_listen_address: String,
     // Channel to send commands to the MessageForwarder. Such a command is only sent when a new protocol instance is started.
     // The sender end is owned by the RpcRequestHandler and must never be closed.
     let (forwarder_command_sender, mut forwarder_command_receiver) = tokio::sync::mpsc::channel::<MessageForwarderCommand>(32);
-    
+    let forwarder_command_sender2 = forwarder_command_sender.clone();
+
     // Channel to communicate the result of each instance back to the RpcRequestHandler.
     // The result_sender is meant to be cloned and given to every instance. 
     // However, the channel must never be closed (i.e., one sender end, owned by the RpcRequestHandler, must always remain open).
@@ -199,25 +218,52 @@ pub async fn init(rpc_listen_address: String,
     // Spawn State Manager
     println!(">> REQH: Initiating the state manager.");
     tokio::spawn( async move {
-        let mut instances_results_map: HashMap<String, Option<Vec<u8>>> = HashMap::new();
+        let mut instances_status_map: HashMap<String, InstanceStatus> = HashMap::new();
         loop {
-            let state_update_command = state_command_receiver.recv().await;
-            let command = state_update_command.expect("All senders for state_command_receiver have been closed.");
-            match command {
-                StateUpdateCommand::AddInstanceResult { instance_id, result} => {
-                    instances_results_map.insert(instance_id, result); // this updates the value if key already existed
-                },
-                StateUpdateCommand::GetInstanceResult { instance_id, responder} => {
-                    let result: Option<Vec<u8>> =
-                    if ! instances_results_map.contains_key(&instance_id) {
-                        None
+            tokio::select! {
+                state_update_command = state_command_receiver.recv() => { // Received a state-update command
+                    let command: StateUpdateCommand = state_update_command.expect("All senders for state_command_receiver have been closed.");
+                    match command {
+                        StateUpdateCommand::AddNewInstance { instance_id} => {
+                            let status = InstanceStatus{
+                                started: true,
+                                terminated: false,
+                                result: None,
+                            };
+                            instances_status_map.insert(instance_id, status);
+                        },
+                        StateUpdateCommand::GetInstanceStatus { instance_id, responder} => {
+                            let result = match instances_status_map.get(&instance_id) {
+                                Some(status) => {
+                                    (*status).clone()
+                                },
+                                None => {
+                                    InstanceStatus{
+                                        started: false,
+                                        terminated: false,
+                                        result: None,
+                                    }
+                                },
+                            };
+                            responder.send(result).expect("The receiver for responder in StateUpdateCommand::GetInstanceResult has been closed.");
+                        },
+                        StateUpdateCommand::UpdateInstanceStatus { instance_id, new_status } => {
+                            instances_status_map.insert(instance_id, new_status);
+                        }
+                        _ => unimplemented!()
                     }
-                    else {
-                        instances_results_map.get(&instance_id).unwrap().clone()
-                    };
-                    responder.send(result).expect("The receiver for responder in StateUpdateCommand::GetInstanceResult has been closed.");
-                },
-                _ => unimplemented!()
+                }
+
+                // instance_result = result_receiver.recv() => { // A protocol instance has terminated. Update the status of that instance
+                //     let (instance_id, result_data) = instance_result.expect("All senders for result_receiver have been dropped.");
+                //     println!(">> SMAN: Received result in result_channel. Instance_id: {:?}", instance_id);
+                //     let new_status = InstanceStatus{
+                //         started: true,
+                //         terminated: true,
+                //         result: result_data,
+                //     };
+                //     instances_status_map.insert(instance_id, new_status);
+                // }
             }
         }
     });
@@ -230,41 +276,33 @@ pub async fn init(rpc_listen_address: String,
         let mut instance_senders: HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>> >= HashMap::new();
         let mut backlogged_messages: VecDeque<(P2pMessage, u32)> = VecDeque::new();
         let mut backlog_interval = tokio::time::interval(tokio::time::Duration::from_secs(BACKLOG_WAIT_INTERVAL as u64));
+        let mut check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNES_INTERVAL as u64));
         loop {
             tokio::select! {
                 incoming_message = incoming_message_receiver.recv() => { // An incoming message was received.
                     let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
-                    let mut remove_sender = false;
-                    let mut backlog_message = false;
                     if let Some(instance_sender) = instance_senders.get(&instance_id) {
-                        if instance_sender.is_closed(){
-                            // todo: https://stackoverflow.com/questions/70774671/tokioselect-but-for-a-vec-of-futures, https://docs.rs/futures/latest/futures/stream/trait.StreamExt.html#method.next
-                            remove_sender = true;
-                            // println!(">> FORW: Did not forward message to protocol instance. Protocol already finished. Instance_id: {:?}", &instance_id);
-                        }
-                        else {
-                            instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
-                            // println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
-                        }
+                        instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
+                        // println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
                     }
                     else { 
                         // No channel was found for the given instance_id. This can happen for two reasons:
                         // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
                         // - The instance has not yet started because the corresponding request has not yet arrived.
-                        let (response_sender, response_receiver) = oneshot::channel::<Option<Vec<u8>>>();
-                        let cmd = StateUpdateCommand::GetInstanceResult { instance_id: instance_id.clone(), responder: response_sender };
-                        state_command_sender3.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
-                        let response = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
-                        if let Some(_) = response { // - The instance has already finished... Do nothing
-                            // println!(">> FORW: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
-                        }
-                        else { // - The instance has not yet started... Backlog the message.
-                            println!(">> FORW: Could not forward message to protocol instance. Will retry after {BACKLOG_WAIT_INTERVAL} seconds Retries left: {BACKLOG_MAX_RETRIES}. Instance_id: {instance_id}");
+                        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+                        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+                        state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
+                        let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
+                        if ! status.started { // - The instance has not yet started... Backlog the message.
+                            println!(">> FORW: Could not forward message to protocol instance. Instance_id: {instance_id} does not exist yet. Will retry after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
                             backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
                         }
-                    }
-                    if remove_sender {
-                        instance_senders.remove(&instance_id);
+                        else if status.terminated { // - The instance has already finished... Do nothing
+                            // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
+                        }
+                        else { // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
+                            println!(">> FORW: ERROR: Could not find channel to protocol instance. Instance_id: {:?}", &instance_id);
+                        }
                     }
                 }
 
@@ -297,6 +335,9 @@ pub async fn init(rpc_listen_address: String,
                             instance_senders.insert(instance_id, message_to_instance_sender);
                             responder.send(message_to_instance_receiver).expect("The receiver for responder in MessageForwarderCommand::GetReceiverForNewInstance has been closed.");
                         },
+                        MessageForwarderCommand::RemoveReceiverForInstance { instance_id} => {
+                            instance_senders.remove(&instance_id);
+                        }
                     }
                 }
                 
@@ -305,15 +346,23 @@ pub async fn init(rpc_listen_address: String,
     });
     
     // Spawn Instance Monitor
-    // todo: Give result_receiver directly to the state manager?
     println!(">> REQH: Initiating InstanceMonitor.");
     tokio::spawn( async move {
         loop {
             let result = result_receiver.recv().await;
             let (instance_id, result_data) = result.expect("All senders for result_receiver have been dropped.");
-            // println!(">> INMO: Received result in result_channel. Instance_id: {:?}", instance_id);
-            let cmd = StateUpdateCommand::AddInstanceResult { instance_id: instance_id.clone(), result: result_data };
-            state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender2 has been closed.");
+            println!(">> INMO: Received result in result_channel. Instance_id: {:?}", instance_id);
+            // Update status of terminated instance
+            let new_status = InstanceStatus{
+                started: true,
+                terminated: true,
+                result: result_data,
+            };
+            let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id.clone(), new_status};
+            state_command_sender3.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
+            // Inform MessageForwarder that the instance was terminated
+            let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id: instance_id.clone() };
+            forwarder_command_sender.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.")
         }
     });
     
@@ -322,7 +371,7 @@ pub async fn init(rpc_listen_address: String,
     let service = RpcRequestHandler{
         key_chain,
         state_command_sender,
-        forwarder_command_sender,
+        forwarder_command_sender: forwarder_command_sender2,
         outgoing_message_sender,
         result_sender,
         incoming_message_sender,

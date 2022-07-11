@@ -17,12 +17,13 @@ use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionRes
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-use tonic::Request;
+use tonic::{Request, Status, Code};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    demo().await
+    test_multiple_local_servers().await
+    // test_multiple_local_servers_backlog().await
 }
 
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -162,7 +163,7 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
     let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
     let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
     let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
-    
+
     let peers = vec![
         (0, String::from("::1"), 50051),
         (1, String::from("::1"), 50052),
@@ -176,14 +177,33 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
         let addr = format!("http://[{ip}]:{port}");
         connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
     }            
+
     let mut i = 1;
     for conn in connections.iter_mut(){
         println!(">> Sending decryption request 1 to server {i}.");
-        let response = conn.decrypt(request.clone()).await.unwrap();
+        let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
+        i += 1;
+    }
+
+    // Send DUPLICATE requests
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending DUPLICATE decryption request 1 to server {i}.");
+        let response = conn.decrypt(request.clone()).await.expect_err("This should return Err");
+        assert!(response.code() == Code::AlreadyExists);
+        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
+        i += 1;
+    }
+
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 2 to server {i}.");
+        let response = conn.decrypt(request2.clone()).await.unwrap();
         // let response2 = conn.decrypt(request2.clone()).await.unwrap();
         // println!("RESPONSE={:?}", response);
         i += 1;
     }
+
     Ok(())
 }
 
