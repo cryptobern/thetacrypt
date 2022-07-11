@@ -23,7 +23,7 @@ use serde::{Serialize, Deserialize};
 type InstanceId = String;
 
 const BACKLOG_MAX_RETRIES: u32 = 10;
-const BACKLOG_WAIT_INTERVAL: u32 = 2; //seconds. todo: exponential backoff
+const BACKLOG_WAIT_INTERVAL: u32 = 5; //seconds. todo: exponential backoff
 
 #[derive(Debug)]
 pub enum MessageForwarderCommand {
@@ -176,7 +176,7 @@ pub async fn init(rpc_listen_address: String,
                   mut incoming_message_receiver: tokio::sync::mpsc::Receiver<P2pMessage>,
                   outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
                   incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
-                 ) -> Result<(), Box<dyn std::error::Error>> {
+                 ) {
     
     // Channel to send commands to the StateManager. There are three places in the code such a command can be sent from:
     // - The RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
@@ -240,11 +240,11 @@ pub async fn init(rpc_listen_address: String,
                         if instance_sender.is_closed(){
                             // todo: https://stackoverflow.com/questions/70774671/tokioselect-but-for-a-vec-of-futures, https://docs.rs/futures/latest/futures/stream/trait.StreamExt.html#method.next
                             remove_sender = true;
-                            println!(">> FORW: Did not forward message to protocol instance. Protocol already finished. Instance_id: {:?}", &instance_id);
+                            // println!(">> FORW: Did not forward message to protocol instance. Protocol already finished. Instance_id: {:?}", &instance_id);
                         }
                         else {
                             instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
-                            println!(">> FORW: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
+                            // println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
                         }
                     }
                     else { 
@@ -256,7 +256,7 @@ pub async fn init(rpc_listen_address: String,
                         state_command_sender3.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
                         let response = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
                         if let Some(_) = response { // - The instance has already finished... Do nothing
-                            println!(">> FORW: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
+                            // println!(">> FORW: Did not forward message in net_to_prot. Protocol already finished. Instance_id: {:?}", &instance_id);
                         }
                         else { // - The instance has not yet started... Backlog the message.
                             println!(">> FORW: Could not forward message to protocol instance. Will retry after {BACKLOG_WAIT_INTERVAL} seconds Retries left: {BACKLOG_MAX_RETRIES}. Instance_id: {instance_id}");
@@ -329,7 +329,6 @@ pub async fn init(rpc_listen_address: String,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
-        .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse()?)
-        .await?;
-    Ok(())
+        .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
+        .await.expect("");
 }

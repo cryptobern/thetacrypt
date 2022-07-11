@@ -2,7 +2,7 @@
 //     tonic::include_proto!("requests");
 // }
 
-use std::fs;
+use std::{fs, io};
 use std::{thread, time};
 use protocols::pb::requests::{self, PushDecryptionShareRequest};
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
@@ -22,7 +22,7 @@ use tonic::Request;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_multiple_local_servers().await
+    demo().await
 }
 
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -176,8 +176,76 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
         let addr = format!("http://[{ip}]:{port}");
         connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
     }            
-    let mut i = 0;
+    let mut i = 1;
     for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 1 to server {i}.");
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
+        // println!("RESPONSE={:?}", response);
+        i += 1;
+    }
+    Ok(())
+}
+
+async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
+    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
+    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    
+    let peers = vec![
+        (0, String::from("::1"), 50051),
+        (1, String::from("::1"), 50052),
+        (2, String::from("::1"), 50053),
+        (3, String::from("::1"), 50054)
+    ];
+    
+    let mut connections = Vec::new();
+    for peer in peers.iter() {
+        let (id, ip, port) = peer.clone();
+        let addr = format!("http://[{ip}]:{port}");
+        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
+    }           
+    println!(">> Connected.");
+
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 1 to server {i}.");
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        println!(">> Sending decryption request 2 to server {i}.");
+        let response2 = conn.decrypt(request2.clone()).await.unwrap();
+        thread::sleep(time::Duration::from_millis(7000)); // Make this bigger than BACKLOG_WAIT_INTERVAL
+        i += 1;
+    }
+    Ok(())
+}
+
+async fn demo() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
+    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
+    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    
+    let peers = vec![
+        (0, String::from("::1"), 50051),
+        (1, String::from("::1"), 50052),
+        (2, String::from("::1"), 50053),
+        (3, String::from("::1"), 50054)
+    ];
+    
+    let mut connections = Vec::new();
+    for peer in peers.iter() {
+        let (id, ip, port) = peer.clone();
+        let addr = format!("http://[{ip}]:{port}");
+        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
+    }           
+    println!(">> Connected.");
+
+    let mut input = String::new();
+    
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        // io::stdin().read_line(&mut input)?; 
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.unwrap();
         // let response2 = conn.decrypt(request2.clone()).await.unwrap();

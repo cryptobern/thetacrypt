@@ -1,15 +1,18 @@
 use std::str::FromStr;
 use std::str::from_utf8;    
 use std::convert::TryInto;
+use std::thread::sleep;
 use std::{env, result};
 use std::fs::{File, self};
 
 use network::types::message::P2pMessage;
 use protocols::{rpc_request_handler, keychain::KeyChain};
+use tokio::signal;
 
 const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 
-fn main()  -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration file and key file
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -29,6 +32,8 @@ fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Create channel for sending P2P messages from a protocol to the network module
     let (protocols_to_net_sender, mut protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
 
+   
+    
     // Start the network
     println!(">> MAIN: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
@@ -39,21 +44,36 @@ fn main()  -> Result<(), Box<dyn std::error::Error>> {
                                             .await;
     });
 
-    // Start the Rpc request handler
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            rpc_request_handler::init(
-                my_addr,
-                my_port,
-                key_chain,
-                net_to_protocols_receiver,
-                protocols_to_net_sender,
-                net_to_protocols_sender2,
-            ).await;
-        });
+    println!(">> MAIN: Starting the RPC request handler.");
+    tokio::spawn(async move {
+        rpc_request_handler::init(
+            my_addr,
+            my_port,
+            key_chain,
+            net_to_protocols_receiver,
+            protocols_to_net_sender,
+            net_to_protocols_sender2,
+        ).await;
+    });
+
+    //  let rt = tokio::runtime::Builder::new_multi_thread()
+    //     .enable_all()
+    //     .build()
+    //     .unwrap()
+    //     .block_on(async {
+    //         rpc_request_handler::init(
+    //             my_addr,
+    //             my_port,
+    //             key_chain,
+    //             net_to_protocols_receiver,
+    //             protocols_to_net_sender,
+    //             net_to_protocols_sender2,
+    //         ).await;
+    // });
+
+    tokio::select! {
+        _ = signal::ctrl_c() => {},
+    }
     
-        Ok(())
+    Ok(())
 }   
