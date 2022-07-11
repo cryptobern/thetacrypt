@@ -21,6 +21,12 @@ pub struct Bls04PublicKey<PE: PairingEngine> {
     verificationKey:Vec<PE>
 }  
 
+impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
+    }
+}
+
 impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
@@ -96,12 +102,6 @@ impl<PE:PairingEngine> PartialEq for Bls04PrivateKey<PE> {
 impl<PE:PairingEngine> Bls04PublicKey<PE> {
     pub fn new(t:u32, y: &PE, verificationKey: &Vec<PE>) -> Self {
         Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
-    }
-}
-
-impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
     }
 }
 

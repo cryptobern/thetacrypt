@@ -2,19 +2,19 @@
 
 Operating on a cyclic group *G* of order *q* with generator *g*. The group G can be either a prime order subgroup of Z∗ or an elliptic curve group (except for the GDH threshold scheme) and its group operation is written in multiplicative form. The following objects will be used in the presented threshold schemes:
 
-**Group** implements **Parameters**
+**GroupElement** implements **Parameters**
 - **q: `BIG`**: group order
 - **g**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
 - **g_bar**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 
-**Fp_Group** implements **Group**
+**Fp_Group** implements **GroupElement**
 - **p: `BIG`**: modulus
 - **q: `BIG`**: group order
 - **g: `BIG`**: generator
 - **g_bar: `BIG`**: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; alternate generator
 <br><br>
 
-**EC_Group** imlements **Group**
+**EC_Group** imlements **GroupElement**
 - **name: `String`**:&nbsp;&nbsp; curve name
 - **q: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; group order
 - **g: `ECP`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; generator
@@ -29,7 +29,7 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 - **y: `BIG`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; public key value
 - **verificationKey: `DlVerificationKey`**:&nbsp; verification key
 - **k: `u8`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; threshold
-- **group: `Group`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
+- **group: `GroupElement`**:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; the underlying group
 <br><br>
 
 **DlPrivateKey** extends **DL_PublicKey** implements **PrivateKey** 
@@ -48,7 +48,7 @@ Operating on a cyclic group *G* of order *q* with generator *g*. The group G can
 # DL_KeyGenerator
 Implementation of abstract interface `KeyGenerator`. The following method generates public/private keys that can be used for all presented schemes.
 
-**`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: Group) -> (DL_PublicKey, Vec<DlPrivateKey>)`**<br>
+**`DL_KeyGenerator::generate_keys(k: u8, n: u8, group: GroupElement) -> (DL_PublicKey, Vec<DlPrivateKey>)`**<br>
 `x = random(2, group.q-1)` <br> 
 `y = group.g^x` <br>
 `g_bar = group.g^random(2, group.q-1)` <br>

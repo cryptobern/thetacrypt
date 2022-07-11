@@ -53,6 +53,14 @@ impl DlDomain for Bn254 {
     fn is_pairing_friendly() -> bool {
         true
     }
+
+    fn name() -> &'static str {
+        "Bn254"
+    }
+
+    fn get_type() -> Group {
+        Group::BN254
+    }
 }
 
 impl DlGroup for Bn254 {

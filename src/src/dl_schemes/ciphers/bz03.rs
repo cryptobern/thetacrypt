@@ -12,16 +12,15 @@ use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::dl_schemes::bigint::*;
+use crate::dl_schemes::dl_groups::bls12381::Bls12381;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
-use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::dl_schemes::{DlDomain, DlShare, common::*};
 use crate::rand::RNG;
-use crate::{interface::*, unwrap_keys};
 
 
 #[derive(Clone, PublicKey, AsnType)]
-pub struct Bz03PublicKey<PE: PairingEngine> {
+pub struct Bz03PublicKey {
     t: u32,
     y: PE::G2,
     verificationKey: Vec<PE>

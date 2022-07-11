@@ -70,24 +70,6 @@ pub fn serializable_derive(input:TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-#[proc_macro_derive(Share)]
-pub fn share_derive(input:TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    let generics = input.generics;
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let expanded = quote! {
-        impl #impl_generics Share for #name #ty_generics #where_clause {
-            fn get_id(&self) -> u32 { self.id.clone() }
-        }
-
-        impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
-    };
-
-    TokenStream::from(expanded)
-}
-
 #[proc_macro_derive(DlShare)]
 pub fn dlshare_derive(input:TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -95,13 +77,13 @@ pub fn dlshare_derive(input:TokenStream) -> TokenStream {
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let type_param = &generics.type_params().last().unwrap().ident;
-
     let expanded = quote! {
-        impl #impl_generics DlShare #ty_generics for #name #ty_generics #where_clause {
-            fn get_data(&self) -> #type_param {
-                self.data.clone()
-            }
+        impl #impl_generics DlShare for #name #ty_generics #where_clause {
+            fn get_id(&self) -> u32 { self.id.clone() }
+
+            fn get_group(&self) -> Group { self.data.get_type() }
+
+            fn get_data(&self) -> GroupElement { self.data.clone() }
         }
     };
 
