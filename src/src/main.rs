@@ -13,12 +13,12 @@ use crate::keygen::{KeyGenerator, ThresholdScheme};
 use crate::rand::{RNG, RngAlgorithm};
 use crate::util::{printbinary, hex2string};
 
-mod dl_schemes;
-mod interface;
-mod util;
-mod rsa_schemes;
-mod rand;
-mod keygen;
+// mod dl_schemes;
+// mod interface;
+// mod util;
+// mod rsa_schemes;
+// mod rand;
+// mod keygen;
 
 fn main() {
     const K: usize = 3; // threshold

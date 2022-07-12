@@ -3,7 +3,7 @@ use derive::{Serializable, DlShare};
 use mcore::hash256::HASH256;
 use rasn::{AsnType, Encoder, Encode, Decode};
 
-use crate::{dl_schemes::{dl_groups::dl_group::{GroupElement, Group}, bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate, DlShare}}, rand::RNG, interface::ThresholdCipherParams};
+use crate::{dl_schemes::{dl_groups::dl_group::{GroupElement, Group, DlGroup}, bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate, DlShare}}, rand::RNG, interface::ThresholdCipherParams};
 
 pub struct Sg02ThresholdCipher {}
 
@@ -242,7 +242,7 @@ impl Sg02ThresholdCipher {
         let mut rY = pk.y.clone();
         rY.pow(&r);
 
-        let k = gen_symm_key(&mut params.rng);
+        let k = gen_symm_key(rng);
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let encryption: Vec<u8> = cipher
@@ -428,10 +428,10 @@ fn H2 (g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
     res
 }
 
-impl<G:DlGroup> Sg02ThresholdCipher<G>{
-    pub fn tamper_ciphertext(ctxt: &Sg02Ciphertext<G>) -> Sg02Ciphertext<G>{
-        let mut tampered_ctxt = ctxt.clone();
-        tampered_ctxt.label = Vec::from("Mallory");
-        tampered_ctxt
-    }
-}
+// impl<G:DlGroup> Sg02ThresholdCipher<G>{
+//     pub fn tamper_ciphertext(ctxt: &Sg02Ciphertext<G>) -> Sg02Ciphertext<G>{
+//         let mut tampered_ctxt = ctxt.clone();
+//         tampered_ctxt.label = Vec::from("Mallory");
+//         tampered_ctxt
+//     }
+// }
