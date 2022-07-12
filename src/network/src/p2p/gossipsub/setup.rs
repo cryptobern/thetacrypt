@@ -21,15 +21,12 @@ use libp2p::{
     PeerId};
 use std::{
     collections::hash_map::DefaultHasher,
-    fs,
     hash::{Hash, Hasher},
-    process::exit,
     time::Duration,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
-use toml;
 
-use crate::config::deserialize::Config;
+use crate::config::deserialize::{Config, load_config};
 use crate::types::message::P2pMessage;
 
 const CONFIG_PATH: &str = "../network/src/config/config.toml";
@@ -41,7 +38,8 @@ pub async fn init(
     ) {
         env_logger::init();
 
-        let config = load_config();
+        // load config file
+        let config = load_config(CONFIG_PATH.to_string());
         
         // Create a Gossipsub topic
         let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
@@ -76,27 +74,6 @@ pub async fn init(
 
         // kick off tokio::select event loop to handle events
         run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
-}
-
-// load config file
-pub fn load_config() -> Config {
-    let contents = match fs::read_to_string(CONFIG_PATH) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Could not read file `{}`", CONFIG_PATH);
-            exit(1);
-        }
-    };
-
-    let config: Config = match toml::from_str(&contents) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Unable to load data from `{}`", CONFIG_PATH);
-            println!("################ {}", e);
-            exit(1);
-        }
-    };
-    return config;
 }
 
 // return listening address

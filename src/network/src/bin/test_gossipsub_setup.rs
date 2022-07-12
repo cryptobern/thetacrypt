@@ -8,9 +8,6 @@ use tokio::time;
 use libp2p::gossipsub::GossipsubMessage;
 use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 use std::str::FromStr;
-// use network::network_info::rpc_net_info::get_tendermint_net_info;
-// use network::network_info::rpc_status::get_tendermint_status;
-// use network::network_info::address_converter::{get_listen_multiaddr, get_dial_multiaddr};
 
 const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 
