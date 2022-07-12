@@ -7,11 +7,11 @@ use std::time::Instant;
 
 use std::fmt::Write;
 
-use crate::dl_schemes::dl_groups::dl_group::Group;
-use crate::interface::{ThresholdCipherParams, ThresholdCipher};
-use crate::keygen::{KeyGenerator, ThresholdScheme};
-use crate::rand::{RNG, RngAlgorithm};
-use crate::util::{printbinary, hex2string};
+use cosmos_crypto::dl_schemes::dl_groups::dl_group::Group;
+use cosmos_crypto::interface::{ThresholdCipherParams, ThresholdCipher};
+use cosmos_crypto::keygen::{KeyGenerator, ThresholdScheme};
+use cosmos_crypto::rand::{RNG, RngAlgorithm};
+use cosmos_crypto::util::{printbinary, hex2string};
 
 // mod dl_schemes;
 // mod interface;

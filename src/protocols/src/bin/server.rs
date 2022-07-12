@@ -23,7 +23,8 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let my_addr = String::from("::1");
     let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
-    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
+    // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
+    let key_chain: KeyChain = KeyChain::new(); 
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);

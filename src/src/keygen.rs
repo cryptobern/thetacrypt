@@ -15,8 +15,11 @@ use crate::dl_schemes::dl_groups::dl_group::Group;
 use crate::interface::Serializable;
 use crate::rand::RNG;
 
+use serde::{Serialize, Deserialize, Serializer};
+
 // TODO: create joint public key (for dl and rsa)
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum ThresholdScheme {
     BZ03,
     SG02,
@@ -70,7 +73,17 @@ impl PrivateKey {
             PrivateKey::SG02(key) => key.serialize()
         }
     }
+
 }
+
+impl Serialize for PrivateKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer {
+        serializer.serialize_bytes(&self.serialize().unwrap())
+    }
+}
+
 
 impl Decode for PrivateKey {
     fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {

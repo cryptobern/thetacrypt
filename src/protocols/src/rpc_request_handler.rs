@@ -1,3 +1,4 @@
+use cosmos_crypto::keygen::{PrivateKey, PublicKey};
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
 use crate::keychain::KeyChain;
@@ -14,7 +15,7 @@ use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
 use std::sync::mpsc::Receiver;  
 use std::{collections::HashSet, thread, sync::mpsc};
-use cosmos_crypto::{dl_schemes::{ciphers::{sg02::{Sg02PublicKey, Sg02PrivateKey, Sg02ThresholdCipher, Sg02Ciphertext}, bz03::{Bz03ThresholdCipher, Bz03PrivateKey, Bz03PublicKey, Bz03Ciphertext}}, dl_groups::bls12381::Bls12381}, interface::{ThresholdCipher, PublicKey, PrivateKey, Share}};
+use cosmos_crypto::{dl_schemes::{ciphers::{sg02::{Sg02PublicKey, Sg02PrivateKey, Sg02ThresholdCipher, Sg02Ciphertext}}, dl_groups::bls12381::Bls12381}};
 use crate::threshold_cipher_protocol::{ThresholdCipherProtocol, Protocol};
 use std::collections::{self, HashMap, VecDeque};
 use serde::{Serialize, Deserialize};
@@ -65,7 +66,7 @@ enum StateUpdateCommand {
     },
 }
 
-fn assign_decryption_instance_id(ctxt: &impl Ciphertext) -> String {
+fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
     let mut ctxt_digest = HASH256::new();
     ctxt_digest.process_array(&ctxt.get_msg());
     let h: &[u8] = &ctxt_digest.hash()[..8];
@@ -81,33 +82,104 @@ pub struct RpcRequestHandler {
     incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
-impl RpcRequestHandler{
-    async fn start_decryption_instance<C: ThresholdCipher>(&self, 
-                                                           req: ThresholdDecryptionRequest,
-                                                           sk: C::TPrivKey,
-                                                           pk: C::TPubKey) 
-                                                        -> Result<Response<ThresholdDecryptionResponse>, Status>
-        where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send + 'static,
-            <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send + 'static,
-            <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send + 'static + Sync,
-            <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send + 'static,
-            C: 'static
-    {
-        let ciphertext = match C::CT::deserialize(&req.ciphertext) {
-            Ok(ctxt) => ctxt,
-            Err(_) =>  {
-                println!(">> REQH: ERROR: Failed to deserialize ciphertext in request.");
-                return Err(Status::new(tonic::Code::InvalidArgument, "Failed to deserialize ciphertext."))
+// impl RpcRequestHandler{
+//     async fn start_decryption_instance( &self, 
+//                                         req: ThresholdDecryptionRequest,
+//                                         sk: PrivateKey,
+//                                         pk: PublicKey) 
+//                                     -> Result<Response<ThresholdDecryptionResponse>, Status> {
+//         // where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send + 'static,
+//         //     <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send + 'static,
+//         //     <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send + 'static + Sync,
+//         //     <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send + 'static,
+//         //     C: 'static
+       
+        
+//         // Check whether an instance with this instance_id already exists
+//         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+//         let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+//         self.state_command_sender.send(cmd).await.expect("state_command_sender.send() returned Err");
+//         let response = response_receiver.await.expect("response_receiver.await returned Err");
+//         if response.started {
+//              println!(">> REQH: A request with the same id already exists. Instance_id: {:?}", instance_id);
+//              return Err(Status::new(tonic::Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
+//         }
+        
+//         // Initiate the state of the new instance.
+//         let cmd = StateUpdateCommand::AddNewInstance { instance_id: instance_id.clone()};
+//         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+
+//         // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+//         let (response_sender, response_receiver) = oneshot::channel::<tokio::sync::mpsc::Receiver::<Vec<u8>>>();
+//         let cmd = MessageForwarderCommand::GetReceiverForNewInstance { instance_id: instance_id.clone(), responder: response_sender };
+//         self.forwarder_command_sender.send(cmd).await.expect("Receiver for forwarder_command_sender closed.");
+//         let receiver_for_new_instance = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
+
+//         // Start the new protocol instance as a new tokio task
+//         let mut prot = ThresholdCipherProtocol::new(
+//             sk.clone(),
+//             pk.clone(),
+//             ciphertext,
+//             receiver_for_new_instance,
+//             self.outgoing_message_sender.clone(),
+//             // self.result_sender.clone(),
+//             instance_id.clone()
+//         );
+
+//         let result_sender2 = self.result_sender.clone();
+//         let instance_id2 = instance_id.clone();
+//         // println!(">> REQH: Spawning new protocol instance with instance_id: {:?}", &instance_id);
+//         tokio::spawn( async move {
+//             match prot.run().await {
+//                 Ok(res) => {
+//                     result_sender2.send((instance_id, Some(res))).await.expect("Receiver for result_sender closed.");
+//                 },
+//                 Err(_) => {
+//                     result_sender2.send((instance_id, None)).await.expect("Receiver for result_sender closed.");
+//                     // todo: Do here what instance monitor does
+//                 },
+//             };
+
+//         });
+
+//         Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id }))
+//     }
+// }
+
+#[tonic::async_trait]
+impl ThresholdCryptoLibrary for RpcRequestHandler {
+    
+    async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
+        let req = request.get_ref();
+        println!(">> REQH: Received a decryption request. Decrypting with key_id: {:?}", req.key_id);
+        
+        // deserialize ciphertext
+        // let ciphertext = match Ciphertext::deserialize(&req.ciphertext) {
+        //     Ok(ctxt) => ctxt,
+        //     Err(_) =>  {
+        //         println!(">> REQH: ERROR: Failed to deserialize ciphertext in request.");
+        //         return Err(Status::new(tonic::Code::InvalidArgument, "Failed to deserialize ciphertext."))
+        //     }
+        // };
+        let ciphertext = Ciphertext::deserialize(&req.ciphertext);
+
+        let instance_id = assign_decryption_instance_id(&ciphertext);
+
+        // Retrieve keys
+        let private_key: PrivateKey = match self.key_chain.get_key(ciphertext.get_scheme(), None){
+            Ok(key) => key,
+            Err(err) => {
+                return Err(Status::new(tonic::Code::InvalidArgument, err));
             }
         };
-        let instance_id = assign_decryption_instance_id(&ciphertext);
-        
+        let public_key: PublicKey = private_key.get_public_key();
+
         // Check whether an instance with this instance_id already exists
         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
         let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
         self.state_command_sender.send(cmd).await.expect("state_command_sender.send() returned Err");
-        let response = response_receiver.await.expect("response_receiver.await returned Err");
-        if response.started {
+        let status = response_receiver.await.expect("response_receiver.await returned Err");
+        if status.started {
              println!(">> REQH: A request with the same id already exists. Instance_id: {:?}", instance_id);
              return Err(Status::new(tonic::Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
         }
@@ -123,56 +195,58 @@ impl RpcRequestHandler{
         let receiver_for_new_instance = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
 
         // Start the new protocol instance as a new tokio task
-        let mut prot = ThresholdCipherProtocol::<C>::new(
-            sk.clone(),
-            pk.clone(),
+        let mut prot = ThresholdCipherProtocol::new(
+            private_key.clone(),
+            public_key.clone(),
             ciphertext,
             receiver_for_new_instance,
             self.outgoing_message_sender.clone(),
-            self.result_sender.clone(),
+            // self.result_sender.clone(),
             instance_id.clone()
         );
 
+        let result_sender2 = self.result_sender.clone();
+        let instance_id2 = instance_id.clone();
         // println!(">> REQH: Spawning new protocol instance with instance_id: {:?}", &instance_id);
         tokio::spawn( async move {
-            prot.run().await; 
+            match prot.run().await {
+                Ok(res) => {
+                    result_sender2.send((instance_id2, Some(res))).await.expect("Receiver for result_sender closed.");
+                },
+                Err(err) => {
+                    result_sender2.send((instance_id2, None)).await.expect("Receiver for result_sender closed.");
+                    // todo: Do here what instance monitor does
+                },
+            };
+
         });
 
-        Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id }))
-    }
-}
+        Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id: instance_id.clone() }))
 
-#[tonic::async_trait]
-impl ThresholdCryptoLibrary for RpcRequestHandler {
-    
-    async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
-        let req = request.get_ref();
-        println!(">> REQH: Received a decryption request. Decrypting with key_id: {:?}", req.key_id);
-        
-        let req_scheme = requests::ThresholdCipher::from_i32(req.algorithm).unwrap();
-        let req_domain = requests::DlGroup::from_i32(req.dl_group).unwrap();
-        let key = self.key_chain.get_key(req_scheme, req_domain, None);
-        if let Err(err) = key {
-            return Err(Status::new(tonic::Code::InvalidArgument, "Key"))
-        }
-        let serialized_key = key.unwrap();
+        // let req_scheme = requests::ThresholdCipher::from_i32(req.algorithm).unwrap();
+        // let req_domain = requests::DlGroup::from_i32(req.dl_group).unwrap();
+        // let key = self.key_chain.get_key(req_scheme, req_domain, None);
+        // if let Err(err) = key {
+        //     return Err(Status::new(tonic::Code::InvalidArgument, "Key"))
+        // }
+        // let serialized_key = key.unwrap();
 
         // todo: The reason we retrieve the pk here (and not inside the protocol instance) is because of the ThresholdCipher::TPrivKey vs PrivateKey::TPrivKey compiler error.
-        match (req_scheme, req_domain) {
-            (requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381)  => {
-                let sk = Sg02PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
-                let pk = sk.get_public_key();                
-                self.start_decryption_instance::<Sg02ThresholdCipher<Bls12381>>(req.clone(), sk, pk).await
-            },
-            (requests::ThresholdCipher::Bz02, requests::DlGroup::Bls12381) => {
-                let sk = Bz03PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
-                let pk = sk.get_public_key();
-                self.start_decryption_instance::<Bz03ThresholdCipher<Bls12381>>(req.clone(), sk, pk).await
-            },
-            (_, _) => {
-                Err(Status::new(tonic::Code::InvalidArgument, "Requested scheme and domain."))
-            }
-        }
+        // match (req_scheme, req_domain) {
+        //     (requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381)  => {
+        //         let sk = Sg02PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
+        //         let pk = sk.get_public_key();                
+        //         self.start_decryption_instance(req.clone(), sk, pk).await
+        //     },
+        //     (requests::ThresholdCipher::Bz02, requests::DlGroup::Bls12381) => {
+        //         let sk = Bz03PrivateKey::<Bls12381>::deserialize(&serialized_key).unwrap();
+        //         let pk = sk.get_public_key();
+        //         self.start_decryption_instance(req.clone(), sk, pk).await
+        //     },
+        //     (_, _) => {
+        //         Err(Status::new(tonic::Code::InvalidArgument, "Requested scheme and domain."))
+        //     }
+        // }
     }
 
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {

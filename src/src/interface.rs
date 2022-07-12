@@ -1,6 +1,6 @@
 use rasn::{der::{encode, decode}, Encode, Decode};
 
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{Group, GroupElement}}, keygen::{PrivateKey, PublicKey}, unwrap_enum_vec};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{Group, GroupElement}}, keygen::{PrivateKey, PublicKey, ThresholdScheme}, unwrap_enum_vec};
 use crate::dl_schemes::common::DlShare;
 
 pub trait Serializable:
@@ -110,6 +110,13 @@ impl Ciphertext {
     pub fn deserialize(bytes: &Vec<u8>) -> Self {
         //TODO: fix
         Ciphertext::SG02(Sg02Ciphertext::deserialize(bytes).unwrap())
+    }
+
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        match self {
+            Ciphertext::SG02(_) => ThresholdScheme::SG02,
+            _ => todo!()
+        }
     }
 }
 
