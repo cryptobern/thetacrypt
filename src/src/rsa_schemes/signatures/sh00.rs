@@ -184,13 +184,24 @@ impl Sh00SignedMessage {
 
 impl Encode for Sh00SignedMessage {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.msg.encode(sequence)?;
+            self.sig.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00SignedMessage {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let msg = Vec::<u8>::decode(sequence)?;
+            let sig = BigInt::decode(sequence)?;
+
+            Ok(Self {msg, sig})
+        })
     }
 }
 

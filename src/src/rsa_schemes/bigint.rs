@@ -1,11 +1,15 @@
-use std::mem::MaybeUninit;
+use core::slice;
+use std::alloc::alloc_zeroed;
+use std::mem::{MaybeUninit, self};
+use std::ptr::{null, null_mut};
 
 use derive::Serializable;
 use gmp_mpfr_sys::gmp::{mpz_t, self};
 use hex::FromHex;
 use mcore::rand::RAND;
+use rasn::types::BitString;
 use rasn::{Encode, AsnType, Encoder, Decode};
-use std::ffi::CStr;
+use std::ffi::{CStr, c_void};
 use std::fmt::Write;
 
 use crate::rand::RNG;
@@ -28,22 +32,32 @@ use crate::rand::RNG;
     };
 }
 
-#[derive(Serializable, AsnType)]
+#[derive(Serializable)]
 pub struct BigInt {
     value: MaybeUninit<mpz_t>
 }
 
+impl AsnType for BigInt {
+    const TAG: rasn::Tag = rasn::Tag::BIT_STRING;
+}
+
 impl Encode for BigInt {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        self.to_bytes().encode(encoder)?;
+        encoder.encode_sequence(tag, |encoder| {
+            self.to_bytes().encode(encoder)?;
+            Ok(())
+        })?;
+
         Ok(())
     }
 }
 
 impl Decode for BigInt {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        let mut bytes = Vec::<u8>::decode(decoder)?;
-        Ok(BigInt::from_bytes(&mut bytes))
+        decoder.decode_sequence(tag, |sequence| {
+            let mut bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            Ok(Self::from_bytes(&mut bytes))
+        })
     }
 }
 
@@ -312,23 +326,22 @@ impl BigInt {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut s = self.to_string();
-        if s.len() % 2 == 1 {
-            s.insert(0, '0');
-        }
+        let size:usize = 0;
+        let size_ptr = &size as *const usize;
 
-        Vec::from_hex(s).expect("Invalid hex string")
+        unsafe {
+            let bytes_ptr = gmp::mpz_export(null_mut(), size_ptr as *mut usize, 1, 1, 1, 0, self.value.as_ptr()) as *mut u8;
+            let bytes:Vec<u8> = slice::from_raw_parts(bytes_ptr, size).to_vec();
+            bytes
+        }
     }
 
     pub fn from_bytes(bytes: &mut [u8]) -> Self {
         unsafe {
-            let mut s = String::with_capacity(2*bytes.len() + 1);
-            for i in 0..bytes.len() {
-                write!(&mut s, "{:02X}", bytes[i]).expect("Unable to read from bytes!");
-            }
-
             let mut z = MaybeUninit::uninit();
-            gmp::mpz_init_set_str(z.as_mut_ptr(), s.as_ptr() as *const i8, 16);
+            let op: *const c_void = bytes.as_ptr() as *const c_void;
+            gmp::mpz_init(z.as_mut_ptr()); 
+            gmp::mpz_import(z.as_mut_ptr(), bytes.len(), 1, 1, 1, 0, op);
             Self { value: z }
         }
     }

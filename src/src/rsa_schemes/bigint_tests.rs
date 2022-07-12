@@ -8,10 +8,28 @@ fn test_serialization() {
     let x_bytes = x.serialize().unwrap();
     let decoded = BigInt::deserialize(&x_bytes).unwrap();
 
-    println!("x: {}", x.to_string());
     printbinary(&x_bytes, Some("x_bytes: "));
-    println!("decoded: {}", x.to_string());
-
-
     assert!(x.equals(&decoded));
+}
+
+#[test]
+fn test_sub() {
+    let x = BigInt::new_int(128);
+    let y = BigInt::new_int(48);
+    let res = x.sub(&y);
+
+    assert!(res.equals(&BigInt::new_int(80)));
+
+    let y = BigInt::new_int(128);
+    let res = x.sub(&y);
+
+    assert!(res.equals(&BigInt::new_int(0)));
+}
+
+#[test]
+fn test_equals() {
+    let x = BigInt::new_int(128);
+    let y = BigInt::new_int(128);
+
+    assert!(x.equals(&y));
 }

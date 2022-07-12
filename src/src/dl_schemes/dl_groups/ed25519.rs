@@ -47,6 +47,14 @@ impl DlDomain for Ed25519 {
     fn is_pairing_friendly() -> bool {
         false
     }
+
+    fn name() -> &'static str {
+        "Ed25519"
+    }
+
+    fn get_type() -> Group {
+        Group::ED25519
+    }
 }
 
 impl DlGroup for Ed25519 {
