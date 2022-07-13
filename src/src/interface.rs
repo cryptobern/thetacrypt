@@ -1,7 +1,6 @@
 use rasn::{der::{encode, decode}, Encode, Decode};
 
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{Group, GroupElement}}, keygen::{PrivateKey, PublicKey}, unwrap_enum_vec};
-use crate::dl_schemes::common::DlShare;
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{Group, GroupElement}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec};
 
 pub trait Serializable:
     Sized
@@ -18,43 +17,32 @@ pub trait Serializable:
     }
 }
 
-/*
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ThresholdScheme {
+    BZ03,
+    SG02,
+    BLS04,
+    CKS05,
+    FROST,
+    SH00
+}
 
-pub trait ThresholdSignature {
-    type TSig;
-    type TPubKey: PublicKey;
-    type TPrivKey: PrivateKey;
-    type TShare: Share;
+pub trait DlShare {
+    fn get_id(&self) -> u16;
+    fn get_data(&self) -> GroupElement;
+    fn get_group(&self) -> Group;
+}
 
+/* Threshold Signatures */
+
+pub struct ThresholdSignature {}
+
+impl ThresholdSignature {
+    /*
     fn verify(sig: &Self::TSig, TPubKey: &PublicKey) -> bool;
     fn partial_sign(msg: &[u8], label: &[u8], TPrivKey: &Self::TPrivKey, params: &mut ThresholdSignatureParams) -> Self::TShare;
     fn verify_share(share: &Self::TShare, msg: &[u8], TPubKey: &PublicKey) -> bool;
-    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], TPubKey: &PublicKey) -> Self::TSig;
-}
-
-pub trait ThresholdCoin {
-    type TPubKey: PublicKey;
-    type TPrivKey: PrivateKey;
-    type TShare: Share;
-
-    fn create_share(name: &[u8], TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
-    fn verify_share(share: &Self::TShare, name: &[u8], TPubKey: &PublicKey) -> bool;
-    fn assemble(shares: &Vec<Self::TShare>) -> u8;
-}*/
-
-pub struct ThresholdCipherParams {
-    pub rng: RNG,
-}
-
-impl ThresholdCipherParams {
-    pub fn new() -> Self { 
-        let rng = RNG::new(crate::rand::RngAlgorithm::MarsagliaZaman);
-        Self { rng }
-    }
-
-    pub fn set_rng(&mut self, alg: RngAlgorithm) {
-        self.rng = RNG::new(alg);
-    }
+    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], TPubKey: &PublicKey) -> Self::TSig; */
 }
 
 pub struct ThresholdSignatureParams {
@@ -70,6 +58,18 @@ impl ThresholdSignatureParams {
     pub fn set_rng(&mut self, alg: RngAlgorithm) {
         self.rng = RNG::new(alg);
     }
+}
+
+
+/* Threshold Coin */
+pub struct ThresholdCoin {}
+
+impl ThresholdCoin {
+    /*
+    fn create_share(name: &[u8], TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
+    fn verify_share(share: &Self::TShare, name: &[u8], TPubKey: &PublicKey) -> bool;
+    fn assemble(shares: &Vec<Self::TShare>) -> u8;
+    */
 }
 
 
@@ -94,6 +94,20 @@ impl Ciphertext {
         }
     }
 
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        match self {
+            Ciphertext::SG02(ct) => ct.get_scheme(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            Ciphertext::SG02(ct) => ct.get_group(),
+            _ => todo!()
+        }
+    }
+
     pub fn get_label(&self) -> Vec<u8> {
         match self {
             Ciphertext::SG02(ct) => ct.get_label(),
@@ -113,53 +127,11 @@ impl Ciphertext {
     }
 }
 
+pub struct ThresholdCipher {}
+
 #[derive(PartialEq)]
 pub enum DecryptionShare {
     SG02(Sg02DecryptionShare)
-}
-
-impl DecryptionShare {
-    pub fn get_id(&self) -> u32 {
-        match self {
-            Self::SG02(share) => share.get_id(),
-            _ => todo!()
-        }
-    }
-
-    pub fn get_group(&self) -> Group {
-        match self {
-            Self::SG02(share) => share.get_group(),
-            _ => todo!()
-        }
-    }
-
-    pub fn get_data(&self) -> GroupElement {
-        match self {
-            Self::SG02(share) => share.get_data(),
-            _ => todo!()
-        }
-    }
-
-    pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
-        match self {
-            DecryptionShare::SG02(s) => s.serialize()
-        }
-    }
-
-    pub fn deserialize(bytes: &Vec<u8>) -> Self {
-        //TODO: fix
-        DecryptionShare::SG02(Sg02DecryptionShare::deserialize(bytes).unwrap())
-    }
-}
-
-
-pub struct ThresholdCipher {}
-
-#[derive(Debug)]
-pub enum TcError {
-    IncompatibleGroups,
-    IncompatibleSchemes,
-    WrongKeyProvided
 }
 
 impl ThresholdCipher {
@@ -238,4 +210,74 @@ impl ThresholdCipher {
         }
     }
 
+}
+
+impl DecryptionShare {
+    pub fn get_id(&self) -> u16 {
+        match self {
+            Self::SG02(share) => share.get_id(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_label(&self) -> Vec<u8> {
+        match self {
+            DecryptionShare::SG02(share) => share.get_label(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            Self::SG02(share) => share.get_group(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        match self {
+            Self::SG02(share) => share.get_scheme(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_data(&self) -> GroupElement {
+        match self {
+            Self::SG02(share) => share.get_data(),
+            _ => todo!()
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
+        match self {
+            DecryptionShare::SG02(s) => s.serialize()
+        }
+    }
+
+    pub fn deserialize(bytes: &Vec<u8>) -> Self {
+        //TODO: fix
+        DecryptionShare::SG02(Sg02DecryptionShare::deserialize(bytes).unwrap())
+    }
+}
+
+#[derive(Debug)]
+pub enum TcError {
+    IncompatibleGroups,
+    IncompatibleSchemes,
+    WrongKeyProvided
+}
+
+pub struct ThresholdCipherParams {
+    pub rng: RNG,
+}
+
+impl ThresholdCipherParams {
+    pub fn new() -> Self { 
+        let rng = RNG::new(crate::rand::RngAlgorithm::MarsagliaZaman);
+        Self { rng }
+    }
+
+    pub fn set_rng(&mut self, alg: RngAlgorithm) {
+        self.rng = RNG::new(alg);
+    }
 }

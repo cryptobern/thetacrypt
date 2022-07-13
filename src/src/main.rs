@@ -8,8 +8,8 @@ use std::time::Instant;
 use std::fmt::Write;
 
 use crate::dl_schemes::dl_groups::dl_group::Group;
-use crate::interface::{ThresholdCipherParams, ThresholdCipher};
-use crate::keygen::{KeyGenerator, ThresholdScheme};
+use crate::interface::{ThresholdCipherParams, ThresholdCipher, ThresholdScheme};
+use crate::keys::{KeyGenerator};
 use crate::rand::{RNG, RngAlgorithm};
 use crate::util::{printbinary, hex2string};
 
@@ -18,7 +18,7 @@ mod interface;
 mod util;
 mod rsa_schemes;
 mod rand;
-mod keygen;
+mod keys;
 
 fn main() {
     const K: usize = 3; // threshold

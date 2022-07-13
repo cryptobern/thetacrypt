@@ -13,18 +13,8 @@ use crate::dl_schemes::common::shamir_share;
 use crate::dl_schemes::dl_groups::dl_group::GroupElement;
 use crate::dl_schemes::dl_groups::dl_group::Group;
 use crate::interface::Serializable;
+use crate::interface::ThresholdScheme;
 use crate::rand::RNG;
-
-// TODO: create joint public key (for dl and rsa)
-
-pub enum ThresholdScheme {
-    BZ03,
-    SG02,
-    BLS04,
-    CKS05,
-    FROST,
-    SH00
-}
 
 #[macro_export]
 macro_rules! unwrap_enum_vec {
@@ -56,6 +46,18 @@ impl PrivateKey {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
             SG02 => ThresholdScheme::SG02
+        }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            PrivateKey::SG02(key) => key.get_group()
+        }
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        match self {
+            PrivateKey::SG02(key) => key.get_threshold()
         }
     }
 
@@ -129,6 +131,18 @@ impl PublicKey {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
             PublicKey::SG02(key) => ThresholdScheme::SG02
+        }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            PublicKey::SG02(key) => key.get_group()
+        }
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        match self {
+            PublicKey::SG02(key) => key.get_threshold()
         }
     }
 
