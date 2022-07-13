@@ -22,6 +22,7 @@ use libp2p::{
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
+    io::{stdout, Write},
     time::Duration,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -47,7 +48,7 @@ pub async fn init(
         // Create a random Keypair and PeerId (hash of the public key)
         let id_keys = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(id_keys.public());
-        println!(">> NET: Local peer id: {:?}", local_peer_id);
+        // println!(">> NET: Local peer id: {:?}", local_peer_id);
 
         // Create a keypair for authenticated encryption of the transport.
         let noise_keys = create_noise_keys(&id_keys);
@@ -125,28 +126,38 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
 
 // dial another node, if it fails, retry another peer
 pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, my_peer_id: u32) {
+    let mut seconds = 1; // to display time while dialing
+    let mut stdout = stdout();
 
     let mut index = 0;
     let n = config.servers.ids.len();
 
     loop {
-        let peer_id = config.servers.ids[index];
-        if peer_id == my_peer_id {
+        let p_id = config.servers.ids[index];
+        if p_id == my_peer_id {
             index = (index + 1) % n;
-            continue;
+            continue; // don't dial own address
         } else {
-            let dial_addr = get_dial_addr(&config, peer_id);
+            let dial_addr = get_dial_addr(&config, p_id);
             match swarm.dial(dial_addr.clone()) {
                 Ok(_) => {
-                    println!(">> NET: Dialed {:?}", dial_addr);
+                    // println!(">> NET: Dialed {:?}", dial_addr);
                     match swarm.select_next_some().await {
                         SwarmEvent::ConnectionEstablished {..} => {
-                            println!(">> NET: Connection to {dial_addr} successful.");
-                            break},
-                        SwarmEvent::OutgoingConnectionError {peer_id: _, error: _} => {
-                            index = (index + 1) % n;
-                            println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
-                            tokio::time::sleep(Duration::from_millis(2000)).await;
+                            println!();
+                            println!(">> NET: Connected to the network!");
+                            println!(">> NET: Ready for client requests ...");
+                            break
+                        }
+                        SwarmEvent::OutgoingConnectionError {..} => {
+                            index = (index + 1) % n; // try next peer address in next iteration
+
+                            print!("\r>> NET: Waiting for other peers to connect {}s", seconds);
+                            stdout.flush().unwrap();                            
+                            seconds = seconds + 1;
+
+                            // println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                            tokio::time::sleep(Duration::from_millis(1000)).await;
                         }
                         _ => {}
                     }
@@ -222,7 +233,7 @@ async fn run_event_loop(
     topic: GossibsubTopic,
     mut chn_out_recv: Receiver<P2pMessage>,
     chn_send_in: Sender<P2pMessage>) -> ! {
-        println!(">> NET: Starting event loop.");
+        // println!(">> NET: Starting event loop.");
         loop {
             tokio::select! {
                 // reads msgs from the channel and broadcasts it to the network as a swarm event
@@ -251,6 +262,18 @@ async fn run_event_loop(
                     SwarmEvent::NewListenAddr { address, .. } => {
                         println!(">> NET: Listening on {:?}", address);
                     }
+                    
+                    // SwarmEvent::ConnectionClosed { peer_id, endpoint, cause, .. } => {
+                    //     println!(">> NET: Connection closed {:?} with {:?}", peer_id, endpoint);
+                    //     println!(">> NET: Cause {:?}", cause);
+                    // }
+                    
+                    // tells us with which endpoints we are actually connected with
+                    // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
+                    //     if endpoint.is_dialer() {
+                    //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());
+                    //     }
+                    // }
                     
                     _ => {}
                 }

@@ -36,7 +36,7 @@ To transmit messages to and from the network layer, two channels have to be crea
 <!-- All other files in `network/src/bin` can be used to test other components of the package, such as -->
 - `test_floodsub_setup.rs` can be used to test the implementation of libp2p using the **Floodsub** protocol.
 
-- The RPC-requests on a Tendermint node can be tested with `test_tendermint_req.rs` or `test_tendermint_rpc.rs` (not working yet).<br>
+- The RPC-requests to a Tendermint node can be tested with `test_tendermint_req.rs` or `test_tendermint_rpc.rs` (not working yet).<br>
 
 - The files `broadcast_floodsub.rs` and `broadcast_gossipsub.rs` mostly contain libp2p's example code of `chat-tokio.rs` and `gossipsub-chat.rs` from https://github.com/libp2p/rust-libp2p/tree/master/examples which implement a chat tool (messages typed into the cli of one peer are broadcasted to all other peers in the network). The implementations differ in the underlying protocols and runtimes: While `broadcast_floodsub.rs`/`chat-tokio.rs` use the **Floodsub** protocol to broadcast messages (and the **Mdns** protocol to automatically identify peers in the network) and the asynchronous **Tokio** runtime (https://tokio.rs/tokio/tutorial), `broadcast_gossipsub.rs`/`gossipsub-chat.rs` use the **Gossipsub** protocol for the broadcast and **async-std**, an asynchronous version of the Rust standard library (https://crates.io/crates/async_std). See more about the different protocols below.<br/>
 
