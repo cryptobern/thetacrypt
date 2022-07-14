@@ -2,7 +2,7 @@ use libp2p::multiaddr::{Multiaddr, Protocol};
 use std::{fs, process::exit};
 use toml;
 
-use crate::config::deserialize::Config;
+use crate::config::local_net_config::deserialize::Config;
 
 // load config file
 pub fn load_config(path: String) -> Config {
@@ -25,13 +25,22 @@ pub fn load_config(path: String) -> Config {
     return config;
 }
 
-// return listening address as Multiaddr from config file
-pub fn get_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
-    let listen_port = get_p2p_port(config, my_peer_id);
+// return p2p listening address as Multiaddr from config file
+pub fn get_p2p_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
+    let p2p_listen_port = get_p2p_port(config, my_peer_id);
 
-    format!("{}{}", config.servers.listen_address, listen_port)
+    format!("{}{}", config.servers.listen_address, p2p_listen_port)
         .parse()
-        .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port))
+        .expect(&format!(">> NET: Fatal error: Could not open P2P listen port {}.", p2p_listen_port))
+}
+
+// return rpc listening address as Multiaddr from config file
+pub fn get_rpc_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
+    let rpc_listen_port = get_rpc_port(config, my_peer_id);
+
+    format!("{}{}", config.servers.listen_address, rpc_listen_port)
+        .parse()
+        .expect(&format!(">> NET: Fatal error: Could not open RPC listen port {}.", rpc_listen_port))
 }
 
 // return dialing address as Multiaddr from config file
@@ -48,8 +57,8 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
     return dial_addr;
 }
 
-// get port number from config file
-pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
+// get p2p port from config file
+fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
     let listn_port: u32 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {
@@ -60,8 +69,20 @@ pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
     return listn_port;
 }
 
+// get rpc port from config file
+fn get_rpc_port(config: &Config, peer_id: u32) -> u32 {
+    let listn_port: u32 = 27000; // default port number
+
+    for (k, id) in config.servers.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.servers.rpc_ports[k];
+        }
+    }
+    return listn_port;
+}
+
 // get ip from config file
-pub fn get_ip(config: &Config, peer_id: u32) -> String {
+fn get_ip(config: &Config, peer_id: u32) -> String {
     let listn_port: String = "127.0.0.1".to_string(); // default ip
 
     for (k, id) in config.servers.ids.iter().enumerate() {

@@ -1,2 +1,2 @@
-pub mod config_service;
-pub mod deserialize;
+pub mod local_net_config;
+pub mod tendermint_net_config;

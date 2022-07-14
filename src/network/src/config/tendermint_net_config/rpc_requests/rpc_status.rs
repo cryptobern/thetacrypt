@@ -1,6 +1,6 @@
 use std::error::Error;
 use reqwest;
-use crate::network_info::deserialize::{RPCResult, StatusResult};
+use crate::config::tendermint_net_config::deserialize::{RPCResult, StatusResult};
 
 // send request to RPC endpoint of tendermint node
 pub async fn get_tendermint_status(address: String) -> Result<RPCResult<StatusResult>, Box<dyn Error>> {

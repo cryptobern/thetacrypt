@@ -26,55 +26,50 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::config_service::*;
-use crate::config::deserialize::Config;
+use crate::config::local_net_config::config_service::*;
+use crate::config::local_net_config::deserialize::Config;
 use crate::types::message::P2pMessage;
 
-const CONFIG_PATH: &str = "../network/src/config/config.toml";
+const CONFIG_PATH: &str = "../network/src/config/local_net_config/config.toml";
 
-pub async fn init(
-    chn_out_recv: Receiver<P2pMessage>,
-    chn_in_send: Sender<P2pMessage>,
-    my_peer_id: u32, //todo: probably can also be moved to a conf file
-    ) {
-        env_logger::init();
+pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>, my_peer_id: u32) {
+    env_logger::init();
+    // load config file
+    println!("wd: {:?}", std::env::current_dir());
+    let config = load_config(CONFIG_PATH.to_string());
+    
+    // Create a Gossipsub topic
+    let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
 
-        // load config file
-        let config = load_config(CONFIG_PATH.to_string());
-        
-        // Create a Gossipsub topic
-        let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
+    // Create a random Keypair and PeerId (hash of the public key)
+    let id_keys = identity::Keypair::generate_ed25519();
+    let local_peer_id = PeerId::from(id_keys.public());
+    // println!(">> NET: Local peer id: {:?}", local_peer_id);
 
-        // Create a random Keypair and PeerId (hash of the public key)
-        let id_keys = identity::Keypair::generate_ed25519();
-        let local_peer_id = PeerId::from(id_keys.public());
-        // println!(">> NET: Local peer id: {:?}", local_peer_id);
+    // Create a keypair for authenticated encryption of the transport.
+    let noise_keys = create_noise_keys(&id_keys);
 
-        // Create a keypair for authenticated encryption of the transport.
-        let noise_keys = create_noise_keys(&id_keys);
+    // Create a tokio-based TCP transport, use noise for authenticated
+    // encryption and Mplex for multiplexing of substreams on a TCP stream.
+    let transport = create_tcp_transport(noise_keys);
+    
+    // Create a Swarm to manage peers and events.
+    let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
 
-        // Create a tokio-based TCP transport, use noise for authenticated
-        // encryption and Mplex for multiplexing of substreams on a TCP stream.
-        let transport = create_tcp_transport(noise_keys);
-        
-        // Create a Swarm to manage peers and events.
-        let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
-
-        // load listener address from config file
-        let listen_addr = get_listen_addr(&config, my_peer_id);
-        println!(">> NET: Listening on: {}", listen_addr);
-
-        // bind port to listener address
-        match swarm.listen_on(listen_addr.clone()) {
-            Ok(_) => (),
-            Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
-        }
-        
-        // dial another peer in the network
-        dial(&mut swarm, config, my_peer_id).await;
-
-        // kick off tokio::select event loop to handle events
-        run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
+    // load listener address from config file
+    let listen_addr = get_p2p_listen_addr(&config, my_peer_id);
+    println!(">> NET: Listening on: {}", listen_addr);
+     
+    // bind port to listener address
+    match swarm.listen_on(listen_addr.clone()) {
+        Ok(_) => (),
+        Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
+    }
+    
+    // dial another peer in the network
+    dial(&mut swarm, config, my_peer_id).await;
+    // kick off tokio::select event loop to handle events
+    run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
 }
 
 // dial another node, if it fails, retry another peer
@@ -96,8 +91,16 @@ pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, my_peer_id: u32)
                 Ok(_) => {
                     // println!(">> NET: Dialed {:?}", dial_addr);
                     match swarm.select_next_some().await {
-                        SwarmEvent::ConnectionEstablished {..} => {
+                        SwarmEvent::ConnectionEstablished {endpoint: _, ..} => {
                             println!();
+                            // wrong output --> might display dial_addr from a node that is not running yet!
+                            // println!(">> NET: Connected to dial_addr: {:?}", dial_addr); 
+
+                            // only useful output when the endpoint is of Enum variant "Dialer".
+                            // from https://docs.rs/libp2p/latest/libp2p/core/enum.ConnectedPoint.html:
+                            // "For Dialer, this returns address. For Listener, this returns send_back_addr."
+                            // println!(">> NET: Connected to endpoint: {:?}", endpoint.get_remote_address());
+
                             println!(">> NET: Connected to the network!");
                             println!(">> NET: Ready for client requests ...");
                             break
@@ -106,7 +109,7 @@ pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, my_peer_id: u32)
                             index = (index + 1) % n; // try next peer address in next iteration
 
                             // display time while trying a successful connection
-                            print!("\r>> NET: Waiting for other peers to connect {}s", seconds);
+                            print!("\r>> NET: Dialing ... {}s", seconds);
                             stdout.flush().unwrap();                            
                             seconds = seconds + 1;
 
@@ -212,12 +215,8 @@ async fn run_event_loop(
                         println!(">> NET: Listening on {:?}", address);
                     }
                     
-                    // SwarmEvent::ConnectionClosed { peer_id, endpoint, cause, .. } => {
-                    //     println!(">> NET: Connection closed {:?} with {:?}", peer_id, endpoint);
-                    //     println!(">> NET: Cause {:?}", cause);
-                    // }
-                    
                     // tells us with which endpoints we are actually connected with
+                    // warning: produces multiple events
                     // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
                     //     if endpoint.is_dialer() {
                     //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());

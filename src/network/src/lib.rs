@@ -1,5 +1,4 @@
 pub mod config;
-pub mod network_info;
 pub mod p2p;
 pub mod types;
 

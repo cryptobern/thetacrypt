@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Config {
+    pub p2p_port: String,
+    pub rpc_port: String,
+    pub listen_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RPCResult<R> {
     jsonrpc: String,
     id: i8,
