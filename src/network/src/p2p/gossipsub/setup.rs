@@ -17,7 +17,6 @@ use libp2p::{
     swarm::{SwarmBuilder, SwarmEvent},
     tcp::TokioTcpConfig,
     Transport,
-    multiaddr::{Multiaddr, Protocol},
     PeerId};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -27,7 +26,8 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::deserialize::{Config, load_config};
+use crate::config::config_service::*;
+use crate::config::deserialize::Config;
 use crate::types::message::P2pMessage;
 
 const CONFIG_PATH: &str = "../network/src/config/config.toml";
@@ -75,53 +75,6 @@ pub async fn init(
 
         // kick off tokio::select event loop to handle events
         run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
-}
-
-// return listening address
-pub fn get_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
-    let listen_port = get_p2p_port(config, my_peer_id);
-
-    format!("{}{}", config.servers.listen_address, listen_port)
-        .parse()
-        .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port))
-}
-
-// get port number from config file
-pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
-    let listn_port: u32 = 27000; // default port number
-
-    for (k, id) in config.servers.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.servers.p2p_ports[k];
-        }
-    }
-    return listn_port;
-}
-
-// get ip from config file
-pub fn get_ip(config: &Config, peer_id: u32) -> String {
-    let listn_port: String = "127.0.0.1".to_string(); // default ip
-
-    for (k, id) in config.servers.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.servers.ips[k].to_string();
-        }
-    }
-    return listn_port.to_string();
-}
-
-// get Multiaddr from config file
-pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
-    let ip_format = "/ip4/";
-
-    let dial_ip = get_ip(config, peer_id);
-    let dial_port = get_p2p_port(config, peer_id);
-
-    // create Multiaddr from config data
-    let dial_base_addr = format!("{}{}", ip_format, dial_ip);
-    let mut dial_addr: Multiaddr = dial_base_addr.parse().unwrap();
-    dial_addr.push(Protocol::Tcp(dial_port.try_into().unwrap()));
-    return dial_addr;
 }
 
 // dial another node, if it fails, retry another peer

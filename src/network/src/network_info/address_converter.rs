@@ -3,6 +3,7 @@ use crate::network_info::deserialize::{RPCResult, StatusResult};
 
 use super::deserialize::NetInfoResult;
 
+// converts listening address from tendermint RPC result into Multiaddr
 pub fn get_listen_multiaddr(res: RPCResult<StatusResult>) -> Multiaddr {
     let mut local_node_listen_address = res.result.node_info.listen_addr;
     let mut iter = local_node_listen_address.chars();
@@ -18,6 +19,7 @@ pub fn get_listen_multiaddr(res: RPCResult<StatusResult>) -> Multiaddr {
     multi_addr_listen
 }
 
+// converts dialing address from tendermint RPC result into Multiaddr
 pub fn get_dial_multiaddr(res: RPCResult<NetInfoResult>) -> Multiaddr {
     let mut peer_urls: Vec<String> = Vec::new();
     for peer in res.result.peers {
