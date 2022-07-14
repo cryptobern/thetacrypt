@@ -69,7 +69,7 @@ pub async fn init(
             Ok(_) => (),
             Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
         }
-
+        
         // dial another peer in the network
         dial(&mut swarm, config, my_peer_id).await;
 
@@ -86,7 +86,7 @@ pub fn get_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", listen_port))
 }
 
-// load port number from config file
+// get port number from config file
 pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
     let listn_port: u32 = 27000; // default port number
 
@@ -98,7 +98,7 @@ pub fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
     return listn_port;
 }
 
-// load ip from config file
+// get ip from config file
 pub fn get_ip(config: &Config, peer_id: u32) -> String {
     let listn_port: String = "127.0.0.1".to_string(); // default ip
 
@@ -110,7 +110,7 @@ pub fn get_ip(config: &Config, peer_id: u32) -> String {
     return listn_port.to_string();
 }
 
-// return Multiaddr from config file
+// get Multiaddr from config file
 pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
     let ip_format = "/ip4/";
 
@@ -152,6 +152,7 @@ pub async fn dial(swarm: &mut Swarm<Gossipsub>, config: Config, my_peer_id: u32)
                         SwarmEvent::OutgoingConnectionError {..} => {
                             index = (index + 1) % n; // try next peer address in next iteration
 
+                            // display time while trying a successful connection
                             print!("\r>> NET: Waiting for other peers to connect {}s", seconds);
                             stdout.flush().unwrap();                            
                             seconds = seconds + 1;
@@ -236,26 +237,21 @@ async fn run_event_loop(
         // println!(">> NET: Starting event loop.");
         loop {
             tokio::select! {
-                // reads msgs from the channel and broadcasts it to the network as a swarm event
+                // reads msg from the channel and publish it to the network
                 msg = chn_out_recv.recv() => {
-                    let data = msg.expect(">> NET: Fatal error: chn_out_recv unexpectedly closed.");
-                    println!(">> NET: Sending a message");
-                    swarm.behaviour_mut()
-                         .publish(topic.clone(), data)
-                         .expect("Publish error");
+                    if let Some(data) = msg {
+                        println!(">> NET: Sending a message");
+                        swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
+                    }
                     // todo: Terminate the loop 
                     // if msg is None (i.e., chn_out has been closed and no new message will ever be received)?
-                },
+                }
                 // polls swarm events
                 event = swarm.select_next_some() => match event {
                     // handles (incoming) Gossipsub-Message
-                    SwarmEvent::Behaviour(GossipsubEvent::Message {
-                        propagation_source: _peer_id,
-                        message_id: _id,
-                        message,
-                    }) => {
-                        // add incoming message to internal channel
+                    SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
                         println!(">> NET: Received a message");
+                        // add incoming message to internal channel
                         chn_send_in.send(message.data.into()).await.unwrap();
                     }
                     // handles NewListenAddr event
