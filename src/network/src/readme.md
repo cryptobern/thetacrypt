@@ -2,7 +2,7 @@
 
 - **bin**: sandbox - code to test the modules (channel, network_info, p2p) and examples (see "How to use").
 
-- **config**: contains a `config.toml` with all ids, ips, p2p_ports, rpc_ports of the network servers and the local listener address. <br/> The function `load_config(path)` is provided in `deserialize.rs` along with the necessary structs to deserialize the contents from the `config.toml` file.
+- **config**: contains a `config.toml` with all ids, ips, p2p_ports, rpc_ports and the listener address for a local network. <br/> The `config_service.rs` provides functions to load and read the data from `config.toml`. <br/> The necessary structs to deserialize the contents of `config.toml` is located in `deserialize.rs`.
 
 - **network_info**: this module contains requests to a Tendermint RPC endpoint in `rpc_net_info.rs` and `rpc_status.rs` (https://docs.tendermint.com/v0.35/rpc/) which return the `Result`s of the corresponding request. All structs to deserialize the JSON-RPC responses from Tendermint can be found in `deserialize.rs`. A conversion of the addresses wrapped in the `Result` into a libp2p `Multiaddr` format can be done with the functions provided in `address_converter.rs` (*warning*: room for improvement!).
 
@@ -12,7 +12,7 @@
     
     The public function `init(...)` in `setup.rs` is the interface to send and receive messages to and from the network using the `Gossipsub` protocol and the `Tokio` runtime.
 
-    The `init(...)` function requires a `GossipsubTopic`, the receiver of the **out-channel** (`chn_out_recv`) and the sender of the **in-channel** (`chn_in_send`).
+    The `init(...)` function requires the receiver of the **out-channel** (`chn_out_recv`), the sender of the **in-channel** (`chn_in_send`) and currently (for a local testnet) `my_peer_id`, which is the parameter provided when starting a server.
     
     Using a randomly created `KeyPair` and `PeerId` a tokio-based TCP transport and a swarm are created, the listening port is openend and another peer in the network is dialed. Finally, the `select!`-loop is kicked off, which contains one branch for sending messages to the network (received through the internal **out-channel**) and one branch for handling the `SwarmEvent`s, such as the incoming `GossibsubEvent::Message`. These messages are added to the internal **in-channel** and can be consumed with the corresponding receiver.
 
@@ -22,7 +22,7 @@
 
     The `init` function in `floodsub_tokio_setup.rs` requires the arguments `floodsub::topic` and the `UnboundedReceiver` from the **out-channel**, creates a tokio-based TCP transport, builds a swarm using a random peerId, opens a random listening port and kicks off the select-loop. There are two branches in the select-loop, one for broadcasting messages to the network populated by the `UnboundedReceiver` of the channel and one branch that handles SwarmEvents. Since there is a customized `NetworkBehaviour` defined (`p2p/floodsub/floodsub_mdns_behaviour.rs`), the handling of incoming messages is implemented in the sub-module **deliver**. Note that the function `handle_msg(&self)` is called in `p2p/floodsub/floodsub_mdns_behaviour.rs`. 
 
-- **types**: contains the struct `P2pMessage` along with two implementations to convert a `P2pMessage` into a `Vec<u8>` and the other way around.
+- **types**: contains the struct `P2pMessage` along with two implementations to convert a `P2pMessage` into a `Vec<u8>` and vice versa.
 
 - **lib.rs**: makes all modules accessible from outside and contains a single utility method to get the rust data type.
 
