@@ -63,7 +63,7 @@ pub trait DlGroup:
     fn get_name() -> String;
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Group {
     BLS12381,
     BN254,
@@ -164,7 +164,7 @@ impl GroupElement {
         self.group.eq(&group)
     }
 
-    pub fn get_type(&self) -> Group {
+    pub fn get_group(&self) -> Group {
         self.group.clone()
     }
     

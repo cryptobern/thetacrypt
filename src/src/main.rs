@@ -7,18 +7,18 @@ use std::time::Instant;
 
 use std::fmt::Write;
 
-use cosmos_crypto::dl_schemes::dl_groups::dl_group::Group;
-use cosmos_crypto::interface::{ThresholdCipherParams, ThresholdCipher};
-use cosmos_crypto::keygen::{KeyGenerator, ThresholdScheme};
-use cosmos_crypto::rand::{RNG, RngAlgorithm};
-use cosmos_crypto::util::{printbinary, hex2string};
+use crate::dl_schemes::dl_groups::dl_group::Group;
+use crate::interface::{ThresholdCipherParams, ThresholdCipher, ThresholdScheme};
+use crate::keys::{KeyGenerator};
+use crate::rand::{RNG, RngAlgorithm};
+use crate::util::{printbinary, hex2string};
 
-// mod dl_schemes;
-// mod interface;
-// mod util;
-// mod rsa_schemes;
-// mod rand;
-// mod keygen;
+mod dl_schemes;
+mod interface;
+mod util;
+mod rsa_schemes;
+mod rand;
+mod keys;
 
 fn main() {
     const K: usize = 3; // threshold

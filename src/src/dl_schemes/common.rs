@@ -1,13 +1,7 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG, interface::DecryptionShare};
+use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG, interface::{DecryptionShare, DlShare}};
 use crate::dl_schemes::bigint::*;
-
-pub trait DlShare {
-    fn get_id(&self) -> u32;
-    fn get_data(&self) -> GroupElement;
-    fn get_group(&self) -> Group;
-}
 
 pub fn shamir_share(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<GroupElement>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
