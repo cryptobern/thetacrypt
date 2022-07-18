@@ -48,7 +48,7 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
     let ip_version = "/ip4/";
 
     let dial_ip = get_ip(config, peer_id);
-    let dial_port = get_p2p_port(config, peer_id) as u16;
+    let dial_port = get_p2p_port(config, peer_id);
 
     // create Multiaddr from config data
     let dial_base_addr = format!("{}{}", ip_version, dial_ip);

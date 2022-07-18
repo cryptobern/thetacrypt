@@ -1,14 +1,12 @@
 use libp2p::{Multiaddr, multiaddr::Protocol};
-use std::result;
 use std::{fs, process::exit};
 use toml;
 
 use crate::config::tendermint_net_config::deserialize::Config;
-use crate::config::tendermint_net_config::deserialize::{RPCResult, StatusResult};
-use crate::config::tendermint_net_config::rpc_requests::rpc_net_info::get_tendermint_net_info;
-use crate::config::tendermint_net_config::rpc_requests::rpc_status::get_tendermint_status;
+use super::rpc_requests::rpc_net_info::get_tendermint_net_info;
+use super::rpc_requests::rpc_status::get_tendermint_status;
 
-use super::deserialize::NetInfoResult;
+const TENDERMINT_RPC_ADDR: &str = "http://127.0.0.1:26657";
 
 // load config file
 pub fn load_config(path: String) -> Config {
@@ -48,9 +46,9 @@ pub fn get_rpc_listen_addr(config: &Config) -> Multiaddr {
 // return ips from all other tendermint nodes
 pub async fn get_node_ips() -> Vec<String> {
     // get node ips by local tendermint RPC request
-    let tendermint_rpc_addr = "http://127.0.0.1:26657";
+    // let TENDERMINT_RPC_ADDR = "http://127.0.0.1:26657";
     let mut ips: Vec<String> = Vec::new();
-    match get_tendermint_net_info(tendermint_rpc_addr.to_string()).await {
+    match get_tendermint_net_info(TENDERMINT_RPC_ADDR.to_string()).await {
         Ok(res) => {
             for peer in res.result.peers {
                 let url = peer.url;
@@ -68,9 +66,9 @@ pub async fn get_node_ips() -> Vec<String> {
 // return ids from all other tendermint nodes
 pub async fn get_node_ids() -> Vec<String> {
     // get node ips by local tendermint RPC request
-    let tendermint_rpc_addr = "http://127.0.0.1:26657";
+    // let tendermint_rpc_addr = "http://127.0.0.1:26657";
     let mut ips: Vec<String> = Vec::new();
-    match get_tendermint_net_info(tendermint_rpc_addr.to_string()).await {
+    match get_tendermint_net_info(TENDERMINT_RPC_ADDR.to_string()).await {
         Ok(res) => {
             for peer in res.result.peers {
                 let url = peer.url;
@@ -97,13 +95,17 @@ pub fn get_dial_addr(dial_port: u16, dial_ip: String) -> Multiaddr {
     return dial_addr;
 }
 
-// fn get_tendermint_node_rpc_addr() -> String {
-//     // test tendermint RPC endpoint /status with reqwest
-//     match get_tendermint_status(test_addr.to_string()).await {
-//         Ok(response) => {
-//             println!("{:#?}", response);
-//             println!("{:#?}", response.result);
-//         },
-//         Err(err) => println!("Error: {}", err),
-//     }
-// }
+// get id from local node
+pub async fn get_tendermint_node_id() -> String {
+    let mut node_id: String = "".to_string();
+    // test tendermint RPC endpoint /status with reqwest
+    match get_tendermint_status(TENDERMINT_RPC_ADDR.to_string()).await {
+        Ok(res) => {
+            node_id = res.result.node_info.id;
+            // println!("{:#?}", res);
+            // println!("{:#?}", res.result);
+        },
+        Err(err) => println!("Error: {}", err),
+    }
+    return node_id;
+}

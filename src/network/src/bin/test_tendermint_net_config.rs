@@ -27,6 +27,9 @@ async fn main() {
         let dial_addr = get_dial_addr(config.p2p_port, ip);
         println!("dial addr: {:?}", dial_addr);
     }
+
+    let local_node_id = get_tendermint_node_id().await;
+    println!("local node id: {:?}", local_node_id);
     
 
     // // test tendermint RPC endpoint /net_info with reqwest

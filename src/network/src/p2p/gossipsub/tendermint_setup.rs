@@ -29,7 +29,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::config::tendermint_net_config::config_service::*;
 use crate::types::message::P2pMessage;
 
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
+const TENDERMINT_CONFIG_PATH: &str = "config/tendermint_net_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
     env_logger::init();
@@ -37,6 +37,9 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
     // load config file
     // println!("wd: {:?}", std::env::current_dir());
     let tendermint_config = load_config(TENDERMINT_CONFIG_PATH.to_string());
+
+    let tendermint_node_id = get_tendermint_node_id().await;
+    println!(">> NET: Tendermint node id {:?}", tendermint_node_id);
     
     // Create a Gossipsub topic
     let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
@@ -73,63 +76,6 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
     run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
 }
 
-// dial a peer in the local network, if it fails, retry another peer
-pub async fn dial_local_net(
-    swarm: &mut Swarm<Gossipsub>,
-    config: crate::config::local_net_config::deserialize::Config,
-    my_peer_id: u32
-) {
-    let mut seconds = 1; // to display time while dialing
-    let mut stdout = stdout();
-
-    let mut index = 0;
-    let n = config.servers.ids.len();
-
-    loop {
-        let p_id = config.servers.ids[index];
-        if p_id == my_peer_id {
-            index = (index + 1) % n;
-            continue; // don't dial own address
-        } else {
-            let dial_addr = crate::config::local_net_config::config_service::get_dial_addr(&config, p_id);
-            match swarm.dial(dial_addr.clone()) {
-                Ok(_) => {
-                    // println!(">> NET: Dialed {:?}", dial_addr);
-                    match swarm.select_next_some().await {
-                        SwarmEvent::ConnectionEstablished {endpoint: _, ..} => {
-                            println!();
-                            // wrong output --> might display dial_addr from a node that is not running yet!
-                            // println!(">> NET: Connected to dial_addr: {:?}", dial_addr); 
-
-                            // only useful output when the endpoint is of Enum variant "Dialer".
-                            // from https://docs.rs/libp2p/latest/libp2p/core/enum.ConnectedPoint.html:
-                            // "For Dialer, this returns address. For Listener, this returns send_back_addr."
-                            // println!(">> NET: Connected to endpoint: {:?}", endpoint.get_remote_address());
-
-                            println!(">> NET: Connected to the network!");
-                            println!(">> NET: Ready for client requests ...");
-                            break
-                        }
-                        SwarmEvent::OutgoingConnectionError {..} => {
-                            index = (index + 1) % n; // try next peer address in next iteration
-
-                            // display time while trying a successful connection
-                            print!("\r>> NET: Dialing ... {}s", seconds);
-                            stdout.flush().unwrap();                            
-                            seconds = seconds + 1;
-
-                            // println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
-                            tokio::time::sleep(Duration::from_millis(1000)).await;
-                        }
-                        _ => {}
-                    }
-                },
-                Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
-            };    
-        }
-    }
-}
-
 pub async fn dial_tendermint_net(
     swarm: &mut Swarm<Gossipsub>,
     config: crate::config::tendermint_net_config::deserialize::Config
@@ -138,19 +84,17 @@ pub async fn dial_tendermint_net(
     let mut stdout = stdout();
 
     let mut index = 0;
-    let ips = crate::config::tendermint_net_config::config_service::get_node_ips().await; // ips of all other nodes in the network
+    let ips = get_node_ips().await; // ips of all other nodes in the network
     let n = ips.len();
 
     loop {
         let ip = &ips[index];
-        let dial_addr = crate::config::tendermint_net_config::config_service::get_dial_addr(
-            config.p2p_port, ip.to_string()
-        );
+        let dial_addr = get_dial_addr(config.p2p_port, ip.to_string());
         match swarm.dial(dial_addr.clone()) {
             Ok(_) => {
                 // println!(">> NET: Dialed {:?}", dial_addr);
                 match swarm.select_next_some().await {
-                    SwarmEvent::ConnectionEstablished {endpoint: _, ..} => {
+                    SwarmEvent::ConnectionEstablished {endpoint, ..} => {
                         println!();
                         // wrong output --> might display dial_addr from a node that is not running yet!
                         // println!(">> NET: Connected to dial_addr: {:?}", dial_addr); 
@@ -158,21 +102,21 @@ pub async fn dial_tendermint_net(
                         // only useful output when the endpoint is of Enum variant "Dialer".
                         // from https://docs.rs/libp2p/latest/libp2p/core/enum.ConnectedPoint.html:
                         // "For Dialer, this returns address. For Listener, this returns send_back_addr."
-                        // println!(">> NET: Connected to endpoint: {:?}", endpoint.get_remote_address());
+                        println!(">> NET: Connected to endpoint: {:?}", endpoint.get_remote_address());
 
-                        println!(">> NET: Connected to the network!");
-                        println!(">> NET: Ready for client requests ...");
+                        // println!(">> NET: Connected to the network!");
+                        // println!(">> NET: Ready for client requests ...");
                         break
                     }
                     SwarmEvent::OutgoingConnectionError {..} => {
                         index = (index + 1) % n; // try next peer address in next iteration
 
                         // display time while trying a successful connection
-                        print!("\r>> NET: Dialing ... {}s", seconds);
-                        stdout.flush().unwrap();                            
-                        seconds = seconds + 1;
+                        // print!("\r>> NET: Dialing ... {}s", seconds);
+                        // stdout.flush().unwrap();                            
+                        // seconds = seconds + 1;
 
-                        // println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                        println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 1 sec.");
                         tokio::time::sleep(Duration::from_millis(1000)).await;
                     }
                     _ => {}
@@ -248,13 +192,12 @@ async fn run_event_loop(
     topic: GossibsubTopic,
     mut chn_out_recv: Receiver<P2pMessage>,
     chn_send_in: Sender<P2pMessage>) -> ! {
-        // println!(">> NET: Starting event loop.");
         loop {
             tokio::select! {
                 // reads msg from the channel and publish it to the network
                 msg = chn_out_recv.recv() => {
                     if let Some(data) = msg {
-                        println!(">> NET: Sending a message");
+                        println!(">> NET: Sending message");
                         swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
                     }
                     // todo: Terminate the loop 
@@ -264,7 +207,7 @@ async fn run_event_loop(
                 event = swarm.select_next_some() => match event {
                     // handles (incoming) Gossipsub-Message
                     SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
-                        println!(">> NET: Received a message");
+                        println!(">> NET: Received message");
                         // add incoming message to internal channel
                         chn_send_in.send(message.data.into()).await.unwrap();
                     }
@@ -273,8 +216,8 @@ async fn run_event_loop(
                         println!(">> NET: Listening on {:?}", address);
                     }
                     
-                    // tells us with which endpoints we are actually connected with
-                    // warning: produces multiple events
+                    // // tells us with which endpoints we are actually connected with
+                    // // warning: produces multiple events
                     // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
                     //     if endpoint.is_dialer() {
                     //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());
