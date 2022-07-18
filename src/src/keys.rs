@@ -10,9 +10,10 @@ use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::ciphers::sg02::Sg02PrivateKey;
 use crate::dl_schemes::ciphers::sg02::Sg02PublicKey;
 use crate::dl_schemes::common::shamir_share;
-use crate::dl_schemes::dl_groups::dl_group::GroupElement;
-use crate::dl_schemes::dl_groups::dl_group::Group;
+use crate::group::GroupElement;
+use crate::group::Group;
 use crate::interface::Serializable;
+use crate::interface::ThresholdCryptoError;
 use crate::interface::ThresholdScheme;
 use crate::rand::RNG;
 
@@ -70,6 +71,16 @@ impl PrivateKey {
     pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
         match self {
             PrivateKey::SG02(key) => key.serialize()
+        }
+    }
+
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        //TODO: fix
+        let pk = Sg02PrivateKey::deserialize(bytes);
+
+        match pk {
+            Ok(res) => Ok(PrivateKey::SG02(res)),
+            Err(err) => return Err(ThresholdCryptoError::DeserializationFailed)
         }
     }
 }
@@ -152,9 +163,14 @@ impl PublicKey {
         }
     }
 
-    pub fn deserialize(bytes: &Vec<u8>) -> Self {
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
         //TODO: fix
-        PublicKey::SG02(Sg02PublicKey::deserialize(bytes).unwrap())
+        let pk = Sg02PublicKey::deserialize(bytes);
+
+        match pk {
+            Ok(res) => Ok(PublicKey::SG02(res)),
+            Err(err) => return Err(ThresholdCryptoError::DeserializationFailed)
+        }
     }
 }
 
