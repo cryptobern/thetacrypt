@@ -1,6 +1,4 @@
 use network::config::tendermint_net_config::config_service::*;
-use network::config::tendermint_net_config::rpc_requests::rpc_net_info::get_tendermint_net_info;
-use network::config::tendermint_net_config::rpc_requests::rpc_status::get_tendermint_status;
 
 const CONFIG_PATH: &str = "../src/config/tendermint_net_config/config.toml";
 
@@ -8,7 +6,7 @@ const CONFIG_PATH: &str = "../src/config/tendermint_net_config/config.toml";
 async fn main() {
     
     // load config file
-    println!("wd: {:?}", std::env::current_dir());
+    // println!("wd: {:?}", std::env::current_dir());
     let config = load_config(CONFIG_PATH.to_string());
     println!("config: {:?}", config);
     
@@ -18,8 +16,18 @@ async fn main() {
     let rpc_listen_addr = get_rpc_listen_addr(&config);
     println!("rpc listen addr: {:?}", rpc_listen_addr);
     
-    let test_addr = "http://127.0.0.1:26657";
-    get_node_ips(test_addr.to_string()).await;
+    // let test_addr = "http://127.0.0.1:26657";
+    let node_ips = get_node_ips().await;
+    println!("node ips: {:?}", node_ips);
+
+    let node_ids = get_node_ids().await;
+    println!("node ids: {:?}", node_ids);
+
+    for ip in node_ips {
+        let dial_addr = get_dial_addr(config.p2p_port, ip);
+        println!("dial addr: {:?}", dial_addr);
+    }
+    
 
     // // test tendermint RPC endpoint /net_info with reqwest
     // match get_tendermint_net_info(test_addr.to_string()).await {

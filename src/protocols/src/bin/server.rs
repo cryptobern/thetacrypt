@@ -43,6 +43,12 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
                                             )
                                             .await;
     });
+    // tokio::spawn(async move {
+    //     network::p2p::gossipsub::tendermint_setup::init(protocols_to_net_receiver,
+    //                                         net_to_protocols_sender,
+    //                                         )
+    //                                         .await;
+    // });
 
     println!(">> MAIN: Starting the RPC request handler.");
     tokio::spawn(async move {

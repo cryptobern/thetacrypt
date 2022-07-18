@@ -1,4 +1,5 @@
 use libp2p::{Multiaddr, multiaddr::Protocol};
+use std::result;
 use std::{fs, process::exit};
 use toml;
 
@@ -32,8 +33,6 @@ pub fn load_config(path: String) -> Config {
 
 // return p2p listening address as Multiaddr from config file
 pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
-    // let listen_port = get_p2p_port(config, my_peer_id);
-
     format!("{}{}", config.listen_address, config.p2p_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.p2p_port))
@@ -41,36 +40,61 @@ pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
 
 // return rpc listening address as Multiaddr from config file
 pub fn get_rpc_listen_addr(config: &Config) -> Multiaddr {
-    // let listen_port = get_p2p_port(config, my_peer_id);
-
     format!("{}{}", config.listen_address, config.rpc_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.rpc_port))
 }
 
-pub async fn get_node_ips(tendermint_rpc_addr: String) {
+// return ips from all other tendermint nodes
+pub async fn get_node_ips() -> Vec<String> {
     // get node ips by local tendermint RPC request
+    let tendermint_rpc_addr = "http://127.0.0.1:26657";
+    let mut ips: Vec<String> = Vec::new();
     match get_tendermint_net_info(tendermint_rpc_addr.to_string()).await {
         Ok(res) => {
-            // println!("{:#?}", response);
-            let urls = get_node_urls(res).await;
-            println!("urls: {:?}", urls);
-            // println!("no. of other peers {:#?}", response.result.n_peers);
-            // for peer in response.result.peers {
-            //     println!("node id: {:#?}", peer.node_id);
-            //     println!("node url: {:#?}", peer.url);
-            // }
+            for peer in res.result.peers {
+                let url = peer.url;
+                // get ip from urls
+                let ip = &url[49..61];
+                ips.push(ip.to_string());
+            }
+            return ips;
         },
         Err(err) => println!("Error: {}", err),
     }
+    return ips;
 }
 
-pub async fn get_node_urls(res: RPCResult<NetInfoResult>) -> Vec<String>{
-    let mut urls: Vec<String> = [].to_vec();
-    for peer in res.result.peers {
-        urls.push(peer.url);
+// return ids from all other tendermint nodes
+pub async fn get_node_ids() -> Vec<String> {
+    // get node ips by local tendermint RPC request
+    let tendermint_rpc_addr = "http://127.0.0.1:26657";
+    let mut ips: Vec<String> = Vec::new();
+    match get_tendermint_net_info(tendermint_rpc_addr.to_string()).await {
+        Ok(res) => {
+            for peer in res.result.peers {
+                let url = peer.url;
+                // get ids from urls
+                let id = &url[8..48];
+                ips.push(id.to_string());
+            }
+            return ips;
+        },
+        Err(err) => println!("Error: {}", err),
     }
-    return urls;
+    return ips;
+}
+
+// return dialing address as Multiaddr for corresponding peer id
+pub fn get_dial_addr(dial_port: u16, dial_ip: String) -> Multiaddr {
+    let ip_version = "/ip4/";
+    // let dial_port = config.p2p_port;
+
+    // create Multiaddr
+    let dial_base_addr = format!("{}{}", ip_version, dial_ip);
+    let mut dial_addr: Multiaddr = dial_base_addr.parse().unwrap();
+    dial_addr.push(Protocol::Tcp(dial_port));
+    return dial_addr;
 }
 
 // fn get_tendermint_node_rpc_addr() -> String {
@@ -83,39 +107,3 @@ pub async fn get_node_urls(res: RPCResult<NetInfoResult>) -> Vec<String>{
 //         Err(err) => println!("Error: {}", err),
 //     }
 // }
-
-// converts listening address from tendermint RPC result into Multiaddr
-pub fn get_listen_multiaddr(res: RPCResult<StatusResult>) -> Multiaddr {
-    let mut local_node_listen_address = res.result.node_info.listen_addr;
-    let mut iter = local_node_listen_address.chars();
-    iter.by_ref().nth(5); // remove leading 5 characters to retrieve only the ip and port
-    local_node_listen_address = iter.as_str().to_string();
-    let v: Vec<&str> = local_node_listen_address.split(':').collect(); // separate ip and port
-    let listen_ip = v[0];
-    // let listen_port = v[1];
-    let listen_port = "36666";
-    // construct valid MultiAddr
-    let mut multi_addr_listen: Multiaddr = format!("{}{}", "/ip4/", listen_ip).parse().unwrap();
-    multi_addr_listen.push(Protocol::Tcp(listen_port.parse::<u16>().unwrap()));
-    multi_addr_listen
-}
-
-// converts dialing address from tendermint RPC result into Multiaddr
-pub fn get_dial_multiaddr(res: RPCResult<NetInfoResult>) -> Multiaddr {
-    let mut peer_urls: Vec<String> = Vec::new();
-    for peer in res.result.peers {
-        peer_urls.push(peer.url);
-    }
-    let temp_dial_addr = &peer_urls[0]; // take first (or another) peer url in mconn-format (nodeId@)ip)
-    let mut iter = temp_dial_addr.chars();
-    iter.by_ref().nth(48); // remove leading 48 characters to retrieve only the ip
-    let addr_iter = &iter.as_str().to_string();
-    let w: Vec<&str> = addr_iter.split(':').collect(); // separate ip and port
-    let dial_ip = w[0];
-    // let dial_port = w[1];
-    let dial_port = "36666";
-    // construct valid MultiAddr
-    let mut multi_addr_dial: Multiaddr = format!("{}{}", "/ip4/", dial_ip).parse().unwrap();
-    multi_addr_dial.push(Protocol::Tcp(dial_port.parse::<u16>().unwrap()));
-    multi_addr_dial
-}

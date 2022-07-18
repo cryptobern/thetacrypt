@@ -48,18 +48,18 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
     let ip_version = "/ip4/";
 
     let dial_ip = get_ip(config, peer_id);
-    let dial_port = get_p2p_port(config, peer_id);
+    let dial_port = get_p2p_port(config, peer_id) as u16;
 
     // create Multiaddr from config data
     let dial_base_addr = format!("{}{}", ip_version, dial_ip);
     let mut dial_addr: Multiaddr = dial_base_addr.parse().unwrap();
-    dial_addr.push(Protocol::Tcp(dial_port.try_into().unwrap()));
+    dial_addr.push(Protocol::Tcp(dial_port));
     return dial_addr;
 }
 
 // get p2p port from config file
-fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
-    let listn_port: u32 = 27000; // default port number
+fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
+    let listn_port: u16 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {
         if *id == peer_id {
@@ -70,8 +70,8 @@ fn get_p2p_port(config: &Config, peer_id: u32) -> u32 {
 }
 
 // get rpc port from config file
-fn get_rpc_port(config: &Config, peer_id: u32) -> u32 {
-    let listn_port: u32 = 27000; // default port number
+fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
+    let listn_port: u16 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {
         if *id == peer_id {

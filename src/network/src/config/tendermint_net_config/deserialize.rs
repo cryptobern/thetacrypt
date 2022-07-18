@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub p2p_port: String,
-    pub rpc_port: String,
+    pub p2p_port: u16,
+    pub rpc_port: u16,
     pub listen_address: String,
 }
 

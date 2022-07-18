@@ -9,7 +9,7 @@ pub struct Config {
 pub struct Server {
     pub ids: Vec<u32>,
     pub ips: Vec<String>,
-    pub p2p_ports: Vec<u32>,
-    pub rpc_ports: Vec<u32>,
+    pub p2p_ports: Vec<u16>,
+    pub rpc_ports: Vec<u16>,
     pub listen_address: String,
 }
