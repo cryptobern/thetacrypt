@@ -1,13 +1,11 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ThresholdDecryptionRequest {
-    #[prost(enumeration="ThresholdCipher", tag="1")]
-    pub algorithm: i32,
-    #[prost(enumeration="DlGroup", tag="2")]
-    pub dl_group: i32,
-    #[prost(string, tag="4")]
-    pub key_id: ::prost::alloc::string::String,
-    #[prost(bytes="vec", tag="3")]
+    /// ThresholdCipher algorithm = 1;
+    /// DlGroup dl_group = 2;
+    #[prost(bytes="vec", tag="1")]
     pub ciphertext: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, optional, tag="2")]
+    pub key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ThresholdDecryptionResponse {
@@ -23,19 +21,6 @@ pub struct PushDecryptionShareRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareResponse {
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ThresholdCipher {
-    Bz02 = 0,
-    Sg02 = 1,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum DlGroup {
-    Bls12381 = 0,
 }
 /// Generated client implementations.
 pub mod threshold_crypto_library_client {

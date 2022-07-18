@@ -126,12 +126,6 @@ impl Ciphertext {
         Ciphertext::SG02(Sg02Ciphertext::deserialize(bytes).unwrap())
     }
 
-    pub fn get_scheme(&self) -> ThresholdScheme {
-        match self {
-            Ciphertext::SG02(_) => ThresholdScheme::SG02,
-            _ => todo!()
-        }
-    }
 }
 
 pub struct ThresholdCipher {}

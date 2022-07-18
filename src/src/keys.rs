@@ -1,10 +1,13 @@
 use std::convert::TryInto;
+use std::fmt::format;
+use std::vec;
 
 use rasn::AsnType;
 use rasn::Decode;
 use rasn::Encode;
 use rasn::Encoder;
 use rasn::der::decode;
+use serde::ser::SerializeSeq;
 
 use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::ciphers::sg02::Sg02PrivateKey;
@@ -36,7 +39,7 @@ macro_rules! unwrap_enum_vec {
 }
 
 
-#[derive(AsnType, Clone)]
+#[derive(AsnType, Clone, PartialEq)]
 #[rasn(enumerated)]
 pub enum PrivateKey {
     SG02(Sg02PrivateKey)
@@ -61,6 +64,12 @@ impl PrivateKey {
         }
     }
 
+    pub fn get_id(&self) -> u16 {
+        match self {
+            PrivateKey::SG02(key) => key.get_id()
+        }
+    }
+
     pub fn get_public_key(&self) -> PublicKey {
         match self {
             PrivateKey::SG02(key) => PublicKey::SG02(key.get_public_key()) 
@@ -73,13 +82,69 @@ impl PrivateKey {
         }
     }
 
+    pub fn deserialize(bytes: &Vec<u8>) -> Self {
+        //TODO: fix
+        PrivateKey::SG02(Sg02PrivateKey::deserialize(bytes).unwrap())
+    }
+
 }
 
-impl Serialize for PrivateKey {
+impl serde::Serialize for PrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer {
-        serializer.serialize_bytes(&self.serialize().unwrap())
+    where S: serde::Serializer {
+        match self.serialize(){
+            // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
+            Ok(key_bytes) => { 
+                let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
+                for element in key_bytes.iter() {
+                    seq.serialize_element(element)?;
+                }
+                seq.end()
+            },
+            Err(err) => { Err(serde::ser::Error::custom(format!("Could not serialize PrivateKey. err: {:?}", err))) }
+        }
+    }
+}
+
+struct PrivateKeyVisitor;
+impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
+    type Value = PrivateKey;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a sequence of bytes")
+    }
+
+    // fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+    //     where E: serde::de::Error, {
+    //     Ok(PrivateKey::deserialize(&Vec::from(v)))
+    // }
+
+    // fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+    //     where E: serde::de::Error, {
+    //         match PrivateKey::deserialize(&v) {
+    //             //TODO: fix
+    //             PrivateKey::SG02(sk) => { Ok(PrivateKey::SG02(sk)) },
+    //             _ => todo!()
+    //         }
+    // }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: serde::de::SeqAccess<'de>, {
+        let mut key_vec = Vec::new();
+        while let Ok(Some(next)) = seq.next_element() {
+            key_vec.push(next);
+        }
+        let key = PrivateKey::deserialize(&key_vec);  //TODO: fix
+        Ok(key)
+    }
+}
+
+
+impl<'de> serde::Deserialize<'de> for PrivateKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de> {
+        // deserializer.deserialize_bytes(BytesVisitor)
+        deserializer.deserialize_seq(PrivateKeyVisitor)
     }
 }
 

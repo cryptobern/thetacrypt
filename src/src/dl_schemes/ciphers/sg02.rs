@@ -461,10 +461,10 @@ fn H2 (g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
     res
 }
 
-// impl<G:DlGroup> Sg02ThresholdCipher<G>{
-//     pub fn tamper_ciphertext(ctxt: &Sg02Ciphertext<G>) -> Sg02Ciphertext<G>{
-//         let mut tampered_ctxt = ctxt.clone();
-//         tampered_ctxt.label = Vec::from("Mallory");
-//         tampered_ctxt
-//     }
-// }
+impl Sg02ThresholdCipher {
+    pub fn test_tamper_ciphertext(ctxt: &Sg02Ciphertext) -> Sg02Ciphertext{
+        let mut tampered_ctxt = ctxt.clone();
+        tampered_ctxt.label = Vec::from("Mallory");
+        tampered_ctxt
+    }
+}

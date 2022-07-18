@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use cosmos_crypto::interface::{Serializable, ThresholdCipherParams, Ciphertext, DecryptionShare, TcError};
-use cosmos_crypto::keygen::{PrivateKey, PublicKey};
+use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
 use network::types::message::P2pMessage;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -63,7 +63,7 @@ pub struct ThresholdCipherProtocol {
     valid_shares: Vec<DecryptionShare>,
     decrypted: bool,
     decrypted_plaintext: Vec<u8>,
-    received_share_ids: HashSet<u32>,
+    received_share_ids: HashSet<u16>,
 }
 
 impl ThresholdCipherProtocol {
@@ -122,8 +122,7 @@ impl ThresholdCipherProtocol {
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send decryption share
         let mut params = ThresholdCipherParams::new();
-        // println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
-        println!(">> PROT: instance_id: {:?} computing decryption share for key id:__.", &self.instance_id);
+        println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
         let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.sk, &mut params)?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
         let message = P2pMessage{
@@ -131,6 +130,7 @@ impl ThresholdCipherProtocol {
             message_data: share.serialize().unwrap(),
         };
         self.chan_out.send(message).await.unwrap();
+        self.received_share_ids.insert(share.get_id());
         self.valid_shares.push(share);
         Ok(())
     }
@@ -165,9 +165,9 @@ impl ThresholdCipherProtocol {
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
         println!(">> PROT: instance_id: {:?} finished.", &self.instance_id);
         self.chan_in.close();
-        // while let Some(share) = self.chan_in.recv().await {
-        //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
-        // }
+        while let Some(share) = self.chan_in.recv().await {
+            println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
+        }
         Ok(())
     }
 }

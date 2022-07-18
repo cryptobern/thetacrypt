@@ -10,10 +10,10 @@ service ThresholdCryptoLibrary {
 }
 
 message ThresholdDecryptionRequest {
-    ThresholdCipher algorithm = 1;
-    DlGroup dl_group = 2;
-    string key_id = 4;
-    bytes ciphertext = 3;
+    // ThresholdCipher algorithm = 1;
+    // DlGroup dl_group = 2;
+    bytes ciphertext = 1;
+    optional string key_id = 2;
 }
 
 message ThresholdDecryptionResponse {
@@ -29,13 +29,13 @@ message PushDecryptionShareRequest {
 message PushDecryptionShareResponse {
 }
 
-enum ThresholdCipher {
-  Bz02 = 0;
-  Sg02 = 1;
-}
+// enum ThresholdCipher {
+//   Bz02 = 0;
+//   Sg02 = 1;
+// }
 
-enum DlGroup {
-  Bls12381 = 0;
-}
+// enum DlGroup {
+//   Bls12381 = 0;
+// }
 
 
