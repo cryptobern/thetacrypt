@@ -26,19 +26,19 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::tendermint_net_config::config_service::*;
+use crate::config::docker_config::config_service::*;
 use crate::types::message::P2pMessage;
 
 // path when running code in network directory
 // const TENDERMINT_CONFIG_PATH: &str = "src/config/tendermint_net_config/config.toml";
 // path when running code in protocol directory
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
+const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/docker_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
     env_logger::init();
 
     // load config file
-    println!("wd: {:?}", std::env::current_dir());
+    // println!("wd: {:?}", std::env::current_dir());
     let tendermint_config = load_config(TENDERMINT_CONFIG_PATH.to_string());
 
     let tendermint_node_id = get_tendermint_node_id().await;
@@ -64,7 +64,7 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
 
     // load listener address from config file
     let listen_addr = get_p2p_listen_addr(&tendermint_config);
-    println!(">> NET: Listening on: {}", listen_addr);
+    println!(">> NET: Listening for P2P on: {}", listen_addr);
     
     // bind port to listener address
     match swarm.listen_on(listen_addr.clone()) {
@@ -81,7 +81,7 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
 
 pub async fn dial_tendermint_net(
     swarm: &mut Swarm<Gossipsub>,
-    config: crate::config::tendermint_net_config::deserialize::Config
+    config: crate::config::docker_config::deserialize::Config
 ) {
     // let mut seconds = 1; // to display time while dialing
     // let mut stdout = stdout();

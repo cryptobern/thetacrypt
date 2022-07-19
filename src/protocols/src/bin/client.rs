@@ -4,8 +4,8 @@
 
 use std::{fs, io};
 use std::{thread, time};
-// use network::config::local_net_config::config_service::get_rpc_listen_addr;
-use network::config::tendermint_net_config::config_service::*;
+// use network::config::localnet_config::config_service::get_rpc_listen_addr;
+use network::config::docker_config::config_service::*;
 use protocols::pb::requests::{self, PushDecryptionShareRequest};
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
@@ -24,9 +24,9 @@ use tonic::{Request, Status, Code};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_multiple_local_servers().await
+    // test_multiple_local_servers().await
     // test_multiple_local_servers_backlog().await
-    // test_docker_servers().await
+    test_docker_servers().await
 }
 
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -249,7 +249,7 @@ async fn test_docker_servers() -> Result<(), Box<dyn std::error::Error>> {
     let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
     // let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
 
-    const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
+    const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/docker_config/config.toml";
 
     let config = load_config(TENDERMINT_CONFIG_PATH.to_string());
 

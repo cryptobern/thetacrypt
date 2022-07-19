@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub::setup::init(
+        network::p2p::gossipsub::localnet_setup::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
             my_id,)

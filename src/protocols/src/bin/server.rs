@@ -5,27 +5,35 @@ use std::thread::sleep;
 use std::{env, result};
 use std::fs::{File, self};
 
-use network::config::tendermint_net_config::config_service::load_config;
+use network::config::docker_config::config_service::load_config;
 use network::types::message::P2pMessage;
 use protocols::{rpc_request_handler, keychain::KeyChain};
 use tokio::signal;
 
-const RPC_DEFAULT_LISTEN_PORT: u32 = 50050; // for local network
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
+const DOCKER_CONFIG_PATH: &str = "../network/src/config/docker_config/config.toml";
+const LOCAL_CONFIG_PATH: &str = "../network/src/config/localnet_config/config.toml";
+
+const LOCAL_NET: bool = false;
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration file and key file
-    let tendermint_config = load_config(TENDERMINT_CONFIG_PATH.to_string());
+    let docker_config = load_config(DOCKER_CONFIG_PATH.to_string());
+    let localnet_config = network::config::localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        panic!("Please provide server ID.")
+        if args.len() < 2 {
+            panic!("Please provide server ID.")
+        }
+    let my_id = u32::from_str(&args[1])?;
+    let my_addr = docker_config.rpc_base_listen_address;
+    // let mut my_port = RPC_DEFAULT_LISTEN_PORT + my_id + 10;
+    let mut my_port = network::config::localnet_config::config_service::get_rpc_port(&localnet_config, my_id);
+
+    if !LOCAL_NET {    
+        my_port = docker_config.rpc_port.into();
     }
-    let my_id = u32::from_str(&args[1])?; // for local network
-    let my_port = RPC_DEFAULT_LISTEN_PORT + my_id; // for local network
-    // let my_port = tendermint_config.rpc_port; // for docker environment
-    let my_addr = tendermint_config.rpc_base_listen_address;
+
     let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
@@ -37,23 +45,25 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Create channel for sending P2P messages from a protocol to the network module
     let (protocols_to_net_sender, mut protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
 
-   
-    
-    // Start the network
-    println!(">> MAIN: Initiating lib_P2P-based network instance.");
-    tokio::spawn(async move {
-        network::p2p::gossipsub::setup::init(protocols_to_net_receiver,
-                                            net_to_protocols_sender,
-                                            my_id,
-                                            )
-                                            .await;
-    });
-    // tokio::spawn(async move {
-    //     network::p2p::gossipsub::tendermint_setup::init(protocols_to_net_receiver,
-    //                                         net_to_protocols_sender,
-    //                                         )
-    //                                         .await;
-    // });
+    if !LOCAL_NET {
+        // Start network in docker container
+        tokio::spawn(async move {
+            network::p2p::gossipsub::docker_setup::init(
+                protocols_to_net_receiver,
+                net_to_protocols_sender,
+            ).await;
+        });
+    } else {
+        // Start local network
+        println!(">> MAIN: Initiating lib_P2P-based network instance.");
+        tokio::spawn(async move {
+            network::p2p::gossipsub::localnet_setup::init(
+                protocols_to_net_receiver,
+                net_to_protocols_sender,
+                my_id
+            ).await;
+        });
+    }
 
     println!(">> MAIN: Starting the RPC request handler.");
     tokio::spawn(async move {

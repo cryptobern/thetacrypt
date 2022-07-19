@@ -26,15 +26,16 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::local_net_config::config_service::*;
+use crate::config::localnet_config::config_service::*;
 use crate::types::message::P2pMessage;
 
-const CONFIG_PATH: &str = "../network/src/config/local_net_config/config.toml";
+const CONFIG_PATH: &str = "../network/src/config/localnet_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>, my_peer_id: u32) {
     env_logger::init();
 
     // load config file
+    // println!("wd: {:?}", std::env::current_dir());
     let local_config = load_config(CONFIG_PATH.to_string());
     
     // Create a Gossipsub topic
@@ -57,7 +58,7 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
 
     // load listener address from config file
     let listen_addr = get_p2p_listen_addr(&local_config, my_peer_id);
-    println!(">> NET: Listening on: {}", listen_addr);
+    println!(">> NET: Listening for P2P on: {}", listen_addr);
      
     // bind port to listener address
     match swarm.listen_on(listen_addr.clone()) {
@@ -75,7 +76,7 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
 // dial a peer in the local network, if it fails, retry another peer
 pub async fn dial_local_net(
     swarm: &mut Swarm<Gossipsub>,
-    config: crate::config::local_net_config::deserialize::Config,
+    config: crate::config::localnet_config::deserialize::Config,
     my_peer_id: u32
 ) {
     let mut seconds = 1; // to display time while dialing
@@ -90,7 +91,7 @@ pub async fn dial_local_net(
             index = (index + 1) % n;
             continue; // don't dial own address
         } else {
-            let dial_addr = crate::config::local_net_config::config_service::get_dial_addr(&config, p_id);
+            let dial_addr = get_dial_addr(&config, p_id);
             match swarm.dial(dial_addr.clone()) {
                 Ok(_) => {
                     // println!(">> NET: Dialed {:?}", dial_addr);

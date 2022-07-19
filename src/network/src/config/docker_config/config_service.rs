@@ -2,9 +2,9 @@ use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{fs, process::exit};
 use toml;
 
-use crate::config::tendermint_net_config::deserialize::Config;
-use super::rpc_requests::rpc_net_info::get_tendermint_net_info;
-use super::rpc_requests::rpc_status::get_tendermint_status;
+use crate::config::docker_config::deserialize::Config;
+use super::rpc_requests::tendermint_net_info::get_tendermint_net_info;
+use super::rpc_requests::tendermint_status::get_tendermint_status;
 
 const TENDERMINT_RPC_ADDR: &str = "http://127.0.0.1:26657";
 
@@ -46,7 +46,6 @@ pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
 // return ips from all other tendermint nodes
 pub async fn get_node_ips() -> Vec<String> {
     // get node ips by local tendermint RPC request
-    // let TENDERMINT_RPC_ADDR = "http://127.0.0.1:26657";
     let mut ips: Vec<String> = Vec::new();
     match get_tendermint_net_info(TENDERMINT_RPC_ADDR.to_string()).await {
         Ok(res) => {

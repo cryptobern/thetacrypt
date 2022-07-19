@@ -2,7 +2,7 @@ use libp2p::multiaddr::{Multiaddr, Protocol};
 use std::{fs, process::exit};
 use toml;
 
-use crate::config::local_net_config::deserialize::Config;
+use crate::config::localnet_config::deserialize::Config;
 
 // load config file
 pub fn load_config(path: String) -> Config {
@@ -70,7 +70,7 @@ fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
 }
 
 // get rpc port from config file
-fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
+pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 27000; // default port number
 
     for (k, id) in config.servers.ids.iter().enumerate() {

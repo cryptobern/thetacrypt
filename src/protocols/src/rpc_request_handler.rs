@@ -368,7 +368,7 @@ pub async fn init(rpc_listen_address: String,
     
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
-    println!(">> REQH: Request handler is starting. Listening on address: {rpc_addr}");
+    println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
     let service = RpcRequestHandler{
         key_chain,
         state_command_sender,

@@ -2,7 +2,7 @@ use network::types::message::P2pMessage;
 use std::time::Duration;
 use tokio::time;
 
-use network::config::tendermint_net_config::config_service::get_tendermint_node_id;
+use network::config::docker_config::config_service::get_tendermint_node_id;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub::tendermint_setup::init(
+        network::p2p::gossipsub::docker_setup::init(
             protocols_to_net_receiver,
             net_to_protocols_sender)
             .await;

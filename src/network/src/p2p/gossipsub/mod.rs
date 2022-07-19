@@ -1,2 +1,2 @@
-pub mod setup;
-pub mod tendermint_setup;
+pub mod localnet_setup;
+pub mod docker_setup;
