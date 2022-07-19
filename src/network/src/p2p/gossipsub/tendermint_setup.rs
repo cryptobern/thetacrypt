@@ -29,7 +29,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::config::tendermint_net_config::config_service::*;
 use crate::types::message::P2pMessage;
 
-const TENDERMINT_CONFIG_PATH: &str = "config/tendermint_net_config/config.toml";
+const TENDERMINT_CONFIG_PATH: &str = "src/config/tendermint_net_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
     env_logger::init();
