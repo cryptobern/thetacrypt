@@ -5,14 +5,14 @@
 use std::{fs, io};
 use std::{thread, time};
 use cosmos_crypto::keys::{PublicKey, PrivateKey};
-use protocols::pb::requests::{self, PushDecryptionShareRequest};
+use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
+use protocols::proto::protocol_types::{self, PushDecryptionShareRequest};
 // use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
-use cosmos_crypto::dl_schemes::dl_groups::dl_group::{Group};
-use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare, ThresholdScheme};
+use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare};
 use protocols::keychain::KeyChain;
-use protocols::pb::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse};
+use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
@@ -35,19 +35,19 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
     // Read keys from file
     println!("Reading keys from keychain.");
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let sk_sg02_bls12381_1 = key_chain_1.get_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?.key;
+    let sk_sg02_bls12381_1 = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
     
     // sk of rep 2 to create share. Only for test
     let key_chain_2: KeyChain = KeyChain::from_file("conf/keys_2.json")?;
-    let sk_sg02_bls12381_2 = key_chain_2.get_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?.key;
+    let sk_sg02_bls12381_2 = key_chain_2.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
 
     // sk of rep 3 to create share. Only for test
     let key_chain_3: KeyChain = KeyChain::from_file("conf/keys_3.json")?;
-    let sk_sg02_bls12381_3 = key_chain_3.get_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?.key;
+    let sk_sg02_bls12381_3 = key_chain_3.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
 
     // sk of rep 4 to create share. Only for test
     let key_chain_4: KeyChain = KeyChain::from_file("conf/keys_4.json")?;
-    let sk_sg02_bls12381_4 = key_chain_4.get_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?.key;
+    let sk_sg02_bls12381_4 = key_chain_4.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
 
     let pk_sg02_bls12381 = sk_sg02_bls12381_1.get_public_key();
     let k = sk_sg02_bls12381_1.get_threshold();
@@ -146,7 +146,7 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
 
     // INVALID Decryption request 3
     println!(">> Sending INVALID decryption request 3.");
-    let PublicKey::SG02(pk_sg02_bls12381_inner) = pk_sg02_bls12381;
+    let PublicKey::Sg02(pk_sg02_bls12381_inner) = pk_sg02_bls12381;
     let (request3, ciphertext3) = create_tampered_sg02_decryption_request(3, &pk_sg02_bls12381_inner);
     let response3 = client.decrypt(request3).await.unwrap();
     println!("RESPONSE={:?}", response);
@@ -155,7 +155,7 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
     // Share for INVALID Request, Decryption request 1, share id: 2
     println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response3.instance_id.clone());
     
-    let share_1 = get_push_share_request(k, &Ciphertext::SG02(ciphertext3), sk_sg02_bls12381_1.clone(), decrypt_response3.instance_id.clone());
+    let share_1 = get_push_share_request(k, &Ciphertext::Sg02(ciphertext3), sk_sg02_bls12381_1.clone(), decrypt_response3.instance_id.clone());
     let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
     println!("RESPONSE={:?}", put_share_response);
 
@@ -168,7 +168,7 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?;
+    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
 
@@ -197,7 +197,7 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?;
+    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
     
@@ -219,7 +219,7 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
 
 async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::SG02, Group::BLS12381)?;
+    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
     let (request, ciphertext) = create_decryption_request(1, &pk);
     
     let mut connections = connect_all().await;
@@ -260,13 +260,13 @@ async fn connect_one() -> ThresholdCryptoLibraryClient<tonic::transport::Channel
 }
 
 
-fn create_decryption_request(sn: u32, pk: &PublicKey) -> (ThresholdDecryptionRequest, Ciphertext) {
+fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Ciphertext) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
     let label = format!("Label {}", sn);
     let ciphertext = ThresholdCipher::encrypt(&msg, label.as_bytes(), pk, &mut params).unwrap();
-    let req = requests::ThresholdDecryptionRequest {
+    let req = DecryptRequest {
         ciphertext: ciphertext.serialize().unwrap(),
         key_id: None
     };
@@ -274,14 +274,14 @@ fn create_decryption_request(sn: u32, pk: &PublicKey) -> (ThresholdDecryptionReq
     // (Request::new(req), ciphertext)
 }
 
-fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<ThresholdDecryptionRequest>, Sg02Ciphertext) {
+fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
     let label = format!("Label {}", sn);
     let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
     let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&ciphertext);
-    let req = requests::ThresholdDecryptionRequest {
+    let req = DecryptRequest {
         ciphertext: tampered_ciphertext.serialize().unwrap(),
         key_id: None
     };

@@ -1,0 +1,54 @@
+syntax = "proto3";
+package protocol_types;
+
+import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
+
+// Convention: Use proto type 'bytes' (vec<u8> in Rust) for serialized data structures
+// amd string (String in Rust) for the rest
+
+service ThresholdCryptoLibrary {
+    rpc decrypt (DecryptRequest) returns (DecryptReponse);
+    // rpc get_available_keys (GetAvailableKeysRequest) returns (GetAvailableKeysResponse);
+    
+    //this is an alternative way to send shares. used only for testing
+    rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
+}
+
+message DecryptRequest {
+    // ThresholdCipher algorithm = 1;
+    // DlGroup dl_group = 2;
+    bytes ciphertext = 1;
+    optional string key_id = 2;
+}
+
+message GetAvailableKeysRequest {
+    string instance_id = 1;
+}
+
+message DecryptReponse {
+    string instance_id = 1;
+}
+
+message GetAvailableKeysResponse {
+    scheme_types.ThresholdScheme scheme = 1;
+}
+
+message PushDecryptionShareRequest {
+  string instance_id = 1;
+  bytes decryption_share = 2;
+
+}
+
+message PushDecryptionShareResponse {
+}
+
+// enum ThresholdCipher {
+//   Bz02 = 0;
+//   Sg02 = 1;
+// }
+
+// enum DlGroup {
+//   Bls12381 = 0;
+// }
+
+

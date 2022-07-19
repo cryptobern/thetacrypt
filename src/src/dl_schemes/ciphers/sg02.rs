@@ -1,9 +1,11 @@
 use chacha20poly1305::{Key, ChaCha20Poly1305, aead::{NewAead, Aead}, Nonce};
+use crate::proto::scheme_types::ThresholdScheme;
+use crate::proto::scheme_types::Group;
 use derive::{Serializable, DlShare};
 use mcore::hash256::HASH256;
 use rasn::{AsnType, Encoder, Encode, Decode};
 
-use crate::{dl_schemes::{dl_groups::dl_group::{GroupElement, Group}, bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate}}, rand::RNG, interface::{ThresholdCipherParams, ThresholdScheme, DlShare}};
+use crate::{dl_schemes::{dl_groups::dl_group::{GroupElement}, bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate}}, rand::RNG, interface::{ThresholdCipherParams, DlShare}};
 
 pub struct Sg02ThresholdCipher {}
 
@@ -162,7 +164,7 @@ pub struct Sg02Ciphertext{
 impl Sg02Ciphertext {
     pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
-    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::SG02 }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
     pub fn get_group(&self) -> Group { self.e.get_group() }
 }
 
@@ -222,7 +224,7 @@ pub struct Sg02DecryptionShare {
 impl Sg02DecryptionShare {
     pub fn get_data(&self) -> GroupElement { self.data.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
-    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::SG02 }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
     pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 

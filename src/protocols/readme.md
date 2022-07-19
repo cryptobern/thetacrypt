@@ -9,12 +9,12 @@ The request handling code is implemented in the `ThresholdProtocolService`. It h
 - store_decryption_share: Used to send a decryption share to an existing threshold cipher protocol.
 - store_signature_share: Used to send a signature share to an existing threshold cipher protocol.
 
-Currently a `Request`, (`ThresholdDecryptionRequest` or `ThresholdSignatureRequest`) does not contain
+Currently a `Request`, (`DecryptRequest` or `ThresholdSignatureRequest`) does not contain
 a unique identifier. Hence, the application is responsible to make sure it sends each request once to the
 threshold crypto library.
 
-The request handling code in the library uniquely identifies a `ThresholdDecryptionRequest` by the `label`
-field, which is serialized inside `ThresholdDecryptionRequest.ciphertext`, and a `ThresholdSignatureRequest`
+The request handling code in the library uniquely identifies a `DecryptRequest` by the `label`
+field, which is serialized inside `DecryptRequest.ciphertext`, and a `ThresholdSignatureRequest`
 by the field `ThresholdSignatureRequest.message`.
 
 
@@ -79,9 +79,9 @@ Context variable that contains all the variables required by the Request Handler
 There must exist only one instance of Context.
 
 ### Assigning instance-id
-Each incoming request (e.g., 'ThresholdDecryptionRequest' on 'ThresholdSignatureRequest' request) must be assigned an 'instance_id'.
+Each incoming request (e.g., 'DecryptRequest' on 'ThresholdSignatureRequest' request) must be assigned an 'instance_id'.
 This identifies each protocol instance with a unique id. This id will be used to forward decryption shares to the corresponding protocol instance.
-It is also returned to the caller (e.g., through the 'ThresholdDecryptionResponse' or 'ThresholdSignatureResponse').
+It is also returned to the caller (e.g., through the 'DecryptReponse' or 'ThresholdSignatureResponse').
 The logic for assigning an id to each protocol instance is abstracted in the functions `assign_decryption_instance_id()`, `assign_signature_instance_id()`.
 
 TODOs:

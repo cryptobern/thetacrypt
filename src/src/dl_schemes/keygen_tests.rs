@@ -7,11 +7,11 @@ use crate::{rand::{RngAlgorithm, RNG}, interface::Serializable};
 /*#[test]
 fn test_key_serilialization() {
     let mut rng = &mut RNG::new(RngAlgorithm::MarsagliaZaman);
-    let keys = DlKeyGenerator::generate_keys(3, 5, rng, &DlScheme::BLS04(Bls12381::new()));
+    let keys = DlKeyGenerator::generate_keys(3, 5, rng, &DlScheme::Bls04(Bls12381::new()));
     let encoded = encode(&keys[0]).unwrap();
     let decoded: DlPrivateKey<Bls12381> = decode(&encoded).unwrap();
     match decoded {
-        DlPrivateKey::BLS04(key) => {
+        DlPrivateKey::Bls04(key) => {
             println!("Decoded Bz03 private key!");
         }, 
         _ => {
@@ -23,7 +23,7 @@ fn test_key_serilialization() {
 /*
 #[test]
 fn test_pkcs8() {
-    let keys = DlKeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &DlScheme::BZ03(Bls12381::new()));
+    let keys = DlKeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &DlScheme::Bz03(Bls12381::new()));
     let encoded = Pkcs8PrivateKeyInfo::encodePrivateKey(&keys[0]);
 
 

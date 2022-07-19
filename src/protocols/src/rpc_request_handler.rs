@@ -2,9 +2,8 @@ use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
 use crate::keychain::{KeyChain, KeyEntry};
-use crate::pb;
-use crate::pb::requests::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse};
+use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse};
 use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
 use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, Serializable};
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
@@ -86,9 +85,9 @@ pub struct RpcRequestHandler {
 #[tonic::async_trait]
 impl ThresholdCryptoLibrary for RpcRequestHandler {
     
-    async fn decrypt(&self, request: Request<ThresholdDecryptionRequest>) -> Result<Response<ThresholdDecryptionResponse>, Status> {
+    async fn decrypt(&self, request: Request<DecryptRequest>) -> Result<Response<DecryptReponse>, Status> {
         println!(">> REQH: Received a decryption request.");
-        let req: &ThresholdDecryptionRequest = request.get_ref();
+        let req: &DecryptRequest = request.get_ref();
         let ciphertext = Ciphertext::deserialize(&req.ciphertext);
         
         // Create a unique instance_id for this instance
@@ -167,7 +166,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             forwarder_command_sender2.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.");
         });
 
-        Ok(Response::new(requests::ThresholdDecryptionResponse { instance_id: instance_id.clone() }))
+        Ok(Response::new(DecryptReponse { instance_id: instance_id.clone() }))
     }
 
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
@@ -178,7 +177,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             message_data: req.decryption_share.clone()
         };
         self.incoming_message_sender.send(p2p_message).await.unwrap();
-        Ok(Response::new(requests::PushDecryptionShareResponse{}))
+        Ok(Response::new(PushDecryptionShareResponse{}))
     }
 }
 

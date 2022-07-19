@@ -342,8 +342,8 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
 impl Sh00ThresholdSignature {
     pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut RNG) -> Vec<Sh00PrivateKey> {
-        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(modsize));
-        unwrap_keys!(keys, RsaPrivateKey::SH00)
+        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::Sh00(modsize));
+        unwrap_keys!(keys, RsaPrivateKey::Sh00)
     }
 }
 

@@ -219,8 +219,8 @@ impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
 
 impl<D:DlDomain> Bls04ThresholdSignature<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bls04PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BLS04(domain));
-        unwrap_keys!(keys, DlPrivateKey::BLS04)
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Bls04(domain));
+        unwrap_keys!(keys, DlPrivateKey::Bls04)
     }
 }
 

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fs::{self, File}, error::Error};
-use cosmos_crypto::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext, ThresholdScheme}, dl_schemes::dl_groups::dl_group::Group};
+use cosmos_crypto::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}, proto::scheme_types::ThresholdScheme};
+use cosmos_crypto::proto::scheme_types::Group;
 use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 

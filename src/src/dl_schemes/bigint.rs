@@ -1,5 +1,6 @@
 use std::mem::ManuallyDrop;
 
+use crate::proto::scheme_types::Group;
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
@@ -7,8 +8,6 @@ use mcore::bn254::big::MODBYTES as BN254MODBYTES;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
 use crate::interface::Serializable;
 use crate::rand::RNG;
-
-use super::dl_groups::dl_group::{Group};
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
@@ -58,13 +57,13 @@ impl PartialEq for BigImpl{
 impl BigImpl {
     pub fn new(group: &Group) -> BigImpl {
         match group {
-            Group::BLS12381 => {
+            Group::Bls12381 => {
                 Bls12381BIG::new()
             },
-            Group::BN254 => {
+            Group::Bn254 => {
                 Bn254BIG::new()
             },
-            Group::ED25519 => {
+            Group::Ed25519 => {
                 Ed25519BIG::new()
             },
             _ => {
@@ -75,13 +74,13 @@ impl BigImpl {
 
     pub fn new_rand(group: &Group, q: &BigImpl, rng: &mut RNG) -> BigImpl {
         match group {
-            Group::BLS12381 => {
+            Group::Bls12381 => {
                 Bls12381BIG::new_rand(q, rng)
             },
-            Group::BN254 => {
+            Group::Bn254 => {
                 Bn254BIG::new_rand(q, rng)
             },
-            Group::ED25519 => {
+            Group::Ed25519 => {
                 Ed25519BIG::new_rand(q, rng)
             },
             _ => todo!()
@@ -90,13 +89,13 @@ impl BigImpl {
 
     pub fn new_int(group: &Group, i: isize) -> BigImpl {
         match group {
-            Group::BLS12381 => {
+            Group::Bls12381 => {
                 Bls12381BIG::new_int(i)
             },
-            Group::BN254 => {
+            Group::Bn254 => {
                 Bn254BIG::new_int(i)
             },
-            Group::ED25519 => {
+            Group::Ed25519 => {
                 Ed25519BIG::new_int(i)
             },
             _ => todo!()
@@ -109,13 +108,13 @@ impl BigImpl {
 
     pub fn from_bytes(group: &Group, bytes: &[u8]) -> BigImpl {
         match group {
-            Group::BLS12381 => {
+            Group::Bls12381 => {
                 Bls12381BIG::from_bytes(bytes)
             },
-            Group::BN254 => {
+            Group::Bn254 => {
                 Bn254BIG::from_bytes(bytes)
             },
-            Group::ED25519 => {
+            Group::Ed25519 => {
                 Ed25519BIG::from_bytes(bytes)
             },
             _ => todo!()
@@ -218,9 +217,9 @@ impl BigImpl {
 
     pub fn get_group(&self) -> Group {
         match self {
-            BigImpl::Bls12381(x) => Group::BLS12381,
-            BigImpl::Bn254(x) => Group::BN254,
-            BigImpl::Ed25519(x) => Group::ED25519,
+            BigImpl::Bls12381(x) => Group::Bls12381,
+            BigImpl::Bn254(x) => Group::Bn254,
+            BigImpl::Ed25519(x) => Group::Ed25519,
        }
     }
 }

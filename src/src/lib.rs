@@ -5,3 +5,4 @@ pub mod util;
 pub mod rsa_schemes;
 pub mod rand;
 pub mod keys;
+pub mod proto;

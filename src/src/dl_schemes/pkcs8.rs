@@ -57,7 +57,7 @@ impl Encode for Pkcs8PrivateKeyInfo{
 impl Pkcs8PrivateKeyInfo {
     pub fn encodePrivateKey<D: DlDomain>(privateKey: &DlPrivateKey<D>) -> Vec<u8> {
         match privateKey {
-            DlPrivateKey::BZ03(key) => {
+            DlPrivateKey::Bz03(key) => {
                 let bytes = key.serialize().unwrap();
 
                 println!("{}", std::any::type_name::<D>());

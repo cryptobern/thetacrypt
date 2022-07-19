@@ -7,18 +7,18 @@ use std::time::Instant;
 
 use std::fmt::Write;
 
-use crate::dl_schemes::dl_groups::dl_group::Group;
-use crate::interface::{ThresholdCipherParams, ThresholdCipher, ThresholdScheme};
-use crate::keys::{KeyGenerator};
-use crate::rand::{RNG, RngAlgorithm};
-use crate::util::{printbinary, hex2string};
+use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
+use cosmos_crypto::interface::{ThresholdCipherParams, ThresholdCipher};
+use cosmos_crypto::keys::{KeyGenerator};
+use cosmos_crypto::rand::{RNG, RngAlgorithm};
+use cosmos_crypto::util::{printbinary, hex2string};
 
-mod dl_schemes;
-mod interface;
-mod util;
-mod rsa_schemes;
-mod rand;
-mod keys;
+// mod dl_schemes;
+// mod interface;
+// mod util;
+// mod rsa_schemes;
+// mod rand;
+// mod keys;
 
 fn main() {
     const K: usize = 3; // threshold
@@ -31,12 +31,12 @@ fn main() {
 
     println!("Message: {}", plaintext);
 
-    // perform threshold encryption using SG02 scheme 
-    println!("\n--SG02 Threshold Cipher--");
+    // perform threshold encryption using Sg02 scheme 
+    println!("\n--Sg02 Threshold Cipher--");
 
-    // generate secret shares for SG02 scheme over Bls12381 curve
+    // generate secret shares for Sg02 scheme over Bls12381 curve
     let now = Instant::now();
-    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 

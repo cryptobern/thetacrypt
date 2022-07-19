@@ -1,6 +1,8 @@
+use crate::proto::scheme_types::ThresholdScheme;
+use crate::proto::scheme_types::Group;
 use rasn::{der::{encode, decode}, Encode, Decode};
 
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{Group, GroupElement}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*}, dl_groups::dl_group::{GroupElement}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec};
 
 pub trait Serializable:
     Sized
@@ -17,15 +19,15 @@ pub trait Serializable:
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum ThresholdScheme {
-    BZ03,
-    SG02,
-    BLS04,
-    CKS05,
-    FROST,
-    SH00
-}
+// #[derive(Debug, PartialEq, Eq, Clone)]
+// pub enum ThresholdScheme {
+//     Bz03,
+//     Sg02,
+//     Bls04,
+//     Cks05,
+//     Frost,
+//     Sh00
+// }
 
 pub trait DlShare {
     fn get_id(&self) -> u16;
@@ -83,47 +85,47 @@ impl ThresholdCoin {
 
 #[derive(PartialEq)]
 pub enum Ciphertext {
-    SG02(Sg02Ciphertext)
+    Sg02(Sg02Ciphertext)
 }
 
 impl Ciphertext {
     pub fn get_msg(&self) -> Vec<u8> {
         match self {
-            Ciphertext::SG02(ct) => ct.get_msg(),
+            Ciphertext::Sg02(ct) => ct.get_msg(),
             _ => todo!()
         }
     }
 
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
-            Ciphertext::SG02(ct) => ct.get_scheme(),
+            Ciphertext::Sg02(ct) => ct.get_scheme(),
             _ => todo!()
         }
     }
 
     pub fn get_group(&self) -> Group {
         match self {
-            Ciphertext::SG02(ct) => ct.get_group(),
+            Ciphertext::Sg02(ct) => ct.get_group(),
             _ => todo!()
         }
     }
 
     pub fn get_label(&self) -> Vec<u8> {
         match self {
-            Ciphertext::SG02(ct) => ct.get_label(),
+            Ciphertext::Sg02(ct) => ct.get_label(),
             _ => todo!()
         }
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
         match self {
-            Ciphertext::SG02(ct) => ct.serialize()
+            Ciphertext::Sg02(ct) => ct.serialize()
         }
     }
 
     pub fn deserialize(bytes: &Vec<u8>) -> Self {
         //TODO: fix
-        Ciphertext::SG02(Sg02Ciphertext::deserialize(bytes).unwrap())
+        Ciphertext::Sg02(Sg02Ciphertext::deserialize(bytes).unwrap())
     }
 
 }
@@ -132,23 +134,23 @@ pub struct ThresholdCipher {}
 
 #[derive(PartialEq)]
 pub enum DecryptionShare {
-    SG02(Sg02DecryptionShare)
+    Sg02(Sg02DecryptionShare)
 }
 
 impl ThresholdCipher {
     pub fn encrypt(msg: &[u8], label: &[u8], pubkey: &PublicKey, params: &mut ThresholdCipherParams) -> Result<Ciphertext, TcError> {
         match pubkey {
-            PublicKey::SG02(key) => {
-                Ok(Ciphertext::SG02(Sg02ThresholdCipher::encrypt(msg, label, key, params)))
+            PublicKey::Sg02(key) => {
+                Ok(Ciphertext::Sg02(Sg02ThresholdCipher::encrypt(msg, label, key, params)))
             }
         }
     }
     
     pub fn verify_ciphertext(ct: &Ciphertext, pubkey: &PublicKey) -> Result<bool, TcError> {
         match ct {
-            Ciphertext::SG02(ct) => {
+            Ciphertext::Sg02(ct) => {
                 match pubkey {
-                    PublicKey::SG02(key) => {
+                    PublicKey::Sg02(key) => {
                         Ok(Sg02ThresholdCipher::verify_ciphertext(ct, key))
                     }, 
                     _ => {
@@ -161,12 +163,12 @@ impl ThresholdCipher {
     
     pub fn verify_share(share: &DecryptionShare, ct: &Ciphertext, pubkey: &PublicKey) -> Result<bool, TcError> {
         match ct {
-            Ciphertext::SG02(ct) => {
+            Ciphertext::Sg02(ct) => {
 
                 match share {
-                    DecryptionShare::SG02(s) => {
+                    DecryptionShare::Sg02(s) => {
                         match pubkey {
-                            PublicKey::SG02(key) => {
+                            PublicKey::Sg02(key) => {
                                 Ok(Sg02ThresholdCipher::verify_share(s, ct, key))
                             }, 
                             _ => {
@@ -184,10 +186,10 @@ impl ThresholdCipher {
 
     pub fn partial_decrypt(ct: &Ciphertext, privkey: &PrivateKey, params: &mut ThresholdCipherParams) -> Result<DecryptionShare, TcError> {
         match ct {
-            Ciphertext::SG02(ct) => {
+            Ciphertext::Sg02(ct) => {
                 match privkey {
-                    PrivateKey::SG02(key) => {
-                        Ok(DecryptionShare::SG02(Sg02ThresholdCipher::partial_decrypt(ct, key, params)))
+                    PrivateKey::Sg02(key) => {
+                        Ok(DecryptionShare::Sg02(Sg02ThresholdCipher::partial_decrypt(ct, key, params)))
                     }, 
                     _ => {
                         Err(TcError::WrongKeyProvided)
@@ -199,8 +201,8 @@ impl ThresholdCipher {
 
     pub fn assemble(shares: &Vec<DecryptionShare>, ct: &Ciphertext) -> Result<Vec<u8>, TcError> {
         match ct {
-            Ciphertext::SG02(ct) => {
-                let shares = unwrap_enum_vec!(shares, DecryptionShare::SG02, TcError::IncompatibleSchemes);
+            Ciphertext::Sg02(ct) => {
+                let shares = unwrap_enum_vec!(shares, DecryptionShare::Sg02, TcError::IncompatibleSchemes);
 
                 if shares.is_ok() {
                     return Ok(Sg02ThresholdCipher::assemble(&shares.unwrap(), ct));
@@ -216,48 +218,48 @@ impl ThresholdCipher {
 impl DecryptionShare {
     pub fn get_id(&self) -> u16 {
         match self {
-            Self::SG02(share) => share.get_id(),
+            Self::Sg02(share) => share.get_id(),
             _ => todo!()
         }
     }
 
     pub fn get_label(&self) -> Vec<u8> {
         match self {
-            DecryptionShare::SG02(share) => share.get_label(),
+            DecryptionShare::Sg02(share) => share.get_label(),
             _ => todo!()
         }
     }
 
     pub fn get_group(&self) -> Group {
         match self {
-            Self::SG02(share) => share.get_group(),
+            Self::Sg02(share) => share.get_group(),
             _ => todo!()
         }
     }
 
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
-            Self::SG02(share) => share.get_scheme(),
+            Self::Sg02(share) => share.get_scheme(),
             _ => todo!()
         }
     }
 
     pub fn get_data(&self) -> GroupElement {
         match self {
-            Self::SG02(share) => share.get_data(),
+            Self::Sg02(share) => share.get_data(),
             _ => todo!()
         }
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
         match self {
-            DecryptionShare::SG02(s) => s.serialize()
+            DecryptionShare::Sg02(s) => s.serialize()
         }
     }
 
     pub fn deserialize(bytes: &Vec<u8>) -> Self {
         //TODO: fix
-        DecryptionShare::SG02(Sg02DecryptionShare::deserialize(bytes).unwrap())
+        DecryptionShare::Sg02(Sg02DecryptionShare::deserialize(bytes).unwrap())
     }
 }
 

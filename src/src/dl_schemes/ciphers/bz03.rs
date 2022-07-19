@@ -259,8 +259,8 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 
 impl<D:DlDomain> Bz03ThresholdCipher<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bz03PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BZ03(domain));
-        unwrap_keys!(keys, DlPrivateKey::BZ03)
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Bz03(domain));
+        unwrap_keys!(keys, DlPrivateKey::Bz03)
     }
 }
 

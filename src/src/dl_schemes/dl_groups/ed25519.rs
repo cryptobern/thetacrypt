@@ -1,7 +1,8 @@
+use crate::{proto::scheme_types::Group, dl_schemes::common::DlDomain};
 use derive::Serializable;
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}};
 use rasn::{AsnType, Encode, Decode, Encoder, types::BitString};
-use crate::{dl_schemes::bigint::BigInt, dl_schemes::{DlDomain, dl_groups::dl_group::*}, rand::RNG};
+use crate::{dl_schemes::bigint::BigInt, dl_schemes::{dl_groups::dl_group::*}, rand::RNG};
 
 use super::{pairing::PairingEngine};
 use crate::dl_schemes::bigint::*;
@@ -53,7 +54,7 @@ impl DlDomain for Ed25519 {
     }
 
     fn get_type() -> Group {
-        Group::ED25519
+        Group::Ed25519
     }
 }
 

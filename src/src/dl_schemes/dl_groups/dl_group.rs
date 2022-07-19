@@ -1,8 +1,9 @@
 use std::mem::ManuallyDrop;
 
+use crate::proto::scheme_types::Group;
 use rasn::Encode;
 
-use crate::{dl_schemes::{bigint::*, DlDomain}, rand::RNG, interface::Serializable};
+use crate::{dl_schemes::{bigint::*}, rand::RNG, interface::Serializable};
 
 use super::{bls12381::{Bls12381, Bls12381ECP2, Bls12381FP12}, bn254::{Bn254, Bn254ECP2, Bn254FP12}, ed25519::Ed25519};
 
@@ -63,28 +64,28 @@ pub trait DlGroup:
     fn get_name() -> String;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Group {
-    BLS12381,
-    BN254,
-    ED25519,
-    RSA
-}
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// pub enum Group {
+//     Bls12381,
+//     Bn254,
+//     Ed25519,
+//     Rsa
+// }
 
 impl Group {
     pub fn get_code(&self) -> u8 {
         match self {
             Bls12381 => 0,
-            BN254 => 1,
+            Bn254 => 1,
             Ed25519 => 2
         }
     }
 
     pub fn from_code(code: u8) -> Self {
         match code {
-            0 => Self::BLS12381,
-            1 => Self::BN254,
-            2 => Self::ED25519,
+            0 => Self::Bls12381,
+            1 => Self::Bn254,
+            2 => Self::Ed25519,
             _ => panic!("invalid code")
         }
     }
@@ -122,9 +123,9 @@ impl PartialEq for GroupElement {
         }
         unsafe {
             match self.group {
-                Group::BLS12381 => (*self.data.bls12381).eq(&other.data.bls12381),
-                Group::BN254 => (*self.data.bn254).eq(&other.data.bn254),
-                Group::ED25519 => (*self.data.ed25519).eq(&other.data.ed25519),
+                Group::Bls12381 => (*self.data.bls12381).eq(&other.data.bls12381),
+                Group::Bn254 => (*self.data.bn254).eq(&other.data.bn254),
+                Group::Ed25519 => (*self.data.ed25519).eq(&other.data.ed25519),
                 _ => todo!()
             }
         }
@@ -135,13 +136,13 @@ impl Clone for GroupElement {
     fn clone(&self) -> Self {
         unsafe {
             match self.group {
-                Group::BLS12381 => {
+                Group::Bls12381 => {
                     GroupElement { group:self.group.clone(), data: GroupData {bls12381:self.data.bls12381.clone()}, i:self.i }
                 },
-                Group::BN254 => {
+                Group::Bn254 => {
                     GroupElement { group:self.group.clone(), data: GroupData {bn254:self.data.bn254.clone()}, i: self.i }
                 },
-                Group::ED25519 => {
+                Group::Ed25519 => {
                     GroupElement { group:self.group.clone(), data: GroupData {ed25519:self.data.ed25519.clone()}, i: self.i }
                 },
                 _ => {
@@ -172,9 +173,9 @@ impl GroupElement {
         let data;
 
         match group {
-            Group::BLS12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new())},
-            Group::BN254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new())},
-            Group::ED25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new())},
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new())},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new())},
+            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new())},
             _ => todo!()
         }
 
@@ -186,14 +187,14 @@ impl GroupElement {
         let data;
 
         match group {
-            Group::BLS12381 => {
+            Group::Bls12381 => {
                 if i == 0 {
                 data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new())}
                 }
 
         },
-            Group::BN254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new())},
-            Group::ED25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new())},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new())},
+            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new())},
             _ => todo!()
         }
 
@@ -204,9 +205,9 @@ impl GroupElement {
         let data;
 
         match group {
-            Group::BLS12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_pow_big(y))},
-            Group::BN254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_pow_big(y))},
-            Group::ED25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new_pow_big(y))},
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_pow_big(y))},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_pow_big(y))},
+            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new_pow_big(y))},
             _ => todo!()
         }
 
@@ -221,9 +222,9 @@ impl GroupElement {
         let data;
 
         match group {
-            Group::BLS12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_rand(rng))},
-            Group::BN254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_rand(rng))},
-            Group::ED25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new_rand(rng))},
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_rand(rng))},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_rand(rng))},
+            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new_rand(rng))},
             _ => todo!()
         }
 
@@ -239,9 +240,9 @@ impl GroupElement {
         
         unsafe {
             match self.group {
-                Group::BLS12381 => (*self.data.bls12381).mul(&(*y.data.bls12381)),
-                Group::BN254 => (*self.data.bn254).mul(&(*y.data.bn254)),
-                Group::ED25519 => (*self.data.ed25519).mul(&(*y.data.ed25519)),
+                Group::Bls12381 => (*self.data.bls12381).mul(&(*y.data.bls12381)),
+                Group::Bn254 => (*self.data.bn254).mul(&(*y.data.bn254)),
+                Group::Ed25519 => (*self.data.ed25519).mul(&(*y.data.ed25519)),
                 _ => todo!()
             }
         }
@@ -255,9 +256,9 @@ impl GroupElement {
         
         unsafe {
             match self.group {
-                Group::BLS12381 => (*self.data.bls12381).div(&(*y.data.bls12381)),
-                Group::BN254 => (*self.data.bn254).div(&(*y.data.bn254)),
-                Group::ED25519 => (*self.data.ed25519).div(&(*y.data.ed25519)),
+                Group::Bls12381 => (*self.data.bls12381).div(&(*y.data.bls12381)),
+                Group::Bn254 => (*self.data.bn254).div(&(*y.data.bn254)),
+                Group::Ed25519 => (*self.data.ed25519).div(&(*y.data.ed25519)),
                 _ => todo!()
             }
         }
@@ -267,9 +268,9 @@ impl GroupElement {
     pub fn pow(&mut self, y: &BigImpl) {       
         unsafe {
             match self.group {
-                Group::BLS12381 => (*self.data.bls12381).pow(&y),
-                Group::BN254 => (*self.data.bn254).pow(&y),
-                Group::ED25519 => (*self.data.ed25519).pow(&y),
+                Group::Bls12381 => (*self.data.bls12381).pow(&y),
+                Group::Bn254 => (*self.data.bn254).pow(&y),
+                Group::Ed25519 => (*self.data.ed25519).pow(&y),
                 _ => todo!()
             }
         }
@@ -277,9 +278,9 @@ impl GroupElement {
 
     pub fn get_order(&self) -> BigImpl {
         match self.group {
-            Group::BLS12381 => Bls12381::get_order(),
-            Group::BN254 => Bn254::get_order(),
-            Group::ED25519 => Ed25519::get_order(),
+            Group::Bls12381 => Bls12381::get_order(),
+            Group::Bn254 => Bn254::get_order(),
+            Group::Ed25519 => Ed25519::get_order(),
             _ => todo!()
         }
         
@@ -288,9 +289,9 @@ impl GroupElement {
     pub fn to_bytes(&self) -> Vec<u8> {       
         unsafe {
             match self.group {
-                Group::BLS12381 => (*self.data.bls12381).to_bytes(),
-                Group::BN254 => (*self.data.bn254).to_bytes(),
-                Group::ED25519 => (*self.data.ed25519).to_bytes(),
+                Group::Bls12381 => (*self.data.bls12381).to_bytes(),
+                Group::Bn254 => (*self.data.bn254).to_bytes(),
+                Group::Ed25519 => (*self.data.ed25519).to_bytes(),
                 _ => todo!()
             }
         }
@@ -298,9 +299,9 @@ impl GroupElement {
 
     pub fn from_bytes(bytes: &[u8], group: &Group) -> Self {
         match group {
-            Group::BLS12381 => Self { group:group.clone(), data:GroupData {bls12381:ManuallyDrop::new(Bls12381::from_bytes(bytes))}, i:0},
-            Group::BN254 => Self { group:group.clone(), data:GroupData {bn254:ManuallyDrop::new(Bn254::from_bytes(bytes))}, i:0},
-            Group::ED25519 => Self { group:group.clone(), data:GroupData {ed25519:ManuallyDrop::new(Ed25519::from_bytes(bytes))}, i:0},
+            Group::Bls12381 => Self { group:group.clone(), data:GroupData {bls12381:ManuallyDrop::new(Bls12381::from_bytes(bytes))}, i:0},
+            Group::Bn254 => Self { group:group.clone(), data:GroupData {bn254:ManuallyDrop::new(Bn254::from_bytes(bytes))}, i:0},
+            Group::Ed25519 => Self { group:group.clone(), data:GroupData {ed25519:ManuallyDrop::new(Ed25519::from_bytes(bytes))}, i:0},
             _ => todo!()
         }
     }
