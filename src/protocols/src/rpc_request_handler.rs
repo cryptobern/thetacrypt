@@ -367,7 +367,8 @@ pub async fn init(rpc_listen_address: String,
     });
     
     // Start server
-    println!(">> REQH: Request handler is starting. Listening on address: {rpc_listen_address}");
+    let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
+    println!(">> REQH: Request handler is starting. Listening on address: {rpc_addr}");
     let service = RpcRequestHandler{
         key_chain,
         state_command_sender,
@@ -378,6 +379,7 @@ pub async fn init(rpc_listen_address: String,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
-        .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
+        // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
+        .serve(rpc_addr.parse().unwrap())
         .await.expect("");
 }

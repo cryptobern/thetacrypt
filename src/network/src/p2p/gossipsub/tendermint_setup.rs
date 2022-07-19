@@ -21,7 +21,7 @@ use libp2p::{
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    io::{stdout, Write},
+    // io::{stdout, Write},
     time::Duration,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -29,13 +29,16 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::config::tendermint_net_config::config_service::*;
 use crate::types::message::P2pMessage;
 
-const TENDERMINT_CONFIG_PATH: &str = "src/config/tendermint_net_config/config.toml";
+// path when running code in network directory
+// const TENDERMINT_CONFIG_PATH: &str = "src/config/tendermint_net_config/config.toml";
+// path when running code in protocol directory
+const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
     env_logger::init();
 
     // load config file
-    // println!("wd: {:?}", std::env::current_dir());
+    println!("wd: {:?}", std::env::current_dir());
     let tendermint_config = load_config(TENDERMINT_CONFIG_PATH.to_string());
 
     let tendermint_node_id = get_tendermint_node_id().await;
@@ -80,8 +83,8 @@ pub async fn dial_tendermint_net(
     swarm: &mut Swarm<Gossipsub>,
     config: crate::config::tendermint_net_config::deserialize::Config
 ) {
-    let mut seconds = 1; // to display time while dialing
-    let mut stdout = stdout();
+    // let mut seconds = 1; // to display time while dialing
+    // let mut stdout = stdout();
 
     let mut index = 0;
     let ips = get_node_ips().await; // ips of all other nodes in the network
@@ -105,7 +108,7 @@ pub async fn dial_tendermint_net(
                         println!(">> NET: Connected to endpoint: {:?}", endpoint.get_remote_address());
 
                         // println!(">> NET: Connected to the network!");
-                        // println!(">> NET: Ready for client requests ...");
+                        println!(">> NET: Ready for client requests ...");
                         break
                     }
                     SwarmEvent::OutgoingConnectionError {..} => {

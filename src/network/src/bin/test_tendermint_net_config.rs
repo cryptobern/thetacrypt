@@ -12,9 +12,6 @@ async fn main() {
     
     let p2p_listen_addr = get_p2p_listen_addr(&config);
     println!("p2p listen addr: {:?}", p2p_listen_addr);
-
-    let rpc_listen_addr = get_rpc_listen_addr(&config);
-    println!("rpc listen addr: {:?}", rpc_listen_addr);
     
     // let test_addr = "http://127.0.0.1:26657";
     let node_ips = get_node_ips().await;

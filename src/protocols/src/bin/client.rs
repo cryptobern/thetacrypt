@@ -4,6 +4,8 @@
 
 use std::{fs, io};
 use std::{thread, time};
+// use network::config::local_net_config::config_service::get_rpc_listen_addr;
+use network::config::tendermint_net_config::config_service::*;
 use protocols::pb::requests::{self, PushDecryptionShareRequest};
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
@@ -24,6 +26,7 @@ use tonic::{Request, Status, Code};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     test_multiple_local_servers().await
     // test_multiple_local_servers_backlog().await
+    // test_docker_servers().await
 }
 
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -165,10 +168,10 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
     let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
 
     let peers = vec![
-        (0, String::from("::1"), 50051),
-        (1, String::from("::1"), 50052),
-        (2, String::from("::1"), 50053),
-        (3, String::from("::1"), 50054)
+        (0, String::from("0.0.0.0"), 50051),
+        (1, String::from("0.0.0.0"), 50052),
+        (2, String::from("0.0.0.0"), 50053),
+        (3, String::from("0.0.0.0"), 50054)
     ];
     
     let mut connections = Vec::new();
@@ -237,6 +240,59 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
         thread::sleep(time::Duration::from_millis(7000)); // Make this bigger than BACKLOG_WAIT_INTERVAL
         i += 1;
     }
+    Ok(())
+}
+
+async fn test_docker_servers() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
+    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
+    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
+    // let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+
+    const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net_config/config.toml";
+
+    let config = load_config(TENDERMINT_CONFIG_PATH.to_string());
+
+    let conn_addr = format!("{}{}", "http://0.0.0.0:", config.rpc_port);
+    println!(">> rpc addr: {}", conn_addr);
+    let mut rpc_conn = ThresholdCryptoLibraryClient::connect(conn_addr.clone()).await.unwrap();
+    println!(">> Sending decryption request 1 to server.");
+    rpc_conn.decrypt(request.clone()).await.expect("This should not return Err");
+    
+    // let mut connections = Vec::new();
+    // for peer in peers.iter() {
+    //     let (id, ip, port) = peer.clone();
+    //     let addr = format!("http://[{ip}]:{port}");
+    //     println!("rpc addr: {}", addr);
+    //     connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
+    // }            
+
+    // let mut i = 1;
+    // for conn in connections.iter_mut(){
+    //     println!(">> Sending decryption request 1 to server {i}.");
+    //     let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
+    //     i += 1;
+    // }
+
+    // // Send DUPLICATE requests
+    // let mut i = 1;
+    // for conn in connections.iter_mut(){
+    //     println!(">> Sending DUPLICATE decryption request 1 to server {i}.");
+    //     let response = conn.decrypt(request.clone()).await.expect_err("This should return Err");
+    //     assert!(response.code() == Code::AlreadyExists);
+    //     // let response2 = conn.decrypt(request2.clone()).await.unwrap();
+    //     i += 1;
+    // }
+
+    // let mut i = 1;
+    // for conn in connections.iter_mut(){
+    //     println!(">> Sending decryption request 2 to server {i}.");
+    //     let response = conn.decrypt(request2.clone()).await.unwrap();
+    //     // let response2 = conn.decrypt(request2.clone()).await.unwrap();
+    //     // println!("RESPONSE={:?}", response);
+    //     i += 1;
+    // }
+
     Ok(())
 }
 

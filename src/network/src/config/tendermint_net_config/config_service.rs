@@ -31,17 +31,17 @@ pub fn load_config(path: String) -> Config {
 
 // return p2p listening address as Multiaddr from config file
 pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
-    format!("{}{}", config.listen_address, config.p2p_port)
+    format!("{}{}", config.p2p_base_listen_address, config.p2p_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.p2p_port))
 }
 
-// return rpc listening address as Multiaddr from config file
-pub fn get_rpc_listen_addr(config: &Config) -> Multiaddr {
-    format!("{}{}", config.listen_address, config.rpc_port)
-        .parse()
-        .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.rpc_port))
-}
+// // return rpc listening address as Multiaddr from config file
+// pub fn get_rpc_listen_addr(config: &Config) -> Multiaddr {
+//     format!("{}{}", config.rpc_base_listen_address, config.rpc_port)
+//         .parse()
+//         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.rpc_port))
+// }
 
 // return ips from all other tendermint nodes
 pub async fn get_node_ips() -> Vec<String> {
