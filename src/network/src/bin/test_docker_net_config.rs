@@ -1,4 +1,4 @@
-use network::config::docker_config::config_service::*;
+use network::config::tendermint_config::config_service::*;
 
 const CONFIG_PATH: &str = "../src/config/tendermint_net_config/config.toml";
 

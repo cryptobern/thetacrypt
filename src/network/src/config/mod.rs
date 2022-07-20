@@ -1,2 +1,2 @@
 pub mod localnet_config;
-pub mod docker_config;
+pub mod tendermint_config;

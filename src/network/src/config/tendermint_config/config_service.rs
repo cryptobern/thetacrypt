@@ -2,7 +2,7 @@ use libp2p::{Multiaddr, multiaddr::Protocol};
 use std::{fs, process::exit};
 use toml;
 
-use crate::config::docker_config::deserialize::Config;
+use crate::config::tendermint_config::deserialize::Config;
 use super::rpc_requests::tendermint_net_info::get_tendermint_net_info;
 use super::rpc_requests::tendermint_status::get_tendermint_status;
 

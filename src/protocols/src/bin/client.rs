@@ -5,7 +5,7 @@
 use std::{fs, io};
 use std::{thread, time};
 // use network::config::localnet_config::config_service::get_rpc_listen_addr;
-use network::config::docker_config::config_service::*;
+use network::config::tendermint_config::config_service::*;
 use protocols::pb::requests::{self, PushDecryptionShareRequest};
 use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
@@ -24,9 +24,9 @@ use tonic::{Request, Status, Code};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // test_multiple_local_servers().await
+    test_multiple_local_servers().await
     // test_multiple_local_servers_backlog().await
-    test_docker_servers().await
+    // test_tendermint_servers().await
 }
 
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -243,12 +243,13 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-async fn test_docker_servers() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_tendermint_servers() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
     let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
     let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
     let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
 
+    // ips of tendermint nodes, rpc endpoints of threshold app
     let peers = vec![
         (0, String::from("192.167.10.2"), 50050),
         (1, String::from("192.167.10.3"), 50050),

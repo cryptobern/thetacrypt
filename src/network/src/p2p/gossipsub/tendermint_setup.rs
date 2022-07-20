@@ -26,13 +26,10 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::docker_config::config_service::*;
+use crate::config::tendermint_config::config_service::*;
 use crate::types::message::P2pMessage;
 
-// path when running code in network directory
-// const TENDERMINT_CONFIG_PATH: &str = "src/config/tendermint_net_config/config.toml";
-// path when running code in protocol directory
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/docker_config/config.toml";
+const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_config/config.toml";
 
 pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
     env_logger::init();
@@ -81,7 +78,7 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
 
 pub async fn dial_tendermint_net(
     swarm: &mut Swarm<Gossipsub>,
-    config: crate::config::docker_config::deserialize::Config
+    config: crate::config::tendermint_config::deserialize::Config
 ) {
     // let mut seconds = 1; // to display time while dialing
     // let mut stdout = stdout();
