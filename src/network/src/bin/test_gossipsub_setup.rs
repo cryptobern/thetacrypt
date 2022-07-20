@@ -1,11 +1,15 @@
 use std::env;
 use network::types::message::P2pMessage;
+use network::config::localnet_config;
 use std::time::Duration;
 use tokio::time;
 use std::str::FromStr;
 
+const LOCAL_CONFIG_PATH: &str = "src/config/localnet_config/config.toml";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
     // Read configuration file and key file
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -14,7 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let my_id = u32::from_str(&args[1])?;
     let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> TEST: Reading keys from keychain file: {}", my_keyfile);
-    // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
+    // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile);
+
+    let localnet_config = localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
@@ -58,8 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         network::p2p::gossipsub::localnet_setup::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
-            my_id,)
-            .await;
+            localnet_config,
+            my_id
+        ).await;
     });
     
     // receive incoming messages via the internal channel

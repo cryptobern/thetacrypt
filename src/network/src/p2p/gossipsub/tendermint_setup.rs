@@ -26,17 +26,15 @@ use std::{
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::config::tendermint_config::config_service::*;
+use crate::config::tendermint_config::{config_service::*, deserialize::Config};
 use crate::types::message::P2pMessage;
 
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_config/config.toml";
-
-pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMessage>) {
+pub async fn init(
+    outgoing_msg_receiver: Receiver<P2pMessage>,
+    incoming_msg_sender: Sender<P2pMessage>,
+    tendermint_config: Config
+) {
     env_logger::init();
-
-    // load config file
-    // println!("wd: {:?}", std::env::current_dir());
-    let tendermint_config = load_config(TENDERMINT_CONFIG_PATH.to_string());
 
     let tendermint_node_id = get_tendermint_node_id().await;
     println!(">> NET: Tendermint node id {:?}", tendermint_node_id);
@@ -73,18 +71,15 @@ pub async fn init(chn_out_recv: Receiver<P2pMessage>, chn_in_send: Sender<P2pMes
     dial_tendermint_net(&mut swarm, tendermint_config).await;
     
     // kick off tokio::select event loop to handle events
-    run_event_loop(&mut swarm, topic, chn_out_recv, chn_in_send).await;
+    run_event_loop(&mut swarm, topic, outgoing_msg_receiver, incoming_msg_sender).await;
 }
 
 pub async fn dial_tendermint_net(
     swarm: &mut Swarm<Gossipsub>,
     config: crate::config::tendermint_config::deserialize::Config
 ) {
-    // let mut seconds = 1; // to display time while dialing
-    // let mut stdout = stdout();
-
     let mut index = 0;
-    let ips = get_node_ips().await; // ips of all other nodes in the network
+    let ips = get_node_ips().await; // get ips of all other nodes in the network
     let n = ips.len();
 
     loop {
@@ -111,13 +106,8 @@ pub async fn dial_tendermint_net(
                     SwarmEvent::OutgoingConnectionError {..} => {
                         index = (index + 1) % n; // try next peer address in next iteration
 
-                        // display time while trying a successful connection
-                        // print!("\r>> NET: Dialing ... {}s", seconds);
-                        // stdout.flush().unwrap();                            
-                        // seconds = seconds + 1;
-
-                        println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 1 sec.");
-                        tokio::time::sleep(Duration::from_millis(1000)).await;
+                        println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                        tokio::time::sleep(Duration::from_millis(2000)).await;
                     }
                     _ => {}
                 }
@@ -148,12 +138,14 @@ fn create_tcp_transport(noise_keys: AuthenticKeypair<X25519Spec>) -> Boxed<(Peer
 // Create a Swarm to manage peers and events.
 fn create_gossipsub_swarm(
     topic: &GossibsubTopic, id_keys: Keypair, transport: Boxed<(PeerId, StreamMuxerBox)>, local_peer_id: PeerId) -> Swarm<Gossipsub> {
-    // To content-address message, we can take the hash of message and use it as an ID.
+    
+        // To content-address message, we can take the hash of message and use it as an ID.
     let message_id_fn = |message: &GossipsubMessage| {
         let mut s = DefaultHasher::new();
         message.data.hash(&mut s);
         MessageId::from(s.finish().to_string())
     };
+
     // Set a custom gossipsub
     let gossipsub_config = gossipsub::GossipsubConfigBuilder::default()
         .heartbeat_interval(Duration::from_secs(10)) // This is set to aid debugging by not cluttering the log space
@@ -161,6 +153,7 @@ fn create_gossipsub_swarm(
         .message_id_fn(message_id_fn) // content-address messages. No two messages of the same content will be propagated.
         .build()
         .expect("Valid config");
+
     // build a gossipsub network behaviour
     let mut gossipsub: gossipsub::Gossipsub =
         gossipsub::Gossipsub::new(MessageAuthenticity::Signed(id_keys), gossipsub_config)
@@ -168,16 +161,8 @@ fn create_gossipsub_swarm(
             
     // subscribes to our topic
     gossipsub.subscribe(&topic).unwrap();
-    // add an explicit peer if one was provided
-    if let Some(explicit) = std::env::args().nth(2) {
-        let explicit = explicit.clone();
-        match explicit.parse() {
-            Ok(id) => gossipsub.add_explicit_peer(&id),
-            Err(err) => println!(">>NET: Failed to parse explicit peer id: {:?}", err),
-        }
-    }
+
     // build the swarm
-    // libp2p::Swarm::new(transport, gossipsub, local_peer_id)
     SwarmBuilder::new(transport, gossipsub, local_peer_id)
         // We want the connection backgro&mut und tasks to be spawned onto the tokio runtime.
         .executor(Box::new(|fut| {
@@ -190,12 +175,12 @@ fn create_gossipsub_swarm(
 async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
-    mut chn_out_recv: Receiver<P2pMessage>,
-    chn_send_in: Sender<P2pMessage>) -> ! {
+    mut outgoing_msg_receiver: Receiver<P2pMessage>,
+    incoming_msg_sender: Sender<P2pMessage>) -> ! {
         loop {
             tokio::select! {
                 // reads msg from the channel and publish it to the network
-                msg = chn_out_recv.recv() => {
+                msg = outgoing_msg_receiver.recv() => {
                     if let Some(data) = msg {
                         println!(">> NET: Sending message");
                         swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
@@ -209,7 +194,7 @@ async fn run_event_loop(
                     SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
                         println!(">> NET: Received message");
                         // add incoming message to internal channel
-                        chn_send_in.send(message.data.into()).await.unwrap();
+                        incoming_msg_sender.send(message.data.into()).await.unwrap();
                     }
                     // handles NewListenAddr event
                     SwarmEvent::NewListenAddr { address, .. } => {
@@ -217,7 +202,7 @@ async fn run_event_loop(
                     }
                     
                     // // tells us with which endpoints we are actually connected with
-                    // // warning: produces multiple events
+                    // // not nice to display since multiple events are produced
                     // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
                     //     if endpoint.is_dialer() {
                     //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());

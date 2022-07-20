@@ -5,6 +5,8 @@ use std::str::FromStr;
 use std::{env, result};
 // use std::fs::{File, self};
 
+use network::config::tendermint_config;
+use network::config::localnet_config;
 use network::types::message::P2pMessage;
 use protocols::{rpc_request_handler, keychain::KeyChain};
 use tokio::signal;
@@ -15,8 +17,8 @@ const LOCAL_CONFIG_PATH: &str = "../network/src/config/localnet_config/config.to
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration file and key file
-    let docker_config = network::config::tendermint_config::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
-    let localnet_config = network::config::localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
+    let tendermint_config = tendermint_config::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
+    let localnet_config = localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -24,8 +26,10 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let my_id = u32::from_str(&args[1])?;
-    let my_addr = docker_config.rpc_base_listen_address;
-    let mut my_port = docker_config.rpc_port.into();
+    // let my_addr = tendermint_config.rpc_base_listen_address;
+    let my_addr = tendermint_config::config_service::get_rpc_base_address(&tendermint_config);
+    // let mut my_port = tendermint_config.rpc_port.into();
+    let mut my_port = tendermint_config::config_service::get_rpc_port(&tendermint_config);
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
@@ -38,12 +42,13 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // if "-l" is provided as cli argument we set up a local network
     if args.len() == 3 && args[2] == "-l" {
         println!(">> MAIN: Initiating LOCAL lib_P2P-based network instance.");
-        my_port = network::config::localnet_config::config_service::get_rpc_port(&localnet_config, my_id);
+        my_port = localnet_config::config_service::get_rpc_port(&localnet_config, my_id);
         tokio::spawn(async move {
             network::p2p::gossipsub::localnet_setup::init(
                 protocols_to_net_receiver,
                 net_to_protocols_sender,
-                my_id
+                localnet_config,
+                my_id,
             ).await;
         });
     } else {
@@ -52,6 +57,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
             network::p2p::gossipsub::tendermint_setup::init(
                 protocols_to_net_receiver,
                 net_to_protocols_sender,
+                tendermint_config
             ).await;
         });
     }

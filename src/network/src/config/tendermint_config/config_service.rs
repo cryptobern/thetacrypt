@@ -36,13 +36,6 @@ pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.p2p_port))
 }
 
-// // return rpc listening address as Multiaddr from config file
-// pub fn get_rpc_listen_addr(config: &Config) -> Multiaddr {
-//     format!("{}{}", config.rpc_base_listen_address, config.rpc_port)
-//         .parse()
-//         .expect(&format!(">> NET: Fatal error: Could not open listen port {}.", config.rpc_port))
-// }
-
 // return ips from all other tendermint nodes
 pub async fn get_node_ips() -> Vec<String> {
     // get node ips by local tendermint RPC request
@@ -107,4 +100,16 @@ pub async fn get_tendermint_node_id() -> String {
         Err(err) => println!("Error: {}", err),
     }
     return node_id;
+}
+
+// get rpc base address
+pub fn get_rpc_base_address(config: &Config) -> String {
+    let rpc_base_addr = &config.rpc_base_listen_address;
+    return rpc_base_addr.to_string();
+}
+
+// get rpc base address
+pub fn get_rpc_port(config: &Config) -> u16 {
+    let rpc_port = &config.rpc_port;
+    return *rpc_port;
 }
