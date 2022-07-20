@@ -16,7 +16,7 @@ const LOCAL_CONFIG_PATH: &str = "../network/src/config/localnet_config/config.to
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
-    // Read configuration file and key file
+    // Read configuration files
     let tendermint_config = tendermint_config::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
     let localnet_config = localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
@@ -26,9 +26,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let my_id = u32::from_str(&args[1])?;
-    // let my_addr = tendermint_config.rpc_base_listen_address;
     let my_addr = tendermint_config::config_service::get_rpc_base_address(&tendermint_config);
-    // let mut my_port = tendermint_config.rpc_port.into();
     let mut my_port = tendermint_config::config_service::get_rpc_port(&tendermint_config);
 
     // Create channel for sending P2P messages received at the network module to the protocols
@@ -62,6 +60,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // Read key file
     let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
