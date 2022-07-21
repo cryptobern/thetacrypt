@@ -11,8 +11,8 @@ use network::types::message::P2pMessage;
 use protocols::{rpc_request_handler, keychain::KeyChain};
 use tokio::signal;
 
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_config/config.toml";
-const LOCAL_CONFIG_PATH: &str = "../network/src/config/localnet_config/config.toml";
+const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net/config.toml";
+const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
