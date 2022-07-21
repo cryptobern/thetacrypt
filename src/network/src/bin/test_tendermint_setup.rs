@@ -2,14 +2,14 @@ use network::types::message::P2pMessage;
 use std::time::Duration;
 use tokio::time;
 
-use network::config::tendermint_config;
+use network::config::tendermint_net;
 
 const TENDERMINT_CONFIG_PATH: &str = "/src/config/tendermint_config/config.toml";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let tendermint_config = tendermint_config::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
+    let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut my_vec: Vec<u8> = [0b01001100u8, 0b11001100u8, 0b01101100u8].to_vec();
             my_vec[0] = count; // to keep track of the messages
             my_vec[1] = rand::random(); // to prevent dublicate messages
-            let peer_id = tendermint_config::config_service::get_tendermint_node_id().await;
+            let peer_id = tendermint_net::config_service::get_tendermint_node_id().await;
             // test msg
             let my_msg = P2pMessage { instance_id: peer_id, message_data: my_vec };
             
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub::tendermint_setup::init(
+        network::p2p::gossipsub_setup::tendermint_net::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
             tendermint_config

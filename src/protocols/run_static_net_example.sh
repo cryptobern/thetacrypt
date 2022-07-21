@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run 'chmod +x run_example.sh' to make this script executable
+# run 'chmod +x run_static_net_example.sh' to make this script executable
 
 # opens 4 terminals and starts server for the local network
 gnome-terminal -- cargo run --bin server 1 -l

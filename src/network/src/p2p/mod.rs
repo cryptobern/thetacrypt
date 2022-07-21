@@ -1,2 +1,2 @@
-pub mod floodsub;
-pub mod gossipsub;
+pub mod floodsub_setup;
+pub mod gossipsub_setup;

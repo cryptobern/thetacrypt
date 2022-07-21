@@ -2,7 +2,7 @@ use libp2p::multiaddr::{Multiaddr, Protocol};
 use std::{fs, process::exit};
 use toml;
 
-use crate::config::localnet_config::deserialize::Config;
+use crate::config::static_net::deserialize::Config;
 
 // load config file
 pub fn load_config(path: String) -> Config {

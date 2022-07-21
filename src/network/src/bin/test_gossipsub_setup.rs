@@ -1,6 +1,6 @@
 use std::env;
 use network::types::message::P2pMessage;
-use network::config::localnet_config;
+use network::config::static_net;
 use std::time::Duration;
 use tokio::time;
 use std::str::FromStr;
@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(">> TEST: Reading keys from keychain file: {}", my_keyfile);
     // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile);
 
-    let localnet_config = localnet_config::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
+    let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub::localnet_setup::init(
+        network::p2p::gossipsub_setup::static_net::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
             localnet_config,
