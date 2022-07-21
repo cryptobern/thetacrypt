@@ -63,10 +63,10 @@ async fn dial_local_net(
     my_id: u32
 ) {
     let mut index = 0;
-    let n = config.servers.ids.len();
+    let n = config.ids.len();
 
     loop {
-        let p_id = config.servers.ids[index];
+        let p_id = config.ids[index];
         if p_id == my_id {
             index = (index + 1) % n;
             continue; // don't dial own address

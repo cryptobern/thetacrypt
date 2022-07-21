@@ -29,7 +29,7 @@ pub fn load_config(path: String) -> Config {
 pub fn get_p2p_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
     let p2p_listen_port = get_p2p_port(config, my_peer_id);
 
-    format!("{}{}", config.servers.listen_address, p2p_listen_port)
+    format!("{}{}", config.base_listen_address, p2p_listen_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open P2P listen port {}.", p2p_listen_port))
 }
@@ -38,7 +38,7 @@ pub fn get_p2p_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
 pub fn get_rpc_listen_addr(config: &Config, my_peer_id: u32) -> Multiaddr {
     let rpc_listen_port = get_rpc_port(config, my_peer_id);
 
-    format!("{}{}", config.servers.listen_address, rpc_listen_port)
+    format!("{}{}", config.base_listen_address, rpc_listen_port)
         .parse()
         .expect(&format!(">> NET: Fatal error: Could not open RPC listen port {}.", rpc_listen_port))
 }
@@ -61,9 +61,9 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
 fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 27000; // default port number
 
-    for (k, id) in config.servers.ids.iter().enumerate() {
+    for (k, id) in config.ids.iter().enumerate() {
         if *id == peer_id {
-            return config.servers.p2p_ports[k];
+            return config.p2p_ports[k];
         }
     }
     return listn_port;
@@ -73,9 +73,9 @@ fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
 pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 27000; // default port number
 
-    for (k, id) in config.servers.ids.iter().enumerate() {
+    for (k, id) in config.ids.iter().enumerate() {
         if *id == peer_id {
-            return config.servers.rpc_ports[k];
+            return config.rpc_ports[k];
         }
     }
     return listn_port;
@@ -85,9 +85,9 @@ pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
 fn get_ip(config: &Config, peer_id: u32) -> String {
     let listn_port: String = "127.0.0.1".to_string(); // default ip
 
-    for (k, id) in config.servers.ids.iter().enumerate() {
+    for (k, id) in config.ids.iter().enumerate() {
         if *id == peer_id {
-            return config.servers.ips[k].to_string();
+            return config.ips[k].to_string();
         }
     }
     return listn_port.to_string();
