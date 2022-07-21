@@ -54,7 +54,7 @@ This **Network layer** contains implementations of both libp2p protocols, but th
 
 # About **Tokio** and **async_std**
 
-Both are asynchronous runtimes for Rust that don't seem to differ much from each other. Since **Tokio** has a larger ecosystem than **async_std** this **Network Layer** uses **Tokio** as asynchronous runtime.
+Both are asynchronous runtimes for Rust that don't seem to differ much from each other. Since **Tokio** has a larger ecosystem than **async_std** we decided to use **Tokio** as asynchronous runtime.
 
 Tokio:
 - https://tokio.rs/
