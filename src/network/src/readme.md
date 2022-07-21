@@ -1,22 +1,25 @@
 # Package structure
 
-- **bin**: sandbox - code to test the modules (channel, network_info, p2p) and examples (see "How to use").
+- **bin**: Sandbox - code to test the modules (config, p2p) and examples (see "How to use").
 
-- **config**: contains a `config.toml` with all ids, ips, p2p_ports, rpc_ports and the listener address for a local network. <br/> The `config_service.rs` provides functions to load and read the data from `config.toml`. <br/> The necessary structs to deserialize the contents of `config.toml` is located in `deserialize.rs`.
-
-- **network_info**: this module contains requests to a Tendermint RPC endpoint in `rpc_net_info.rs` and `rpc_status.rs` (https://docs.tendermint.com/v0.35/rpc/) which return the `Result`s of the corresponding request. All structs to deserialize the JSON-RPC responses from Tendermint can be found in `deserialize.rs`. A conversion of the addresses wrapped in the `Result` into a libp2p `Multiaddr` format can be done with the functions provided in `address_converter.rs` (*warning*: room for improvement!).
+- **config**: Contains two sub-modules, one for a *static* network (`config/static_net`) and one for a network that runs with *tendermint* (`config/tendermint_net`). Each submodule contains a `config.toml`, a `config_service.rs` that provides functions to load and read the data from `config.toml` and a `deserialize.rs` containing the necessary structs to deserialize the contents of `config.toml`. <br/> The `config.toml` in `config/static_net` contains all IPs and port numbers from each server. The `config.toml` in `config/tendermint_net` on the other hand only contains the port numbers for the P2P and RPC endpoints. The IPs of the other servers are learned via RPC request `/net_info` at the local Tendermint instance, which is located in `config/tendermint_net/rpc_requests`.
 
 - **p2p**: This module contains two sub-modules, one for each implementation of the libp2p pubsub protocols:
 
-    ```gossipsub```
+    `gossipsub_setup`
     
-    The public function `init(...)` in `setup.rs` is the interface to send and receive messages to and from the network using the `Gossipsub` protocol and the `Tokio` runtime.
+    The sub-module `p2p/gossipsub_setup` contains the two interfaces for the Protocols layer, one for a *static* network (`static_net.rs`) and one for a network that runs with *Tendermint* (`tendermint_net.rs`). The interfaces differ in the way how the IPs and port numbers are retrieved for opening a listening port and for dialing the other servers. Hence, while the interface in `tendermint_net.rs` only requires the receiver of the **out-channel** (`out_msg_recv`) and the sender of the **in-channel** (`in_msg_send`) as input parameter, the interface in `static_net.rs` additionally requires the server's `id`.
 
-    The `init(...)` function requires the receiver of the **out-channel** (`chn_out_recv`), the sender of the **in-channel** (`chn_in_send`) and currently (for a local testnet) `my_peer_id`, which is the parameter provided when starting a server.
-    
-    Using a randomly created `KeyPair` and `PeerId` a tokio-based TCP transport and a swarm are created, the listening port is openend and another peer in the network is dialed. Finally, the `select!`-loop is kicked off, which contains one branch for sending messages to the network (received through the internal **out-channel**) and one branch for handling the `SwarmEvent`s, such as the incoming `GossibsubEvent::Message`. These messages are added to the internal **in-channel** and can be consumed with the corresponding receiver.
+    - `static_net.rs` <br/>
+    With the given server's `id` the local port number can be retrieved from `config.toml` in order to open the P2P listener. Furthermore, using the server's `id` the port numbers of the other servers can be loaded from `config.toml` to establish the P2P network.
 
-    ```floodsub```
+    - `tendermint_net.rs` <br/>
+    In order to dial to the other servers their IPs are requested at the local Tendermint RPC endpoint.
+
+    - `net_utils.rs` <br/>
+    All common functionalities of `static_net.rs` and `tendermint_net.rs` are located here.
+
+    `floodsub_setup`
     
     The public function `init(...)` in `setup.rs` can be used to send and receive messages to and from the network using the `Floodsub` protocol, the `Mdns` protocol (to automatically identify other peers in the *local* network) and the `tokio` runtime. The customized network-behaviour is defined in `floodsub_mdns_behaviour.rs`.
 
@@ -26,41 +29,15 @@
 
 - **lib.rs**: makes all modules accessible from outside and contains a single utility method to get the rust data type.
 
-# How to use / Examples: network/src/bin
-Some files in `network/src/bin` contain test code to simulate the usage of the network interface or examples from libp2p's example collection (https://github.com/libp2p/rust-libp2p/tree/master/examples):
+# network/src/bin: Demo / Test
 
-<!-- Since we are focussing on the libp2p implementation of the **Gossipsub** protocol (https://github.com/libp2p/specs/tree/master/pubsub/gossipsub#implementation-status) and the crate **Tokio**, an asynchronous runtime for Rust (https://tokio.rs/), the most relevant file is `test_gossipsub_setup.rs`: -->
-- The code in `test_gossipsub_setup.rs` shows how the client side of the network creates the required parameters and call the `init(...)` function from the module `p2p/gossipsub/setup.rs` in a separate thread.
-To transmit messages to and from the network layer, two channels have to be created by the client, let's call them **out-channel** and **in-channel**. Messages to be broadcasted to the network are then added to the **out-channel** and incoming messages from the network are received through the **in-channel**.
+- The code in `test_static_setup.rs` demonstrates how a client side of the Network layer creates the required parameters and call the `init(...)` function from the module `p2p/gossipsub_setup/static_net.rs` in a separate thread. <br/> To transmit messages to and from the network layer, two channels are created (**out-channel** and **in-channel**). Test messages to be sent to the network are created and added to the **out_channel** every 10 seconds. Incoming messages from the network are received via the **in-channel**.
+
+- In `test_tendermint_setup.rs` the exact same thing is tested/demonstrated, here using the interface (`init(...)`) in `p2p/gossipsub_setup/tendermint_net.rs`.
 
 <!-- All other files in `network/src/bin` can be used to test other components of the package, such as -->
 - `test_floodsub_setup.rs` can be used to test the implementation of libp2p using the **Floodsub** protocol.
 
-- The RPC-requests to a Tendermint node can be tested with `test_tendermint_req.rs` or `test_tendermint_rpc.rs` (not working yet).<br>
+- The crate `tendermint_rpc` is tested in `test_tendermint_rpc.rs` but not currently used here, since it's not working yet as expected (see Slack).<br>
 
-- The files `broadcast_floodsub.rs` and `broadcast_gossipsub.rs` mostly contain libp2p's example code of `chat-tokio.rs` and `gossipsub-chat.rs` from https://github.com/libp2p/rust-libp2p/tree/master/examples which implement a chat tool (messages typed into the cli of one peer are broadcasted to all other peers in the network). The implementations differ in the underlying protocols and runtimes: While `broadcast_floodsub.rs`/`chat-tokio.rs` use the **Floodsub** protocol to broadcast messages (and the **Mdns** protocol to automatically identify peers in the network) and the asynchronous **Tokio** runtime (https://tokio.rs/tokio/tutorial), `broadcast_gossipsub.rs`/`gossipsub-chat.rs` use the **Gossipsub** protocol for the broadcast and **async-std**, an asynchronous version of the Rust standard library (https://crates.io/crates/async_std). See more about the different protocols below.<br/>
 
-- An implementation of the **Gossipsub** protocol together with the **Tokio** runtime is realized in `broadcast_gossipsub_tokio.rs`.
-
-# About **Floodsub** and **Gossipsub**
-https://docs.libp2p.io/introduction/what-is-libp2p/: Sending messages to other peers is at the heart of most peer-to-peer systems, and pubsub (short for publish / subscribe) is a very useful pattern for sending a message to groups of interested receivers.</br>
-**libp2p** defines a pubsub interface for sending messages to all peers subscribed to a given “topic”. The interface currently has two stable implementations:
-- **Floodsub** uses a very simple but inefficient “network flooding” strategy, and
-- **Gossipsub** defines an extensible gossip protocol.
-
-More:
-- https://docs.libp2p.io/concepts/publish-subscribe/
-- https://github.com/libp2p/specs/tree/master/pubsub
-- https://github.com/libp2p/specs/tree/master/pubsub/gossipsub#implementation-status
-
-# About **Tokio** and **async_std**
-
-Both are asynchronous runtimes for Rust that don't seem to differ much from each other. Since **Tokio** has a larger ecosystem than **async_std** it's reasonable to go with this runtime.
-
-Tokio:
-- https://tokio.rs/
-- https://tokio.rs/tokio/tutorial
-
-async_std:
-- https://crates.io/crates/async_std
-- https://book.async.rs/
