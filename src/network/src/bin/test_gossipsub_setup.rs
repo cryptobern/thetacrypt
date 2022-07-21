@@ -24,10 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
-    let net_to_protocols_sender2 = net_to_protocols_sender.clone(); //test
 
     // Create channel for sending P2P messages from a protocol to the network module
-    let (protocols_to_net_sender, mut protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
 
     // // sends a Vec<u8> into the channel as spawned thread
     tokio::spawn(async move {
