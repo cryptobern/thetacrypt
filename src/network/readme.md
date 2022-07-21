@@ -34,6 +34,17 @@ and ask the local Tendermint RPC endpoint for the IPs of the other Tendermint no
 
 ![Network interface](Tendermint_TCL_Stack.png)
 
+Currently, this setup is realized as follows:
+- The code of the Threshold Crypto Library is placed into the `tendermint/build` directory, which will be mounted to the Docker containers.
+
+- The `Dockerfile` in `tendermint/networks/local/localnode` has been extended in order to make the code of the Threshold Crypto Library executable inside the Docker containers. First, the version of `alpine` was updated (**FROM** `alpine:latest`). And second, the following lines were added to the **RUN** command: <br/>
+`apk add --update alpine-sdk && \`<br/>
+`apk --no-cache add rust cargo && \`<br/>
+`apk --no-cache add libressl-dev && \`<br/>
+`apk --no-cache add protoc`<br/>
+
+- After launching the tendermint testnet (`make localnet-start`), you can log in manually into each Docker container (e.g. `docker exec -it node0 /bin/sh`) and run a server (e.g. `cargo run --bin server 1`). As soon as the servers are connected over the P2P network they are ready to receive client requests.
+
 # About **libp2p**
 We are using the Rust implementation of **libp2p** (https://github.com/libp2p/rust-libp2p), which is a modular peer-to-peer networking framework.
 
