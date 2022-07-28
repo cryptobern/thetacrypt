@@ -59,7 +59,10 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
 
     // Wait until termination signal
     tokio::select! {
-        _ = signal::ctrl_c() => {},
+        _ = signal::ctrl_c() => {
+            println!(">> MAIN: Terminating.");
+            return Ok(());
+        },
     }
     
     Ok(())

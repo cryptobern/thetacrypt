@@ -8,7 +8,8 @@ import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 
 service ThresholdCryptoLibrary {
     rpc decrypt (DecryptRequest) returns (DecryptReponse);
-    // rpc get_available_keys (GetAvailableKeysRequest) returns (GetAvailableKeysResponse);
+    rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
+    // rpc get_public_keys_for_signature (GetPublicKeysForSignatureRequest) returns (GetPublicKeysForSignatureResponse);
     
     //this is an alternative way to send shares. used only for testing
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
@@ -21,18 +22,36 @@ message DecryptRequest {
     optional string key_id = 2;
 }
 
-message GetAvailableKeysRequest {
-    string instance_id = 1;
-}
-
 message DecryptReponse {
     string instance_id = 1;
 }
 
-message GetAvailableKeysResponse {
-    scheme_types.ThresholdScheme scheme = 1;
+
+// ---------- Get available keys ----------
+message PublicKeyEntry {
+    string id = 1;
+    scheme_types.ThresholdScheme scheme = 2;
+    scheme_types.Group group = 3;
+    // bool is_default = 3;
+    bytes key = 4;
 }
 
+message GetPublicKeysForEncryptionRequest {
+}
+
+message GetPublicKeysForEncryptionResponse {
+    repeated PublicKeyEntry keys = 1;
+}
+
+message GetPublicKeysForSignatureRequest {
+}
+
+message GetPublicKeysForSignatureResponse {
+    repeated PublicKeyEntry keys = 1;
+}
+
+
+//---------- Push decryption share, test only ----------
 message PushDecryptionShareRequest {
   string instance_id = 1;
   bytes decryption_share = 2;

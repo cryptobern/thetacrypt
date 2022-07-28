@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use crate::keychain::KeyChain;
-use cosmos_crypto::{keys::{KeyGenerator, PrivateKey}, rand::{RngAlgorithm, RNG}, interface::ThresholdScheme, cosmos_crypto::proto::scheme_types::ThresholdScheme};
+use crate::{keychain::KeyChain, proto::protocol_types::PublicKeyEntry};
+use cosmos_crypto::{keys::{KeyGenerator, PrivateKey}, rand::{RngAlgorithm, RNG}, proto::scheme_types::ThresholdScheme, proto::scheme_types::Group};
 
 #[test]
 fn test_insert_and_get_key(){
@@ -45,14 +45,7 @@ fn test_insert_and_get_key(){
 
 #[test]
 fn test_keychain_serialization(){
-    let mut key_chain = KeyChain::new();
-    let mut keys: HashMap<String, PrivateKey> = HashMap::new();
-    for i in 0..2 {
-        let key_id = format!("sg02_bls12381_{i}");
-        let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
-        keys.insert(key_id.clone(), sk_sg02_bls12381[0].clone());
-        key_chain.insert_key(sk_sg02_bls12381[0].clone(), key_id.clone()).unwrap();
-    }
+    let (key_chain, keys) = fill_key_chain();
     
     let key_chain_str = serde_json::to_string(&key_chain).unwrap();
     let key_chain_unser: KeyChain = serde_json::from_str(&key_chain_str).unwrap();
@@ -64,3 +57,36 @@ fn test_keychain_serialization(){
         assert_eq!(keys[&key_id].serialize().unwrap(), sk_sg02_bls12381_unser.serialize().unwrap());
     }
 }
+
+#[test]
+fn test_get_public_keys(){
+    let (key_chain, keys) = fill_key_chain();
+
+    let public_key_entries = key_chain.get_public_keys_for_encryption().expect("get_public_keys_for_encryption() failed");
+    assert!(public_key_entries.len() == 2);
+
+    for (key_id, private_key) in keys.iter(){
+        let pk_sg02_bls12381: PublicKeyEntry = public_key_entries
+                                                .iter()
+                                                .find(|&e| e.id == *key_id)
+                                                .expect("Key with id {key_id} should be found.")
+                                                .clone();
+        assert!(pk_sg02_bls12381.scheme == ThresholdScheme::Sg02 as i32);
+        assert!(pk_sg02_bls12381.group == Group::Bls12381 as i32);
+        assert!(pk_sg02_bls12381.key == private_key.serialize().expect("Error in serializing public key"));
+    }
+
+}
+
+fn fill_key_chain() -> (KeyChain, HashMap<String, PrivateKey>) {
+    let mut key_chain = KeyChain::new();
+    let mut keys: HashMap<String, PrivateKey> = HashMap::new();
+    for i in 0..2 {
+        let key_id = format!("sg02_bls12381_{i}");
+        let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
+        keys.insert(key_id.clone(), sk_sg02_bls12381[0].clone());
+        key_chain.insert_key(sk_sg02_bls12381[0].clone(), key_id.clone()).unwrap();
+    }
+    (key_chain, keys)
+}
+

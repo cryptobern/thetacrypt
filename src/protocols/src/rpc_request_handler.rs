@@ -1,9 +1,10 @@
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
-use crate::keychain::{KeyChain, KeyEntry};
+use tonic::Code;
+use crate::keychain::{KeyChain, PrivateKeyEntry};
 use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
 use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, Serializable};
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
@@ -100,11 +101,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let status = response_receiver.await.expect("response_receiver.await returned Err");
         if status.started {
              println!(">> REQH: A request with the same id already exists. Instance_id: {:?}", instance_id);
-             return Err(Status::new(tonic::Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
+             return Err(Status::new(Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
         }
         
         // Retrieve private and public key for this instance
-        let private_key_result: Result<KeyEntry, String> = if let Some(key_id) = &req.key_id {
+        let private_key_result: Result<PrivateKeyEntry, String> = if let Some(key_id) = &req.key_id {
             self.key_chain.get_key_by_id(&key_id)
         }
         else {
@@ -113,7 +114,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let private_key_entry = match private_key_result{
             Ok(key_entry) => key_entry,
             Err(err) => {
-                return Err(Status::new(tonic::Code::InvalidArgument, err));
+                return Err(Status::new(Code::InvalidArgument, err));
             }
         };
         println!(">> REQH: Using key with key_id: {:?} for decryption request {:?}", private_key_entry.id, &instance_id);
@@ -140,7 +141,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             instance_id.clone()
         );
 
-        // Start in a new thread, so that the client does not block until the protocol is finished.
+        // Start it in a new thread, so that the client does not block until the protocol is finished.
         let state_command_sender2 = self.state_command_sender.clone();
         let forwarder_command_sender2 = self.forwarder_command_sender.clone();
         let instance_id2 = instance_id.clone();
@@ -148,7 +149,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             let res = prot.run().await;
             println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id2);
             
-            // Update status of terminated instance
+            // Upon termination, update status of terminated instance
             let result_data = match res {
                 Ok(res) => Some(res),
                 Err(err) => None
@@ -161,12 +162,23 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id2.clone(), new_status};
             state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender has been closed.");
             
-            // Inform MessageForwarder that the instance was terminated
+            // and inform MessageForwarder that the instance was terminated.
             let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id: instance_id2.clone() };
             forwarder_command_sender2.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.");
         });
 
         Ok(Response::new(DecryptReponse { instance_id: instance_id.clone() }))
+    }
+
+    async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
+        println!(">> REQH: Received a get_public_keys_for_encryption request.");
+        match self.key_chain.get_public_keys_for_encryption(){
+            Ok(keys) => {
+                // println!(">> REQH: Responding with {:?}.", keys[0].key);
+                Ok(Response::new(GetPublicKeysForEncryptionResponse { keys }))
+            },
+            Err(err) => Err(Status::new(Code::Internal, err)),
+        }
     }
 
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {

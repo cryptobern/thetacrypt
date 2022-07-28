@@ -26,9 +26,6 @@ fn main(){
 }
 
 fn generate_keys(k: usize, n: usize) -> Result<(), Box<dyn std::error::Error>>{
-    // let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
-    // // todo: Change the following to use DlKeyGenerator::generate_keys(), which returns value of type enum DlPrivateKey<D>
-    // let sk_sg02_bls12381 = Sg02ThresholdCipher::generate_keys(k, n, Bls12381::new(), &mut rng);
     let sk_sg02_bls12381 = KeyGenerator::generate_keys(k,
                                                                         n, 
                                                                         &mut RNG::new(RngAlgorithm::MarsagliaZaman),

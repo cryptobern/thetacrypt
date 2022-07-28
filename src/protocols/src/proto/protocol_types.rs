@@ -8,20 +8,40 @@ pub struct DecryptRequest {
     pub key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetAvailableKeysRequest {
-    #[prost(string, tag="1")]
-    pub instance_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptReponse {
     #[prost(string, tag="1")]
     pub instance_id: ::prost::alloc::string::String,
 }
+/// ---------- Get available keys ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetAvailableKeysResponse {
-    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::ThresholdScheme", tag="1")]
+pub struct PublicKeyEntry {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::ThresholdScheme", tag="2")]
     pub scheme: i32,
+    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::Group", tag="3")]
+    pub group: i32,
+    /// bool is_default = 3;
+    #[prost(bytes="vec", tag="4")]
+    pub key: ::prost::alloc::vec::Vec<u8>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForEncryptionRequest {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForEncryptionResponse {
+    #[prost(message, repeated, tag="1")]
+    pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForSignatureRequest {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForSignatureResponse {
+    #[prost(message, repeated, tag="1")]
+    pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
+}
+///---------- Push decryption share, test only ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareRequest {
     #[prost(string, tag="1")]
@@ -117,6 +137,28 @@ pub mod threshold_crypto_library_client {
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
+        pub async fn get_public_keys_for_encryption(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetPublicKeysForEncryptionRequest>,
+        ) -> Result<
+            tonic::Response<super::GetPublicKeysForEncryptionResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/protocol_types.ThresholdCryptoLibrary/get_public_keys_for_encryption",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
         ///this is an alternative way to send shares. used only for testing
         pub async fn push_decryption_share(
             &mut self,
@@ -150,6 +192,13 @@ pub mod threshold_crypto_library_server {
             &self,
             request: tonic::Request<super::DecryptRequest>,
         ) -> Result<tonic::Response<super::DecryptReponse>, tonic::Status>;
+        async fn get_public_keys_for_encryption(
+            &self,
+            request: tonic::Request<super::GetPublicKeysForEncryptionRequest>,
+        ) -> Result<
+            tonic::Response<super::GetPublicKeysForEncryptionResponse>,
+            tonic::Status,
+        >;
         ///this is an alternative way to send shares. used only for testing
         async fn push_decryption_share(
             &self,
@@ -231,6 +280,51 @@ pub mod threshold_crypto_library_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = decryptSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/protocol_types.ThresholdCryptoLibrary/get_public_keys_for_encryption" => {
+                    #[allow(non_camel_case_types)]
+                    struct get_public_keys_for_encryptionSvc<T: ThresholdCryptoLibrary>(
+                        pub Arc<T>,
+                    );
+                    impl<
+                        T: ThresholdCryptoLibrary,
+                    > tonic::server::UnaryService<
+                        super::GetPublicKeysForEncryptionRequest,
+                    > for get_public_keys_for_encryptionSvc<T> {
+                        type Response = super::GetPublicKeysForEncryptionResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::GetPublicKeysForEncryptionRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = self.0.clone();
+                            let fut = async move {
+                                (*inner).get_public_keys_for_encryption(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = get_public_keys_for_encryptionSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

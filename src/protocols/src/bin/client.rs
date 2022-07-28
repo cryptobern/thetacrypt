@@ -2,11 +2,13 @@
 //     tonic::include_proto!("requests");
 // }
 
-use std::{fs, io};
+use std::collections::{HashMap, HashSet};
+use std::{fs, io, vec};
 use std::{thread, time};
 use cosmos_crypto::keys::{PublicKey, PrivateKey};
 use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
-use protocols::proto::protocol_types::{self, PushDecryptionShareRequest};
+use mcore::hash256::HASH256;
+use protocols::proto::protocol_types::{self, PushDecryptionShareRequest, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 // use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
 use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare};
@@ -16,12 +18,14 @@ use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use serde::Serialize;
+use tonic::codegen::http::response;
 use tonic::{Request, Status, Code};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    simple_demo().await?;
+    abci_app_emulation().await?;
     Ok(())
 }
 
@@ -168,7 +172,7 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
 
@@ -197,7 +201,7 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
     
@@ -219,7 +223,7 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
 
 async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
-    let pk = key_chain_1.get_public_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?;
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
     let (request, ciphertext) = create_decryption_request(1, &pk);
     
     let mut connections = connect_all().await;
@@ -237,6 +241,93 @@ async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect to all nodes. In a real ABCI app only connecting to the local node would be required.
+    let mut connections = connect_all().await;
+
+    let quorum = 3; // todo: This number should also come from an Rpc request
+    let mut advertised_public_keys: HashMap<[u8; 32], protocol_types::PublicKeyEntry> = HashMap::new();
+    let mut advertised_public_keys_count: HashMap<[u8; 32], u32> = HashMap::new();
+    
+    // Ask all the nodes for their available public keys. We say each node "advertises" some public keys.
+    let req = GetPublicKeysForEncryptionRequest{};
+    let mut responses = Vec::new();
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending a get-keys request to node {i}.");
+        match conn.get_public_keys_for_encryption(req.clone()).await{
+            Ok(response) => {
+                let response_keys = response.into_inner().keys;
+                println!(">> Node {i} responed with {:?} public keys.", response_keys.len());
+                responses.push(response_keys);
+            },
+            Err(err) => {
+                println!(">> Node {i} responed with an error: {err}");
+            },
+        }
+        // todo: timeout if node too long to respond
+        i += 1;
+    }
+    
+    
+
+    // Check whether sufficiently many nodes have advertised the same key.
+    // For this, identify each advertised key entry by its unique hash and count how many have been received
+    // In this sample code we just keep the first such key.
+    for response_by_node in responses.iter(){
+        let mut advertised_public_keys_by_node: HashSet::<[u8; 32]> = HashSet::new(); // make sure we count each advertised key once
+        for key_entry in response_by_node.iter(){
+            let h = get_public_key_entry_digest(key_entry);
+            advertised_public_keys_by_node.insert(h);
+            advertised_public_keys.insert(h, key_entry.clone());
+        }
+        for &h in advertised_public_keys_by_node.iter(){
+            if ! advertised_public_keys_count.contains_key(&h) {
+                advertised_public_keys_count.insert(h, 0);
+            }
+            *advertised_public_keys_count.get_mut(&h).unwrap() += 1
+        }
+    }
+
+    let mut advertised_key_option: Option<PublicKeyEntry> = None;
+    for (h, count) in advertised_public_keys_count.iter() {
+        if *count >= quorum {
+            advertised_key_option = Some(advertised_public_keys.get(h).unwrap().clone());
+            break;
+        }
+    }
+    let advertised_key_entry: PublicKeyEntry = match advertised_key_option{
+        Some(advertised_key_entry) => advertised_key_entry,
+        None => return Ok(()), // If no public key was advertised by sufficiently many nodes, it is not safe to encrypt.
+    };
+    
+    // Use the public key to encrypt
+    println!(">> Using public key with id {:?} to encrypt.", advertised_key_entry.id);
+    let public_key = PublicKey::deserialize(&advertised_key_entry.key);
+    // todo: Do the following over an Rpc endpoint
+    let (request, _) = create_decryption_request(1, (&public_key));
+
+    // Submit the decryption request to the nodes.
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request to server {i}.");
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        i += 1;
+    }
+
+    Ok(())
+}
+
+fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
+    let mut digest = HASH256::new();
+    digest.process_array(&key_entry.id.as_bytes());
+    digest.process_array(&key_entry.key);
+    let h = digest.hash();
+    h
+}
+
+
 
 async fn connect_all() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
