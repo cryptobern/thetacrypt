@@ -69,7 +69,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read key file
     let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
-    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
+    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
 
     // Start Rpc Request handler in a new thread
     println!(">> MAIN: Starting the RPC request handler.");
