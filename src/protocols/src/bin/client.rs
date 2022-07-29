@@ -27,7 +27,7 @@ use tonic::{Request, Status, Code};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_tendermint_servers().await
+    test_multiple_local_servers().await?;
     // abci_app_emulation().await?;
     Ok(())
 }
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // To run it, start *one* server instance with peer id 1. Ignore the messages of the server about trying to connect to the P2P network.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = connect_one().await;
+    let mut client = connect_to_one_local().await;
 
     // Read keys from file
     println!("Reading keys from keychain.");
@@ -172,14 +172,14 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
 // test_multiple_local_servers() tests basic communication for nodes that run locally on the main host.
 // It is meant to test the basic network logic RpcRequestHandler, MessageForwarder, etc.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054. They should be able to connecto to each other.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+// #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
     let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
 
-    let mut connections = connect_all().await;
+    let mut connections = connect_to_all_local().await;
 
     let mut i = 1;
     for conn in connections.iter_mut(){
@@ -208,7 +208,7 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
     let (request, ciphertext) = create_decryption_request(1, &pk);
     let (request2, ciphertext2) = create_decryption_request(2, &pk);
     
-    let mut connections = connect_all().await;
+    let mut connections = connect_to_all_local().await;
 
     let mut i = 1;
     for conn in connections.iter_mut(){
@@ -224,21 +224,19 @@ async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+// test_tendermint_servers() tests basic library functionality, such as the `decrypt` endpoint,
+// for nodes that run on docker containers.
+// To run it, start *four* threshold-library server instances with peer ids 1--4, 
+// istening on ips 192.167.10.2--4 and port 50050. 
 async fn test_tendermint_servers() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
-    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
-    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    let key_chain: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let pk = key_chain.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
+    let (request, ciphertext) = create_decryption_request(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request(2, &pk);
 
-    // ips of tendermint nodes, rpc endpoints of threshold app
-    let peers = vec![
-        (0, String::from("192.167.10.2"), 50050),
-        (1, String::from("192.167.10.3"), 50050),
-        (2, String::from("192.167.10.4"), 50050),
-        (3, String::from("192.167.10.5"), 50050)
-    ];
-    
-    let mut connections = Vec::new();
+    let mut connections = connect_to_all_dockerized().await;            
+
+    let mut i = 1;
     for conn in connections.iter_mut(){
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
@@ -272,23 +270,40 @@ async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
     let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
     let (request, ciphertext) = create_decryption_request(1, &pk);
+    
+    let mut connections = connect_to_all_local().await;
 
     let mut input = String::new();
     
     let mut i = 1;
+    for conn in connections.iter_mut(){
         io::stdin().read_line(&mut input)?; 
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.unwrap();
+        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
         // println!("RESPONSE={:?}", response);
+        i += 1;
     }
+    Ok(())
+}
 
-    let mut connections = connect_all().await;
+async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect to all nodes. In a real ABCI app only connecting to the local node would be required.
+    let mut connections = connect_to_all_local().await;
+
+    let quorum = 3; // todo: This number should also come from an Rpc request
     let mut advertised_public_keys: HashMap<[u8; 32], protocol_types::PublicKeyEntry> = HashMap::new();
+    let mut advertised_public_keys_count: HashMap<[u8; 32], u32> = HashMap::new();
+    
     // Ask all the nodes for their available public keys. We say each node "advertises" some public keys.
+    let req = GetPublicKeysForEncryptionRequest{};
+    let mut responses = Vec::new();
     let mut i = 1;
     for conn in connections.iter_mut(){
+        println!(">> Sending a get-keys request to node {i}.");
         match conn.get_public_keys_for_encryption(req.clone()).await{
             Ok(response) => {
+                let response_keys = response.into_inner().keys;
                 println!(">> Node {i} responed with {:?} public keys.", response_keys.len());
                 responses.push(response_keys);
             },
@@ -300,8 +315,6 @@ async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
     
-    
-
     // Check whether sufficiently many nodes have advertised the same key.
     // For this, identify each advertised key entry by its unique hash and count how many have been received
     // In this sample code we just keep the first such key.
@@ -349,6 +362,7 @@ async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
 fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
     let mut digest = HASH256::new();
     digest.process_array(&key_entry.id.as_bytes());
@@ -357,9 +371,7 @@ fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
     h
 }
 
-
-
-async fn connect_all() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
+async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
         (0, String::from("::1"), 50051),
         (1, String::from("::1"), 50052),
@@ -376,10 +388,26 @@ async fn connect_all() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Cha
     connections
 }
 
-async fn connect_one() -> ThresholdCryptoLibraryClient<tonic::transport::Channel> {
-    ThresholdCryptoLibraryClient::connect("http://[::1]:50051").await.unwrap()
+async fn connect_to_all_dockerized() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
+    // ips of tendermint nodes, rpc endpoints of threshold app
+    let peers = vec![
+        (0, String::from("192.167.10.2"), 50050),
+        (1, String::from("192.167.10.3"), 50050),
+        (2, String::from("192.167.10.4"), 50050),
+        (3, String::from("192.167.10.5"), 50050)
+    ];
+    let mut connections = Vec::new();
+    for peer in peers.iter() {
+        let (id, ip, port) = peer.clone();
+        let addr = format!("http://[{ip}]:{port}");
+        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
+    }
+    connections
 }
 
+async fn connect_to_one_local() -> ThresholdCryptoLibraryClient<tonic::transport::Channel> {
+    ThresholdCryptoLibraryClient::connect("http://[::1]:50051").await.unwrap()
+}
 
 fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Ciphertext) {
     let mut params = ThresholdCipherParams::new();
