@@ -1,8 +1,10 @@
+use std::mem::ManuallyDrop;
+
+use crate::proto::scheme_types::Group;
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
-use rasn::AsnType;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
 use crate::interface::Serializable;
 use crate::rand::RNG;
@@ -53,6 +55,72 @@ impl PartialEq for BigImpl{
 }
 
 impl BigImpl {
+    pub fn new(group: &Group) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new()
+            },
+            Group::Bn254 => {
+                Bn254BIG::new()
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new()
+            },
+            _ => {
+                todo!()
+            }
+        }
+    }
+
+    pub fn new_rand(group: &Group, q: &BigImpl, rng: &mut RNG) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new_rand(q, rng)
+            },
+            Group::Bn254 => {
+                Bn254BIG::new_rand(q, rng)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new_rand(q, rng)
+            },
+            _ => todo!()
+        }
+    }
+
+    pub fn new_int(group: &Group, i: isize) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new_int(i)
+            },
+            Group::Bn254 => {
+                Bn254BIG::new_int(i)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new_int(i)
+            },
+            _ => todo!()
+        }
+    }
+
+    pub fn new_copy(x: &BigImpl) -> BigImpl {
+        x.clone()
+    }
+
+    pub fn from_bytes(group: &Group, bytes: &[u8]) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::from_bytes(bytes)
+            },
+            Group::Bn254 => {
+                Bn254BIG::from_bytes(bytes)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::from_bytes(bytes)
+            },
+            _ => todo!()
+        }
+    }
+
     pub fn rmul(x: &BigImpl, y: &BigImpl, q: &BigImpl) -> BigImpl {
         let mut z = x.clone();
         z.mul_mod(&y, &q);
@@ -144,6 +212,14 @@ impl BigImpl {
             BigImpl::Bls12381(x) => x.equals(y),
             BigImpl::Bn254(x) => x.equals(y),
             BigImpl::Ed25519(x) => x.equals(y),
+       }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            BigImpl::Bls12381(x) => Group::Bls12381,
+            BigImpl::Bn254(x) => Group::Bn254,
+            BigImpl::Ed25519(x) => Group::Ed25519,
        }
     }
 }

@@ -13,6 +13,8 @@ use tokio::signal;
 
 const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net/config.toml";
 const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
+// todo: Read from conf file
+const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
@@ -28,6 +30,10 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let my_id = u32::from_str(&args[1])?;
     let my_addr = tendermint_net::config_service::get_rpc_base_address(&tendermint_config);
     let mut my_port = tendermint_net::config_service::get_rpc_port(&tendermint_config);
+    let my_keyfile = format!("conf/keys_{my_id}.json");
+    
+    println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
+    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
 
     // Create channel for sending P2P messages received at the network module to the protocols
     let (net_to_protocols_sender, net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
@@ -65,6 +71,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile); 
 
+    // Start Rpc Request handler in a new thread
     println!(">> MAIN: Starting the RPC request handler.");
     tokio::spawn(async move {
         rpc_request_handler::init(
@@ -77,23 +84,12 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
         ).await;
     });
 
-    //  let rt = tokio::runtime::Builder::new_multi_thread()
-    //     .enable_all()
-    //     .build()
-    //     .unwrap()
-    //     .block_on(async {
-    //         rpc_request_handler::init(
-    //             my_addr,
-    //             my_port,
-    //             key_chain,
-    //             net_to_protocols_receiver,
-    //             protocols_to_net_sender,
-    //             net_to_protocols_sender2,
-    //         ).await;
-    // });
-
+    // Wait until termination signal
     tokio::select! {
-        _ = signal::ctrl_c() => {},
+        _ = signal::ctrl_c() => {
+            println!(">> MAIN: Terminating.");
+            return Ok(());
+        },
     }
     
     Ok(())

@@ -16,6 +16,11 @@ rasn = "=0.3.1"
 gmp-mpfr-sys = "1.4"
 derive = { path="derive", version = "0.1.0" }
 log = {version="0.4.16"}
+serde = { version = "1.0", features = ["derive"] }
+prost = "0.10"
+
+[build-dependencies]
+tonic-build = "0.7"
 
 [features]
 std = []

@@ -1,19 +1,15 @@
-use crate::interface::Share;
+// use super::proto::scheme_types::Group;
 
-use self::dl_groups::{dl_group::DlGroup, pairing::PairingEngine};
+use self::dl_groups::{dl_group::{DlGroup}, pairing::PairingEngine};
 
 pub mod dl_groups;
-pub mod keygen;
 pub mod common;
 pub mod ciphers;
-pub mod signatures;
-pub mod coins;
+//pub mod signatures;
+//pub mod coins;
 pub mod bigint;
 
-pub trait DlDomain: PairingEngine {
-    fn is_pairing_friendly() -> bool;
-}
+pub mod pkcs8;
 
-pub trait DlShare<G: DlGroup>: Share {
-    fn get_data(&self) -> G;
-}
+mod keygen_tests;
+

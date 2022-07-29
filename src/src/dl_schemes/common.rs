@@ -1,25 +1,28 @@
+
+use crate::proto::scheme_types::Group;
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG};
+use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG, interface::{DecryptionShare, DlShare}};
 use crate::dl_schemes::bigint::*;
 
-use super::{DlShare};
+use super::dl_groups::pairing::PairingEngine;
 
-pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<G>) {
+pub fn shamir_share(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<GroupElement>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
-    let q = G::get_order();
+    let group = x.get_group();
+    let q = group.get_order();
 
     for _ in 0..k-1 {
-        coeff.push(G::BigInt::new_rand(&q, rng));
+        coeff.push(BigImpl::new_rand(&group, &q, rng));
     }
 
-    coeff.push(G::BigInt::new_copy(x));
+    coeff.push(BigImpl::new_copy(x));
     let mut shares: Vec<BigImpl> = Vec::new();
-    let mut h: Vec<G> = Vec::new();
+    let mut h: Vec<GroupElement> = Vec::new();
 
     for j in 1..n+1 {
-        let xi = eval_pol::<G>(&G::BigInt::new_int(j as isize), &mut coeff);
-        let mut hi = G::new();
+        let xi = eval_pol(&BigImpl::new_int(&group, j as isize), &mut coeff);
+        let mut hi = GroupElement::new(&group);
         hi.pow(&xi);
         h.push(hi);
         
@@ -29,17 +32,18 @@ pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) 
     (shares, h)
 }
 
-pub fn eval_pol<G: DlGroup>(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
+pub fn eval_pol(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
     let len = (a.len()) as isize;
-    let mut val = G::BigInt::new_int(0);
-    let q = G::get_order();
+    let group = x.get_group();
+    let mut val = BigImpl::new_int(&group, 0);
+    let q = group.get_order();
     
     for i in 0..len - 1 {
-        let mut tmp = G::BigInt::new_copy(&a[i as usize].clone());
+        let mut tmp = BigImpl::new_copy(&a[i as usize].clone());
         let mut xi = x.clone();
 
-        xi.pow_mod(&G::BigInt::new_int(len - i - 1), &q);
-        tmp.mul_mod(&xi, &G::get_order());
+        xi.pow_mod(&BigImpl::new_int(&group, len - i - 1), &q);
+        tmp.mul_mod(&xi, &group.get_order());
         val.add(&tmp);
     }
 
@@ -48,7 +52,6 @@ pub fn eval_pol<G: DlGroup>(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
 
     val
 }
-
 
 pub fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
     let v3: Vec<u8> = v1
@@ -76,12 +79,12 @@ pub fn gen_symm_key(rng: &mut RNG) -> [u8; 32] {
     *k
 }
 
-pub fn interpolate<G: DlGroup, S: DlShare<G>>(shares: &Vec<S>) -> G { 
+pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement { 
     let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id() as u8).collect();
-    let mut rY = G::new();
+    let mut rY = GroupElement::new(&shares[0].get_group());
 
     for i in 0..shares.len() {
-        let l = lagrange_coeff::<G>(&ids, shares[i].get_id() as isize);
+        let l = lagrange_coeff(&shares[0].get_group(), &ids, shares[i].get_id() as isize);
         let mut ui = shares[i].get_data().clone();
         ui.pow(&l);
 
@@ -95,9 +98,9 @@ pub fn interpolate<G: DlGroup, S: DlShare<G>>(shares: &Vec<S>) -> G {
     rY
 }
 
-pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> BigImpl {
-    let mut prod = G::BigInt::new_int(1);
-    let q = G::get_order();
+pub fn lagrange_coeff(group: &Group, indices: &[u8], i: isize) -> BigImpl {
+    let mut prod = BigImpl::new_int(group, 1);
+    let q = group.get_order();
     
     for k in 0..indices.len() {
         let j:isize = indices[k].into();
@@ -107,10 +110,10 @@ pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> BigImpl {
             let val = (j - i).abs();
 
             if i > j {
-                ij = G::get_order();
-                ij.sub(&G::BigInt::new_int(val));
+                ij = q.clone();
+                ij.sub(&BigImpl::new_int(group, val));
             } else {
-                ij = G::BigInt::new_int(val);
+                ij = BigImpl::new_int(group, val);
             }
             ij.inv_mod(&q);
             ij.imul(j as isize);
@@ -122,4 +125,10 @@ pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> BigImpl {
     
     prod.rmod(&q);
     prod
+}
+
+pub trait DlDomain: PairingEngine {
+    fn is_pairing_friendly() -> bool;
+    fn name() -> &'static str;
+    fn get_type() -> Group;
 }

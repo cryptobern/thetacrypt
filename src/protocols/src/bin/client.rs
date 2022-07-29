@@ -2,126 +2,132 @@
 //     tonic::include_proto!("requests");
 // }
 
-use std::{fs, io};
+use std::collections::{HashMap, HashSet};
+use std::{fs, io, vec};
 use std::{thread, time};
+
 // use network::config::localnet_config::config_service::get_rpc_listen_addr;
 use network::config::tendermint_net::config_service::*;
-use protocols::pb::requests::{self, PushDecryptionShareRequest};
-use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
+use cosmos_crypto::keys::{PublicKey, PrivateKey};
+use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
+use mcore::hash256::HASH256;
+use protocols::proto::protocol_types::{self, PushDecryptionShareRequest, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
-use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
-use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
-use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, PrivateKey, Serializable};
-use cosmos_crypto::rand::{RngAlgorithm, RNG};
+use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare};
 use protocols::keychain::KeyChain;
-use protocols::pb::requests::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::pb::requests::{ThresholdDecryptionRequest, ThresholdDecryptionResponse};
+use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use serde::Serialize;
+use tonic::codegen::http::response;
 use tonic::{Request, Status, Code};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // test_multiple_local_servers().await
-    // test_multiple_local_servers_backlog().await
     test_tendermint_servers().await
+    // abci_app_emulation().await?;
+    Ok(())
 }
 
+// test_single_server() tests basic protocol behaviour. It does not test network communication, as it emulates
+// the rest of the servers by computing decryption shares and sending them to the single server.
+// To run it, start *one* server instance with peer id 1. Ignore the messages of the server about trying to connect to the P2P network.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = ThresholdCryptoLibraryClient::connect("http://[::1]:50050").await?;
+    let mut client = connect_one().await;
 
     // Read keys from file
     println!("Reading keys from keychain.");
-    let key_chain_0: KeyChain = KeyChain::from_file("conf/keys_0.json"); 
-    let key_entry = &key_chain_0.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
-    let sk_sg02_bls12381 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry).unwrap();
-    println!("Reading keys done.");
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let sk_sg02_bls12381_1 = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
     
-    // sk of rep 1 to create share. Only for test
-    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json");
-    let key_entry_1 = &key_chain_1.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
-    let sk_sg02_bls12381_1 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_1).unwrap();
-
     // sk of rep 2 to create share. Only for test
-    let key_chain_2: KeyChain = KeyChain::from_file("conf/keys_2.json");
-    let key_entry_2 = &key_chain_2.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
-    let sk_sg02_bls12381_2 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_2).unwrap();
+    let key_chain_2: KeyChain = KeyChain::from_file("conf/keys_2.json")?;
+    let sk_sg02_bls12381_2 = key_chain_2.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
 
     // sk of rep 3 to create share. Only for test
-    let key_chain_3: KeyChain = KeyChain::from_file("conf/keys_3.json");
-    let key_entry_3 = &key_chain_3.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381,None).unwrap();
-    let sk_sg02_bls12381_3 =  Sg02PrivateKey::<Bls12381>::deserialize(key_entry_3).unwrap();
+    let key_chain_3: KeyChain = KeyChain::from_file("conf/keys_3.json")?;
+    let sk_sg02_bls12381_3 = key_chain_3.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
 
-    let k = sk_sg02_bls12381.get_threshold();
-    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &sk_sg02_bls12381.get_public_key());
-    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &sk_sg02_bls12381.get_public_key());
-    
+    // sk of rep 4 to create share. Only for test
+    let key_chain_4: KeyChain = KeyChain::from_file("conf/keys_4.json")?;
+    let sk_sg02_bls12381_4 = key_chain_4.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key;
+
+    let pk_sg02_bls12381 = sk_sg02_bls12381_1.get_public_key();
+    let k = sk_sg02_bls12381_1.get_threshold();
+    println!("Reading keys done.");
+
+    let (request, ciphertext) = create_decryption_request(1, &pk_sg02_bls12381);
+    let (request2, ciphertext2) = create_decryption_request(2, &pk_sg02_bls12381);
 
     // Decryption request 1 
     println!(">> Sending decryption request 1.");
-    let response = client.decrypt(request.clone()).await.unwrap();
+    let response = client.decrypt(request.clone()).await?;
     println!("RESPONSE={:?}", response);
     let decrypt_response = response.get_ref();
+    
 
     // RESEND Decryption request 1 
     println!(">> Sending AGAIN decryption request 1.");
-    let response = client.decrypt(request).await;
+    let response = client.decrypt(request).await.expect_err("This should return an error.");
     println!("RESPONSE={:?}", response);
+    assert!(response.code() == Code::AlreadyExists);
     
     // Decryption request 1, share id: 2
     println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response.instance_id.clone());
-    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_1.clone(), decrypt_response.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
+    let share_2 = get_push_share_request(k, &ciphertext, sk_sg02_bls12381_2.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
     println!("RESPONSE={:?}", put_share_response);
     
 
     // Decryption request 2
     println!(">> Sending decryption request 2.");
-    let response2 = client.decrypt(request2).await.unwrap();
+    let response2 = client.decrypt(request2).await?;
     println!("RESPONSE={:?}", response2);
     let decrypt_response2 = response2.get_ref();
 
     // Decryption request 2, share id: 2
     println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response2.instance_id.clone());
-    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_1.clone(), decrypt_response2.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
-    println!("RESPONSE={:?}", put_share_response);
+    let share_2 = get_push_share_request(k, &ciphertext2, sk_sg02_bls12381_2.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response2 = client.push_decryption_share(Request::new(share_2)).await?;
+    println!("RESPONSE={:?}", put_share_response2);
     
 
     // Decryption request 1, Test what happens with DUPLICATE shares, share id 2
     println!(">> Sending DUPLICATE decryption share. instance id: {:?}, share id: 2", decrypt_response.instance_id.clone());
-    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_1.clone(), decrypt_response.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
+    let share_2 = get_push_share_request(k, &ciphertext, sk_sg02_bls12381_2.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
     println!("RESPONSE={:?}", put_share_response);
     
     // Decryption request 1, share id 3
     println!(">> Sending decryption share. instance id: {:?}, share id: 3", decrypt_response.instance_id.clone());
-    let share_2 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_2.clone(), decrypt_response.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
+    let share_3 = get_push_share_request(k, &ciphertext, sk_sg02_bls12381_3.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
     println!("RESPONSE={:?}", put_share_response);
 
     // Decryption request 1, Test what happens with REDUNDANT shares, share id 4
     println!(">> Sending REDUNDANT decryption share. instance id: {:?}, share id: 4", decrypt_response.instance_id.clone());
-    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_3.clone(), decrypt_response.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    let share_4 = get_push_share_request(k, &ciphertext, sk_sg02_bls12381_4.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_4)).await?;
     println!("RESPONSE={:?}", put_share_response);
     
     // Delay
     thread::sleep(time::Duration::from_millis(1000));
 
-    // Decryption request 1, Test what happens with REDUNDANT shares, share id 4
+    // Decryption request 1, Test AGAIN what happens with REDUNDANT shares, share id 4
     println!(">> Sending REDUNDANT decryption share. instance id: {:?}, share id: 4", decrypt_response.instance_id.clone());
-    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext, sk_sg02_bls12381_3.clone(), decrypt_response.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    let share_4 = get_push_share_request(k, &ciphertext, sk_sg02_bls12381_4.clone(), decrypt_response.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_4)).await?;
     println!("RESPONSE={:?}", put_share_response);
 
 
     // Decryption request 2, share id 3
     println!(">> Sending decryption share. instance id: {:?}, share id: 3", decrypt_response2.instance_id.clone());
-    let share_2 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_2.clone(), decrypt_response2.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_2)).await?;
+    let share_3 = get_push_share_request(k, &ciphertext2, sk_sg02_bls12381_3.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
     println!("RESPONSE={:?}", put_share_response);
  
     // Delay
@@ -129,8 +135,8 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
 
     // Decryption request 2, Test what happens with REDUNDANT shares, share id 4
     println!(">> Sending decryption share. instance id: {:?}, share id: 4", decrypt_response2.instance_id.clone());
-    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_3.clone(), decrypt_response2.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    let share_4 = get_push_share_request(k, &ciphertext2, sk_sg02_bls12381_4.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_4)).await?;
     println!("RESPONSE={:?}", put_share_response);
  
     // Delay
@@ -138,48 +144,42 @@ async fn test_single_server() -> Result<(), Box<dyn std::error::Error>> {
     
     // Decryption request 2, Test what happens with REDUNDANT shares, share id 4
     println!(">> Sending decryption share. instance id: {:?}, share id: 4", decrypt_response2.instance_id.clone());
-    let share_3 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext2, sk_sg02_bls12381_3.clone(), decrypt_response2.instance_id.clone());
-    let put_share_response = client.push_decryption_share(Request::new(share_3)).await?;
+    let share_4 = get_push_share_request(k, &ciphertext2, sk_sg02_bls12381_4.clone(), decrypt_response2.instance_id.clone());
+    let put_share_response = client.push_decryption_share(Request::new(share_4)).await?;
     println!("RESPONSE={:?}", put_share_response);
 
     // Delay
-    thread::sleep(time::Duration::from_millis(1000));
+    // thread::sleep(time::Duration::from_millis(1000));
 
     // INVALID Decryption request 3
-    let (request3, ciphertext3) = create_tampered_sg02_decryption_request(3, &sk_sg02_bls12381.get_public_key());
     println!(">> Sending INVALID decryption request 3.");
+    let PublicKey::Sg02(pk_sg02_bls12381_inner) = pk_sg02_bls12381;
+    let (request3, ciphertext3) = create_tampered_sg02_decryption_request(3, &pk_sg02_bls12381_inner);
     let response3 = client.decrypt(request3).await.unwrap();
     println!("RESPONSE={:?}", response);
     let decrypt_response3 = response3.get_ref();
 
     // Share for INVALID Request, Decryption request 1, share id: 2
     println!(">> Sending decryption share. instance_id: {:?} share id: 2", decrypt_response3.instance_id.clone());
-    let share_1 = get_push_share_request::<Sg02ThresholdCipher<Bls12381>>(k, &ciphertext3, sk_sg02_bls12381_1.clone(), decrypt_response3.instance_id.clone());
+    
+    let share_1 = get_push_share_request(k, &Ciphertext::Sg02(ciphertext3), sk_sg02_bls12381_1.clone(), decrypt_response3.instance_id.clone());
     let put_share_response = client.push_decryption_share(Request::new(share_1)).await?;
     println!("RESPONSE={:?}", put_share_response);
 
     Ok(())
 }
 
+// test_multiple_local_servers() tests basic communication for nodes that run locally on the main host.
+// It is meant to test the basic network logic RpcRequestHandler, MessageForwarder, etc.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054. They should be able to connecto to each other.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
-    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
-    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
+    let (request, ciphertext) = create_decryption_request(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request(2, &pk);
 
-    let peers = vec![
-        (0, String::from("0.0.0.0"), 50051),
-        (1, String::from("0.0.0.0"), 50052),
-        (2, String::from("0.0.0.0"), 50053),
-        (3, String::from("0.0.0.0"), 50054)
-    ];
-    
-    let mut connections = Vec::new();
-    for peer in peers.iter() {
-        let (id, ip, port) = peer.clone();
-        let addr = format!("http://[{ip}]:{port}");
-        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
-    }            
+    let mut connections = connect_all().await;
 
     let mut i = 1;
     for conn in connections.iter_mut(){
@@ -188,56 +188,37 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
         i += 1;
     }
 
-    // Send DUPLICATE requests
-    let mut i = 1;
-    for conn in connections.iter_mut(){
-        println!(">> Sending DUPLICATE decryption request 1 to server {i}.");
-        let response = conn.decrypt(request.clone()).await.expect_err("This should return Err");
-        assert!(response.code() == Code::AlreadyExists);
-        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
-        i += 1;
-    }
-
     let mut i = 1;
     for conn in connections.iter_mut(){
         println!(">> Sending decryption request 2 to server {i}.");
         let response = conn.decrypt(request2.clone()).await.unwrap();
-        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
-        // println!("RESPONSE={:?}", response);
         i += 1;
     }
 
     Ok(())
 }
 
+
+// test_multiple_local_servers_backlog() tests the backlog functionality on nodes that run locally on the main host.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054. They should be able to connecto to each other.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_multiple_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
-    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
-    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
+    let (request, ciphertext) = create_decryption_request(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request(2, &pk);
     
-    let peers = vec![
-        (0, String::from("::1"), 50051),
-        (1, String::from("::1"), 50052),
-        (2, String::from("::1"), 50053),
-        (3, String::from("::1"), 50054)
-    ];
-    
-    let mut connections = Vec::new();
-    for peer in peers.iter() {
-        let (id, ip, port) = peer.clone();
-        let addr = format!("http://[{ip}]:{port}");
-        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
-    }           
-    println!(">> Connected.");
+    let mut connections = connect_all().await;
 
     let mut i = 1;
     for conn in connections.iter_mut(){
+        // Send two decryption request to one server and wait before you send it to the next,
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.unwrap();
         println!(">> Sending decryption request 2 to server {i}.");
         let response2 = conn.decrypt(request2.clone()).await.unwrap();
-        thread::sleep(time::Duration::from_millis(7000)); // Make this bigger than BACKLOG_WAIT_INTERVAL
+        // Make this bigger than BACKLOG_WAIT_INTERVAL and smaller than BACKLOG_MAX_RETRIES * BACKLOG_WAIT_INTERVAL
+        thread::sleep(time::Duration::from_millis(7000)); 
         i += 1;
     }
     Ok(())
@@ -258,13 +239,6 @@ async fn test_tendermint_servers() -> Result<(), Box<dyn std::error::Error>> {
     ];
     
     let mut connections = Vec::new();
-    for peer in peers.iter() {
-        let (id, ip, port) = peer.clone();
-        let addr = format!("http://[{ip}]:{port}");
-        connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
-    }            
-
-    let mut i = 1;
     for conn in connections.iter_mut(){
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
@@ -293,92 +267,160 @@ async fn test_tendermint_servers() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn demo() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain: KeyChain = KeyChain::from_file("conf/pk.json"); 
-    let pk = Sg02PublicKey::<Bls12381>::deserialize(&key_chain.get_key(requests::ThresholdCipher::Sg02, requests::DlGroup::Bls12381, None).unwrap()).unwrap();
-    let (request, ciphertext) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request::<Sg02ThresholdCipher<Bls12381>>(2, &pk);
+
+async fn simple_demo() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
+    let (request, ciphertext) = create_decryption_request(1, &pk);
+
+    let mut input = String::new();
     
+    let mut i = 1;
+        io::stdin().read_line(&mut input)?; 
+        println!(">> Sending decryption request 1 to server {i}.");
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        // println!("RESPONSE={:?}", response);
+    }
+
+    let mut connections = connect_all().await;
+    let mut advertised_public_keys: HashMap<[u8; 32], protocol_types::PublicKeyEntry> = HashMap::new();
+    // Ask all the nodes for their available public keys. We say each node "advertises" some public keys.
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        match conn.get_public_keys_for_encryption(req.clone()).await{
+            Ok(response) => {
+                println!(">> Node {i} responed with {:?} public keys.", response_keys.len());
+                responses.push(response_keys);
+            },
+            Err(err) => {
+                println!(">> Node {i} responed with an error: {err}");
+            },
+        }
+        // todo: timeout if node too long to respond
+        i += 1;
+    }
+    
+    
+
+    // Check whether sufficiently many nodes have advertised the same key.
+    // For this, identify each advertised key entry by its unique hash and count how many have been received
+    // In this sample code we just keep the first such key.
+    for response_by_node in responses.iter(){
+        let mut advertised_public_keys_by_node: HashSet::<[u8; 32]> = HashSet::new(); // make sure we count each advertised key once
+        for key_entry in response_by_node.iter(){
+            let h = get_public_key_entry_digest(key_entry);
+            advertised_public_keys_by_node.insert(h);
+            advertised_public_keys.insert(h, key_entry.clone());
+        }
+        for &h in advertised_public_keys_by_node.iter(){
+            if ! advertised_public_keys_count.contains_key(&h) {
+                advertised_public_keys_count.insert(h, 0);
+            }
+            *advertised_public_keys_count.get_mut(&h).unwrap() += 1
+        }
+    }
+
+    let mut advertised_key_option: Option<PublicKeyEntry> = None;
+    for (h, count) in advertised_public_keys_count.iter() {
+        if *count >= quorum {
+            advertised_key_option = Some(advertised_public_keys.get(h).unwrap().clone());
+            break;
+        }
+    }
+    let advertised_key_entry: PublicKeyEntry = match advertised_key_option{
+        Some(advertised_key_entry) => advertised_key_entry,
+        None => return Ok(()), // If no public key was advertised by sufficiently many nodes, it is not safe to encrypt.
+    };
+    
+    // Use the public key to encrypt
+    println!(">> Using public key with id {:?} to encrypt.", advertised_key_entry.id);
+    let public_key = PublicKey::deserialize(&advertised_key_entry.key).unwrap();
+    // todo: Do the following over an Rpc endpoint
+    let (request, _) = create_decryption_request(1, (&public_key));
+
+    // Submit the decryption request to the nodes.
+    let mut i = 1;
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request to server {i}.");
+        let response = conn.decrypt(request.clone()).await.unwrap();
+        i += 1;
+    }
+
+    Ok(())
+}
+
+fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
+    let mut digest = HASH256::new();
+    digest.process_array(&key_entry.id.as_bytes());
+    digest.process_array(&key_entry.key);
+    let h = digest.hash();
+    h
+}
+
+
+
+async fn connect_all() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
         (0, String::from("::1"), 50051),
         (1, String::from("::1"), 50052),
         (2, String::from("::1"), 50053),
         (3, String::from("::1"), 50054)
     ];
-    
     let mut connections = Vec::new();
     for peer in peers.iter() {
         let (id, ip, port) = peer.clone();
         let addr = format!("http://[{ip}]:{port}");
         connections.push(ThresholdCryptoLibraryClient::connect(addr.clone()).await.unwrap());
-    }           
-    println!(">> Connected.");
-
-    let mut input = String::new();
-    
-    let mut i = 1;
-    for conn in connections.iter_mut(){
-        // io::stdin().read_line(&mut input)?; 
-        println!(">> Sending decryption request 1 to server {i}.");
-        let response = conn.decrypt(request.clone()).await.unwrap();
-        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
-        // println!("RESPONSE={:?}", response);
-        i += 1;
     }
-    Ok(())
+    println!(">> Connected.");
+    connections
+}
+
+async fn connect_one() -> ThresholdCryptoLibraryClient<tonic::transport::Channel> {
+    ThresholdCryptoLibraryClient::connect("http://[::1]:50051").await.unwrap()
 }
 
 
-fn create_decryption_request<C:ThresholdCipher>(sn: u32, pk: &C::TPubKey) -> (ThresholdDecryptionRequest, C::CT) {
+fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Ciphertext) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
     let label = format!("Label {}", sn);
-    let ciphertext = C::encrypt(&msg, label.as_bytes(), pk, &mut params);
-    let req = requests::ThresholdDecryptionRequest {
-        algorithm: requests::ThresholdCipher::Sg02 as i32,
-        dl_group: requests::DlGroup::Bls12381 as i32,
+    let ciphertext = ThresholdCipher::encrypt(&msg, label.as_bytes(), pk, &mut params).unwrap();
+    let req = DecryptRequest {
         ciphertext: ciphertext.serialize().unwrap(),
-        key_id: String::from("sg02_bls12381")
+        key_id: None
     };
     (req, ciphertext)
     // (Request::new(req), ciphertext)
 }
 
-fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey<Bls12381>) -> (tonic::Request<ThresholdDecryptionRequest>, Sg02Ciphertext<Bls12381>) {
+fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
     let label = format!("Label {}", sn);
-    let ciphertext = Sg02ThresholdCipher::<Bls12381>::encrypt(&msg, label.as_bytes(), &pk, &mut params);
-    let tampered_ciphertext = Sg02ThresholdCipher::<Bls12381>::tamper_ciphertext(&ciphertext);
-    let req = requests::ThresholdDecryptionRequest {
-        algorithm: requests::ThresholdCipher::Sg02 as i32,
-        dl_group: requests::DlGroup::Bls12381 as i32,
+    let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
+    let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&ciphertext);
+    let req = DecryptRequest {
         ciphertext: tampered_ciphertext.serialize().unwrap(),
-        key_id: String::from("sg02_bls12381")
+        key_id: None
     };
     (Request::new(req), ciphertext)
 }
 
-fn get_decryption_shares_permuted<C: ThresholdCipher>(k: u32, ctxt: &C::CT, sk: Vec<C::TPrivKey>) -> Vec<C::TShare> {
+fn get_decryption_shares_permuted(k: u32, ctxt: &Ciphertext, sk: Vec<PrivateKey>) -> Vec<DecryptionShare> {
     let mut params = ThresholdCipherParams::new();
     let mut shares = Vec::new();
     for i in 0..k {
-        shares.push(C::partial_decrypt(ctxt,&sk[i as usize], &mut params));
+        shares.push(ThresholdCipher::partial_decrypt(ctxt,&sk[i as usize], &mut params).unwrap());
     }
     shares.shuffle(&mut thread_rng());
     shares
 }
 
-fn get_push_share_request<C: ThresholdCipher>(k: u32, ctxt: &C::CT, sk: C::TPrivKey, instance_id: String) -> PushDecryptionShareRequest {
+fn get_push_share_request(k: u16, ctxt: &Ciphertext, sk: PrivateKey, instance_id: String) -> PushDecryptionShareRequest {
     let mut params = ThresholdCipherParams::new();
-    // let mut shares = Vec::new();
-    // for i in sk.get_threshold() {
-    //     shares.push(C::partial_decrypt(ctxt,&sk[i as usize], &mut params));
-    // }
-    // shares.shuffle(&mut thread_rng());
-    // shares
-    let decryption_share = C::partial_decrypt(ctxt,&sk, &mut params);
+    let decryption_share = ThresholdCipher::partial_decrypt(ctxt,&sk, &mut params).unwrap();
     PushDecryptionShareRequest {instance_id, decryption_share: decryption_share.serialize().unwrap()}
 }

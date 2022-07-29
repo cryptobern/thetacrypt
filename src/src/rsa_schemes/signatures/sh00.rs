@@ -184,13 +184,24 @@ impl Sh00SignedMessage {
 
 impl Encode for Sh00SignedMessage {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        todo!()
+        encoder.encode_sequence(tag, |sequence| {
+            self.msg.encode(sequence)?;
+            self.sig.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
 impl Decode for Sh00SignedMessage {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        todo!()
+        decoder.decode_sequence(tag, |sequence| {
+            let msg = Vec::<u8>::decode(sequence)?;
+            let sig = BigInt::decode(sequence)?;
+
+            Ok(Self {msg, sig})
+        })
     }
 }
 
@@ -331,8 +342,8 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
 impl Sh00ThresholdSignature {
     pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut RNG) -> Vec<Sh00PrivateKey> {
-        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::SH00(modsize));
-        unwrap_keys!(keys, RsaPrivateKey::SH00)
+        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::Sh00(modsize));
+        unwrap_keys!(keys, RsaPrivateKey::Sh00)
     }
 }
 

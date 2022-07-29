@@ -12,16 +12,15 @@ use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::dl_schemes::bigint::*;
+use crate::dl_schemes::dl_groups::bls12381::Bls12381;
 use crate::dl_schemes::dl_groups::dl_group::DlGroup;
 use crate::dl_schemes::dl_groups::pairing::PairingEngine;
-use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
 use crate::dl_schemes::{DlDomain, DlShare, common::*};
 use crate::rand::RNG;
-use crate::{interface::*, unwrap_keys};
 
 
 #[derive(Clone, PublicKey, AsnType)]
-pub struct Bz03PublicKey<PE: PairingEngine> {
+pub struct Bz03PublicKey {
     t: u32,
     y: PE::G2,
     verificationKey: Vec<PE>
@@ -260,8 +259,8 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 
 impl<D:DlDomain> Bz03ThresholdCipher<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bz03PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BZ03(domain));
-        unwrap_keys!(keys, DlPrivateKey::BZ03)
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Bz03(domain));
+        unwrap_keys!(keys, DlPrivateKey::Bz03)
     }
 }
 

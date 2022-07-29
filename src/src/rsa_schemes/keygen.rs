@@ -7,11 +7,11 @@ use super::{common::shamir_share, signatures::sh00::{Sh00PrivateKey, Sh00PublicK
 const DEBUG:bool = false;
 
 pub enum RsaScheme {
-    SH00(usize)
+    Sh00(usize)
 }
 
 pub enum RsaPrivateKey {
-    SH00(Sh00PrivateKey)
+    Sh00(Sh00PrivateKey)
 }
 
 pub struct RsaKeyGenerator {}
@@ -19,7 +19,7 @@ pub struct RsaKeyGenerator {}
 impl RsaKeyGenerator {
     pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: RsaScheme) -> Vec<RsaPrivateKey> {
         match scheme {
-            RsaScheme::SH00(MODSIZE) => {
+            RsaScheme::Sh00(MODSIZE) => {
                 let PLEN = MODSIZE/2 - 2; 
 
                 let mut p1 = BigInt::new_rand(rng, PLEN);
@@ -69,7 +69,7 @@ impl RsaKeyGenerator {
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {
-                    pks.push(RsaPrivateKey::SH00(
+                    pks.push(RsaPrivateKey::Sh00(
                             Sh00PrivateKey::new(xi[i].0, m.clone(), xi[i].1.clone(), pubkey.clone())))
                 }
                 pks

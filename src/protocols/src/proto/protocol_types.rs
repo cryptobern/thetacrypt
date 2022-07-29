@@ -1,19 +1,47 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ThresholdDecryptionRequest {
-    #[prost(enumeration="ThresholdCipher", tag="1")]
-    pub algorithm: i32,
-    #[prost(enumeration="DlGroup", tag="2")]
-    pub dl_group: i32,
-    #[prost(string, tag="4")]
-    pub key_id: ::prost::alloc::string::String,
-    #[prost(bytes="vec", tag="3")]
+pub struct DecryptRequest {
+    /// ThresholdCipher algorithm = 1;
+    /// DlGroup dl_group = 2;
+    #[prost(bytes="vec", tag="1")]
     pub ciphertext: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, optional, tag="2")]
+    pub key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ThresholdDecryptionResponse {
+pub struct DecryptReponse {
     #[prost(string, tag="1")]
     pub instance_id: ::prost::alloc::string::String,
 }
+/// ---------- Get available keys ----------
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PublicKeyEntry {
+    #[prost(string, tag="1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::ThresholdScheme", tag="2")]
+    pub scheme: i32,
+    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::Group", tag="3")]
+    pub group: i32,
+    /// bool is_default = 3;
+    #[prost(bytes="vec", tag="4")]
+    pub key: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForEncryptionRequest {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForEncryptionResponse {
+    #[prost(message, repeated, tag="1")]
+    pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForSignatureRequest {
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPublicKeysForSignatureResponse {
+    #[prost(message, repeated, tag="1")]
+    pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
+}
+///---------- Push decryption share, test only ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareRequest {
     #[prost(string, tag="1")]
@@ -23,19 +51,6 @@ pub struct PushDecryptionShareRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareResponse {
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ThresholdCipher {
-    Bz02 = 0,
-    Sg02 = 1,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum DlGroup {
-    Bls12381 = 0,
 }
 /// Generated client implementations.
 pub mod threshold_crypto_library_client {
@@ -105,8 +120,8 @@ pub mod threshold_crypto_library_client {
         }
         pub async fn decrypt(
             &mut self,
-            request: impl tonic::IntoRequest<super::ThresholdDecryptionRequest>,
-        ) -> Result<tonic::Response<super::ThresholdDecryptionResponse>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::DecryptRequest>,
+        ) -> Result<tonic::Response<super::DecryptReponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -118,10 +133,33 @@ pub mod threshold_crypto_library_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/requests.ThresholdCryptoLibrary/decrypt",
+                "/protocol_types.ThresholdCryptoLibrary/decrypt",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
+        pub async fn get_public_keys_for_encryption(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetPublicKeysForEncryptionRequest>,
+        ) -> Result<
+            tonic::Response<super::GetPublicKeysForEncryptionResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/protocol_types.ThresholdCryptoLibrary/get_public_keys_for_encryption",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        ///this is an alternative way to send shares. used only for testing
         pub async fn push_decryption_share(
             &mut self,
             request: impl tonic::IntoRequest<super::PushDecryptionShareRequest>,
@@ -137,7 +175,7 @@ pub mod threshold_crypto_library_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/requests.ThresholdCryptoLibrary/push_decryption_share",
+                "/protocol_types.ThresholdCryptoLibrary/push_decryption_share",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -152,8 +190,16 @@ pub mod threshold_crypto_library_server {
     pub trait ThresholdCryptoLibrary: Send + Sync + 'static {
         async fn decrypt(
             &self,
-            request: tonic::Request<super::ThresholdDecryptionRequest>,
-        ) -> Result<tonic::Response<super::ThresholdDecryptionResponse>, tonic::Status>;
+            request: tonic::Request<super::DecryptRequest>,
+        ) -> Result<tonic::Response<super::DecryptReponse>, tonic::Status>;
+        async fn get_public_keys_for_encryption(
+            &self,
+            request: tonic::Request<super::GetPublicKeysForEncryptionRequest>,
+        ) -> Result<
+            tonic::Response<super::GetPublicKeysForEncryptionResponse>,
+            tonic::Status,
+        >;
+        ///this is an alternative way to send shares. used only for testing
         async fn push_decryption_share(
             &self,
             request: tonic::Request<super::PushDecryptionShareRequest>,
@@ -207,21 +253,21 @@ pub mod threshold_crypto_library_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/requests.ThresholdCryptoLibrary/decrypt" => {
+                "/protocol_types.ThresholdCryptoLibrary/decrypt" => {
                     #[allow(non_camel_case_types)]
                     struct decryptSvc<T: ThresholdCryptoLibrary>(pub Arc<T>);
                     impl<
                         T: ThresholdCryptoLibrary,
-                    > tonic::server::UnaryService<super::ThresholdDecryptionRequest>
+                    > tonic::server::UnaryService<super::DecryptRequest>
                     for decryptSvc<T> {
-                        type Response = super::ThresholdDecryptionResponse;
+                        type Response = super::DecryptReponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::ThresholdDecryptionRequest>,
+                            request: tonic::Request<super::DecryptRequest>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move { (*inner).decrypt(request).await };
@@ -245,7 +291,52 @@ pub mod threshold_crypto_library_server {
                     };
                     Box::pin(fut)
                 }
-                "/requests.ThresholdCryptoLibrary/push_decryption_share" => {
+                "/protocol_types.ThresholdCryptoLibrary/get_public_keys_for_encryption" => {
+                    #[allow(non_camel_case_types)]
+                    struct get_public_keys_for_encryptionSvc<T: ThresholdCryptoLibrary>(
+                        pub Arc<T>,
+                    );
+                    impl<
+                        T: ThresholdCryptoLibrary,
+                    > tonic::server::UnaryService<
+                        super::GetPublicKeysForEncryptionRequest,
+                    > for get_public_keys_for_encryptionSvc<T> {
+                        type Response = super::GetPublicKeysForEncryptionResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::GetPublicKeysForEncryptionRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = self.0.clone();
+                            let fut = async move {
+                                (*inner).get_public_keys_for_encryption(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = get_public_keys_for_encryptionSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/protocol_types.ThresholdCryptoLibrary/push_decryption_share" => {
                     #[allow(non_camel_case_types)]
                     struct push_decryption_shareSvc<T: ThresholdCryptoLibrary>(
                         pub Arc<T>,
@@ -324,6 +415,6 @@ pub mod threshold_crypto_library_server {
     }
     impl<T: ThresholdCryptoLibrary> tonic::transport::NamedService
     for ThresholdCryptoLibraryServer<T> {
-        const NAME: &'static str = "requests.ThresholdCryptoLibrary";
+        const NAME: &'static str = "protocol_types.ThresholdCryptoLibrary";
     }
 }

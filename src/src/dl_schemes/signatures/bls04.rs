@@ -21,6 +21,12 @@ pub struct Bls04PublicKey<PE: PairingEngine> {
     verificationKey:Vec<PE>
 }  
 
+impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
+    }
+}
+
 impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
@@ -96,12 +102,6 @@ impl<PE:PairingEngine> PartialEq for Bls04PrivateKey<PE> {
 impl<PE:PairingEngine> Bls04PublicKey<PE> {
     pub fn new(t:u32, y: &PE, verificationKey: &Vec<PE>) -> Self {
         Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
-    }
-}
-
-impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
     }
 }
 
@@ -219,8 +219,8 @@ impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
 
 impl<D:DlDomain> Bls04ThresholdSignature<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bls04PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BLS04(domain));
-        unwrap_keys!(keys, DlPrivateKey::BLS04)
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Bls04(domain));
+        unwrap_keys!(keys, DlPrivateKey::Bls04)
     }
 }
 
