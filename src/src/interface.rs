@@ -267,7 +267,8 @@ impl DecryptionShare {
 pub enum TcError {
     IncompatibleGroups,
     IncompatibleSchemes,
-    WrongKeyProvided
+    WrongKeyProvided,
+    DeserializationFailed
 }
 
 pub struct ThresholdCipherParams {
