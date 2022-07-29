@@ -1,24 +1,22 @@
-use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use mcore::hash256::HASH256;
-use network::types::message::P2pMessage;
 use tonic::Code;
-use crate::keychain::{KeyChain, PrivateKeyEntry};
-use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, self, PushDecryptionShareRequest, PushDecryptionShareResponse, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
-use cosmos_crypto::dl_schemes::dl_groups::dl_group::DlGroup;
-use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, Serializable};
-use cosmos_crypto::rand::{RNG, RngAlgorithm};
-use rand::prelude::SliceRandom;
-use rand::thread_rng;
-use tokio::sync::mpsc::error::TryRecvError;
+use std::collections::{HashMap, VecDeque};
+
 use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
-use std::sync::mpsc::Receiver;  
-use std::{collections::HashSet, thread, sync::mpsc};
-use cosmos_crypto::{dl_schemes::{ciphers::{sg02::{Sg02PublicKey, Sg02PrivateKey, Sg02ThresholdCipher, Sg02Ciphertext}}, dl_groups::bls12381::Bls12381}};
-use crate::threshold_cipher_protocol::{ThresholdCipherProtocol, Protocol};
-use std::collections::{self, HashMap, VecDeque};
-use serde::{Serialize, Deserialize};
+
+use network::types::message::P2pMessage;
+use cosmos_crypto::keys::{PrivateKey, PublicKey};
+use crate::keychain::{KeyChain, PrivateKeyEntry};
+use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse};
+use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
+use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
+use crate::proto::protocol_types::PublicKeyEntry;
+use cosmos_crypto::interface::Ciphertext;
+use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
+
+
 
 
 type InstanceId = String;
@@ -78,7 +76,6 @@ pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
-    // result_sender: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
     incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
@@ -131,7 +128,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         self.forwarder_command_sender.send(cmd).await.expect("Receiver for forwarder_command_sender closed.");
         let receiver_for_new_instance = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
 
-        // Start the new protocol instance
+        // Create the new protocol instance
         let mut prot = ThresholdCipherProtocol::new(
             private_key.clone(),
             public_key.clone(),
@@ -152,7 +149,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             // Upon termination, update status of terminated instance
             let result_data = match res {
                 Ok(res) => Some(res),
-                Err(err) => None
+                Err(_) => None
             };
             let new_status = InstanceStatus{
                 started: true,
@@ -170,6 +167,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         Ok(Response::new(DecryptReponse { instance_id: instance_id.clone() }))
     }
 
+
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");
         match self.key_chain.get_public_keys_for_encryption(){
@@ -181,6 +179,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }
     }
 
+    // Meant only for testing. In real depolyments decryption shares are sent through a separate libP2P-based network.
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
         // println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
@@ -287,20 +286,19 @@ pub async fn init(rpc_listen_address: String,
                         state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
                         let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
                         if ! status.started { // - The instance has not yet started... Backlog the message.
-                            println!(">> FORW: Could not forward message to protocol instance. Instance_id: {instance_id} does not exist yet. Will retry after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
+                            println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
                             backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
                         }
                         else if status.terminated { // - The instance has already finished... Do nothing
                             // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
                         }
                         else { // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
-                            println!(">> FORW: ERROR: Could not find channel to protocol instance. Instance_id: {:?}", &instance_id);
+                            println!(">> FORW: ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
                         }
                     }
                 }
 
                 _ = backlog_interval.tick() => { // Retry sending the backlogged messages
-                    // let mut instances_seen: HashSet<&InstanceId> = HashSet::new();
                     for _ in 0..backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
                         let (P2pMessage{instance_id, message_data}, retries_left) = backlogged_messages.pop_front().unwrap(); 
                         if let Some(instance_sender) = instance_senders.get(&instance_id) {
@@ -310,7 +308,7 @@ pub async fn init(rpc_listen_address: String,
                         else { // Instance still not started. If there are tries left, push_back() the message again
                             if retries_left > 0 {
                                 backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, retries_left - 1));
-                                println!(">> FORW: Could not forward message to protocol instance. Will retry after {BACKLOG_WAIT_INTERVAL} seconds Retries left: {:?}. Instance_id: {instance_id}", retries_left - 1);
+                                println!(">> FORW: Could not forward message to instance. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {:?}. Instance_id: {instance_id}", retries_left - 1);
                             }
                             else {
                                 println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
@@ -337,27 +335,6 @@ pub async fn init(rpc_listen_address: String,
             }
         }
     });
-    
-    // Spawn Instance Monitor
-    // println!(">> REQH: Initiating InstanceMonitor.");
-    // tokio::spawn( async move {
-    //     loop {
-    //         let result = result_receiver.recv().await;
-    //         let (instance_id, result_data) = result.expect("All senders for result_receiver have been dropped.");
-    //         println!(">> INMO: Received result in result_channel. Instance_id: {:?}", instance_id);
-    //         // Update status of terminated instance
-    //         let new_status = InstanceStatus{
-    //             started: true,
-    //             terminated: true,
-    //             result: result_data,
-    //         };
-    //         let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id.clone(), new_status};
-    //         state_command_sender3.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
-    //         // Inform MessageForwarder that the instance was terminated
-    //         let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id: instance_id.clone() };
-    //         forwarder_command_sender.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.")
-    //     }
-    // });
     
     // Start server
     println!(">> REQH: Request handler is starting. Listening on address: {rpc_listen_address}:{rpc_listen_port}");

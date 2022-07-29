@@ -1,13 +1,8 @@
-
-
 use std::collections::HashSet;
 
-use cosmos_crypto::interface::{Serializable, ThresholdCipherParams, Ciphertext, DecryptionShare, TcError};
+use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, TcError, ThresholdCipher};
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
-use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
 use network::types::message::P2pMessage;
-use tokio::sync::mpsc::error::TryRecvError;
-use {cosmos_crypto::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
 
 
 type InstanceId = String;
@@ -30,19 +25,15 @@ The caller should only have to call run() to start the protocol instance.
 About run(): The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
 In the begining it must make the necessary validity checks (e.g., valididity of ciphertext).
 There is a loop(), which handles incoming shares. The loop is exited when the instance is finished.
+This function is also responsible for returning the result to the caller.
 
-About terminate(): It is called by the instance to cleanup any data. It must also write the resutlt
-(e.g., decrypted plaintext) in result_chan_out.
+About terminate(): It is called by the instance to cleanup any data.
 
 Fields in ThresholdCipherProtocol:
-- chan_in: The receiver end of a channel. The other end is owned by the State Manager. Network messages destined
-for this instance will be received here.
-- chan_out: The sender end of a channel. The other end is owned by the State Manager. Shares to other nodes
-are to be sent trough this channel. The State Manager will forward it to the Network Layer.
-todo: Or change the logic and give the other end directly to a Network Manager.
-- result_chan_out: The sender end of a channel. The other end is owned by the State Manager. Upon termination (e.g., 
-successful decryption) the instance writes the result here.
+- chan_in: The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
+- chan_out: The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
 */
+
 pub trait Protocol: Send + Clone + 'static {
     fn run(&mut self);
     fn terminate(&mut self);
@@ -59,7 +50,7 @@ pub struct ThresholdCipherProtocol {
     chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
     // result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
     instance_id: String,
-    threshold: u32,
+    threshold: u16,
     valid_shares: Vec<DecryptionShare>,
     decrypted: bool,
     decrypted_plaintext: Vec<u8>,
@@ -72,17 +63,15 @@ impl ThresholdCipherProtocol {
                 ciphertext: Ciphertext,
                 chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
                 chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
-                // result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>> )>,
                 instance_id: String,
               ) -> Self {
         ThresholdCipherProtocol{
-            threshold: 3, //todo: fix,
+            threshold: sk.get_threshold(),
             sk,
             pk,
             ciphertext,
             chan_in,
             chan_out,
-            // result_chan_out,
             instance_id,
             valid_shares: Vec::new(),
             decrypted: false,
@@ -94,24 +83,23 @@ impl ThresholdCipherProtocol {
     pub async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>{
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
         if ! ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.pk)?{
-            println!(">> PROT: instance_id: {:?} found INVALID ciphertext. label: {:?}. Protocol instance will quit.", &self.instance_id,&String::from_utf8(self.ciphertext.get_label()).unwrap());
-            self.terminate().await;
+            println!(">> PROT: instance_id: {:?} found INVALID ciphertext. label: {:?}. Protocol instance will quit.", &self.instance_id, self.ciphertext.get_label() );
+            self.terminate().await?;
             return Err(ProtocolError::InvalidCiphertext);
         }
         self.on_init().await?;
         loop {
            match self.chan_in.recv().await {
                 Some(share) => {
-                    self.on_receive_decryption_share(DecryptionShare::deserialize(&share));
+                    self.on_receive_decryption_share(DecryptionShare::deserialize(&share))?;
                     if self.decrypted {
-                        // self.terminate().await;
-                        // break;
+                        self.terminate().await?;
                         return Ok(self.decrypted_plaintext.clone());
                     }
                 },
                 None => {
                     println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
-                    self.terminate().await;
+                    self.terminate().await?;
                     return Err(ProtocolError::InternalError)
                 }
             }
@@ -165,9 +153,9 @@ impl ThresholdCipherProtocol {
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
         println!(">> PROT: instance_id: {:?} finished.", &self.instance_id);
         self.chan_in.close();
-        while let Some(share) = self.chan_in.recv().await {
-            println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
-        }
+        // while let Some(share) = self.chan_in.recv().await {
+        //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
+        // }
         Ok(())
     }
 }

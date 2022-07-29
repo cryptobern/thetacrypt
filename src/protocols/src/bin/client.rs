@@ -304,7 +304,7 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
     
     // Use the public key to encrypt
     println!(">> Using public key with id {:?} to encrypt.", advertised_key_entry.id);
-    let public_key = PublicKey::deserialize(&advertised_key_entry.key);
+    let public_key = PublicKey::deserialize(&advertised_key_entry.key).unwrap();
     // todo: Do the following over an Rpc endpoint
     let (request, _) = create_decryption_request(1, (&public_key));
 
