@@ -40,18 +40,23 @@ pub fn get_p2p_listen_addr(config: &Config) -> Multiaddr {
 pub async fn get_node_ips() -> Vec<String> {
     // get node ips by local tendermint RPC request
     let mut ips: Vec<String> = Vec::new();
-    match get_tendermint_net_info(TENDERMINT_RPC_ADDR.to_string()).await {
-        Ok(res) => {
-            for peer in res.result.peers {
-                let url = peer.url;
-                // get ip from urls
-                let ip = &url[49..61];
-                ips.push(ip.to_string());
-            }
-            return ips;
-        },
-        Err(err) => println!("Error: {}", err),
-    }
+    //-------ROSE-CHANGES------------
+    // match get_tendermint_net_info(TENDERMINT_RPC_ADDR.to_string()).await {
+    //     Ok(res) => {
+    //         for peer in res.result.peers {
+    //             let url = peer.url;
+    //             // get ip from urls
+    //             let ip = &url[49..61];
+    //             ips.push(ip.to_string());
+    //         }
+    //         return ips;
+    //     },
+    //     Err(err) => println!("Error: {}", err),
+    // }
+    ips.push(String::from("192.167.10.2"));
+    ips.push(String::from("192.167.10.3"));
+    ips.push(String::from("192.167.10.4"));
+    ips.push(String::from("192.167.10.5"));
     return ips;
 }
 
