@@ -61,7 +61,8 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
             network::p2p::gossipsub_setup::tendermint_net::init(
                 protocols_to_net_receiver,
                 net_to_protocols_sender,
-                tendermint_config
+                tendermint_config,
+                my_id,
             ).await;
         });
     }

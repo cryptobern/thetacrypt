@@ -16,11 +16,12 @@ use super::net_utils::*;
 pub async fn init(
     outgoing_msg_receiver: Receiver<P2pMessage>,
     incoming_msg_sender: Sender<P2pMessage>,
-    tendermint_config: Config
+    tendermint_config: Config,
+    my_id: u32
 ) {
     env_logger::init();
 
-    let tendermint_node_id = get_tendermint_node_id().await;
+    let tendermint_node_id = my_id; //get_tendermint_node_id().await;
     println!(">> NET: Tendermint node id {:?}", tendermint_node_id);
     
     // Create a Gossipsub topic
