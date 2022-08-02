@@ -24,9 +24,9 @@ impl RpcNetwork{
     {
         let peers = vec![
                 (0, String::from("::1"), 50050),
-                (1, String::from("::1"), 50051),
-                (2, String::from("::1"), 50052),
-                (3, String::from("::1"), 50053)
+                (1, String::from("::1"), 50050),
+                (2, String::from("::1"), 50050),
+                (3, String::from("::1"), 50050)
         ];
         
         let mut handles = Vec::new();
