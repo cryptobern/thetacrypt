@@ -82,7 +82,7 @@ pub async fn get_node_ids() -> Vec<String> {
 
 // return dialing address as Multiaddr for corresponding peer id
 pub fn get_dial_addr(dial_port: u16, dial_ip: String) -> Multiaddr {
-    let ip_version = "/ip4/";
+    let ip_version = "/dns4/";
     // let dial_port = config.p2p_port;
 
     // create Multiaddr
