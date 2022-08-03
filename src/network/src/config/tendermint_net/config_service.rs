@@ -53,10 +53,10 @@ pub async fn get_node_ips() -> Vec<String> {
     //     },
     //     Err(err) => println!("Error: {}", err),
     // }
-    ips.push(String::from("192.167.10.2"));
-    ips.push(String::from("192.167.10.3"));
-    ips.push(String::from("192.167.10.4"));
-    ips.push(String::from("192.167.10.5"));
+    ips.push(String::from("node1"));
+    ips.push(String::from("node2"));
+    ips.push(String::from("node3"));
+    ips.push(String::from("node4"));
     return ips;
 }
 
