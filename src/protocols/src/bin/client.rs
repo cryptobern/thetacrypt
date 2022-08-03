@@ -391,10 +391,10 @@ async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::trans
 async fn connect_to_all_dockerized() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     // ips of tendermint nodes, rpc endpoints of threshold app
     let peers = vec![
-        (0, String::from("node1"), 50050),
-        (1, String::from("node2"), 50050),
-        (2, String::from("node3"), 50050),
-        (3, String::from("node4"), 50050)
+        (0, String::from("192.167.10.2"), 50050),
+        (1, String::from("192.167.10.3"), 50050),
+        (2, String::from("192.167.10.4"), 50050),
+        (3, String::from("192.167.10.5"), 50050)
     ];
     let mut connections = Vec::new();
     for peer in peers.iter() {

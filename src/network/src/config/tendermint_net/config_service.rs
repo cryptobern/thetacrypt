@@ -53,10 +53,10 @@ pub async fn get_node_ips() -> Vec<String> {
     //     },
     //     Err(err) => println!("Error: {}", err),
     // }
-    ips.push(String::from("node1"));
-    ips.push(String::from("node2"));
-    ips.push(String::from("node3"));
-    ips.push(String::from("node4"));
+    ips.push(String::from("192.167.10.2"));
+    ips.push(String::from("192.167.10.3"));
+    ips.push(String::from("192.167.10.4"));
+    ips.push(String::from("192.167.10.5"));
     return ips;
 }
 
@@ -82,7 +82,7 @@ pub async fn get_node_ids() -> Vec<String> {
 
 // return dialing address as Multiaddr for corresponding peer id
 pub fn get_dial_addr(dial_port: u16, dial_ip: String) -> Multiaddr {
-    let ip_version = "/dns4/";
+    let ip_version = "/ipv4/";
     // let dial_port = config.p2p_port;
 
     // create Multiaddr
