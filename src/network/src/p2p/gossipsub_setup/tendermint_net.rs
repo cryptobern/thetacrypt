@@ -39,6 +39,8 @@ pub async fn init(
     // encryption and Mplex for multiplexing of substreams on a TCP stream.
     let transport = create_tcp_transport(noise_keys);
     
+    dns_lookup().await;
+    
     // Create a Swarm to manage peers and events.
     let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
 
@@ -69,7 +71,7 @@ async fn dial_tendermint_net(
 
     loop {
         let ip = &ips[index];
-        let dial_addr = get_dial_addr(config.p2p_port, ip.to_string());
+        let dial_addr = get_dial_addr(config.p2p_port, ip.to_string()); 
         match swarm.dial(dial_addr.clone()) {
             Ok(_) => {
                 // println!(">> NET: Dialed {:?}", dial_addr);
