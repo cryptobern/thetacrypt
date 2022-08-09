@@ -10,7 +10,7 @@ service ThresholdCryptoLibrary {
     // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
     rpc decrypt (DecryptRequest) returns (DecryptReponse);
     // Returns the result of a protocol instance
-    // rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
+    rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
     // decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
     rpc decrypt_sync (DecryptSyncRequest) returns (DecryptSyncReponse);
 

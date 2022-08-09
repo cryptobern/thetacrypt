@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::{fs, io, vec};
 use std::{thread, time};
 
+use futures::stream::TryBufferUnordered;
 // use network::config::localnet_config::config_service::get_rpc_listen_addr;
 use network::config::tendermint_net::config_service::*;
 use cosmos_crypto::keys::{PublicKey, PrivateKey};
@@ -13,7 +14,7 @@ use mcore::hash256::HASH256;
 
 use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
 use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::proto::protocol_types;
+use protocols::proto::protocol_types::{self, GetDecryptResultRequest};
 use protocols::proto::protocol_types::{PushDecryptionShareRequest};
 use protocols::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
@@ -188,13 +189,63 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
 
     let mut connections = connect_to_all_local().await;
 
+    // Ask for decrypt result before sending decrypt request
     let mut i = 1;
+    let get_result_request = GetDecryptResultRequest{ instance_id: String::from("Some instance that does not exist yet.") };
     for conn in connections.iter_mut(){
-        println!(">> Sending decryption request 1 to server {i}.");
-        let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
+        println!(">> Sending get_decrypt_result request to server {i}.");
+        let response = conn.get_decrypt_result(get_result_request.clone()).await.expect("This should not return Err");
+        let get_result_response = response.into_inner();
+        assert!(get_result_response.is_started == false);
+        assert!(get_result_response.is_finished == false);
+        assert!(get_result_response.plaintext == None);
         i += 1;
     }
 
+    // Send decrypt request 1
+    let mut i = 1;
+    let mut instance_id = String::new();
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 1 to server {i}.");
+        let response = conn.decrypt(request.clone()).await.expect("This should not return Err");
+        instance_id = response.get_ref().instance_id.clone();
+        
+        // Immediately ask for decrypt result. The instance cannot have finished at this point
+        if i <= 2 {
+            let get_result_request = GetDecryptResultRequest{ instance_id: instance_id.clone() };
+            println!(">> Sending get_decrypt_result request to server {i}.");
+            let response = conn.get_decrypt_result(get_result_request.clone()).await.expect("This should not return Err");
+            let get_result_response = response.into_inner();
+            assert!(get_result_response.is_started == true);
+            assert!(get_result_response.is_finished == false);
+            assert!(get_result_response.plaintext == None);
+        }
+
+        i += 1;
+    }
+
+    // Delay
+    thread::sleep(time::Duration::from_millis(1000));
+
+    // Ask for decrypt result. Instance should have finished by now.
+    let mut i = 1;
+    let get_result_request = GetDecryptResultRequest{ instance_id: instance_id.clone() };
+    for conn in connections.iter_mut(){
+        println!(">> Sending get_decrypt_result request to server {i}.");
+        let response = conn.get_decrypt_result(get_result_request.clone()).await.expect("This should not return Err");
+        let get_result_response = response.into_inner();
+        assert!(get_result_response.is_started == true);
+        assert!(get_result_response.is_finished == true);
+        match get_result_response.plaintext{
+            Some(plaintext) => {
+                println!(">> Decrypted plaintext: {:?}.", String::from_utf8(plaintext).unwrap());
+            },
+            None => panic!("This should return Some(plaintext)."),
+        }
+        i += 1;
+    }
+
+    // Send decrypt request 2
     let mut i = 1;
     for conn in connections.iter_mut(){
         println!(">> Sending decryption request 2 to server {i}.");

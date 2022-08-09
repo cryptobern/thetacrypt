@@ -11,7 +11,7 @@ use network::types::message::P2pMessage;
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use crate::keychain::{KeyChain, PrivateKeyEntry};
 use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncRequest, DecryptSyncReponse};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncRequest, DecryptSyncReponse, GetDecryptResultRequest, GetDecryptResultResponse};
 use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use crate::proto::protocol_types::PublicKeyEntry;
@@ -37,12 +37,11 @@ pub enum MessageForwarderCommand {
 }
 
 // InstanceStatus describes the currenct state of a protocol instance. 
-// The field result has meaning only when terminated == true. 
-// The result is a ProtocolError if and only if the protocol instance has not terminated succesfull (e.g. when the ciphertext is invalid).
+// The field result has meaning only when finished == true. 
 #[derive(Debug, Clone)]
 struct InstanceStatus {
     started: bool,
-    terminated: bool,
+    finished: bool,
     result: Result<Vec<u8>, ProtocolError>, 
 }
 
@@ -142,7 +141,7 @@ impl RpcRequestHandler {
         // Update the StateManager with the result of the instance.
         let new_status = InstanceStatus{
             started: true,
-            terminated: true,
+            finished: true,
             result,
         }; 
         let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id.clone(), new_status};
@@ -224,6 +223,30 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }
     }
 
+
+    async fn get_decrypt_result(&self, request: Request<GetDecryptResultRequest>) -> Result<Response<GetDecryptResultResponse>, Status> {
+        println!(">> REQH: Received a get_decrypt_result request.");
+        let req: &GetDecryptResultRequest = request.get_ref();
+
+        // Get status of the instance by contacting the state manager
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: req.instance_id.clone(), responder: response_sender };
+        self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+        let status = response_receiver.await.expect("response_receiver.await returned Err");
+
+        let mut result = None;
+        if status.finished {
+            if let Ok(res) = status.result { 
+                result = Some(res) 
+            };            
+        };
+        let response = GetDecryptResultResponse{ instance_id: req.instance_id.clone(),
+                                                                           is_started: status.started, 
+                                                                           is_finished: status.finished, 
+                                                                           plaintext: result };
+        Ok(Response::new(response))
+    }
+    
     // Meant only for testing. In real depolyments decryption shares are sent through a separate libP2P-based network.
     async fn push_decryption_share(&self, request: Request<PushDecryptionShareRequest>) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
@@ -275,7 +298,7 @@ pub async fn init(rpc_listen_address: String,
                         StateUpdateCommand::AddNewInstance { instance_id} => {
                             let status = InstanceStatus{
                                 started: true,
-                                terminated: false,
+                                finished: false,
                                 result: Err(ProtocolError::InstanceNotFound),
                             };
                             instances_status_map.insert(instance_id, status);
@@ -288,7 +311,7 @@ pub async fn init(rpc_listen_address: String,
                                 None => {
                                     InstanceStatus{
                                         started: false,
-                                        terminated: false,
+                                        finished: false,
                                         result: Err(ProtocolError::InstanceNotFound),
                                     }
                                 },
@@ -334,7 +357,7 @@ pub async fn init(rpc_listen_address: String,
                             println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
                             backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
                         }
-                        else if status.terminated { // - The instance has already finished... Do nothing
+                        else if status.finished { // - The instance has already finished... Do nothing
                             // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
                         }
                         else { // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
