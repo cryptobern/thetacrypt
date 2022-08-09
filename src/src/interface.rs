@@ -263,7 +263,7 @@ impl DecryptionShare {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TcError {
     IncompatibleGroups,
     IncompatibleSchemes,

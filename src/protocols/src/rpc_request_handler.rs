@@ -38,12 +38,12 @@ pub enum MessageForwarderCommand {
 
 // InstanceStatus describes the currenct state of a protocol instance. 
 // The field result has meaning only when terminated == true. 
-// The result can be None, e.g. when the ciphertext is invalid.
+// The result is a ProtocolError if and only if the protocol instance has not terminated succesfull (e.g. when the ciphertext is invalid).
 #[derive(Debug, Clone)]
 struct InstanceStatus {
     started: bool,
     terminated: bool,
-    result: Option<Vec<u8>>, 
+    result: Result<Vec<u8>, ProtocolError>, 
 }
 
 #[derive(Debug)]
@@ -136,7 +136,7 @@ impl RpcRequestHandler {
     }
 
     async fn update_decryption_instance_result(instance_id: String,
-                                               result: Option<Vec<u8>>, 
+                                               result: Result<Vec<u8>, ProtocolError>, 
                                                state_command_sender: Sender<StateUpdateCommand>,
                                                forwarder_command_sender: Sender<MessageForwarderCommand>) {
         // Update the StateManager with the result of the instance.
@@ -172,14 +172,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let forwarder_command_sender2 = self.forwarder_command_sender.clone();
         let instance_id2 = instance_id.clone();
         tokio::spawn( async move {
-            let res = prot.run().await;
+            let result = prot.run().await;
             
             // Protocol terminated, update state with the result.
             println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id2);
-            let result = match res {
-                Ok(res) => Some(res),
-                Err(_) => None
-            };
             RpcRequestHandler::update_decryption_instance_result(instance_id2.clone(),
                                                                  result, 
                                                                  state_command_sender2, 
@@ -200,17 +196,21 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         };
 
         // Start the new protocol instance
-        let res = prot.run().await;
+        let result = prot.run().await;
 
         // Protocol terminated, update state with the result.
         println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id);
-        let result = match res {
+        
+        RpcRequestHandler::update_decryption_instance_result(instance_id.clone(),
+                                                             result.clone(), 
+                                                             self.state_command_sender.clone(), 
+                                                             self.forwarder_command_sender.clone()).await;
+
+        let return_result = match result {
             Ok(res) => Some(res),
             Err(_) => None
         };
-        RpcRequestHandler::update_decryption_instance_result(instance_id.clone(), result.clone(), self.state_command_sender.clone(), self.forwarder_command_sender.clone()).await;
-
-        Ok(Response::new(DecryptSyncReponse { instance_id: instance_id.clone(), plaintext: result }))
+        Ok(Response::new(DecryptSyncReponse { instance_id: instance_id.clone(), plaintext: return_result }))
     }
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
@@ -276,7 +276,7 @@ pub async fn init(rpc_listen_address: String,
                             let status = InstanceStatus{
                                 started: true,
                                 terminated: false,
-                                result: None,
+                                result: Err(ProtocolError::InstanceNotFound),
                             };
                             instances_status_map.insert(instance_id, status);
                         },
@@ -289,7 +289,7 @@ pub async fn init(rpc_listen_address: String,
                                     InstanceStatus{
                                         started: false,
                                         terminated: false,
-                                        result: None,
+                                        result: Err(ProtocolError::InstanceNotFound),
                                     }
                                 },
                             };

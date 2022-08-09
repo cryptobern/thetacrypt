@@ -28,6 +28,7 @@ use tonic::{Request, Status, Code, Response};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    test_multiple_local_servers().await?;
     test_multiple_local_sync().await?;
     // abci_app_emulation().await?;
     Ok(())

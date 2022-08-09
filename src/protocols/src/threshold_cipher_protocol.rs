@@ -7,10 +7,12 @@ use network::types::message::P2pMessage;
 
 type InstanceId = String;
 
+#[derive(Clone, Debug)]
 pub enum ProtocolError {
     SchemeError(TcError),
     InvalidCiphertext,
-    InternalError
+    InstanceNotFound,
+    InternalError,
 }
 
 impl From<TcError> for ProtocolError{
