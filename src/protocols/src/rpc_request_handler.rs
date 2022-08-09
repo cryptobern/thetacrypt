@@ -11,7 +11,7 @@ use network::types::message::P2pMessage;
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use crate::keychain::{KeyChain, PrivateKeyEntry};
 use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncReponse};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncRequest, DecryptSyncReponse};
 use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use crate::proto::protocol_types::PublicKeyEntry;
@@ -80,8 +80,8 @@ pub struct RpcRequestHandler {
 }
 
 impl RpcRequestHandler {
-    async fn get_decryption_instance(&self, req: &DecryptRequest) -> Result<(String,ThresholdCipherProtocol), Status> {
-        let ciphertext = Ciphertext::deserialize(&req.ciphertext);
+    async fn get_decryption_instance(&self, ciphertext_bytes: &Vec<u8>, key_id: &Option<String>) -> Result<(String,ThresholdCipherProtocol), Status> {
+        let ciphertext = Ciphertext::deserialize(ciphertext_bytes);
         
         // Create a unique instance_id for this instance
         let instance_id = assign_decryption_instance_id(&ciphertext);
@@ -97,8 +97,8 @@ impl RpcRequestHandler {
         }
         
         // Retrieve private and public key for this instance
-        let private_key_result: Result<PrivateKeyEntry, String> = if let Some(key_id) = &req.key_id {
-            self.key_chain.get_key_by_id(&key_id)
+        let private_key_result: Result<PrivateKeyEntry, String> = if let Some(id) = key_id {
+            self.key_chain.get_key_by_id(id)
         }
         else {
             self.key_chain.get_key_by_type(ciphertext.get_scheme(), ciphertext.get_group()) 
@@ -162,7 +162,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let req: &DecryptRequest = request.get_ref();
 
         // Do all required checks and create the new protocol instance
-        let (instance_id, mut prot) = match self.get_decryption_instance(req).await{
+        let (instance_id, mut prot) = match self.get_decryption_instance(&req.ciphertext, &req.key_id).await{
             Ok((instance_id, prot)) => (instance_id, prot),
             Err(err) => return Err(err),
         };
@@ -185,12 +185,12 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         Ok(Response::new(DecryptReponse { instance_id: instance_id.clone() }))
     }
 
-    async fn decrypt_sync(&self, request: Request<DecryptRequest>) -> Result<Response<DecryptSyncReponse>, Status> {
+    async fn decrypt_sync(&self, request: Request<DecryptSyncRequest>) -> Result<Response<DecryptSyncReponse>, Status> {
         println!(">> REQH: Received a decrypt_sync request.");
-        let req: &DecryptRequest = request.get_ref();
+        let req: &DecryptSyncRequest = request.get_ref();
 
         // Do all required checks and create the new protocol instance
-        let (instance_id, mut prot) = match self.get_decryption_instance(req).await{
+        let (instance_id, mut prot) = match self.get_decryption_instance(&req.ciphertext, &req.key_id).await{
             Ok((instance_id, prot)) => (instance_id, prot),
             Err(err) => return Err(err),
         };

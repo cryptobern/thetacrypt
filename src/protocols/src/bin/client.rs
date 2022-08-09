@@ -9,14 +9,19 @@ use std::{thread, time};
 // use network::config::localnet_config::config_service::get_rpc_listen_addr;
 use network::config::tendermint_net::config_service::*;
 use cosmos_crypto::keys::{PublicKey, PrivateKey};
-use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
 use mcore::hash256::HASH256;
-use protocols::proto::protocol_types::{self, PushDecryptionShareRequest, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry, DecryptSyncReponse};
+
+use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
+use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use protocols::proto::protocol_types;
+use protocols::proto::protocol_types::{PushDecryptionShareRequest};
+use protocols::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
+use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
+use protocols::proto::protocol_types::{DecryptSyncRequest, DecryptSyncReponse};
+
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
 use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare};
 use protocols::keychain::KeyChain;
-use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
 use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
@@ -208,8 +213,8 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
 async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
     let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
-    let (request, ciphertext) = create_decryption_request(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request(2, &pk);
+    let (request, ciphertext) = create_decrypt_sync_request(1, &pk);
+    let (request2, ciphertext2) = create_decrypt_sync_request(2, &pk);
 
     let mut connections = connect_to_all_local().await;
 
@@ -217,7 +222,7 @@ async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     let mut i = 1;
     let mut handles= Vec::new();
     for conn in connections.iter_mut(){
-        println!(">> Sending decryption request 1 to server {i}.");
+        println!(">> Sending decrypt_sync request 1 to server {i}.");
         let mut conn2 = conn.clone();
         let request2 = request.clone();
         let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
@@ -239,7 +244,7 @@ async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     let mut i = 1;
     let mut handles= Vec::new();
     for conn in connections.iter_mut(){
-        println!(">> Sending AGAIN decryption request 1 to server {i}.");
+        println!(">> Sending AGAIN decrypt_sync request 1 to server {i}.");
         let mut conn2 = conn.clone();
         let request2 = request.clone();
         let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
@@ -257,12 +262,12 @@ async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
 
     // Send INVALID-ciphertext decrypt_sync request. The RPC call should return a decryptSyncResponse, but the contained 'plaintext' field should be None.
     let PublicKey::Sg02(pk_sg02_bls12381) = pk;
-    let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decryption_request(3, &pk_sg02_bls12381);
+    let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decrypt_sync_request(3, &pk_sg02_bls12381);
     let invalid_ctxt_decrypt_request = invalid_ctxt_request.into_inner();
     let mut i = 1;
     let mut handles= Vec::new();
     for conn in connections.iter_mut(){
-        println!(">> Sending INVALID decryption request to server {i}.");
+        println!(">> Sending INVALID decrypt_sync request to server {i}.");
         let mut conn2 = conn.clone();
         let request2 = invalid_ctxt_decrypt_request.clone();
         let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
@@ -496,31 +501,58 @@ async fn connect_to_one_local() -> ThresholdCryptoLibraryClient<tonic::transport
 }
 
 fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Ciphertext) {
-    let mut params = ThresholdCipherParams::new();
-    let msg_string = format!("Test message {}", sn);
-    let msg: Vec<u8> = msg_string.as_bytes().to_vec();
-    let label = format!("Label {}", sn);
-    let ciphertext = ThresholdCipher::encrypt(&msg, label.as_bytes(), pk, &mut params).unwrap();
+    let ciphertext = create_ciphertext(sn, pk);
     let req = DecryptRequest {
         ciphertext: ciphertext.serialize().unwrap(),
         key_id: None
     };
     (req, ciphertext)
-    // (Request::new(req), ciphertext)
 }
 
-fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
+fn create_decrypt_sync_request(sn: u32, pk: &PublicKey) -> (DecryptSyncRequest, Ciphertext) {
+    let ciphertext = create_ciphertext(sn, pk);
+    let req = DecryptSyncRequest {
+        ciphertext: ciphertext.serialize().unwrap(),
+        key_id: None
+    };
+    (req, ciphertext)
+}
+
+fn create_ciphertext(sn: u32, pk: &PublicKey) -> Ciphertext {
     let mut params = ThresholdCipherParams::new();
     let msg_string = format!("Test message {}", sn);
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
     let label = format!("Label {}", sn);
-    let ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
-    let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&ciphertext);
+    let ciphertext = ThresholdCipher::encrypt(&msg, label.as_bytes(), pk, &mut params).unwrap();
+    ciphertext
+}
+
+fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
+    let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
     let req = DecryptRequest {
         ciphertext: tampered_ciphertext.serialize().unwrap(),
         key_id: None
     };
-    (Request::new(req), ciphertext)
+    (Request::new(req), original_ciphertext)
+}
+
+fn create_tampered_sg02_decrypt_sync_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptSyncRequest>, Sg02Ciphertext) {
+    let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
+    let req = DecryptSyncRequest {
+        ciphertext: tampered_ciphertext.serialize().unwrap(),
+        key_id: None
+    };
+    (Request::new(req), original_ciphertext)
+}
+
+fn create_tampered_ciphertext(sn: u32, pk: &Sg02PublicKey) -> (Sg02Ciphertext, Sg02Ciphertext) {
+    let mut params = ThresholdCipherParams::new();
+    let msg_string = format!("Test message {}", sn);
+    let msg: Vec<u8> = msg_string.as_bytes().to_vec();
+    let label = format!("Label {}", sn);
+    let original_ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
+    let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&original_ciphertext);
+    (original_ciphertext, tampered_ciphertext)
 }
 
 fn get_decryption_shares_permuted(k: u32, ctxt: &Ciphertext, sk: Vec<PrivateKey>) -> Vec<DecryptionShare> {

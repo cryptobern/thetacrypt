@@ -12,10 +12,33 @@ pub struct DecryptReponse {
     pub instance_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DecryptSyncRequest {
+    #[prost(bytes="vec", tag="1")]
+    pub ciphertext: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, optional, tag="2")]
+    pub key_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptSyncReponse {
     #[prost(string, tag="1")]
     pub instance_id: ::prost::alloc::string::String,
     #[prost(bytes="vec", optional, tag="2")]
+    pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDecryptResultRequest {
+    #[prost(string, tag="1")]
+    pub instance_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDecryptResultResponse {
+    #[prost(string, tag="1")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(bool, tag="2")]
+    pub is_started: bool,
+    #[prost(bool, tag="3")]
+    pub is_finished: bool,
+    #[prost(bytes="vec", optional, tag="4")]
     pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// ---------- Get available keys ----------
@@ -144,10 +167,12 @@ pub mod threshold_crypto_library_client {
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
+        /// Returns the result of a protocol instance
+        /// rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
         /// decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
         pub async fn decrypt_sync(
             &mut self,
-            request: impl tonic::IntoRequest<super::DecryptRequest>,
+            request: impl tonic::IntoRequest<super::DecryptSyncRequest>,
         ) -> Result<tonic::Response<super::DecryptSyncReponse>, tonic::Status> {
             self.inner
                 .ready()
@@ -220,10 +245,12 @@ pub mod threshold_crypto_library_server {
             &self,
             request: tonic::Request<super::DecryptRequest>,
         ) -> Result<tonic::Response<super::DecryptReponse>, tonic::Status>;
+        /// Returns the result of a protocol instance
+        /// rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
         /// decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
         async fn decrypt_sync(
             &self,
-            request: tonic::Request<super::DecryptRequest>,
+            request: tonic::Request<super::DecryptSyncRequest>,
         ) -> Result<tonic::Response<super::DecryptSyncReponse>, tonic::Status>;
         async fn get_public_keys_for_encryption(
             &self,
@@ -329,7 +356,7 @@ pub mod threshold_crypto_library_server {
                     struct decrypt_syncSvc<T: ThresholdCryptoLibrary>(pub Arc<T>);
                     impl<
                         T: ThresholdCryptoLibrary,
-                    > tonic::server::UnaryService<super::DecryptRequest>
+                    > tonic::server::UnaryService<super::DecryptSyncRequest>
                     for decrypt_syncSvc<T> {
                         type Response = super::DecryptSyncReponse;
                         type Future = BoxFuture<
@@ -338,7 +365,7 @@ pub mod threshold_crypto_library_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::DecryptRequest>,
+                            request: tonic::Request<super::DecryptSyncRequest>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
                             let fut = async move {
