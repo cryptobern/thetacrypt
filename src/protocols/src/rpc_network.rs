@@ -23,7 +23,7 @@ impl RpcNetwork{
                      prot_to_net_receiver: tokio::sync::mpsc::Receiver<(InstanceId, Vec<u8>)>,) -> Self
     {
         let peers = vec![
-                (0, String::from("::1"), 50050),
+                (0, String::from("localhost"), 50050),
                 (1, String::from("::1"), 50050),
                 (2, String::from("::1"), 50050),
                 (3, String::from("::1"), 50050)

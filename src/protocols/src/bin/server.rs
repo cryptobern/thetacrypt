@@ -15,12 +15,18 @@ const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net/confi
 const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
 // todo: Read from conf file
 const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
+use std::env;
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration files
     let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
     let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
+
+    match env::var("BASE_ADDRESS") {
+        Ok(lang) => println!("BASE_ADDRESS: {}", lang),
+        Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
+    };
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {

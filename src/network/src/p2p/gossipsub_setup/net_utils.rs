@@ -63,6 +63,7 @@ pub fn create_tcp_transport(noise_keys: AuthenticKeypair<X25519Spec>) -> Boxed<(
         .boxed()
 }
 
+//Attempt to create a DNS transport layer (not in use)
 pub fn create_dns_transport() -> DnsConfig <TokioTcpConfig>{
     let tcp = TokioTcpConfig::new().nodelay(true);
     let mut runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
@@ -75,14 +76,8 @@ pub fn create_dns_transport() -> DnsConfig <TokioTcpConfig>{
 }
 
 
+//Attempt to define a DNS resolver fot the libp2p2 (not in use)
 pub async fn dns_lookup() {
-    //let rt = Handle::current();
-
-    // let resolver = TokioAsyncResolver::tokio(
-    //     ResolverConfig::default(),
-    //     ResolverOpts::default()
-    // ).unwrap();
-
     let resolver = AsyncResolver::tokio_from_system_conf();
     let resolver = match resolver {
         Ok(resolver) => resolver,
@@ -90,7 +85,7 @@ pub async fn dns_lookup() {
     };
 
     let mut response = tokio::spawn(async move {
-        let lookup_future = resolver.lookup_ip("nameserver");
+        let lookup_future = resolver.ipv4_lookup("nameserver");
         // Run the lookup until it resolves or errors
         //rt.block_on(lookup_future).unwrap()
     });
@@ -104,7 +99,6 @@ pub async fn dns_lookup() {
     //     Ok(result) => result,
     //     Err(error) => error
     // };
-    
 }
 
 

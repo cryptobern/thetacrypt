@@ -61,23 +61,23 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
 fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 27000; // default port number
 
-    for (k, id) in config.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.p2p_ports[k];
-        }
-    }
+    // for (k, id) in config.ids.iter().enumerate() {
+    //     if *id == peer_id {
+    //         return config.p2p_ports[k];
+    //     }
+    // }
     return listn_port;
 }
 
 // get rpc port from config file
 pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
-    let listn_port: u16 = 27000; // default port number
+    let listn_port: u16 = 50050; // default port number
 
-    for (k, id) in config.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.rpc_ports[k];
-        }
-    }
+    // for (k, id) in config.ids.iter().enumerate() {
+    //     if *id == peer_id {
+    //         return config.rpc_ports[k];
+    //     }
+    // }
     return listn_port;
 }
 
