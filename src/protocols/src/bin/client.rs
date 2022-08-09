@@ -11,7 +11,7 @@ use network::config::tendermint_net::config_service::*;
 use cosmos_crypto::keys::{PublicKey, PrivateKey};
 use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
 use mcore::hash256::HASH256;
-use protocols::proto::protocol_types::{self, PushDecryptionShareRequest, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
+use protocols::proto::protocol_types::{self, PushDecryptionShareRequest, GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry, DecryptSyncReponse};
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey, Sg02Ciphertext};
 use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Serializable, DecryptionShare};
 use protocols::keychain::KeyChain;
@@ -21,13 +21,14 @@ use cosmos_crypto::interface::Ciphertext;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use serde::Serialize;
+use tokio::task::JoinHandle;
 use tonic::codegen::http::response;
-use tonic::{Request, Status, Code};
+use tonic::{Request, Status, Code, Response};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_multiple_local_servers().await?;
+    test_multiple_local_sync().await?;
     // abci_app_emulation().await?;
     Ok(())
 }
@@ -194,6 +195,90 @@ async fn test_multiple_local_servers() -> Result<(), Box<dyn std::error::Error>>
         let response = conn.decrypt(request2.clone()).await.unwrap();
         i += 1;
     }
+
+    Ok(())
+}
+
+
+// test_multiple_local_servers() tests basic communication for nodes that run locally on the main host.
+// It is meant to test the basic network logic RpcRequestHandler, MessageForwarder, etc.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054. They should be able to connecto to each other.
+// #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json")?; 
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381)?.key.get_public_key();
+    let (request, ciphertext) = create_decryption_request(1, &pk);
+    let (request2, ciphertext2) = create_decryption_request(2, &pk);
+
+    let mut connections = connect_to_all_local().await;
+
+    // Send decrypt_sync request
+    let mut i = 1;
+    let mut handles= Vec::new();
+    for conn in connections.iter_mut(){
+        println!(">> Sending decryption request 1 to server {i}.");
+        let mut conn2 = conn.clone();
+        let request2 = request.clone();
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
+            let response = conn2.decrypt_sync(request2).await;
+            Ok(response)
+        });
+        handles.push(handle);
+        i += 1;
+    }
+
+    for handle in handles {
+        let result = handle.await.expect("The task being joined has panicked.")?;
+        let response = result.expect("This should not return Err");
+        let plaintext = response.into_inner().plaintext.expect("This should return some plaintext");
+        println!(">> Decrypted plaintext: {:?}.", String::from_utf8(plaintext).unwrap());
+    };
+
+    // Send DUPLICATE decrypt_sync request. The RPC call should return and error
+    let mut i = 1;
+    let mut handles= Vec::new();
+    for conn in connections.iter_mut(){
+        println!(">> Sending AGAIN decryption request 1 to server {i}.");
+        let mut conn2 = conn.clone();
+        let request2 = request.clone();
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
+            let response = conn2.decrypt_sync(request2).await;
+            Ok(response)
+        });
+        handles.push(handle);
+        i += 1;
+    }
+
+    for handle in handles {
+        let result = handle.await.expect("The task being joined has panicked.")?;
+        assert!(result.is_err());
+    };
+
+    // Send INVALID-ciphertext decrypt_sync request. The RPC call should return a decryptSyncResponse, but the contained 'plaintext' field should be None.
+    let PublicKey::Sg02(pk_sg02_bls12381) = pk;
+    let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decryption_request(3, &pk_sg02_bls12381);
+    let invalid_ctxt_decrypt_request = invalid_ctxt_request.into_inner();
+    let mut i = 1;
+    let mut handles= Vec::new();
+    for conn in connections.iter_mut(){
+        println!(">> Sending INVALID decryption request to server {i}.");
+        let mut conn2 = conn.clone();
+        let request2 = invalid_ctxt_decrypt_request.clone();
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
+            let response = conn2.decrypt_sync(request2).await;
+            Ok(response)
+        });
+        handles.push(handle);
+        i += 1;
+    }
+
+    for handle in handles {
+        let result = handle.await.expect("The task being joined has panicked.")?;
+        let response = result.expect("This should not return Err");
+        let plaintext = response.into_inner().plaintext;
+        assert!(plaintext == None);
+        // println!(">> Decrypted plaintext: {:?}.", String::from_utf8(plaintext).unwrap());
+    };
 
     Ok(())
 }
@@ -373,10 +458,10 @@ fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
 
 async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
-        (0, String::from("::1"), 50051),
-        (1, String::from("::1"), 50052),
-        (2, String::from("::1"), 50053),
-        (3, String::from("::1"), 50054)
+        (0, String::from("127.0.0.1"), 50051),
+        (1, String::from("127.0.0.1"), 50052),
+        (2, String::from("127.0.0.1"), 50053),
+        (3, String::from("127.0.0.1"), 50054)
     ];
     let mut connections = Vec::new();
     for peer in peers.iter() {

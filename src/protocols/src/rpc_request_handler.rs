@@ -1,4 +1,6 @@
 use mcore::hash256::HASH256;
+use prost::Message;
+use tokio::sync::mpsc::Sender;
 use tonic::Code;
 use std::collections::{HashMap, VecDeque};
 
@@ -9,14 +11,12 @@ use network::types::message::P2pMessage;
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use crate::keychain::{KeyChain, PrivateKeyEntry};
 use crate::proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use crate::proto::protocol_types::{DecryptRequest, DecryptReponse};
+use crate::proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncReponse};
 use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use crate::proto::protocol_types::PublicKeyEntry;
 use cosmos_crypto::interface::Ciphertext;
-use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
-
-
+use crate::threshold_cipher_protocol::{ThresholdCipherProtocol, ProtocolError};
 
 
 type InstanceId = String;
@@ -79,13 +79,8 @@ pub struct RpcRequestHandler {
     incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
-
-#[tonic::async_trait]
-impl ThresholdCryptoLibrary for RpcRequestHandler {
-    
-    async fn decrypt(&self, request: Request<DecryptRequest>) -> Result<Response<DecryptReponse>, Status> {
-        println!(">> REQH: Received a decryption request.");
-        let req: &DecryptRequest = request.get_ref();
+impl RpcRequestHandler {
+    async fn get_decryption_instance(&self, req: &DecryptRequest) -> Result<(String,ThresholdCipherProtocol), Status> {
         let ciphertext = Ciphertext::deserialize(&req.ciphertext);
         
         // Create a unique instance_id for this instance
@@ -114,7 +109,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 return Err(Status::new(Code::InvalidArgument, err));
             }
         };
-        println!(">> REQH: Using key with key_id: {:?} for decryption request {:?}", private_key_entry.id, &instance_id);
+        println!(">> REQH: Using key with id: {:?} for request {:?}", private_key_entry.id, &instance_id);
         let private_key: PrivateKey = private_key_entry.key;
         let public_key: PublicKey = private_key.get_public_key();
 
@@ -129,7 +124,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let receiver_for_new_instance = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
 
         // Create the new protocol instance
-        let mut prot = ThresholdCipherProtocol::new(
+        let prot = ThresholdCipherProtocol::new(
             private_key.clone(),
             public_key.clone(),
             ciphertext,
@@ -137,36 +132,86 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             self.outgoing_message_sender.clone(),
             instance_id.clone()
         );
+        Ok((instance_id, prot))
+    }
 
+    async fn update_decryption_instance_result(instance_id: String,
+                                               result: Option<Vec<u8>>, 
+                                               state_command_sender: Sender<StateUpdateCommand>,
+                                               forwarder_command_sender: Sender<MessageForwarderCommand>) {
+        // Update the StateManager with the result of the instance.
+        let new_status = InstanceStatus{
+            started: true,
+            terminated: true,
+            result,
+        }; 
+        let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id.clone(), new_status};
+        state_command_sender.send(cmd).await.expect("The receiver for state_command_sender has been closed.");
+        
+        // Inform MessageForwarder that the instance was terminated.
+        let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id };
+        forwarder_command_sender.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.");
+    }
+}
+
+#[tonic::async_trait]
+impl ThresholdCryptoLibrary for RpcRequestHandler {
+    
+    async fn decrypt(&self, request: Request<DecryptRequest>) -> Result<Response<DecryptReponse>, Status> {
+        println!(">> REQH: Received a decrypt request.");
+        let req: &DecryptRequest = request.get_ref();
+
+        // Do all required checks and create the new protocol instance
+        let (instance_id, mut prot) = match self.get_decryption_instance(req).await{
+            Ok((instance_id, prot)) => (instance_id, prot),
+            Err(err) => return Err(err),
+        };
+    
         // Start it in a new thread, so that the client does not block until the protocol is finished.
         let state_command_sender2 = self.state_command_sender.clone();
         let forwarder_command_sender2 = self.forwarder_command_sender.clone();
         let instance_id2 = instance_id.clone();
         tokio::spawn( async move {
             let res = prot.run().await;
-            println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id2);
             
-            // Upon termination, update status of terminated instance
-            let result_data = match res {
+            // Protocol terminated, update state with the result.
+            println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id2);
+            let result = match res {
                 Ok(res) => Some(res),
                 Err(_) => None
             };
-            let new_status = InstanceStatus{
-                started: true,
-                terminated: true,
-                result: result_data,
-            };
-            let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id2.clone(), new_status};
-            state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender has been closed.");
-            
-            // and inform MessageForwarder that the instance was terminated.
-            let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id: instance_id2.clone() };
-            forwarder_command_sender2.send(cmd).await.expect("The receiver for forwarder_command_sender has been closed.");
+            RpcRequestHandler::update_decryption_instance_result(instance_id2.clone(),
+                                                                 result, 
+                                                                 state_command_sender2, 
+                                                                 forwarder_command_sender2).await;
         });
 
         Ok(Response::new(DecryptReponse { instance_id: instance_id.clone() }))
     }
 
+    async fn decrypt_sync(&self, request: Request<DecryptRequest>) -> Result<Response<DecryptSyncReponse>, Status> {
+        println!(">> REQH: Received a decrypt_sync request.");
+        let req: &DecryptRequest = request.get_ref();
+
+        // Do all required checks and create the new protocol instance
+        let (instance_id, mut prot) = match self.get_decryption_instance(req).await{
+            Ok((instance_id, prot)) => (instance_id, prot),
+            Err(err) => return Err(err),
+        };
+
+        // Start the new protocol instance
+        let res = prot.run().await;
+
+        // Protocol terminated, update state with the result.
+        println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id);
+        let result = match res {
+            Ok(res) => Some(res),
+            Err(_) => None
+        };
+        RpcRequestHandler::update_decryption_instance_result(instance_id.clone(), result.clone(), self.state_command_sender.clone(), self.forwarder_command_sender.clone()).await;
+
+        Ok(Response::new(DecryptSyncReponse { instance_id: instance_id.clone(), plaintext: result }))
+    }
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");

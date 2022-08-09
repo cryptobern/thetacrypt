@@ -7,7 +7,10 @@ import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 // amd string (String in Rust) for the rest
 
 service ThresholdCryptoLibrary {
+    // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
     rpc decrypt (DecryptRequest) returns (DecryptReponse);
+    // decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
+    rpc decrypt_sync (DecryptRequest) returns (DecryptSyncReponse);
     rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
     // rpc get_public_keys_for_signature (GetPublicKeysForSignatureRequest) returns (GetPublicKeysForSignatureResponse);
     
@@ -15,9 +18,8 @@ service ThresholdCryptoLibrary {
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
 }
 
+// ---------- Decrypt a ciphertext ----------
 message DecryptRequest {
-    // ThresholdCipher algorithm = 1;
-    // DlGroup dl_group = 2;
     bytes ciphertext = 1;
     optional string key_id = 2;
 }
@@ -26,6 +28,10 @@ message DecryptReponse {
     string instance_id = 1;
 }
 
+message DecryptSyncReponse {
+    string instance_id = 1;
+    optional bytes plaintext = 2;
+}
 
 // ---------- Get available keys ----------
 message PublicKeyEntry {

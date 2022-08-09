@@ -83,7 +83,7 @@ impl ThresholdCipherProtocol {
     pub async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>{
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
         if ! ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.pk)?{
-            println!(">> PROT: instance_id: {:?} found INVALID ciphertext. label: {:?}. Protocol instance will quit.", &self.instance_id, self.ciphertext.get_label() );
+            println!(">> PROT: instance_id: {:?} found INVALID ciphertext. Protocol instance will quit.", &self.instance_id );
             self.terminate().await?;
             return Err(ProtocolError::InvalidCiphertext);
         }
