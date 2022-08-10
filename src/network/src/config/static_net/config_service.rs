@@ -1,6 +1,7 @@
 use libp2p::multiaddr::{Multiaddr, Protocol};
-use std::{fs, process::exit};
+use std::{fs, process::exit, env};
 use toml;
+use std::net::Ipv4Addr;
 
 use crate::config::static_net::deserialize::Config;
 
@@ -83,12 +84,29 @@ pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
 
 // get ip from config file
 fn get_ip(config: &Config, peer_id: u32) -> String {
-    let listn_port: String = "127.0.0.1".to_string(); // default ip
+    //let listn_port: String = "127.0.0.1".to_string(); // default ip
+    let base_address = base_address match env::var("BASE_ADDRESS") {
+        Ok(base_address) => println!("BASE_ADDRESS: {}", base_address),
+        Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
+    };
 
-    for (k, id) in config.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.ips[k].to_string();
-        }
-    }
-    return listn_port.to_string();
+    return build_ip_from_base(&base_address, (peer_id+1) as u8).to_string();
+
+    // for (k, id) in config.ids.iter().enumerate() {
+    //     if *id == peer_id {
+    //         return config.ips[k].to_string();
+    //     }
+    // }
+    //return base_address.to_string();
+}
+
+fn build_ip_from_base(base_address: &String, id: u8) -> Ipv4Addr{
+    let base_ip = match Ipv4Addr::from_str(base_address) {
+        Ok(base_ip) => base_ip,
+        Err(e) => panic!("Couldn't read base_ip ({:?})", e)
+    };
+
+    let base_ip_octects = Ipv4Addr::octets(&base_ip);
+    let new_ip = Ipv4Addr::new(base_ip_octects[0], base_ip_octects[1], base_ip_octects[2], id);
+    return new_ip;
 }

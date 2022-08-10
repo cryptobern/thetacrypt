@@ -22,11 +22,6 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
     let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
-    match env::var("BASE_ADDRESS") {
-        Ok(base_address) => println!("BASE_ADDRESS: {}", base_address),
-        Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
-    };
-
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Please provide server ID.")
