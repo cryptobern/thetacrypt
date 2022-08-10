@@ -91,7 +91,7 @@ fn get_ip(config: &Config, peer_id: u32) -> String {
         Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
     };
 
-    return build_ip_from_base(&base_address, (peer_id+1) as u8).to_string();
+    return build_ip_from_base(&base_address.to_string(), (peer_id+1) as u8).to_string();
 
     // for (k, id) in config.ids.iter().enumerate() {
     //     if *id == peer_id {
