@@ -2,6 +2,7 @@ use libp2p::multiaddr::{Multiaddr, Protocol};
 use std::{fs, process::exit, env};
 use toml;
 use std::net::Ipv4Addr;
+use std::str::FromStr;
 
 use crate::config::static_net::deserialize::Config;
 
