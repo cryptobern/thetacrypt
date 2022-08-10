@@ -9,7 +9,7 @@ use crate::config::static_net::deserialize::Config;
 // load config file
 pub fn load_config(my_id: &u32) -> Config {
 
-    const number_of_nodes = match env::var("NUMBER_OF_NODES") {
+    let number_of_nodes = match env::var("NUMBER_OF_NODES") {
         Ok(number_of_nodes) => number_of_nodes,
         Err(e) => panic!("Couldn't read NUMBER_OF_NODES ({:?})", e)
     };
@@ -32,18 +32,18 @@ pub fn load_config(my_id: &u32) -> Config {
     let base_listen_address = String::from("/ip4/0.0.0.0/tcp/");
 
     let ids: Vec<u32> = [0; number_of_nodes as usize].to_vec();
-    let ips: Vec<String> = [0; number_of_nodes as usize].to_vec();
+    let ips: Vec<String> = [" ".to_string(); number_of_nodes.parse::<usize>().unwrap()].to_vec();
 
-    for i in 0..(number_of_nodes as usize){
-        ids[i] = (i+1) u32;
+    for i in 0..number_of_nodes.parse::<usize>().unwrap();{
+        ids[i] = (i+1) as u32;
         ips[i] = build_ip_from_base(&base_address.to_string(), (i+1) as u8);
     }
 
     let config = Config {
         ids: ids,
         ips: ips,
-        p2p_port: p2p_port as u16,
-        rpc_port: rpc_port as u16,
+        p2p_port: p2p_port.parse::<u16>().unwrap(),
+        rpc_port: rpc_port.parse::<u16>().unwrap(),
         base_listen_address: base_listen_address,
     };
 
