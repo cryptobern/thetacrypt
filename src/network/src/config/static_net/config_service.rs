@@ -7,23 +7,62 @@ use std::str::FromStr;
 use crate::config::static_net::deserialize::Config;
 
 // load config file
-pub fn load_config(path: String) -> Config {
-    let contents = match fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("Could not read file `{}`", path);
-            exit(1);
-        }
+pub fn load_config(&my_id: u32) -> Config {
+
+    let number_of_nodes = match env::var("NUMBER_OF_NODES") {
+        Ok(number_of_nodes) => number_of_nodes,
+        Err(e) => panic!("Couldn't read NUMBER_OF_NODES ({:?})", e)
     };
 
-    let config: Config = match toml::from_str(&contents) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Unable to load data from `{}`", path);
-            println!("################ {}", e);
-            exit(1);
-        }
+    let base_address = match env::var("BASE_ADDRESS") {
+        Ok(base_address) => base_address,
+        Err(e) => panic!("Couldn't read base_ip ({:?})", e)
     };
+
+    let p2p_port = match env::var("P2P_PORT") {
+        Ok(p2p_port) => p2p_port,
+        Err(e) => panic!("Couldn't read P2P_PORT ({:?})", e)
+    };
+
+    let rpc_port = match env::var("RPC_PORT") {
+        Ok(rpc_port) => rpc_port,
+        Err(e) => panic!("Couldn't read RPC_PORT ({:?})", e)
+    };
+
+    let base_listen_address = String::from("/ip4/0.0.0.0/tcp/");
+
+    let ids: Vec<u32> = [0; number_of_nodes];
+    let ips: Vec<String> = [0; number_of_nodes];
+
+    for i in 0..number_of_nodes{
+        ids[i] = i+1;
+        ips[i] = build_ip_from_base(&base_address.to_string(), (i+1) as u8);
+    }
+
+    let config = Config {
+        ids: ids,
+        ips: ips,
+        p2p_port: p2p_port,
+        rpc_port: rpc_port,
+        base_listen_address: base_listen_address,
+    };
+
+    // let contents = match fs::read_to_string(&path) {
+    //     Ok(c) => c,
+    //     Err(_) => {
+    //         eprintln!("Could not read file `{}`", path);
+    //         exit(1);
+    //     }
+    // };
+
+    // let config: Config = match toml::from_str(&contents) {
+    //     Ok(d) => d,
+    //     Err(e) => {
+    //         eprintln!("Unable to load data from `{}`", path);
+    //         println!("################ {}", e);
+    //         exit(1);
+    //     }
+    // };
     return config;
 }
 
@@ -63,42 +102,35 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
 fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 27000; // default port number
 
-    // for (k, id) in config.ids.iter().enumerate() {
-    //     if *id == peer_id {
-    //         return config.p2p_ports[k];
-    //     }
-    // }
-    return listn_port;
+    for (k, id) in config.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.p2p_ports[k];
+        }
+    }
+    return p2p_port;
 }
 
 // get rpc port from config file
 pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
     let listn_port: u16 = 50050; // default port number
-
-    // for (k, id) in config.ids.iter().enumerate() {
-    //     if *id == peer_id {
-    //         return config.rpc_ports[k];
-    //     }
-    // }
+    for (k, id) in config.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.p2p_ports[k];
+        }
+    }   
     return listn_port;
 }
 
 // get ip from config file
 fn get_ip(config: &Config, peer_id: u32) -> String {
-    //let listn_port: String = "127.0.0.1".to_string(); // default ip
-    let base_address = match env::var("BASE_ADDRESS") {
-        Ok(base_address) => println!("BASE_ADDRESS: {}", base_address),
-        Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
-    };
+    let listn_port: String = "127.0.0.1".to_string(); // default ip
 
-    return build_ip_from_base(&base_address.to_string(), (peer_id+1) as u8).to_string();
-
-    // for (k, id) in config.ids.iter().enumerate() {
-    //     if *id == peer_id {
-    //         return config.ips[k].to_string();
-    //     }
-    // }
-    //return base_address.to_string();
+    for (k, id) in config.ids.iter().enumerate() {
+        if *id == peer_id {
+            return config.ips[k].to_string();
+        }
+    }
+    return listn_port.to_string();
 }
 
 fn build_ip_from_base(base_address: &String, id: u8) -> Ipv4Addr{

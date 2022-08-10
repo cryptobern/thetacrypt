@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub ids: Vec<u32>,
     pub ips: Vec<String>,
-    pub p2p_ports: Vec<u16>,
-    pub rpc_ports: Vec<u16>,
+    pub p2p_port: u16,
+    pub rpc_port: u16,
     pub base_listen_address: String,
 }
