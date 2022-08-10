@@ -26,4 +26,4 @@ tonic-build = "0.7"
 std = []
 
 [workspace]
-members = ["derive", "protocols", "network"]
+members = ["derive", "protocols", "network", "abci_app"]
