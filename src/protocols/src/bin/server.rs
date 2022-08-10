@@ -20,7 +20,7 @@ const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration files
     let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
-    let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
+    //let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -28,8 +28,10 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let my_id = u32::from_str(&args[1])?;
-    let my_addr = static_net::config_service::get_rpc_base_address(&tendermint_config);
-    let mut my_port = static_net::config_service::get_rpc_port(&tendermint_config);
+
+    let localnet_config = static_net::config_service::load_config(&my_id);
+    let my_addr = static_net::config_service::get_rpc_base_address(&localnet_config);
+    let mut my_port = static_net::config_service::get_rpc_port(&localnet_config);
     let my_keyfile = format!("conf/keys_{my_id}.json");
     
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);

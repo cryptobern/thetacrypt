@@ -7,9 +7,9 @@ use std::str::FromStr;
 use crate::config::static_net::deserialize::Config;
 
 // load config file
-pub fn load_config(&my_id: u32) -> Config {
+pub fn load_config(my_id: &u32) -> Config {
 
-    let number_of_nodes = match env::var("NUMBER_OF_NODES") {
+    const number_of_nodes = match env::var("NUMBER_OF_NODES") {
         Ok(number_of_nodes) => number_of_nodes,
         Err(e) => panic!("Couldn't read NUMBER_OF_NODES ({:?})", e)
     };
@@ -31,19 +31,19 @@ pub fn load_config(&my_id: u32) -> Config {
 
     let base_listen_address = String::from("/ip4/0.0.0.0/tcp/");
 
-    let ids: Vec<u32> = [0; number_of_nodes];
-    let ips: Vec<String> = [0; number_of_nodes];
+    let ids: Vec<u32> = [0; number_of_nodes as usize].to_vec();
+    let ips: Vec<String> = [0; number_of_nodes as usize].to_vec();
 
-    for i in 0..number_of_nodes{
-        ids[i] = i+1;
+    for i in 0..(number_of_nodes as usize){
+        ids[i] = (i+1) u32;
         ips[i] = build_ip_from_base(&base_address.to_string(), (i+1) as u8);
     }
 
     let config = Config {
         ids: ids,
         ips: ips,
-        p2p_port: p2p_port,
-        rpc_port: rpc_port,
+        p2p_port: p2p_port as u16,
+        rpc_port: rpc_port as u16,
         base_listen_address: base_listen_address,
     };
 
@@ -100,25 +100,12 @@ pub fn get_dial_addr(config: &Config, peer_id: u32) -> Multiaddr {
 
 // get p2p port from config file
 fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
-    let listn_port: u16 = 27000; // default port number
-
-    for (k, id) in config.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.p2p_ports[k];
-        }
-    }
-    return p2p_port;
+    return config.p2p_port;
 }
 
 // get rpc port from config file
 pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
-    let listn_port: u16 = 50050; // default port number
-    for (k, id) in config.ids.iter().enumerate() {
-        if *id == peer_id {
-            return config.p2p_ports[k];
-        }
-    }   
-    return listn_port;
+    return config.p2p_port;
 }
 
 // get ip from config file
@@ -133,7 +120,7 @@ fn get_ip(config: &Config, peer_id: u32) -> String {
     return listn_port.to_string();
 }
 
-fn build_ip_from_base(base_address: &String, id: u8) -> Ipv4Addr{
+fn build_ip_from_base(base_address: &String, id: u8) -> String{
     let base_ip = match Ipv4Addr::from_str(base_address) {
         Ok(base_ip) => base_ip,
         Err(e) => panic!("Couldn't read base_ip ({:?})", e)
@@ -141,5 +128,5 @@ fn build_ip_from_base(base_address: &String, id: u8) -> Ipv4Addr{
 
     let base_ip_octects = Ipv4Addr::octets(&base_ip);
     let new_ip = Ipv4Addr::new(base_ip_octects[0], base_ip_octects[1], base_ip_octects[2], id);
-    return new_ip;
+    return new_ip.to_string();
 }
