@@ -86,7 +86,7 @@ pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
 // get ip from config file
 fn get_ip(config: &Config, peer_id: u32) -> String {
     //let listn_port: String = "127.0.0.1".to_string(); // default ip
-    let base_address = base_address match env::var("BASE_ADDRESS") {
+    let base_address = match env::var("BASE_ADDRESS") {
         Ok(base_address) => println!("BASE_ADDRESS: {}", base_address),
         Err(e) => println!("Couldn't read BASE_ADDRESS ({})", e),
     };
