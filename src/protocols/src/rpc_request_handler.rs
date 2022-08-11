@@ -80,7 +80,13 @@ pub struct RpcRequestHandler {
 
 impl RpcRequestHandler {
     async fn get_decryption_instance(&self, ciphertext_bytes: &Vec<u8>, key_id: &Option<String>) -> Result<(String,ThresholdCipherProtocol), Status> {
-        let ciphertext = Ciphertext::deserialize(ciphertext_bytes);
+        // Deserialize ciphertext
+        let ciphertext = match Ciphertext::deserialize(ciphertext_bytes) {
+            Ok(ctxt) => ctxt,
+            Err(err) => {
+                return Err(Status::new(Code::InvalidArgument, format!("Could not deserialize ciphertext. Err: {:?}", err)));
+            },
+        };
         
         // Create a unique instance_id for this instance
         let instance_id = assign_decryption_instance_id(&ciphertext);
