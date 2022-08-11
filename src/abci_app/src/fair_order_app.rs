@@ -9,6 +9,7 @@ use tendermint_proto::abci::{
 use protocols::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
 
 use tendermint_abci::{Application, Error};
+use tonic::transport::Channel;
 
 #[derive(Debug, Clone)]
 pub struct FairOrderApp {
@@ -82,7 +83,7 @@ pub struct FairOrderDriver {
 
 impl FairOrderDriver {
     async fn new(tcl_ip: String, tcl_port: u16, command_receiver: Receiver<Command>) -> Self {
-        let tcl_client: ThresholdCryptoLibraryClient<tonic::transport::Channel>;
+        let tcl_client: ThresholdCryptoLibraryClient<Channel>;
         loop {
             match ThresholdCryptoLibraryClient::connect(format!("http://[{tcl_ip}]:{tcl_port}")).await {
                 Ok(client) => {
