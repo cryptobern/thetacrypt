@@ -31,12 +31,12 @@ pub fn load_config(my_id: &u32) -> Config {
 
     let base_listen_address = String::from("/ip4/0.0.0.0/tcp/");
 
-    let ids: Vec<u32> = [0; number_of_nodes as usize].to_vec();
-    let ips: Vec<String> = [" ".to_string(); number_of_nodes.parse::<usize>().unwrap()].to_vec();
+    let ids: Vec<u32> = Vec::new();
+    let ips: Vec<String> = Vec::new();
 
     for i in 0..number_of_nodes.parse::<usize>().unwrap();{
-        ids[i] = (i+1) as u32;
-        ips[i] = build_ip_from_base(&base_address.to_string(), (i+1) as u8);
+        ids.push((i+1) as u32);
+        ips.push(build_ip_from_base(&base_address.to_string(), (i+1) as u8));
     }
 
     let config = Config {
