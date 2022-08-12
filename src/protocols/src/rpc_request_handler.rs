@@ -84,6 +84,7 @@ impl RpcRequestHandler {
         let ciphertext = match Ciphertext::deserialize(ciphertext_bytes) {
             Ok(ctxt) => ctxt,
             Err(err) => {
+                println!(">> REQH: Could not deserialize ciphertext. Quitting request.");
                 return Err(Status::new(Code::InvalidArgument, format!("Could not deserialize ciphertext. Err: {:?}", err)));
             },
         };

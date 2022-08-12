@@ -34,9 +34,10 @@ use tonic::{Request, Status, Code, Response};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_multiple_local_servers().await?;
-    test_multiple_local_sync().await?;
+    // test_multiple_local_servers().await?;
+    // test_multiple_local_sync().await?;
     // abci_app_emulation().await?;
+    get_encrypted_tx();
     Ok(())
 }
 
@@ -504,6 +505,13 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn get_encrypted_tx(){
+    let key_chain_1: KeyChain = KeyChain::from_file("conf/keys_1.json").unwrap(); 
+    let pk = key_chain_1.get_key_by_type(ThresholdScheme::Sg02, Group::Bls12381).unwrap().key.get_public_key();
+    let ctxt = create_ciphertext(1, &pk);
+    println!("{:?}", ctxt.serialize().unwrap());
+    
+}
 
 fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
     let mut digest = HASH256::new();

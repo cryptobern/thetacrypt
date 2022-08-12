@@ -1,11 +1,6 @@
 use std::{sync::mpsc::{Sender, Receiver, channel}, collections::HashMap, time::Duration};
 
-use tendermint_proto::abci::{
-    Event, EventAttribute, RequestCheckTx, RequestDeliverTx, RequestInfo, RequestQuery,
-    ResponseCheckTx, ResponseCommit, ResponseDeliverTx, ResponseInfo, ResponseQuery,
-    RequestEcho, ResponseEcho, RequestInitChain, ResponseInitChain, RequestBeginBlock,
-    ResponseBeginBlock,
-};
+use tendermint_proto::abci::{RequestDeliverTx, RequestQuery, ResponseDeliverTx, ResponseQuery};
 use protocols::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
 
 use tendermint_abci::{Application, Error};
@@ -26,29 +21,20 @@ impl FairOrderApp {
 }
 
 impl Application for FairOrderApp {
+    
+    // For simplicity we assume the only tx ever delivered is encrypted, and request.tx contains the ciphertext.
+    // The abci_app is responsible for submiting this ciphertext to the threshold crypto library for decryption.
+    // The 'channel_recv' endpoint used in this example is blocking, i.e., it will only return when the library
+    // has decrypted the ciphertext. Hence, deliver_tx will obtain the decrypted transaction.
+    // This sample code does not return the decrypted tx back to the client_app.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
-        println!(">> Delivered a tx.");
-        let tx = std::str::from_utf8(&request.tx).unwrap();
-        let (command, operand) = tx.split_once('=').unwrap();
-        match command{
-            "order_encrypted" => { 
-                println!(">> Delivered an order_encrypted tx.");
-                let (result_sender, result_receiver) = channel();
-                let command = Command::DecryptTx { encrypted_tx: operand.as_bytes().to_vec(), result_sender};
-                channel_send(&self.command_sender, command).unwrap();
-                let decrypted_tx = channel_recv(&result_receiver).unwrap();
-                // todo: Return value?
-            },
-            "get_encryption_keys" => {
-                println!(">> Delivered a get_encryption_keys tx.");
-                let (result_sender, result_receiver) = channel();
-                let command = Command::GetEncryptionKeys { result_sender};
-                channel_send(&self.command_sender, command).unwrap();
-                let encryption_keys = channel_recv(&result_receiver).unwrap();
-                // todo: Return value?
-            },
-            &_ => {}
-        };
+        println!(">> Delivered an encrypted tx.");
+        let ciphertext = request.tx;
+        let (result_sender, result_receiver) = channel();
+        let command = Command::DecryptTx { encrypted_tx: ciphertext, result_sender};
+        channel_send(&self.command_sender, command).unwrap();
+        let decrypted_tx = channel_recv(&result_receiver).unwrap();
+        
         ResponseDeliverTx { 
             code: 0,
             data: Default::default(),
@@ -59,8 +45,47 @@ impl Application for FairOrderApp {
             events: Vec::new(),
             codespace: "".to_string(),
         }
-    }   
+    }
 
+    // The client_app, in order to encrypt a tx, needs the public key that corresponds to the secret-key shares
+    // held by the nodes of the threshold library app. Since this is only a query (the client_app does not submit
+    // any data to the blockchain), this can be implemented in the 'abci_querry' function.
+    // We assume the only query used by the client_app is for getting †he avaible public keys for encryption,
+    // hence in this code we do not check the content of RequestQuery.
+    // This simple implementation returns only the first key returned by the threshold library.
+    fn query(&self, request: RequestQuery) -> ResponseQuery {
+        println!(">> Delivered a query for avaible encryption keys.");
+        let (result_sender, result_receiver) = channel();
+        let command = Command::GetEncryptionKeys { result_sender};
+        channel_send(&self.command_sender, command).unwrap();
+
+        let (mut return_key_id, mut return_key_bytes) = (String::new(), Vec::new());
+        let encryption_keys = channel_recv(&result_receiver).unwrap();
+        match encryption_keys {
+            Some(keys) => {
+                for (key_id, key_bytes) in keys {
+                    println!(">> Key: {:?}", key_bytes);
+                    if return_key_id.is_empty(){
+                        (return_key_id, return_key_bytes) = (key_id, key_bytes);
+                    }
+                }
+            },
+            None => {
+                println!(">> No keys returned.");
+            },
+        }
+        ResponseQuery{
+            code: 0,
+            log: "".to_string(),
+            info: "".to_string(),
+            index: 0,
+            key: return_key_id.into_bytes(),
+            value: return_key_bytes,
+            proof_ops: None,
+            height: 0,
+            codespace: "".to_string(),
+        }
+    }
    
 }
 
