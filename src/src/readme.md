@@ -10,7 +10,7 @@ Threshold Signatures:
 - Bls04 (Pairing-based)
 
 Threshold Coins:
-- Sh00 (ZK-based)
+- Cks05 (ZK-based)
 
 All of those schemes use keys of the type `PublicKey` or `PrivateKey` respectively. Keys can be generated using the `KeyGenerator`. To generate keys, the concrete scheme and the underlying group need to be specified. For the schemes that are pairing-based, a group that supports pairings needs to be specified. So far the following groups are implemented:
 
