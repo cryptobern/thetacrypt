@@ -15,6 +15,8 @@ chacha20poly1305 = "=0.9.0"
 rasn = "=0.3.1"
 gmp-mpfr-sys = "1.4"
 derive = { path="derive", version = "0.1.0" }
+serde = { version = "1.0", features = ["derive"] }
+prost = "0.10"
 
 [features]
 std = []

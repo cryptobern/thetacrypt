@@ -43,15 +43,17 @@ impl ThresholdScheme {
 
 
 /* Threshold Coin */
-pub struct ThresholdCoin {}
+pub enum CoinShare {
 
-impl ThresholdCoin {
-    /*
-    fn create_share(name: &[u8], TPrivKey: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare;
-    fn verify_share(share: &Self::TShare, name: &[u8], TPubKey: &PublicKey) -> bool;
-    fn assemble(shares: &Vec<Self::TShare>) -> u8;
-    */
 }
+
+pub struct ThresholdCoin {}
+/*
+impl ThresholdCoin {
+    fn create_share(name: &[u8], private_key: &PrivateKey, rng: &mut RNG) -> Result<CoinShare, ThresholdCryptoError>;
+    fn verify_share(share: &CoinShare, name: &[u8],  public_key: &PublicKey) -> Result<bool, ThresholdCryptoError>;
+    fn assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError>;
+}*/
 
 
 /* ---- NEW API ---- */
