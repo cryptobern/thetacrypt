@@ -7,7 +7,7 @@ use derive::{PublicKey, PrivateKey, Serializable, DlShare};
 use mcore::hash256::HASH256;
 use rasn::{AsnType, Encode, Decode};
 
-use crate::{group::{GroupElement, Group}, dl_schemes::{bigint::BigImpl, common::interpolate}, interface::{ThresholdScheme, ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}};
+use crate::{group::{GroupElement}, dl_schemes::{bigint::BigImpl, common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}, proto::scheme_types::{Group, ThresholdScheme}};
 
 pub struct Bls04ThresholdSignature {
     g: GroupElement
@@ -19,12 +19,12 @@ pub struct Bls04PublicKey {
     n: u16,
     k: u16,
     y: GroupElement,
-    verificationKey:Vec<GroupElement>
+    verification_key:Vec<GroupElement>
 }  
 
 impl Bls04PublicKey {
-    pub fn new(group: &Group, n:usize, k:usize, y: &GroupElement, verificationKey: &Vec<GroupElement>) -> Self {
-        Self {group:group.clone(), n:n as u16, k:k as u16, y:y.clone(), verificationKey:verificationKey.clone()}
+    pub fn new(group: &Group, n:usize, k:usize, y: &GroupElement, verification_key: &Vec<GroupElement>) -> Self {
+        Self {group:group.clone(), n:n as u16, k:k as u16, y:y.clone(), verification_key:verification_key.clone()}
     }
 
     pub fn get_order(&self) -> BigImpl {
@@ -46,7 +46,7 @@ impl Bls04PublicKey {
 
 impl PartialEq for Bls04PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.n == other.n && self.k == other.k && self.y == other.y && self.verificationKey.eq(&other.verificationKey)
+        self.n == other.n && self.k == other.k && self.y == other.y && self.verification_key.eq(&other.verification_key)
     }
 }
 
@@ -57,8 +57,8 @@ impl Encode for Bls04PublicKey {
             self.n.encode(sequence)?;
             self.k.encode(sequence)?;
             self.y.to_bytes().encode(sequence)?;
-            for i in 0..self.verificationKey.len() {
-                self.verificationKey[i].to_bytes().encode(sequence)?;
+            for i in 0..self.verification_key.len() {
+                self.verification_key[i].to_bytes().encode(sequence)?;
             }
             Ok(())
         })?;
@@ -74,16 +74,16 @@ impl Decode for Bls04PublicKey {
             let n = u16::decode(sequence)?;
             let k = u16::decode(sequence)?;
             let y_b = Vec::<u8>::decode(sequence)?;
-            let mut verificationKey = Vec::new();
+            let mut verification_key = Vec::new();
 
-            for i in 0..n {
+            for _i in 0..n {
                 let bytes = Vec::<u8>::decode(sequence)?;
-                verificationKey.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
             }
 
             let y = GroupElement::from_bytes(&y_b, &group, Option::Some(0));
 
-            Ok(Self{group, n, k, y, verificationKey})
+            Ok(Self{group, n, k, y, verification_key})
         })
     }
 }
@@ -159,7 +159,7 @@ pub struct Bls04SignatureShare {
 impl Bls04SignatureShare {
     pub fn get_data(&self) -> GroupElement { self.data.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
-    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::BLS04 }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Bls04 }
     pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
@@ -243,7 +243,7 @@ impl Bls04ThresholdSignature {
     }
 
     pub fn verify_share(share: &Bls04SignatureShare, msg: &[u8], pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
-        GroupElement::ddh(&H(&msg, &share.get_group()), &pk.verificationKey[(share.id - 1) as usize], &share.data, &GroupElement::new(&share.get_group()))
+        GroupElement::ddh(&H(&msg, &share.get_group()), &pk.verification_key[(share.id - 1) as usize], &share.data, &GroupElement::new(&share.get_group()))
     }
 
     pub fn assemble(shares: &Vec<Bls04SignatureShare>, msg: &[u8], _pk: &Bls04PublicKey) -> Bls04SignedMessage {

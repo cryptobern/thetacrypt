@@ -13,8 +13,9 @@ use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::dl_schemes::bigint::*;
 use crate::dl_schemes::{common::*};
-use crate::group::{Group, GroupElement};
+use crate::group::{GroupElement};
 use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare};
+use crate::proto::scheme_types::{Group, ThresholdScheme};
 use crate::rand::RNG;
 
 
@@ -24,12 +25,12 @@ pub struct Bz03PublicKey {
     k: u16,
     group: Group,
     y: GroupElement, //ECP2
-    verificationKey: Vec<GroupElement>
+    verification_key: Vec<GroupElement>
 }
 
 impl Bz03PublicKey {
-    pub fn new(group: &Group, n: usize, k: usize, y: &GroupElement, verificationKey: &Vec<GroupElement>) -> Self {
-        Self { group: group.clone(), n:n as u16, k:k as u16, y:y.clone(), verificationKey:verificationKey.clone()}
+    pub fn new(group: &Group, n: usize, k: usize, y: &GroupElement, verification_key: &Vec<GroupElement>) -> Self {
+        Self { group: group.clone(), n:n as u16, k:k as u16, y:y.clone(), verification_key:verification_key.clone()}
     }
 
     pub fn get_order(&self) -> BigImpl {
@@ -57,8 +58,8 @@ impl Encode for Bz03PublicKey {
             self.group.get_code().encode(sequence)?;
             self.y.to_bytes().encode(sequence)?;
 
-            for i in 0..self.verificationKey.len() {
-                self.verificationKey[i].to_bytes().encode(sequence)?;
+            for i in 0..self.verification_key.len() {
+                self.verification_key[i].to_bytes().encode(sequence)?;
             }
 
             Ok(())
@@ -80,19 +81,19 @@ impl Decode for Bz03PublicKey {
             let y = GroupElement::from_bytes(&y_b, &group, Option::Some(1));
 
             let mut verificationKey = Vec::<GroupElement>::new();
-            for i in 0..n {
+            for _i in 0..n {
                 let bytes = Vec::<u8>::decode(sequence)?;
                 verificationKey.push(GroupElement::from_bytes(&bytes, &group, Option::None));
             }
 
-            Ok(Self{n, k, y, group, verificationKey})
+            Ok(Self{n, k, y, group, verification_key: verificationKey})
         })
     }
 }
 
 impl PartialEq for Bz03PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.y.eq(&other.y) && self.verificationKey.eq(&other.verificationKey)
+        self.y.eq(&other.y) && self.verification_key.eq(&other.verification_key)
     }
 }
 
@@ -223,6 +224,13 @@ pub struct Bz03Ciphertext {
     hr: GroupElement
 }
 
+impl Bz03Ciphertext {
+    pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
+    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
+    pub fn get_group(&self) -> Group { self.u.get_group() }
+}
+
 impl Encode for Bz03Ciphertext {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
@@ -287,9 +295,9 @@ impl Bz03ThresholdCipher {
             .encrypt(Nonce::from_slice(&rY.to_bytes()[0..12]),  msg)
             .expect("encryption failure");
             
-        let c_k = xor(G(&rY), (k).to_vec());
+        let c_k = xor(g(&rY), (k).to_vec());
 
-        let mut hr = H(&u, &encryption);
+        let mut hr = h(&u, &encryption);
         hr.pow(&r);
 
         let c = Bz03Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
@@ -297,13 +305,13 @@ impl Bz03ThresholdCipher {
     }
 
     pub fn verify_ciphertext(ct: &Bz03Ciphertext, _pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
-        let h = H(&ct.u, &ct.msg);
+        let h = h(&ct.u, &ct.msg);
 
         GroupElement::ddh(&ct.u, &h, &GroupElement::new_ecp2(&ct.u.get_group()), &ct.hr)
     }
 
     pub fn verify_share(share: &Bz03DecryptionShare, ct: &Bz03Ciphertext, pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
-        GroupElement::ddh(&share.data, &GroupElement::new(&share.group), &ct.u, &pk.verificationKey[(&share.id - 1) as usize])
+        GroupElement::ddh(&share.data, &GroupElement::new(&share.group), &ct.u, &pk.verification_key[(&share.id - 1) as usize])
     }
 
     pub fn partial_decrypt(ct: &Bz03Ciphertext, sk: &Bz03PrivateKey, _params: &mut ThresholdCipherParams) -> Bz03DecryptionShare {
@@ -316,7 +324,7 @@ impl Bz03ThresholdCipher {
     pub fn assemble(shares: &Vec<Bz03DecryptionShare>, ct: &Bz03Ciphertext) -> Vec<u8> {
         let rY = interpolate(shares);
         
-        let k = xor(G(&rY), ct.c_k.clone());
+        let k = xor(g(&rY), ct.c_k.clone());
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let msg = cipher
@@ -328,7 +336,7 @@ impl Bz03ThresholdCipher {
 
 }
 
-fn H(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
+fn h(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
     let bytes  = g.to_bytes();
     
     let mut h = HASH256::new();
@@ -345,7 +353,7 @@ fn H(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
 }
 
 // hash ECP to bit string
-fn G(x: &GroupElement) -> Vec<u8> {
+fn g(x: &GroupElement) -> Vec<u8> {
     let res = x.to_bytes();
 
     let mut h = HASH256::new();

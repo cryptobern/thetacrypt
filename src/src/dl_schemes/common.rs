@@ -1,9 +1,9 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}};
+use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}, proto::scheme_types::Group};
 use crate::dl_schemes::bigint::*;
 
-use crate::group::{Group, GroupElement};
+use crate::group::{GroupElement};
 
 pub fn shamir_share(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<GroupElement>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
@@ -79,7 +79,7 @@ pub fn gen_symm_key(rng: &mut RNG) -> [u8; 32] {
 
 pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement { 
     let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id() as u8).collect();
-    let mut rY = GroupElement::new(&shares[0].get_group());
+    let mut ry = GroupElement::new(&shares[0].get_group());
 
     for i in 0..shares.len() {
         let l = lagrange_coeff(&shares[0].get_group(), &ids, shares[i].get_id() as isize);
@@ -87,13 +87,13 @@ pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement {
         ui.pow(&l);
 
         if i == 0 {
-            rY = ui;
+            ry = ui;
         } else {
-            rY.mul(&ui);
+            ry.mul(&ui);
         }
     }
 
-    rY
+    ry
 }
 
 pub fn lagrange_coeff(group: &Group, indices: &[u8], i: isize) -> BigImpl {

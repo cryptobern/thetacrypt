@@ -32,12 +32,12 @@ fn main() {
 
     println!("Message: {}", plaintext);
 
-    // perform threshold encryption using SG02 scheme 
-    println!("\n--SG02 Threshold Cipher--");
+    // perform threshold encryption using Sg02 scheme 
+    println!("\n--Sg02 Threshold Cipher--");
 
-    // generate secret shares for SG02 scheme over Bls12381 curve
+    // generate secret shares for Sg02 scheme over Bls12381 curve
     let now = Instant::now();
-    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381).unwrap();
+    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381).unwrap();
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 

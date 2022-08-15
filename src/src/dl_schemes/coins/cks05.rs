@@ -239,8 +239,8 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
 
 impl<D:DlDomain> Cks05ThresholdCoin<D> {
     pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Cks05PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::CKS05(domain));
-        unwrap_keys!(keys, DlPrivateKey::CKS05)
+        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Cks05(domain));
+        unwrap_keys!(keys, DlPrivateKey::Cks05)
     }
 }
 

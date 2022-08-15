@@ -1,5 +1,6 @@
 use core::panic;
 use std::mem::ManuallyDrop;
+use crate::proto::scheme_types::Group;
 
 use crate::{dl_schemes::{bigint::BigImpl, dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
 
@@ -8,13 +9,6 @@ use crate::{dl_schemes::{bigint::BigImpl, dl_groups::{bls12381::{Bls12381}, bn25
     group elements. 
 
     TODO: change code to standard way of encoding EC groups */
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Group {
-    Bls12381,
-    Bn254,
-    Ed25519,
-    Rsa
-}
 
 impl Group {
     pub fn get_code(&self) -> u8 {
