@@ -207,6 +207,18 @@ impl GroupElement {
         Self { group: group.clone(), data: data}
     }
 
+    pub fn new_pow_big_ecp2(group: &Group, y: &BigImpl) -> Self {
+        let data;
+
+        match group {
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_pow_big_ecp2(y))},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_pow_big_ecp2(y))},
+            _ => panic!("group does not support extensions")
+        }
+
+        Self { group: group.clone(), data: data}
+    }
+
     pub fn init(group: &Group, data: GroupData) -> Self {
         Self {group:group.clone(), data}
     }

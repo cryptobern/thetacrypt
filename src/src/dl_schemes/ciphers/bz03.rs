@@ -202,7 +202,7 @@ impl Decode for Bz03DecryptionShare {
             let group = Group::from_code(u8::decode(sequence)?);
             let id = u16::decode(sequence)?;
             let bytes = Vec::<u8>::decode(sequence)?;
-            let data = GroupElement::from_bytes(&bytes, &group, Option::None);
+            let data = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
             Ok(Self {group, id, data})
         })
     }
