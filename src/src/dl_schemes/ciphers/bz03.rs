@@ -6,32 +6,61 @@
 
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
-use derive::{PublicKey, PrivateKey, Share, DlShare, Ciphertext};
+use derive::{PublicKey, PrivateKey, DlShare, Ciphertext, Serializable};
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::dl_schemes::bigint::*;
-use crate::dl_schemes::dl_groups::bls12381::Bls12381;
-use crate::dl_schemes::dl_groups::dl_group::DlGroup;
-use crate::dl_schemes::dl_groups::pairing::PairingEngine;
-use crate::dl_schemes::{DlDomain, DlShare, common::*};
+use crate::dl_schemes::{common::*};
+use crate::group::{Group, GroupElement};
+use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare};
 use crate::rand::RNG;
 
 
-#[derive(Clone, PublicKey, AsnType)]
+#[derive(Clone, AsnType, Serializable)]
 pub struct Bz03PublicKey {
-    t: u32,
-    y: PE::G2,
-    verificationKey: Vec<PE>
+    n: u16,
+    k: u16,
+    group: Group,
+    y: GroupElement, //ECP2
+    verificationKey: Vec<GroupElement>
 }
 
-impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
+impl Bz03PublicKey {
+    pub fn new(group: &Group, n: usize, k: usize, y: &GroupElement, verificationKey: &Vec<GroupElement>) -> Self {
+        Self { group: group.clone(), n:n as u16, k:k as u16, y:y.clone(), verificationKey:verificationKey.clone()}
+    }
+
+    pub fn get_order(&self) -> BigImpl {
+        self.y.get_order()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
+
+    pub fn get_n(&self) -> u16  {
+        self.n
+    }
+}
+
+impl Encode for Bz03PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            self.t.encode(sequence)?;
-            self.y.encode(sequence)?;
-            self.verificationKey.encode(sequence)?;
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.group.get_code().encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+
+            for i in 0..self.verificationKey.len() {
+                self.verificationKey[i].to_bytes().encode(sequence)?;
+            }
+
             Ok(())
         })?;
 
@@ -39,32 +68,69 @@ impl<PE:PairingEngine> Encode for Bz03PublicKey<PE> {
     }
 }
 
-impl<PE:PairingEngine> Decode for Bz03PublicKey<PE> {
+impl Decode for Bz03PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let t = u32::decode(sequence)?;
-            let y = PE::G2::decode(sequence)?;
-            let verificationKey = Vec::<PE>::decode(sequence)?;
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
 
-            Ok(Self{t, y, verificationKey})
+            let code = u8::decode(sequence)?;
+            let group = Group::from_code(code);
+            let y_b = Vec::<u8>::decode(sequence)?;
+            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(1));
+
+            let mut verificationKey = Vec::<GroupElement>::new();
+            for i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                verificationKey.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+
+            Ok(Self{n, k, y, group, verificationKey})
         })
     }
 }
 
-impl<PE:PairingEngine> PartialEq for Bz03PublicKey<PE> {
+impl PartialEq for Bz03PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
+        self.y.eq(&other.y) && self.verificationKey.eq(&other.verificationKey)
     }
 }
 
-#[derive(Clone, PrivateKey, AsnType)]
-pub struct Bz03PrivateKey<PE: PairingEngine> {
-    id: u32,
+#[derive(Clone, AsnType, Serializable)]
+pub struct Bz03PrivateKey {
+    id: u16,
     xi: BigImpl,
-    pubkey: Bz03PublicKey<PE>
+    pubkey: Bz03PublicKey
 }
 
-impl<PE:PairingEngine> Encode for Bz03PrivateKey<PE> {
+impl Bz03PrivateKey {
+    pub fn new(id: u16, xi: &BigImpl, pubkey: &Bz03PublicKey) -> Self {
+        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+
+    pub fn get_public_key(&self) -> Bz03PublicKey {
+        self.pubkey.clone()
+    }
+
+    pub fn get_order(&self) -> BigImpl {
+        self.get_group().get_order()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.pubkey.get_group()
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.get_threshold()
+    }
+
+    pub fn get_n(&self) -> u16  {
+        self.pubkey.get_n()
+    }
+}
+
+
+impl Encode for Bz03PrivateKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.id.encode(sequence)?;
@@ -77,36 +143,52 @@ impl<PE:PairingEngine> Encode for Bz03PrivateKey<PE> {
     }
 }
 
-impl<PE:PairingEngine> Decode for Bz03PrivateKey<PE> {
+impl Decode for Bz03PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
             let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Bz03PublicKey::<PE>::decode(sequence)?;
-            let xi = PE::BigInt::from_bytes(&xi_bytes);
+            let pubkey = Bz03PublicKey::decode(sequence)?;
+            let xi = BigImpl::from_bytes(&pubkey.group, &xi_bytes);
 
             Ok(Self {id, xi, pubkey})
         })
     }
 }
 
-impl<PE:PairingEngine> PartialEq for Bz03PrivateKey<PE> {
+impl PartialEq for Bz03PrivateKey {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
     }
 }
 
-#[derive(Clone, Share, DlShare, AsnType)]
-pub struct Bz03DecryptionShare<G: DlGroup> {
-    id: u32,
-    data: G
+#[derive(Clone, AsnType, Serializable)]
+pub struct Bz03DecryptionShare{
+    group: Group,
+    id: u16,
+    data: GroupElement
 }
 
-impl<G:DlGroup> Encode for Bz03DecryptionShare<G> {
+impl DlShare for Bz03DecryptionShare {
+    fn get_id(&self) -> u16 {
+        self.id
+    }
+
+    fn get_data(&self) -> GroupElement {
+        self.data.clone()
+    }
+
+    fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+}
+
+impl Encode for Bz03DecryptionShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.group.get_code().encode(sequence)?;
             self.id.encode(sequence)?;
-            self.data.encode(sequence)?;
+            self.data.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
@@ -114,39 +196,42 @@ impl<G:DlGroup> Encode for Bz03DecryptionShare<G> {
     }
 }
 
-impl<G:DlGroup> Decode for Bz03DecryptionShare<G> {
+impl Decode for Bz03DecryptionShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
-            let data = G::decode(sequence)?;
-            Ok(Self {id, data})
+            let group = Group::from_code(u8::decode(sequence)?);
+            let id = u16::decode(sequence)?;
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let data = GroupElement::from_bytes(&bytes, &group, Option::None);
+            Ok(Self {group, id, data})
         })
     }
 }
 
-impl<G:DlGroup> PartialEq for Bz03DecryptionShare<G> {
+impl PartialEq for Bz03DecryptionShare {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.data == other.data
     }
 }
 
-#[derive(Clone, Ciphertext, AsnType)]
-pub struct Bz03Ciphertext<PE: PairingEngine> {
+#[derive(Clone, AsnType, Serializable)]
+pub struct Bz03Ciphertext {
     label: Vec<u8>,
     msg: Vec<u8>,
     c_k: Vec<u8>,
-    u: PE::G2,
-    hr: PE
+    u: GroupElement, //ECP2
+    hr: GroupElement
 }
 
-impl<PE:PairingEngine> Encode for Bz03Ciphertext<PE> {
+impl Encode for Bz03Ciphertext {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.u.get_group().get_code().encode(sequence)?;
             self.label.encode(sequence)?;
             self.msg.encode(sequence)?;
             self.c_k.encode(sequence)?;
-            self.u.encode(sequence)?;
-            self.hr.encode(sequence)?;
+            self.u.to_bytes().encode(sequence)?;
+            self.hr.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
@@ -154,57 +239,42 @@ impl<PE:PairingEngine> Encode for Bz03Ciphertext<PE> {
     }
 }
 
-impl<PE:PairingEngine> Decode for Bz03Ciphertext<PE> {
+impl  Decode for Bz03Ciphertext {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let label:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let u = PE::G2::decode(sequence)?;
-            let hr = PE::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let label:Vec<u8> = Vec::<u8>::decode(sequence)?;
+            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?;
+            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?;
+
+            let u_b = Vec::<u8>::decode(sequence)?;
+            let u = GroupElement::from_bytes(&u_b, &group, Option::Some(1)); 
+
+            let hr_b = Vec::<u8>::decode(sequence)?;
+            let hr = GroupElement::from_bytes(&hr_b, &group, Option::Some(0)); 
 
             Ok(Self {label, msg, u, c_k, hr})
         })
     }
 }
 
-impl<PE:PairingEngine> PartialEq for Bz03Ciphertext<PE> {
+impl PartialEq for Bz03Ciphertext {
     fn eq(&self, other: &Self) -> bool {
         self.label == other.label && self.msg == other.msg && self.c_k == other.c_k && self.u == other.u && self.hr == other.hr
     }
 }
 
-pub struct Bz03ThresholdCipher<PE: PairingEngine> {
-    g: PE
+pub struct Bz03ThresholdCipher {
+    g:u8
 }
 
 pub struct Bz03Params {
 }
 
-impl<PE:PairingEngine> Bz03PrivateKey<PE> {
-    pub fn new(id: u32, xi: &BigImpl, pubkey: &Bz03PublicKey<PE>) -> Self {
-        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
-    }
-}
-
-impl<PE:PairingEngine> Bz03PublicKey<PE> {
-    pub fn new(t: u32, y: &PE::G2, verificationKey: &Vec<PE>) -> Self {
-        Self { t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
-    }
-}
-
-impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
-    type CT = Bz03Ciphertext<PE>;
-
-    type TPubKey = Bz03PublicKey<PE>;
-
-    type TPrivKey = Bz03PrivateKey<PE>;
-
-    type TShare = Bz03DecryptionShare<PE::G2>;
-
-    fn encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey, params: &mut ThresholdCipherParams) -> Self::CT {
-        let r = PE::BigInt::new_rand(&PE::G2::get_order(), &mut params.rng);
-        let mut u = PE::G2::new();
+impl Bz03ThresholdCipher {
+    pub fn encrypt(msg: &[u8], label: &[u8], pk: &Bz03PublicKey, params: &mut ThresholdCipherParams) -> Bz03Ciphertext {
+        let r = BigImpl::new_rand(&pk.get_group(), &pk.get_group().get_order(), &mut params.rng);
+        let mut u = GroupElement::new_ecp2(&pk.get_group());
         u.pow(&r);
 
         let mut rY = pk.y.clone();
@@ -219,31 +289,31 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
             
         let c_k = xor(G(&rY), (k).to_vec());
 
-        let mut hr = H::<PE::G2, PE>(&u, &encryption);
+        let mut hr = H(&u, &encryption);
         hr.pow(&r);
 
         let c = Bz03Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
         c
     }
 
-    fn verify_ciphertext(ct: &Self::CT, _pk: &Self::TPubKey) -> bool {
-        let h = H::<PE::G2, PE>(&ct.u, &ct.msg);
+    pub fn verify_ciphertext(ct: &Bz03Ciphertext, _pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
+        let h = H(&ct.u, &ct.msg);
 
-        PE::ddh(&ct.u, &h, &PE::G2::new(), &ct.hr)
+        GroupElement::ddh(&ct.u, &h, &GroupElement::new_ecp2(&ct.u.get_group()), &ct.hr)
     }
 
-    fn verify_share(share: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool {
-        PE::ddh(&share.data, &PE::new(), &ct.u, &pk.verificationKey[(&share.id - 1) as usize])
+    pub fn verify_share(share: &Bz03DecryptionShare, ct: &Bz03Ciphertext, pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
+        GroupElement::ddh(&share.data, &GroupElement::new(&share.group), &ct.u, &pk.verificationKey[(&share.id - 1) as usize])
     }
 
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, _params: &mut ThresholdCipherParams) -> Self::TShare {
+    pub fn partial_decrypt(ct: &Bz03Ciphertext, sk: &Bz03PrivateKey, _params: &mut ThresholdCipherParams) -> Bz03DecryptionShare {
         let mut u = ct.u.clone();
         u.pow(&sk.xi);
 
-        Bz03DecryptionShare {id:sk.id, data: u}
+        Bz03DecryptionShare {group: u.get_group(), id:sk.id, data: u}
     }
 
-    fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8> {
+    pub fn assemble(shares: &Vec<Bz03DecryptionShare>, ct: &Bz03Ciphertext) -> Vec<u8> {
         let rY = interpolate(shares);
         
         let k = xor(G(&rY), ct.c_k.clone());
@@ -255,16 +325,10 @@ impl<PE: PairingEngine> ThresholdCipher for Bz03ThresholdCipher<PE> {
 
         msg
     }
+
 }
 
-impl<D:DlDomain> Bz03ThresholdCipher<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bz03PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::BZ03(domain));
-        unwrap_keys!(keys, DlPrivateKey::BZ03)
-    }
-}
-
-fn H<G1: DlGroup, G2: DlGroup>(g: &G1, m: &Vec<u8>) -> G2 {
+fn H(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
     let bytes  = g.to_bytes();
     
     let mut h = HASH256::new();
@@ -272,16 +336,16 @@ fn H<G1: DlGroup, G2: DlGroup>(g: &G1, m: &Vec<u8>) -> G2 {
 
     let h = [&vec![0;big::MODBYTES - 32][..], &h.hash()[..]].concat();
 
-    let mut s = G2::BigInt::from_bytes(&h);
-    s.rmod(&G2::get_order());
+    let mut s = BigImpl::from_bytes(&g.get_group(),&h);
+    s.rmod(&g.get_group().get_order());
 
-    let mut res = G2::new();
+    let mut res = GroupElement::new(&g.get_group());
     res.pow(&s);
     res
 }
 
 // hash ECP to bit string
-fn G<G: DlGroup>(x: &G) -> Vec<u8> {
+fn G(x: &GroupElement) -> Vec<u8> {
     let res = x.to_bytes();
 
     let mut h = HASH256::new();

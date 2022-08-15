@@ -3,7 +3,8 @@ use derive::{Serializable, DlShare};
 use mcore::hash256::HASH256;
 use rasn::{AsnType, Encoder, Encode, Decode};
 
-use crate::{dl_schemes::{dl_groups::dl_group::{GroupElement, Group}, bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate}}, rand::RNG, interface::{ThresholdCipherParams, ThresholdScheme, DlShare}};
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{gen_symm_key, xor, interpolate}}, rand::RNG, interface::{ThresholdCipherParams, ThresholdScheme, DlShare}};
+use crate::group::{Group, GroupElement};
 
 pub struct Sg02ThresholdCipher {}
 
@@ -34,11 +35,11 @@ impl Sg02PublicKey {
         self.n
     }
 
-    pub fn new(n: u16, k: u16, group: &Group, y: &GroupElement, verificationKey: &Vec<GroupElement>, g_bar:&GroupElement) -> Self {
+    pub fn new(n: usize, k: usize, group: &Group, y: &GroupElement, verificationKey: &Vec<GroupElement>, g_bar:&GroupElement) -> Self {
         if !y.is_type(&group) || !verificationKey[0].is_type(&group) || !g_bar.is_type(&group) {
             panic!("incompatible groups");
         }
-        Self {n:n.clone(), k:k.clone(), group:group.clone(), y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
+        Self {n:n as u16, k:k as u16, group:group.clone(), y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
     }
 }
 
@@ -71,17 +72,17 @@ impl Decode for Sg02PublicKey {
             let k = u16::decode(sequence)?;
 
             let bytes = Vec::<u8>::decode(sequence)?;
-            let y = GroupElement::from_bytes(&bytes, &group);
+            let y = GroupElement::from_bytes(&bytes, &group, Option::None);
 
             let mut verificationKey = Vec::new();
 
             for i in 0..n {
                 let bytes = Vec::<u8>::decode(sequence)?;
-                verificationKey.push(GroupElement::from_bytes(&bytes, &group));
+                verificationKey.push(GroupElement::from_bytes(&bytes, &group, Option::None));
             }
 
             let bytes = Vec::<u8>::decode(sequence)?;
-            let g_bar = GroupElement::from_bytes(&bytes, &group);
+            let g_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
 
 
             Ok(Self{n, k, group:group, y, verificationKey, g_bar})
@@ -192,10 +193,10 @@ impl Decode for Sg02Ciphertext {
             let msg = Vec::<u8>::decode(sequence)?;
 
             let bytes = Vec::<u8>::decode(sequence)?;
-            let u = GroupElement::from_bytes(&bytes, &group);
+            let u = GroupElement::from_bytes(&bytes, &group, Option::None);
 
             let bytes = Vec::<u8>::decode(sequence)?;
-            let u_bar = GroupElement::from_bytes(&bytes, &group);
+            let u_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
 
             let bytes = Vec::<u8>::decode(sequence)?;
             let e = BigImpl::from_bytes(&group, &bytes);
@@ -251,7 +252,7 @@ impl Decode for Sg02DecryptionShare {
             let label = Vec::<u8>::decode(sequence)?;
 
             let bytes = Vec::<u8>::decode(sequence)?;
-            let data = GroupElement::from_bytes(&bytes, &group);
+            let data = GroupElement::from_bytes(&bytes, &group, Option::None);
 
             let bytes = Vec::<u8>::decode(sequence)?;
             let ei = BigImpl::from_bytes(&group, &bytes);

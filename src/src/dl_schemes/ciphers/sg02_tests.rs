@@ -1,13 +1,15 @@
 use std::mem::ManuallyDrop;
 
-use crate::{dl_schemes::{dl_groups::{bls12381::{Bls12381, Bls12381BIG}, dl_group::{DlGroup, GroupElement, Group, GroupData}}, bigint::{BigImpl, BigInt}, common::shamir_share, ciphers::sg02::Sg02PublicKey}, rand::{RNG, RngAlgorithm}, interface::{ThresholdScheme, Serializable, ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey}};
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::shamir_share, ciphers::sg02::Sg02PublicKey}, rand::{RNG, RngAlgorithm}, interface::{ThresholdScheme, Serializable, ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey}};
 use crate::util::{printbinary, hex2string};
+
+use crate::group::{Group, GroupElement};
 
 #[test]
 fn test_scheme() {
     let mut params = ThresholdCipherParams::new();
     
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381);
     let public_key = private_keys[0].get_public_key();
     /* Serialisation usage */
 
@@ -31,12 +33,12 @@ fn test_scheme() {
 fn test_public_key_serialization() {
     let mut params = ThresholdCipherParams::new();
     
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381);
     let public_key = private_keys[0].get_public_key();
     /* Serialisation usage */
 
     let public_key_encoded = public_key.serialize().unwrap();
-    let public_key_decoded = PublicKey::deserialize(&public_key_encoded);
+    let public_key_decoded = PublicKey::deserialize(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
 
     let msg: Vec<u8> = String::from("plaintext").as_bytes().to_vec();
@@ -50,7 +52,7 @@ fn test_public_key_serialization() {
 fn test_share_serialization() {
     let mut params = ThresholdCipherParams::new();
     
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381);
     let public_key = private_keys[0].get_public_key();   
 
     let msg: Vec<u8> = String::from("plaintext").as_bytes().to_vec();
@@ -68,7 +70,7 @@ fn test_share_serialization() {
 fn test_ciphertext_serialization() {
     let mut params = ThresholdCipherParams::new();
     
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381);
     let public_key = private_keys[0].get_public_key();
 
     let msg: Vec<u8> = String::from("plaintext").as_bytes().to_vec();

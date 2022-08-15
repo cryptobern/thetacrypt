@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use std::fmt::Write;
 
-use crate::dl_schemes::dl_groups::dl_group::Group;
+use crate::group::Group;
 use crate::interface::{ThresholdCipherParams, ThresholdCipher, ThresholdScheme};
 use crate::keys::{KeyGenerator};
 use crate::rand::{RNG, RngAlgorithm};
@@ -19,6 +19,7 @@ mod util;
 mod rsa_schemes;
 mod rand;
 mod keys;
+mod group;
 
 fn main() {
     const K: usize = 3; // threshold
@@ -36,7 +37,7 @@ fn main() {
 
     // generate secret shares for SG02 scheme over Bls12381 curve
     let now = Instant::now();
-    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::BLS12381);
+    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::SG02, &Group::Bls12381);
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\tKeys generated", elapsed_time);
 

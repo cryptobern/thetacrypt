@@ -1,8 +1,7 @@
-/*use rasn::{types::ObjectIdentifier, AsnType, Decode, Encode, Encoder, der::{decode, encode}};
+use rasn::{ AsnType, Decode, Encode, der::{decode, encode}};
 
-use crate::interface::{Serializable, PrivateKey};
+use crate::interface::{Serializable};
 
-use super::{keygen::DlPrivateKey, DlDomain};
 
 struct Attribute {
 
@@ -11,15 +10,8 @@ struct Attribute {
 #[derive(Clone, Decode, Copy, Encode, AsnType)]
 #[rasn(enumerated)]
 pub enum AlgorithmIdentifier {
-    SG02_BLS12381,
-    SG02_BN254,
-    SG02_ED25519,
-    BLS04_BLS12381,
-    BLS04_BN254,
-    BLS04_ED25519,
-    BZ03_BLS12381,
-    BZ03_BN254,
-    BZ03_ED25519
+    SG02,
+    BZ03,
 }
 
 #[derive(Clone, AsnType)]
@@ -27,6 +19,16 @@ pub struct Pkcs8PrivateKeyInfo {
     version:i32,
     privateKeyAlgorithm: AlgorithmIdentifier,
     privateKey:Vec<u8>
+}
+
+impl Pkcs8PrivateKeyInfo {
+    pub fn get_algorithm(&self) -> AlgorithmIdentifier {
+        self.privateKeyAlgorithm.clone()
+    }
+
+    pub fn get_key_bytes(&self) -> Vec<u8> {
+        self.privateKey.clone()
+    }
 }
 
 impl Decode for Pkcs8PrivateKeyInfo {
@@ -53,9 +55,9 @@ impl Encode for Pkcs8PrivateKeyInfo{
         Ok(())
     }
 }
-
+/*
 impl Pkcs8PrivateKeyInfo {
-    pub fn encodePrivateKey<D: DlDomain>(privateKey: &DlPrivateKey<D>) -> Vec<u8> {
+    pub fn encodePrivateKey<D: DlDomain>(privateKey: &PrivateK) -> Vec<u8> {
         match privateKey {
             DlPrivateKey::BZ03(key) => {
                 let bytes = key.serialize().unwrap();
