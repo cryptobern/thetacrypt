@@ -19,6 +19,7 @@ const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     // Read configuration files
+    // TODO: Remove the two config option (everything is read from the config.env file)  
     let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
     //let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
 
