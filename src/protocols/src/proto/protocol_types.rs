@@ -1,7 +1,6 @@
+/// ---------- Decrypt a ciphertext ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptRequest {
-    /// ThresholdCipher algorithm = 1;
-    /// DlGroup dl_group = 2;
     #[prost(bytes="vec", tag="1")]
     pub ciphertext: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, optional, tag="2")]
@@ -11,6 +10,36 @@ pub struct DecryptRequest {
 pub struct DecryptReponse {
     #[prost(string, tag="1")]
     pub instance_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DecryptSyncRequest {
+    #[prost(bytes="vec", tag="1")]
+    pub ciphertext: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, optional, tag="2")]
+    pub key_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DecryptSyncReponse {
+    #[prost(string, tag="1")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(bytes="vec", optional, tag="2")]
+    pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDecryptResultRequest {
+    #[prost(string, tag="1")]
+    pub instance_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDecryptResultResponse {
+    #[prost(string, tag="1")]
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(bool, tag="2")]
+    pub is_started: bool,
+    #[prost(bool, tag="3")]
+    pub is_finished: bool,
+    #[prost(bytes="vec", optional, tag="4")]
+    pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// ---------- Get available keys ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -41,7 +70,7 @@ pub struct GetPublicKeysForSignatureResponse {
     #[prost(message, repeated, tag="1")]
     pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
 }
-///---------- Push decryption share, test only ----------
+/// ---------- Push decryption share, test only ----------
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareRequest {
     #[prost(string, tag="1")]
@@ -56,6 +85,7 @@ pub struct PushDecryptionShareResponse {
 pub mod threshold_crypto_library_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct ThresholdCryptoLibraryClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -82,6 +112,10 @@ pub mod threshold_crypto_library_client {
             let inner = tonic::client::Grpc::new(inner);
             Self { inner }
         }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
@@ -103,21 +137,22 @@ pub mod threshold_crypto_library_client {
                 InterceptedService::new(inner, interceptor),
             )
         }
-        /// Compress requests with `gzip`.
+        /// Compress requests with the given encoding.
         ///
         /// This requires the server to support it otherwise it might respond with an
         /// error.
         #[must_use]
-        pub fn send_gzip(mut self) -> Self {
-            self.inner = self.inner.send_gzip();
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
             self
         }
-        /// Enable decompressing responses with `gzip`.
+        /// Enable decompressing responses.
         #[must_use]
-        pub fn accept_gzip(mut self) -> Self {
-            self.inner = self.inner.accept_gzip();
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
             self
         }
+        /// decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
         pub async fn decrypt(
             &mut self,
             request: impl tonic::IntoRequest<super::DecryptRequest>,
@@ -134,6 +169,46 @@ pub mod threshold_crypto_library_client {
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/protocol_types.ThresholdCryptoLibrary/decrypt",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        /// Returns the result of a protocol instance
+        pub async fn get_decrypt_result(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetDecryptResultRequest>,
+        ) -> Result<tonic::Response<super::GetDecryptResultResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/protocol_types.ThresholdCryptoLibrary/get_decrypt_result",
+            );
+            self.inner.unary(request.into_request(), path, codec).await
+        }
+        /// decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
+        pub async fn decrypt_sync(
+            &mut self,
+            request: impl tonic::IntoRequest<super::DecryptSyncRequest>,
+        ) -> Result<tonic::Response<super::DecryptSyncReponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/protocol_types.ThresholdCryptoLibrary/decrypt_sync",
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
@@ -188,10 +263,21 @@ pub mod threshold_crypto_library_server {
     ///Generated trait containing gRPC methods that should be implemented for use with ThresholdCryptoLibraryServer.
     #[async_trait]
     pub trait ThresholdCryptoLibrary: Send + Sync + 'static {
+        /// decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
         async fn decrypt(
             &self,
             request: tonic::Request<super::DecryptRequest>,
         ) -> Result<tonic::Response<super::DecryptReponse>, tonic::Status>;
+        /// Returns the result of a protocol instance
+        async fn get_decrypt_result(
+            &self,
+            request: tonic::Request<super::GetDecryptResultRequest>,
+        ) -> Result<tonic::Response<super::GetDecryptResultResponse>, tonic::Status>;
+        /// decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
+        async fn decrypt_sync(
+            &self,
+            request: tonic::Request<super::DecryptSyncRequest>,
+        ) -> Result<tonic::Response<super::DecryptSyncReponse>, tonic::Status>;
         async fn get_public_keys_for_encryption(
             &self,
             request: tonic::Request<super::GetPublicKeysForEncryptionRequest>,
@@ -208,8 +294,8 @@ pub mod threshold_crypto_library_server {
     #[derive(Debug)]
     pub struct ThresholdCryptoLibraryServer<T: ThresholdCryptoLibrary> {
         inner: _Inner<T>,
-        accept_compression_encodings: (),
-        send_compression_encodings: (),
+        accept_compression_encodings: EnabledCompressionEncodings,
+        send_compression_encodings: EnabledCompressionEncodings,
     }
     struct _Inner<T>(Arc<T>);
     impl<T: ThresholdCryptoLibrary> ThresholdCryptoLibraryServer<T> {
@@ -232,6 +318,18 @@ pub mod threshold_crypto_library_server {
             F: tonic::service::Interceptor,
         {
             InterceptedService::new(Self::new(inner), interceptor)
+        }
+        /// Enable decompressing requests with the given encoding.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.accept_compression_encodings.enable(encoding);
+            self
+        }
+        /// Compress responses with the given encoding, if the client supports it.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.send_compression_encodings.enable(encoding);
+            self
         }
     }
     impl<T, B> tonic::codegen::Service<http::Request<B>>
@@ -280,6 +378,86 @@ pub mod threshold_crypto_library_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = decryptSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/protocol_types.ThresholdCryptoLibrary/get_decrypt_result" => {
+                    #[allow(non_camel_case_types)]
+                    struct get_decrypt_resultSvc<T: ThresholdCryptoLibrary>(pub Arc<T>);
+                    impl<
+                        T: ThresholdCryptoLibrary,
+                    > tonic::server::UnaryService<super::GetDecryptResultRequest>
+                    for get_decrypt_resultSvc<T> {
+                        type Response = super::GetDecryptResultResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetDecryptResultRequest>,
+                        ) -> Self::Future {
+                            let inner = self.0.clone();
+                            let fut = async move {
+                                (*inner).get_decrypt_result(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = get_decrypt_resultSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/protocol_types.ThresholdCryptoLibrary/decrypt_sync" => {
+                    #[allow(non_camel_case_types)]
+                    struct decrypt_syncSvc<T: ThresholdCryptoLibrary>(pub Arc<T>);
+                    impl<
+                        T: ThresholdCryptoLibrary,
+                    > tonic::server::UnaryService<super::DecryptSyncRequest>
+                    for decrypt_syncSvc<T> {
+                        type Response = super::DecryptSyncReponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::DecryptSyncRequest>,
+                        ) -> Self::Future {
+                            let inner = self.0.clone();
+                            let fut = async move {
+                                (*inner).decrypt_sync(request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = decrypt_syncSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -413,7 +591,7 @@ pub mod threshold_crypto_library_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: ThresholdCryptoLibrary> tonic::transport::NamedService
+    impl<T: ThresholdCryptoLibrary> tonic::server::NamedService
     for ThresholdCryptoLibraryServer<T> {
         const NAME: &'static str = "protocol_types.ThresholdCryptoLibrary";
     }

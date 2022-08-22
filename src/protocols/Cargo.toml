@@ -5,8 +5,8 @@ edition = "2018"
 
 [dependencies]
 cosmos_crypto = {path = "../", version = "0.1.0"}
-tonic = "0.7"
-prost = "0.10"
+tonic = "0.8"
+prost = "0.11"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 mcore = {path="../mcore", version="0.1.0", features=["std"]}
 rand = "0.8.5"
@@ -16,9 +16,11 @@ serde_with = "1.13"
 hex = "0.4.3"
 futures = "0.3.21"
 network = {path="../network"}
+structopt = { version = "0.3", default-features = false }
+reqwest = { version = "0.11.10", features = ["json"] } # reqwest with JSON parsing support
 
 [build-dependencies]
-tonic-build = "0.7"
+tonic-build = "0.8"
 
 # [[bin]]
 # name = "server"

@@ -1,0 +1,19 @@
+[package]
+name = "abci_app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tendermint-abci = "0.23.9"
+tendermint-proto = "0.23.9"
+protocols = {path = "../protocols"}
+structopt = { version = "0.3", default-features = false }
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt"] }
+tonic = "0.8"
+tokio = { version = "1.0" }
+async-std = "1.12.0"
+
+[[bin]]
+name = "fair_order_app"
+path = "src/fair_order_app/main.rs"

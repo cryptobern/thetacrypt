@@ -123,9 +123,9 @@ impl Ciphertext {
         }
     }
 
-    pub fn deserialize(bytes: &Vec<u8>) -> Self {
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Ciphertext, rasn::ber::de::Error> {
         //TODO: fix
-        Ciphertext::Sg02(Sg02Ciphertext::deserialize(bytes).unwrap())
+        Ok(Ciphertext::Sg02(Sg02Ciphertext::deserialize(bytes)?))
     }
 
 }
@@ -263,7 +263,7 @@ impl DecryptionShare {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TcError {
     IncompatibleGroups,
     IncompatibleSchemes,
