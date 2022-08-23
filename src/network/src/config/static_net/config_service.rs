@@ -105,7 +105,7 @@ fn get_p2p_port(config: &Config, peer_id: u32) -> u16 {
 
 // get rpc port from config file
 pub fn get_rpc_port(config: &Config, peer_id: u32) -> u16 {
-    return config.p2p_port;
+    return config.rpc_port;
 }
 
 // get ip from config file
