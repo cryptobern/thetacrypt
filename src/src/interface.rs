@@ -1,5 +1,5 @@
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}};
 
 pub trait Serializable:
     Sized
@@ -43,22 +43,131 @@ impl ThresholdScheme {
 
 
 /* Threshold Coin */
-pub enum CoinShare {
 
+#[derive(PartialEq, AsnType, Clone)]
+#[rasn(enumerated)]
+pub enum CoinShare {
+    Cks05(Cks05CoinShare)
+}
+
+impl CoinShare {
+    pub fn get_id(&self) -> u16 {
+        match self {
+            Self::Cks05(share) => share.get_id(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            Self::Cks05(share) => share.get_group(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        match self {
+            Self::Cks05(share) => share.get_scheme(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_data(&self) -> GroupElement {
+        match self {
+            Self::Cks05(share) => share.get_data(),
+            _ => todo!()
+        }
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
+        encode(self)
+    }
+
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let share = decode::<Self>(bytes);
+        if share.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed)
+        }
+
+        return Ok(share.unwrap());
+    }
+}
+
+impl Decode for CoinShare {
+    fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let scheme = ThresholdScheme::from_id(u8::decode(sequence)?);
+            let bytes = Vec::<u8>::decode(sequence)?;
+
+            match scheme {
+                ThresholdScheme::Cks05 => {
+                    let key: Cks05CoinShare = decode(&bytes).unwrap();
+                    Ok(CoinShare::Cks05(key))
+                }, 
+                _ => {
+                    panic!("invalid scheme!");
+                }
+            }
+        })
+    }
+}
+
+impl Encode for CoinShare {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        match self  {
+            Self::Cks05(share) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Cks05)).encode(sequence)?;
+                    share.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+        }
+    }
 }
 
 pub struct ThresholdCoin {}
-/*
+
 impl ThresholdCoin {
-    fn create_share(name: &[u8], private_key: &PrivateKey, rng: &mut RNG) -> Result<CoinShare, ThresholdCryptoError>;
-    fn verify_share(share: &CoinShare, name: &[u8],  public_key: &PublicKey) -> Result<bool, ThresholdCryptoError>;
-    fn assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError>;
-}*/
+    pub fn create_share(name: &[u8], private_key: &PrivateKey, rng: &mut RNG) -> Result<CoinShare, ThresholdCryptoError> {
+        match private_key {
+            PrivateKey::Cks05(sk) => {
+                return Ok(CoinShare::Cks05(Cks05ThresholdCoin::create_share(name, sk, rng)));
+            },
+            _ => return Err(ThresholdCryptoError::WrongKeyProvided),
+        }
+    }
+
+    pub fn verify_share(share: &CoinShare, name: &[u8],  public_key: &PublicKey) -> Result<bool, ThresholdCryptoError> {
+        match public_key {
+            PublicKey::Cks05(pk) => {
+                match share {
+                    CoinShare::Cks05(s) => {
+                        return Ok(Cks05ThresholdCoin::verify_share(s, name, pk));
+                    }
+                }
+                
+            },
+            _ => return Err(ThresholdCryptoError::WrongKeyProvided),
+        }
+    }
+
+    pub fn assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError> {
+        let share_vec = unwrap_enum_vec!(shares, CoinShare::Cks05, ThresholdCryptoError::WrongScheme);
+        
+        if share_vec.is_ok() {
+            return Ok(Cks05ThresholdCoin::assemble(&share_vec.unwrap()));
+        }
+
+        Err(share_vec.err().unwrap())
+    }
+}
 
 
 /* ---- NEW API ---- */
 
-#[derive(PartialEq, AsnType)]
+#[derive(PartialEq, AsnType, Clone)]
 #[rasn(enumerated)]
 pub enum Ciphertext {
     Sg02(Sg02Ciphertext),
@@ -160,7 +269,7 @@ impl Decode for Ciphertext {
 
 pub struct ThresholdCipher {}
 
-#[derive(PartialEq, AsnType)]
+#[derive(PartialEq, AsnType, Clone)]
 #[rasn(enumerated)]
 pub enum DecryptionShare {
     Sg02(Sg02DecryptionShare),
@@ -400,7 +509,7 @@ impl Encode for DecryptionShare {
 
 /* Threshold Signatures */
 
-#[derive(PartialEq, AsnType)]
+#[derive(PartialEq, AsnType, Clone)]
 #[rasn(enumerated)]
 pub enum SignatureShare {
     Bls04(Bls04SignatureShare),
@@ -490,7 +599,7 @@ impl Encode for SignatureShare {
     }
 }
 
-#[derive(AsnType, PartialEq)]
+#[derive(AsnType, PartialEq, Clone)]
 #[rasn(enumerated)]
 pub enum SignedMessage {
     Bls04(Bls04SignedMessage),

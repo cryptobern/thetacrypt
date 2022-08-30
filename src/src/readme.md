@@ -22,7 +22,13 @@ All of those schemes use keys of the type `PublicKey` or `PrivateKey` respective
 ## Key Generation
 To generate a vector of private keys, use
 
-    let private_keys = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381).unwrap();
+    let private_keys = KeyGenerator::generate_keys(
+        K, 
+        N, 
+        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &ThresholdScheme::Sg02, 
+        &Group::Bls12381)
+        .unwrap();
 
 where 
 - `K` = threshold

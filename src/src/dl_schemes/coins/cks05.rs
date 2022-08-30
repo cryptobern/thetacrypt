@@ -4,47 +4,65 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
-use derive::{DlShare, Share, PrivateKey, PublicKey};
+use derive::{DlShare, Serializable};
 use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
 
-use crate::dl_schemes::common::interpolate;
-use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
-use crate::rand::RNG;
-use crate::{dl_schemes::bigint::*, unwrap_keys};
-use crate::dl_schemes::{DlDomain, DlShare};
-use crate::{
-    dl_schemes::dl_groups::{dl_group::DlGroup},
-    interface::{PrivateKey, PublicKey, Share, ThresholdCoin},
-};
+use crate::interface::DlShare;
+use crate::{group::GroupElement, proto::scheme_types::{Group, ThresholdScheme}, dl_schemes::{bigint::BigImpl, common::interpolate}, rand::RNG};
 
-pub struct Cks05ThresholdCoin<G: DlGroup> {
-    g: G,
+pub struct Cks05ThresholdCoin {
+    g: GroupElement,
 }
 
-#[derive(AsnType, PublicKey, Clone)]
-pub struct Cks05PublicKey<G: DlGroup> {
-    t: u32,
-    y: G,
-    verificationKey: Vec<G>
+#[derive(AsnType, Clone, Serializable)]
+pub struct Cks05PublicKey {
+    group: Group,
+    n: u16,
+    k: u16,
+    y: GroupElement,
+    verification_key: Vec<GroupElement>
 }
 
-impl<G: DlGroup> Cks05PublicKey<G> {
-    pub fn new(t:u32, y: &G, verificationKey: &Vec<G>) -> Self {
+impl Cks05PublicKey {
+    pub fn get_order(&self) -> BigImpl {
+        self.y.get_order()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
+
+    pub fn get_n(&self) -> u16  {
+        self.n
+    }
+
+    pub fn new(group:&Group, n:usize, k:usize, y: &GroupElement, verification_key: &Vec<GroupElement>) -> Self {
         Self {
-            t: t.clone(),
+            group:group.clone(),
+            n:n as u16,
+            k:k as u16,
             y: y.clone(),
-            verificationKey: verificationKey.clone()
+            verification_key: verification_key.clone()
         }
     }
 }
 
-impl<G: DlGroup> Encode for Cks05PublicKey<G> {
+impl Encode for Cks05PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            self.t.encode(sequence)?;
-            self.y.encode(sequence)?;
-            self.verificationKey.encode(sequence)?;
+            self.group.get_code().encode(sequence)?;
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+
+            for i in 0..self.verification_key.len() {
+                self.verification_key[i].to_bytes().encode(sequence)?;
+            }
             Ok(())
         })?;
 
@@ -52,42 +70,72 @@ impl<G: DlGroup> Encode for Cks05PublicKey<G> {
     }
 }
 
-impl<G: DlGroup> Decode for Cks05PublicKey<G> {
+impl Decode for Cks05PublicKey{
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let t = u32::decode(sequence)?;
-            let y: G = G::decode(sequence)?;
-            let verificationKey = Vec::<G>::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
 
-            Ok(Self{t, y, verificationKey})
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+            let mut verification_key = Vec::new();
+
+            for _i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+            Ok(Self{group, n, k, y, verification_key})
         })
     }
 }
 
-impl<G:DlGroup> PartialEq for Cks05PublicKey<G> {
+impl PartialEq for Cks05PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.verificationKey.eq(&other.verificationKey) &&  self.y.equals(&other.y) 
+        self.verification_key.eq(&other.verification_key) &&  self.y.eq(&other.y) 
     }
 }
 
-#[derive(AsnType, PrivateKey, Clone)]
-pub struct Cks05PrivateKey<G: DlGroup> {
-    id: u32,
+#[derive(AsnType, Clone, Serializable)]
+pub struct Cks05PrivateKey {
+    id: u16,
     xi: BigImpl,
-    pubkey: Cks05PublicKey<G>,
+    pubkey: Cks05PublicKey,
 }
 
-impl<G: DlGroup> Cks05PrivateKey<G> {
-    pub fn new(id: u32, xi: &BigImpl, pubkey: &Cks05PublicKey<G>) -> Self {
+impl Cks05PrivateKey {
+    pub fn new(id: u16, xi: &BigImpl, pubkey: &Cks05PublicKey) -> Self {
         Self {
             id,
             xi: xi.clone(),
             pubkey: pubkey.clone(),
         }
     }
+
+    pub fn get_order(&self) -> BigImpl {
+        self.pubkey.get_order()
+    }
+
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.k
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.pubkey.get_group()
+    }
+
+    pub fn get_public_key(&self) -> Cks05PublicKey {
+        self.pubkey.clone()
+    }
 }
 
-impl<G: DlGroup> Encode for Cks05PrivateKey<G> {
+
+impl Encode for Cks05PrivateKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.id.encode(sequence)?;
@@ -100,38 +148,45 @@ impl<G: DlGroup> Encode for Cks05PrivateKey<G> {
     }
 }
 
-impl<G: DlGroup> Decode for Cks05PrivateKey<G> {
+impl Decode for Cks05PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
             let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Cks05PublicKey::<G>::decode(sequence)?;
-            let xi = G::BigInt::from_bytes(&xi_bytes);
+            let pubkey = Cks05PublicKey::decode(sequence)?;
+            let xi = BigImpl::from_bytes(&pubkey.group, &xi_bytes);
 
             Ok(Self {id, xi, pubkey})
         })
     }
 }
 
-impl<G: DlGroup> PartialEq for Cks05PrivateKey<G> {
+impl PartialEq for Cks05PrivateKey{
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
     }
 }
 
-#[derive(Share, DlShare, AsnType, Clone)]
-pub struct Cks05CoinShare<G: DlGroup> {
-    id: u32,
-    data: G,
+#[derive(AsnType, DlShare, Clone, Serializable)]
+pub struct Cks05CoinShare {
+    id: u16,
+    data: GroupElement,
     c: BigImpl,
     z: BigImpl,
 }
 
-impl<G: DlGroup> Encode for Cks05CoinShare<G> {
+impl Cks05CoinShare {
+    pub fn get_data(&self) -> GroupElement { self.data.clone() }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Cks05 }
+    pub fn get_group(&self) -> Group { self.data.get_group() }
+}
+
+impl Encode for Cks05CoinShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            (self.data.get_group() as u8).encode(sequence)?;
             self.id.encode(sequence)?;
-            self.data.encode(sequence)?;
+            self.data.to_bytes().encode(sequence)?;
             self.c.to_bytes().encode(sequence)?;
             self.z.to_bytes().encode(sequence)?;
             Ok(())
@@ -141,52 +196,49 @@ impl<G: DlGroup> Encode for Cks05CoinShare<G> {
     }
 }
 
-impl<G: DlGroup> Decode for Cks05CoinShare<G> {
+impl Decode for Cks05CoinShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
-            let data = G::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let id = u16::decode(sequence)?;
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let data = GroupElement::from_bytes(&bytes, &group, Option::None);
             let c_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
             let z_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
 
-            let c = G::BigInt::from_bytes(&c_bytes);
-            let z = G::BigInt::from_bytes(&z_bytes);
+            let c = BigImpl::from_bytes(&group, &c_bytes);
+            let z = BigImpl::from_bytes(&group, &z_bytes);
             Ok(Self {id, data, c, z})
         })
     }
 }
 
-impl<G: DlGroup> PartialEq for Cks05CoinShare<G> {
+impl PartialEq for Cks05CoinShare  {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.data.equals(&other.data) && self.c.equals(&other.c) && self.z.equals(&other.z)
+        self.id == other.id && self.data.eq(&other.data) && self.c.eq(&other.c) && self.z.eq(&other.z)
     }
 }
 
-impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
-    type TPubKey = Cks05PublicKey<G>;
+impl Cks05ThresholdCoin {
+    pub fn create_share(name: &[u8], sk: &Cks05PrivateKey, rng: &mut RNG) -> Cks05CoinShare {
+        let q = sk.get_order();
 
-    type TPrivKey = Cks05PrivateKey<G>;
-
-    type TShare = Cks05CoinShare<G>;
-
-    fn create_share(name: &[u8], sk: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare {
-        let q = G::get_order();
-
-        let c_bar = H::<G>(name);
+        let c_bar = H(name, &sk.get_group());
         let mut data = c_bar.clone();
         data.pow(&sk.xi);
 
-        let s = G::BigInt::new_rand(&q, rng);
+        let s = BigImpl::new_rand(&sk.get_group(), &q, rng);
 
-        let mut h = G::new();
+        let mut h = GroupElement::new(&sk.get_group());
         h.pow(&s);
 
         let mut h_bar = c_bar.clone();
         h_bar.pow(&s);
 
         let c = H1(
-            &G::new(),
-            &sk.pubkey.verificationKey[(sk.id - 1) as usize],
+            &GroupElement::new(&sk.get_group()),
+            &sk.pubkey.verification_key[(sk.id - 1) as usize],
             &h,
             &c_bar,
             &data,
@@ -200,13 +252,13 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         Cks05CoinShare { id: sk.id, data, c, z,}
     }
 
-    fn verify_share(share: &Self::TShare, name: &[u8], pk: &Self::TPubKey) -> bool {
-        let c_bar = H::<G>(name);
+    pub fn verify_share(share: &Cks05CoinShare, name: &[u8], pk: &Cks05PublicKey) -> bool {
+        let c_bar = H(name, &share.get_group());
 
-        let mut h = G::new();
+        let mut h = GroupElement::new(&pk.group);
         h.pow(&share.z);
 
-        let mut rhs = pk.verificationKey[(share.id -1) as usize].clone();
+        let mut rhs = pk.verification_key[(share.id -1) as usize].clone();
         rhs.pow(&share.c);
 
         h.div(&rhs);
@@ -220,8 +272,8 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         h_bar.div(&rhs);
 
         let c = H1(
-            &G::new(),
-            &pk.verificationKey[(share.id - 1) as usize],
+            &GroupElement::new(&pk.group),
+            &pk.verification_key[(share.id - 1) as usize],
             &h,
             &c_bar,
             &share.data,
@@ -231,23 +283,16 @@ impl<G: DlGroup> ThresholdCoin for Cks05ThresholdCoin<G> {
         share.c.equals(&c)
     }
 
-    fn assemble(shares: &Vec<Self::TShare>) -> u8 {
+    pub fn assemble(shares: &Vec<Cks05CoinShare>) -> u8 {
         let coin = interpolate(shares);
         H2(&coin)
     }
 }
 
-impl<D:DlDomain> Cks05ThresholdCoin<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Cks05PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Cks05(domain));
-        unwrap_keys!(keys, DlPrivateKey::Cks05)
-    }
-}
 
-
-fn H<G: DlGroup>(name: &[u8]) -> G {
+fn H(name: &[u8], group: &Group) -> GroupElement {
     let mut buf: Vec<u8> = Vec::new();
-    let q = G::get_order();
+    let q = group.get_order();
 
     buf = [&buf[..], &name[..]].concat();
 
@@ -270,15 +315,15 @@ fn H<G: DlGroup>(name: &[u8]) -> G {
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::get_order());
+    let mut res = BigImpl::from_bytes(&group, &buf);
+    res.rmod(&group.get_order());
 
-    G::new_pow_big(&res)
+    GroupElement::new_pow_big(&group, &res)
 }
 
-fn H1<G: DlGroup>(g1: &G, g2: &G, g3: &G, g4: &G, g5: &G, g6: &G) -> BigImpl {
+fn H1(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement, g5: &GroupElement, g6: &GroupElement) -> BigImpl {
     let mut buf: Vec<u8> = Vec::new();
-    let q = G::get_order();
+    let q = g1.get_order();
 
     buf = [&buf[..], &g1.to_bytes()[..]].concat();
     buf = [&buf[..], &g2.to_bytes()[..]].concat();
@@ -306,13 +351,13 @@ fn H1<G: DlGroup>(g1: &G, g2: &G, g3: &G, g4: &G, g5: &G, g6: &G) -> BigImpl {
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::get_order());
+    let mut res = BigImpl::from_bytes(&g1.get_group(), &buf);
+    res.rmod(&g1.get_order());
 
     res
 }
 
-fn H2<G: DlGroup>(g: &G) -> u8 {
+fn H2(g: &GroupElement) -> u8 {
     let mut buf: Vec<u8> = Vec::new();
 
     buf = [&buf[..], &g.to_bytes()[..]].concat();
@@ -325,7 +370,7 @@ fn H2<G: DlGroup>(g: &G) -> u8 {
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
 
-    let nbits = G::get_order().nbytes() * 8;
+    let nbits = g.get_order().nbytes() * 8;
 
     if nbits > buf.len() * 4 {
         let mut g: [u8; 32];
@@ -337,8 +382,8 @@ fn H2<G: DlGroup>(g: &G) -> u8 {
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::BigInt::new_int(2));
+    let mut res = BigImpl::from_bytes(&g.get_group(), &buf);
+    res.rmod(&BigImpl::new_int(&g.get_group(), 2));
 
     let bit = res.to_bytes()[res.nbytes() - 1];
 
