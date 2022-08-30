@@ -4,7 +4,8 @@
 use std::{error::Error, io::Read};
 use cosmos_crypto::{keys::PublicKey, interface::{ThresholdCipherParams, Ciphertext, ThresholdCipher}};
 use structopt::StructOpt;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use reqwest;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -60,9 +61,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn query_tendermint_node(tendermint_node_ip: String,
                                tendermint_node_rpc_port: u16,
                                tx: &str) -> Result<RPCResult<QueryResult>, Box<dyn Error>> {
-    let address = format!("{tendermint_node_ip}:{tendermint_node_rpc_port}");
-    let req_url = address + "/query?path=&data=" + tx;
+    println!(">> Start Query");
+    let address = format!("http://{tendermint_node_ip}:{tendermint_node_rpc_port}");
+    let req_url = address + "/abci_query?path=&data=" + tx;
+    println!(">> Url query: {}", req_url);
     let response = reqwest::get(req_url).await?.json::<RPCResult<QueryResult>>().await?;
+    println!(">> End Query");
     Ok(response)
 }
 
@@ -70,7 +74,7 @@ async fn submit_tx_to_tendermint_node(tendermint_node_ip: String,
                                      tendermint_node_rpc_port: u16,
                                      tx: Vec<u8>) -> Result<RPCResult<BroadcastTxResult>, Box<dyn Error>> {
     let address = format!("{tendermint_node_ip}:{tendermint_node_rpc_port}");
-    let req_url = address + "/broadcast_tx?tx=" + std::str::from_utf8(&tx)?;
+    let req_url = address + "/broadcast_tx_commit?tx=" + std::str::from_utf8(&tx)?;
     let response = reqwest::get(req_url).await?.json::<RPCResult<BroadcastTxResult>>().await?;
     Ok(response)
 }
@@ -86,29 +90,37 @@ fn encrypt(pk: &PublicKey, message: String, label: String) -> Ciphertext {
 pub struct RPCResult<R> {
     jsonrpc: String,
     id: i8,
-    result: R,
+    pub result: R,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BroadcastTxResult {
-    code: i8,
-    data: String,
-    log: String,
-    codespace: String,
-    hash: String,
+    pub code: i8,
+    pub data: String,
+    pub log: String,
+    pub codespace: String,
+    pub hash: String,
+}
+
+fn parse_proof<'de, D>(d: D) -> Result<String, D::Error> where D: Deserializer<'de> {
+    Deserialize::deserialize(d)
+        .map(|x: Option<_>| {
+            x.unwrap_or("null".to_string())
+        })
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QueryResult {
-    code: u32,
-    log: String,
-    info: String,
-    index: i64,
-    key: Vec<u8>,
-    value: Vec<u8>,
-    proof_ops: String,
-    height: i64,
-    codespace: String,
+    pub code: u32,
+    pub log: String,
+    pub info: String,
+    pub index: i64,
+    pub key: Vec<u8>, 
+    pub value: Vec<u8>,
+    #[serde(deserialize_with="parse_proof")]
+    pub proof_ops: String, //Segmentation fault could be because of the null here in the json?
+    pub height: i64,
+    pub codespace: String,
 }
 
