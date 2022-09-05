@@ -22,6 +22,7 @@ serde_bytes = "0.11"
 
 [build-dependencies]
 tonic-build = "0.8"
+prost-build = "0.11.1"
 
 # [[bin]]
 # name = "server"
