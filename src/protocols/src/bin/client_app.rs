@@ -6,6 +6,7 @@ use cosmos_crypto::{keys::PublicKey, interface::{ThresholdCipherParams, Cipherte
 use structopt::StructOpt;
 use serde::{Deserialize, Deserializer, Serialize};
 use reqwest;
+use base64;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -38,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
         Err(err) => {
-            println!(">> Error when sending query. Err: {}", err);
+            println!(">> Error when sending query.");
             return Err(err);
         },
     };
@@ -64,7 +65,7 @@ async fn query_tendermint_node(tendermint_node_ip: String,
     println!(">> Start Query");
 
     let address = format!("http://{tendermint_node_ip}:{tendermint_node_rpc_port}");
-    let req_url = address + "/abci_query?path=&data=" + tx;
+    let req_url = address + "/abci_query"; // ?path=&data=" + tx;
     
     //De-comment for testing with POSTMAN mock server 
     // let address = format!("https://25492e3f-d30c-499b-8b1a-75efcd8870eb.mock.pstmn.io");
@@ -148,12 +149,13 @@ pub struct DeliverTx {
     pub codespace: String,
 } 
 
-fn parse_proof<'de, D>(d: D) -> Result<String, D::Error> where D: Deserializer<'de> {
-    Deserialize::deserialize(d)
-        .map(|x: Option<_>| {
-            x.unwrap_or("null".to_string())
-        })
-}
+fn parse_key<'de, D>(d: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = Option::<String>::deserialize(d)?.unwrap_or_default();
+        base64::decode(&string).map_err(serde::de::Error::custom)
+    }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QueryResult {
@@ -161,11 +163,10 @@ pub struct QueryResult {
     pub log: String,
     pub info: String,
     pub index: String,
-    #[serde(with = "serde_bytes")]
+    #[serde(deserialize_with = "parse_key")]
     pub key: Vec<u8>,
-    #[serde(with = "serde_bytes")]
+    #[serde(deserialize_with = "parse_key")]
     pub value: Vec<u8>,
-    //#[serde(deserialize_with="parse_proof")]
     #[serde(alias="proofOps")]
     pub proof_ops: Option<String>, 
     pub height: String,

@@ -19,6 +19,7 @@ network = {path="../network"}
 structopt = { version = "0.3", default-features = false }
 reqwest = { version = "0.11.10", features = ["json"] } # reqwest with JSON parsing support
 serde_bytes = "0.11"
+base64 = "0.13.0"
 
 [build-dependencies]
 tonic-build = "0.8"
