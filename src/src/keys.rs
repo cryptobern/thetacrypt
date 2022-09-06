@@ -2,21 +2,29 @@ use std::convert::TryInto;
 use std::fmt::format;
 use std::vec;
 
+use derive::Serializable;
 use rasn::AsnType;
 use rasn::Decode;
 use rasn::Encode;
 use rasn::Encoder;
+use rasn::ber::encode;
 use rasn::der::decode;
 use serde::ser::SerializeSeq;
 
 use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::ciphers::bz03::Bz03PrivateKey;
+use crate::dl_schemes::ciphers::bz03::Bz03PublicKey;
 use crate::dl_schemes::ciphers::sg02::Sg02PrivateKey;
 use crate::dl_schemes::ciphers::sg02::Sg02PublicKey;
+use crate::dl_schemes::coins::cks05::Cks05PrivateKey;
+use crate::dl_schemes::coins::cks05::Cks05PublicKey;
 use crate::dl_schemes::common::shamir_share;
-use crate::dl_schemes::dl_groups::dl_group::GroupElement;
-use crate::interface::Serializable;
-use crate::interface::TcError;
+use crate::dl_schemes::signatures::bls04::Bls04PrivateKey;
+use crate::dl_schemes::signatures::bls04::Bls04PublicKey;
+use crate::group::GroupElement;
 use crate::proto::scheme_types::Group;
+use crate::interface::Serializable;
+use crate::interface::ThresholdCryptoError;
 use crate::proto::scheme_types::ThresholdScheme;
 use crate::rand::RNG;
 
@@ -39,71 +47,74 @@ macro_rules! unwrap_enum_vec {
     };
 }
 
-
-#[derive(AsnType, Clone, PartialEq)]
+#[derive(AsnType, Clone)]
 #[rasn(enumerated)]
 pub enum PrivateKey {
-    Sg02(Sg02PrivateKey)
+    Sg02(Sg02PrivateKey),
+    Bz03(Bz03PrivateKey),
+    Bls04(Bls04PrivateKey),
+    Cks05(Cks05PrivateKey)
+}
+
+impl PartialEq for PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Sg02(l0), Self::Sg02(r0)) => l0.eq(r0),
+            (Self::Bz03(l0), Self::Bz03(r0)) => l0.eq(r0),
+            (Self::Bls04(l0), Self::Bls04(r0)) => l0.eq(r0),
+            _ => false
+        }
+    }
 }
 
 impl PrivateKey {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
-            Sg02 => ThresholdScheme::Sg02
+            Self::Sg02(_) => ThresholdScheme::Sg02,
+            Self::Bz03(_) => ThresholdScheme::Bz03,
+            Self::Bls04(_) => ThresholdScheme::Bls04,
+            Self::Cks05(_) => ThresholdScheme::Cks05
         }
     }
 
     pub fn get_group(&self) -> Group {
         match self {
-            PrivateKey::Sg02(key) => key.get_group()
+            PrivateKey::Sg02(key) => key.get_group(),
+            PrivateKey::Bz03(key) => key.get_group(),
+            PrivateKey::Bls04(key) => key.get_group(),
+            PrivateKey::Cks05(key) => key.get_group()
         }
     }
 
     pub fn get_threshold(&self) -> u16 {
         match self {
-            PrivateKey::Sg02(key) => key.get_threshold()
-        }
-    }
-
-    pub fn get_id(&self) -> u16 {
-        match self {
-            PrivateKey::Sg02(key) => key.get_id()
+            PrivateKey::Sg02(key) => key.get_threshold(),
+            PrivateKey::Bz03(key) => key.get_threshold(),
+            PrivateKey::Bls04(key) => key.get_threshold(),
+            PrivateKey::Cks05(key) => key.get_threshold()
         }
     }
 
     pub fn get_public_key(&self) -> PublicKey {
         match self {
-            PrivateKey::Sg02(key) => PublicKey::Sg02(key.get_public_key()) 
+            PrivateKey::Sg02(key) => PublicKey::Sg02(key.get_public_key()),
+            PrivateKey::Bz03(key) => PublicKey::Bz03(key.get_public_key()),
+            PrivateKey::Bls04(key) => PublicKey::Bls04(key.get_public_key()),
+            PrivateKey::Cks05(key) => PublicKey::Cks05(key.get_public_key())
         }
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
-        match self {
-            PrivateKey::Sg02(key) => key.serialize()
-        }
+        encode(self)
     }
 
-    pub fn deserialize(bytes: &Vec<u8>) -> Self {
-        //TODO: fix
-        PrivateKey::Sg02(Sg02PrivateKey::deserialize(bytes).unwrap())
-    }
-
-}
-
-impl serde::Serialize for PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
-        match self.serialize(){
-            // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
-            Ok(key_bytes) => { 
-                let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
-                for element in key_bytes.iter() {
-                    seq.serialize_element(element)?;
-                }
-                seq.end()
-            },
-            Err(err) => { Err(serde::ser::Error::custom(format!("Could not serialize PrivateKey. err: {:?}", err))) }
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let key = decode::<Self>(bytes);
+        if key.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed)
         }
+
+        return Ok(key.unwrap());
     }
 }
 
@@ -153,24 +164,26 @@ impl<'de> serde::Deserialize<'de> for PrivateKey {
 impl Decode for PrivateKey {
     fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let keyType = u8::decode(sequence)?;
+            let scheme = ThresholdScheme::from_id(u8::decode(sequence)?);
             let bytes = Vec::<u8>::decode(sequence)?;
 
-            match keyType {
-                0 => {
-                    todo!();
+            match scheme {
+                ThresholdScheme::Bls04 => {
+                    let key: Bls04PrivateKey = decode(&bytes).unwrap();
+                    Ok(PrivateKey::Bls04(key))
                 },
-                1 => {
+                ThresholdScheme::Sg02 => {
                     let key: Sg02PrivateKey = decode(&bytes).unwrap();
                     Ok(PrivateKey::Sg02(key))
                 }, 
-                2 => {
-                    todo!();
+                ThresholdScheme::Bz03 => {
+                    let key: Bz03PrivateKey = decode(&bytes).unwrap();
+                    Ok(PrivateKey::Bz03(key))
                 }, 
-                3 => {
+                ThresholdScheme::Cks05 => {
                     todo!();
                 },
-                4 => {
+                ThresholdScheme::Sh00 => {
                     todo!();
                 },
                 _ => {
@@ -183,11 +196,34 @@ impl Decode for PrivateKey {
 
 impl Encode for PrivateKey {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        
         match self  {
+            Self::Bls04(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Bls04)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
             Self::Sg02(key) => {
                 encoder.encode_sequence(tag, |sequence| {
-                    (1 as u8).encode(sequence)?;
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sg02)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+            Self::Bz03(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Bz03)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+            Self::Cks05(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Cks05)).encode(sequence)?;
                     key.serialize().unwrap().encode(sequence)?;
                     Ok(())
                 })?;
@@ -200,77 +236,206 @@ impl Encode for PrivateKey {
 #[derive(AsnType, Clone, PartialEq)]
 #[rasn(enumerated)]
 pub enum PublicKey {
-    Sg02(Sg02PublicKey)
+    Sg02(Sg02PublicKey),
+    Bz03(Bz03PublicKey),
+    Bls04(Bls04PublicKey),
+    Cks05(Cks05PublicKey)
+}
+
+impl Decode for PublicKey {
+    fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let scheme = ThresholdScheme::from_id(u8::decode(sequence)?);
+            let bytes = Vec::<u8>::decode(sequence)?;
+
+            match scheme {
+                ThresholdScheme::Bls04 => {
+                    let key: Bls04PublicKey = decode(&bytes).unwrap();
+                    Ok(PublicKey::Bls04(key))
+                },
+                ThresholdScheme::Sg02 => {
+                    let key: Sg02PublicKey = decode(&bytes).unwrap();
+                    Ok(PublicKey::Sg02(key))
+                }, 
+                ThresholdScheme::Bz03 => {
+                    let key: Bz03PublicKey = decode(&bytes).unwrap();
+                    Ok(PublicKey::Bz03(key))
+                }, 
+                ThresholdScheme::Cks05 => {
+                    let key: Cks05PublicKey = decode(&bytes).unwrap();
+                    Ok(PublicKey::Cks05(key))
+                },
+                ThresholdScheme::Sh00 => {
+                    todo!();
+                },
+                _ => {
+                    panic!("unknown key encoding!");
+                }
+            }
+        })
+    }
+}
+
+impl Encode for PublicKey {
+    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        match self  {
+            Self::Bls04(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Bls04)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+            Self::Sg02(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sg02)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+            Self::Bz03(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Bz03)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+            Self::Cks05(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Cks05)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
+        }
+    }
 }
 
 impl PublicKey {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
-            PublicKey::Sg02(key) => ThresholdScheme::Sg02
+            PublicKey::Sg02(_key) => ThresholdScheme::Sg02,
+            PublicKey::Bz03(_key) => ThresholdScheme::Bz03,
+            PublicKey::Bls04(_key) => ThresholdScheme::Bls04,
+            PublicKey::Cks05(_key) => ThresholdScheme::Cks05,
         }
     }
 
     pub fn get_group(&self) -> Group {
         match self {
-            PublicKey::Sg02(key) => key.get_group()
+            PublicKey::Sg02(key) => key.get_group(),
+            PublicKey::Bz03(key) => key.get_group(),
+            PublicKey::Bls04(key) => key.get_group(),
+            PublicKey::Cks05(key) => key.get_group(),
         }
     }
 
     pub fn get_threshold(&self) -> u16 {
         match self {
-            PublicKey::Sg02(key) => key.get_threshold()
+            PublicKey::Sg02(key) => key.get_threshold(),
+            PublicKey::Bz03(key) => key.get_threshold(),
+            PublicKey::Bls04(key) => key.get_threshold(),
+            PublicKey::Cks05(key) => key.get_threshold(),
         }
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
-        match self {
-            PublicKey::Sg02(key) => key.serialize()
-        }
+        encode(self)
     }
 
-    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, TcError> {
-        //TODO: fix
-        let pk = Sg02PublicKey::deserialize(bytes);
-        match pk {
-            Ok(res) => Ok(PublicKey::Sg02(res)),
-            Err(err) => return Err(TcError::DeserializationFailed)
+    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let key = decode::<Self>(bytes);
+        if key.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed)
         }
+
+        return Ok(key.unwrap());
     }
 }
 
 pub struct KeyGenerator {}
 
 impl KeyGenerator {
-    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: &ThresholdScheme, group: &Group) -> Vec<PrivateKey> {
+    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: &ThresholdScheme, group: &Group) -> Result<Vec<PrivateKey>, ThresholdCryptoError> {
         match scheme {
             ThresholdScheme::Bz03 => {
-                todo!();
+                if !group.supports_pairings() {
+                    return Err(ThresholdCryptoError::CurveDoesNotSupportPairings);
+                }
+
+                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let mut y = GroupElement::new_ecp2(&group);
+                y.pow(&x);
+
+                let (shares, h) = shamir_share(&x, k, n, rng);
+                let mut private_keys = Vec::new();
+                let public_key = Bz03PublicKey::new(&group, n, k, &y, &h );
+
+                for i in 0..shares.len() {
+                    private_keys.push(PrivateKey::Bz03(Bz03PrivateKey::new((i+1) as u16, &shares[i], &public_key)))
+                }
+
+                return Result::Ok(private_keys);
             },
 
             ThresholdScheme::Sg02 => {
                 let x = BigImpl::new_rand(group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) = shamir_share(&x, k, n, rng);
-                let mut privateKeys = Vec::new();
+                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) = shamir_share(&x, k as usize, n as usize, rng);
+                let mut private_keys = Vec::new();
 
                 let g_bar = GroupElement::new_rand(group, rng);
 
-                let publicKey = Sg02PublicKey::new(n as u16, k as u16, group, &y,&h, &g_bar );
+                let public_key = Sg02PublicKey::new(n, k, group, &y,&h, &g_bar );
 
                 for i in 0..shares.len() {
-                    privateKeys.push(PrivateKey::Sg02(Sg02PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &publicKey)))
+                    private_keys.push(PrivateKey::Sg02(Sg02PrivateKey::new((i+1).try_into().unwrap(), &shares[i], &public_key)))
                 }
 
-                return privateKeys;
+                return Result::Ok(private_keys);
             },
 
             ThresholdScheme::Bls04 => {
-                todo!();
+                if !group.supports_pairings() {
+                    return Err(ThresholdCryptoError::CurveDoesNotSupportPairings);
+                }
+
+                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let mut y = GroupElement::new(&group);
+                y.pow(&x);
+
+                let (shares, h) = shamir_share(&x, k, n, rng);
+                let mut private_keys = Vec::new();
+                let public_key = Bls04PublicKey::new(&group, n, k, &y, &h );
+
+                for i in 0..shares.len() {
+                    private_keys.push(PrivateKey::Bls04(Bls04PrivateKey::new((i+1) as u16, &shares[i], &public_key)))
+                }
+
+                return Result::Ok(private_keys);
             },
 
             ThresholdScheme::Cks05 => {
-                todo!();
+                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let mut y = GroupElement::new(&group);
+                y.pow(&x);
+
+                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) = shamir_share(&x, k as usize, n as usize, rng);
+                let mut private_keys = Vec::new();
+
+                let public_key = Cks05PublicKey::new(group, n, k, &y,&h );
+
+                for i in 0..shares.len() {
+                    private_keys.push(PrivateKey::Cks05(Cks05PrivateKey::new((i+1) as u16, &shares[i], &public_key)));
+                }
+
+                return Ok(private_keys);
+
             },
 
             ThresholdScheme::Frost => {

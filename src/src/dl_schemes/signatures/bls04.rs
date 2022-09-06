@@ -3,36 +3,63 @@
 #![allow(clippy::many_single_char_names)]
 #![allow(clippy::zero_prefixed_literal)]
 
-use derive::{PublicKey, Serializable, DlShare, Share, PrivateKey};
-use mcore::{hash256::HASH256};
+use derive::{PublicKey, PrivateKey, Serializable, DlShare};
+use mcore::hash256::HASH256;
 use rasn::{AsnType, Encode, Decode};
 
-use crate::{dl_schemes::{DlDomain, DlShare, common::interpolate, dl_groups::{dl_group::DlGroup, pairing::PairingEngine}, keygen::{DlKeyGenerator, DlPrivateKey, DlScheme}}, interface::{PrivateKey, PublicKey, Share, ThresholdSignature, Serializable, ThresholdSignatureParams}, unwrap_keys, rand::RNG};
-use crate::dl_schemes::bigint::*;
+use crate::{group::{GroupElement}, dl_schemes::{bigint::BigImpl, common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}, proto::scheme_types::{Group, ThresholdScheme}};
 
-pub struct Bls04ThresholdSignature<PE: PairingEngine> {
-    g: PE
+pub struct Bls04ThresholdSignature {
+    g: GroupElement
 }
 
-#[derive(Clone, AsnType, PublicKey)]
-pub struct Bls04PublicKey<PE: PairingEngine> {
-    t: u32,
-    y: PE,
-    verificationKey:Vec<PE>
+#[derive(Clone, AsnType, Serializable)]
+pub struct Bls04PublicKey {
+    group: Group,
+    n: u16,
+    k: u16,
+    y: GroupElement,
+    verification_key:Vec<GroupElement>
 }  
 
-impl<PE:PairingEngine> PartialEq for Bls04PublicKey<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.y.equals(&other.y) && self.verificationKey.eq(&other.verificationKey)
+impl Bls04PublicKey {
+    pub fn new(group: &Group, n:usize, k:usize, y: &GroupElement, verification_key: &Vec<GroupElement>) -> Self {
+        Self {group:group.clone(), n:n as u16, k:k as u16, y:y.clone(), verification_key:verification_key.clone()}
+    }
+
+    pub fn get_order(&self) -> BigImpl {
+        self.y.get_order()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
+
+    pub fn get_n(&self) -> u16  {
+        self.n
     }
 }
 
-impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
+impl PartialEq for Bls04PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.n == other.n && self.k == other.k && self.y == other.y && self.verification_key.eq(&other.verification_key)
+    }
+}
+
+impl Encode for Bls04PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            self.t.encode(sequence)?;
-            self.y.encode(sequence)?;
-            self.verificationKey.encode(sequence)?;
+            self.get_group().get_code().encode(sequence)?;
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+            for i in 0..self.verification_key.len() {
+                self.verification_key[i].to_bytes().encode(sequence)?;
+            }
             Ok(())
         })?;
 
@@ -40,27 +67,62 @@ impl <PE: PairingEngine> Encode for Bls04PublicKey<PE> {
     }
 }
 
-impl <PE: PairingEngine>  Decode for Bls04PublicKey<PE> {
+impl Decode for Bls04PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let t = u32::decode(sequence)?;
-            let y = PE::decode(sequence)?;
-            let verificationKey = Vec::<PE>::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
+            let y_b = Vec::<u8>::decode(sequence)?;
+            let mut verification_key = Vec::new();
 
-            Ok(Self{t, y, verificationKey})
+            for _i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+
+            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(0));
+
+            Ok(Self{group, n, k, y, verification_key})
         })
     }
 }
 
 
-#[derive(Clone, PrivateKey, AsnType)]
-pub struct Bls04PrivateKey<PE: PairingEngine> {
-    id: u32,
+#[derive(Clone, AsnType, Serializable, PartialEq)]
+pub struct Bls04PrivateKey {
+    id: u16,
     xi: BigImpl,
-    pubkey: Bls04PublicKey<PE>
+    pubkey: Bls04PublicKey
 }
 
-impl <PE: PairingEngine> Encode for Bls04PrivateKey<PE> {
+impl Bls04PrivateKey {
+    pub fn get_order(&self) -> BigImpl {
+        self.pubkey.get_order()
+    }
+
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.k
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.pubkey.get_group()
+    }
+
+    pub fn new(id:u16, xi: &BigImpl, pubkey: &Bls04PublicKey) -> Self {
+        Self {id:id.clone(), xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+
+    pub fn get_public_key(&self) -> Bls04PublicKey {
+        self.pubkey.clone()
+    }
+}
+
+impl Encode for Bls04PrivateKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.id.encode(sequence)?;
@@ -73,57 +135,41 @@ impl <PE: PairingEngine> Encode for Bls04PrivateKey<PE> {
     }
 }
 
-impl <PE: PairingEngine>  Decode for Bls04PrivateKey<PE> {
+impl Decode for Bls04PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
             let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Bls04PublicKey::<PE>::decode(sequence)?;
-            let xi = PE::BigInt::from_bytes(&xi_bytes);
+            let pubkey = Bls04PublicKey::decode(sequence)?;
+            let xi = BigImpl::from_bytes(&pubkey.group, &xi_bytes);
 
             Ok(Self {id, xi, pubkey})
         })
     }
 }
 
-
-impl<PE:PairingEngine> Bls04PrivateKey<PE> {
-    pub fn new(id: u32, xi: &BigImpl, pubkey: &Bls04PublicKey<PE>) -> Self {
-        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
-    }
-}
-
-impl<PE:PairingEngine> PartialEq for Bls04PrivateKey<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
-    }
-}
-
-impl<PE:PairingEngine> Bls04PublicKey<PE> {
-    pub fn new(t:u32, y: &PE, verificationKey: &Vec<PE>) -> Self {
-        Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone()}
-    }
-}
-
-#[derive(Clone, AsnType, Share)]
-pub struct Bls04SignatureShare<PE: PairingEngine> {
-    id:u32,
+#[derive(Clone, AsnType, DlShare, Serializable, PartialEq)]
+pub struct Bls04SignatureShare {
+    group:Group,
+    id:u16,
     label:Vec<u8>,
-    data:PE::G2
+    data:GroupElement // ECP2
 }
 
-impl <PE:PairingEngine> DlShare<PE::G2> for Bls04SignatureShare<PE> {
-    fn get_data(&self) -> PE::G2 {
-        self.data.clone()
-    }
+impl Bls04SignatureShare {
+    pub fn get_data(&self) -> GroupElement { self.data.clone() }
+    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Bls04 }
+    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
-impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
+impl Encode for Bls04SignatureShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.group.get_code().encode(sequence)?;
             self.id.encode(sequence)?;
             self.label.encode(sequence)?;
-            self.data.encode(sequence)?;
+            self.data.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
@@ -131,38 +177,39 @@ impl <PE: PairingEngine> Encode for Bls04SignatureShare<PE> {
     }
 }
 
-impl <PE: PairingEngine>  Decode for Bls04SignatureShare<PE> {
+impl Decode for Bls04SignatureShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let id = u16::decode(sequence)?;
             let label = Vec::<u8>::decode(sequence)?;
-            let data = PE::G2::decode(sequence)?;
-            Ok(Self {id, label, data})
+            let bytes = Vec::<u8>::decode(sequence)?;
+
+            let data = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
+
+            Ok(Self {group, id, label, data})
         })
     }
 }
 
-impl<PE:PairingEngine> PartialEq for Bls04SignatureShare<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.label == other.label && self.data == other.data
-    }
-}
-
-#[derive(Clone, AsnType, Serializable)]
-pub struct Bls04SignedMessage<PE: PairingEngine> {
+#[derive(Clone, AsnType, Serializable, PartialEq)]
+pub struct Bls04SignedMessage {
+    group: Group,
     msg: Vec<u8>,
-    sig: PE::G2
+    sig: GroupElement // ECP2
 }
 
-impl<PE: PairingEngine> Bls04SignedMessage<PE> {
-    pub fn get_sig(&self) -> PE::G2 { self.sig.clone() }
+impl Bls04SignedMessage {
+    pub fn get_sig(&self) -> GroupElement { self.sig.clone() }
+    pub fn get_group(&self) -> Group { self.group.clone() }
 }
 
-impl <PE: PairingEngine> Encode for Bls04SignedMessage<PE> {
+impl Encode for Bls04SignedMessage {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.group.get_code().encode(sequence)?;
             self.msg.encode(sequence)?;
-            self.sig.encode(sequence)?;
+            self.sig.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
@@ -170,62 +217,43 @@ impl <PE: PairingEngine> Encode for Bls04SignedMessage<PE> {
     }
 }
 
-impl <PE: PairingEngine>  Decode for Bls04SignedMessage<PE> {
+impl Decode for Bls04SignedMessage {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let group = Group::from_code(u8::decode(sequence)?);
             let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let sig = PE::G2::decode(sequence)?;
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let sig = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
 
-            Ok(Self {msg, sig})
+            Ok(Self {group, msg, sig})
         })
     }
 }
 
-impl<PE:PairingEngine> PartialEq for Bls04SignedMessage<PE> {
-    fn eq(&self, other: &Self) -> bool {
-        self.msg == other.msg && self.sig == other.sig
-    }
-}
-
-impl<PE: PairingEngine> ThresholdSignature for Bls04ThresholdSignature<PE> {
-    type TSig = Bls04SignedMessage<PE>;
-
-    type TPubKey = Bls04PublicKey<PE>;
-
-    type TPrivKey = Bls04PrivateKey<PE>;
-
-    type TShare = Bls04SignatureShare<PE>;
-
-    fn verify(sig: &Self::TSig, pk: &Self::TPubKey) -> bool {
-        PE::ddh(&H::<PE::G2>(&sig.msg), &pk.y ,&sig.sig, &PE::new())
+impl Bls04ThresholdSignature {
+    pub fn verify(sig: &Bls04SignedMessage, pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
+        GroupElement::ddh(&H(&sig.msg, &pk.get_group()), &pk.y ,&sig.sig, &GroupElement::new(&sig.get_group()))
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, _params: &mut ThresholdSignatureParams) -> Self::TShare {
-        let mut data = H::<PE::G2>(&msg);
+    pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Bls04PrivateKey, _params: &mut ThresholdSignatureParams) -> Bls04SignatureShare {
+        let mut data = H(&msg, &sk.get_group());
         data.pow(&sk.xi);
 
-        Bls04SignatureShare{ id: sk.id, label:label.to_vec(), data:data }
+        Bls04SignatureShare{ group:data.get_group(), id: sk.id, label:label.to_vec(), data:data }
     }
 
-    fn verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool {
-        PE::ddh(&H::<PE::G2>(&msg), &pk.verificationKey[(share.id - 1) as usize], &share.data, &PE::new())
+    pub fn verify_share(share: &Bls04SignatureShare, msg: &[u8], pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
+        GroupElement::ddh(&H(&msg, &share.get_group()), &pk.verification_key[(share.id - 1) as usize], &share.data, &GroupElement::new(&share.get_group()))
     }
 
-    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], _pk: &Self::TPubKey) -> Self::TSig {
+    pub fn assemble(shares: &Vec<Bls04SignatureShare>, msg: &[u8], _pk: &Bls04PublicKey) -> Bls04SignedMessage {
         let sig = interpolate(&shares);
-        Bls04SignedMessage{sig:sig, msg:msg.to_vec() } 
+        Bls04SignedMessage{group: sig.get_group(), sig:sig, msg:msg.to_vec() } 
     }
 }
 
-impl<D:DlDomain> Bls04ThresholdSignature<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Bls04PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::Bls04(domain));
-        unwrap_keys!(keys, DlPrivateKey::Bls04)
-    }
-}
-
-fn H<G: DlGroup>(m: &[u8]) -> G {
-    let q = G::get_order();
+fn H(m: &[u8], group:&Group) -> GroupElement {
+    let q = group.get_order();
 
     let mut hash = HASH256::new();
     hash.process_array(&m);
@@ -246,8 +274,8 @@ fn H<G: DlGroup>(m: &[u8]) -> G {
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::get_order());
+    let mut res = BigImpl::from_bytes(&group, &buf);
+    res.rmod(&group.get_order());
 
-    G::new_pow_big(&res)
+    GroupElement::new_pow_big_ecp2(&group, &res)
 }

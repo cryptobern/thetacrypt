@@ -7,7 +7,10 @@ use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
 use crate::interface::Serializable;
+use crate::proto::scheme_types::Group;
 use crate::rand::RNG;
+
+use crate::group::{GroupElement};
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
@@ -217,9 +220,9 @@ impl BigImpl {
 
     pub fn get_group(&self) -> Group {
         match self {
-            BigImpl::Bls12381(x) => Group::Bls12381,
-            BigImpl::Bn254(x) => Group::Bn254,
-            BigImpl::Ed25519(x) => Group::Ed25519,
+            BigImpl::Bls12381(_x) => Group::Bls12381,
+            BigImpl::Bn254(_x) => Group::Bn254,
+            BigImpl::Ed25519(_x) => Group::Ed25519,
        }
     }
 }

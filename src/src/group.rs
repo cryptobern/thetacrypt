@@ -1,83 +1,22 @@
+use core::panic;
 use std::mem::ManuallyDrop;
-
 use crate::proto::scheme_types::Group;
-use rasn::Encode;
 
-use crate::{dl_schemes::{bigint::*}, rand::RNG, interface::Serializable};
+use crate::{dl_schemes::{bigint::BigImpl, dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
 
-use super::{bls12381::{Bls12381, Bls12381ECP2, Bls12381FP12}, bn254::{Bn254, Bn254ECP2, Bn254FP12}, ed25519::Ed25519};
+/*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
+    group has a code (8-bit unsigned integer) that's used to encode the group when serializing
+    group elements. 
 
-pub trait DlGroup: 
-    Sized 
-    + Clone
-    + PartialEq
-    + Serializable
-    + 'static {
-    type BigInt: BigInt;
-    type DataType;
-
-    /// returns new element initialized with generator of the group
-    fn new() -> Self;                          
-
-    /// Returns a new group element initialized with generator^x.
-    fn new_pow_big(x: &BigImpl) -> Self;     
-
-    /// returns random element in group
-    fn new_rand(rng: &mut RNG) -> Self;   
-
-    /// creates a copy of a group element
-    fn new_copy(g: &Self) -> Self;
-
-    /// self = self*g
-    fn mul(&mut self, g: &Self);                
-
-    ///self = self^x
-    fn pow(&mut self, x: &BigImpl);             
-
-    /// self = self/g
-    fn div(&mut self, g: &Self);                
-
-    /// self = g
-    fn set(&mut self, g: &Self::DataType);     
-
-    /// serialize to bytes
-    fn to_bytes(&self) -> Vec<u8>;              
-
-    /// load from bytes 
-    fn from_bytes(bytes: &[u8]) -> Self;         
-
-    /// check whether two elements are equal
-    fn equals(&self, g: &Self) -> bool;         
-
-    /// returns order of the group
-    fn get_order() -> BigImpl; 
-
-    /// wrap bigint type in bigimpl
-    fn wrp(x: &Self::BigInt) -> BigImpl;        
-
-    /// get number of bytes
-    fn nbytes() -> usize;                      
-
-    /// convert group element to string representation
-    fn to_string(&self) -> String;
-
-    fn get_name() -> String;
-}
-
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub enum Group {
-//     Bls12381,
-//     Bn254,
-//     Ed25519,
-//     Rsa
-// }
+    TODO: change code to standard way of encoding EC groups */
 
 impl Group {
     pub fn get_code(&self) -> u8 {
         match self {
-            Bls12381 => 0,
-            Bn254 => 1,
-            Ed25519 => 2
+            Self::Bls12381 => 0,
+            Self::Bn254 => 1,
+            Self::Ed25519 => 2,
+            Self::Rsa => 3
         }
     }
 
@@ -86,34 +25,42 @@ impl Group {
             0 => Self::Bls12381,
             1 => Self::Bn254,
             2 => Self::Ed25519,
+            3 => Self::Rsa,
             _ => panic!("invalid code")
         }
     }
 
     pub fn get_order(&self) -> BigImpl {
         match self {
-            Bls12381 => Bls12381::get_order(),
-            Bn254 => Bn254::get_order(),
-            Ed25519 => Ed25519::get_order(),
+            Self::Bls12381 => Bls12381::get_order(),
+            Self::Bn254 => Bn254::get_order(),
+            Self::Ed25519 => Ed25519::get_order(),
+            _ => panic!("not applicable")
+        }
+    }
+
+    pub fn supports_pairings(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => false,
+            Self::Rsa => false
         }
     }
 }
 
+/* GroupData holds the actual group element */
 #[repr(C)]
 pub union GroupData {
     pub bls12381: ManuallyDrop<Bls12381>,
-    pub bls12381g2: ManuallyDrop<Bls12381ECP2>,
-    pub bls12381g3: ManuallyDrop<Bls12381FP12>,
     pub bn254: ManuallyDrop<Bn254>,
-    pub bn254g2: ManuallyDrop<Bn254ECP2>,
-    pub bn254g3: ManuallyDrop<Bn254FP12>,
     pub ed25519: ManuallyDrop<Ed25519>,
 }
 
+/* GroupElement is the representation of a single group element */
 pub struct GroupElement {
     group: Group,
-    data: GroupData,
-    i:u8
+    data: GroupData
 }
 
 impl PartialEq for GroupElement {
@@ -137,13 +84,13 @@ impl Clone for GroupElement {
         unsafe {
             match self.group {
                 Group::Bls12381 => {
-                    GroupElement { group:self.group.clone(), data: GroupData {bls12381:self.data.bls12381.clone()}, i:self.i }
+                    GroupElement { group:self.group.clone(), data: GroupData {bls12381:self.data.bls12381.clone()} }
                 },
                 Group::Bn254 => {
-                    GroupElement { group:self.group.clone(), data: GroupData {bn254:self.data.bn254.clone()}, i: self.i }
+                    GroupElement { group:self.group.clone(), data: GroupData {bn254:self.data.bn254.clone()} }
                 },
                 Group::Ed25519 => {
-                    GroupElement { group:self.group.clone(), data: GroupData {ed25519:self.data.ed25519.clone()}, i: self.i }
+                    GroupElement { group:self.group.clone(), data: GroupData {ed25519:self.data.ed25519.clone()} }
                 },
                 _ => {
                     todo!();
@@ -179,27 +126,67 @@ impl GroupElement {
             _ => todo!()
         }
 
-        Self { group: group.clone(), data: data, i:0}
+        Self { group: group.clone(), data: data}
     }
 
-        /*
-    pub fn new_pair(group: &Group, i: u8) -> Self {
+    // if the curve has an extension field, create element in extension field
+    pub fn new_ecp2(group: &Group) -> Self {
         let data;
 
         match group {
-            Group::Bls12381 => {
-                if i == 0 {
-                data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new())}
-                }
-
-        },
-            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new())},
-            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::new())},
-            _ => todo!()
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_ecp2())},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_ecp2())},
+            _ => panic!("group does not support pairings")
         }
 
-        Self { group: group.clone(), data: data, i}
-    }*/
+        Self { group: group.clone(), data: data}
+    }
+
+    pub fn pair(&self, y: &GroupElement) -> GroupElement {
+        if !self.get_group().supports_pairings() {
+            panic!("group does not support pairings");
+        }
+
+        if !self.cmp_group(&y) {
+            panic!("incompatible groups");
+        }
+
+        unsafe {
+            match self.get_group() {
+                Group::Bls12381 => { 
+                    let res = Bls12381::pair(&self.data.bls12381, &y.data.bls12381).unwrap(); 
+                    GroupElement { group:Group::Bls12381, data:GroupData { bls12381: ManuallyDrop::new(res) }}
+                },
+                Group::Bn254 => { 
+                    let res = Bn254::pair(&self.data.bn254, &y.data.bn254).unwrap(); 
+                    GroupElement { group:Group::Bn254, data:GroupData { bn254: ManuallyDrop::new(res) }}
+                },
+                _ => {panic!()}
+            }
+        }
+    }
+
+    pub fn ddh(x: &GroupElement, y: &GroupElement, z: &GroupElement, w: &GroupElement) -> Result<bool, ThresholdCryptoError> {
+        if !x.get_group().supports_pairings() {
+            panic!("group does not support pairings");
+        }
+
+        if !x.cmp_group(&y) || !y.cmp_group(&z) || !z.cmp_group(&w){
+            panic!("incompatible groups");
+        }
+
+        unsafe {
+            match x.get_group() {
+                Group::Bls12381 => { 
+                    Bls12381::ddh(&x.data.bls12381, &y.data.bls12381, &z.data.bls12381, &w.data.bls12381)
+                },
+                Group::Bn254 => { 
+                    Bn254::ddh(&x.data.bn254, &y.data.bn254, &z.data.bn254, &w.data.bn254)
+                },
+                _ => {panic!()}
+            }
+        }
+    }
 
     pub fn new_pow_big(group: &Group, y: &BigImpl) -> Self {
         let data;
@@ -211,11 +198,23 @@ impl GroupElement {
             _ => todo!()
         }
 
-        Self { group: group.clone(), data: data, i:0}
+        Self { group: group.clone(), data: data}
+    }
+
+    pub fn new_pow_big_ecp2(group: &Group, y: &BigImpl) -> Self {
+        let data;
+
+        match group {
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::new_pow_big_ecp2(y))},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::new_pow_big_ecp2(y))},
+            _ => panic!("group does not support extensions")
+        }
+
+        Self { group: group.clone(), data: data}
     }
 
     pub fn init(group: &Group, data: GroupData) -> Self {
-        Self {group:group.clone(), data, i:0}
+        Self {group:group.clone(), data}
     }
 
     pub fn new_rand(group: &Group, rng: &mut RNG) -> Self {
@@ -228,7 +227,7 @@ impl GroupElement {
             _ => todo!()
         }
 
-        Self { group: group.clone(), data: data, i:0}
+        Self { group: group.clone(), data: data}
     }
 
 
@@ -297,11 +296,16 @@ impl GroupElement {
         }
     }
 
-    pub fn from_bytes(bytes: &[u8], group: &Group) -> Self {
+    pub fn from_bytes(bytes: &[u8], group: &Group, i: Option<u8>) -> Self {
+        let mut j = 0;
+        if i.is_some() {
+            j = i.unwrap();
+        }
+
         match group {
-            Group::Bls12381 => Self { group:group.clone(), data:GroupData {bls12381:ManuallyDrop::new(Bls12381::from_bytes(bytes))}, i:0},
-            Group::Bn254 => Self { group:group.clone(), data:GroupData {bn254:ManuallyDrop::new(Bn254::from_bytes(bytes))}, i:0},
-            Group::Ed25519 => Self { group:group.clone(), data:GroupData {ed25519:ManuallyDrop::new(Ed25519::from_bytes(bytes))}, i:0},
+            Group::Bls12381 => Self { group:group.clone(), data:GroupData {bls12381:ManuallyDrop::new(Bls12381::from_bytes(bytes, j))}},
+            Group::Bn254 => Self { group:group.clone(), data:GroupData {bn254:ManuallyDrop::new(Bn254::from_bytes(bytes, j))}},
+            Group::Ed25519 => Self { group:group.clone(), data:GroupData {ed25519:ManuallyDrop::new(Ed25519::from_bytes(bytes))}},
             _ => todo!()
         }
     }
