@@ -7,6 +7,7 @@ use structopt::StructOpt;
 use serde::{Deserialize, Deserializer, Serialize};
 use reqwest;
 use base64;
+use serde_json;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -51,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match submit_tx_to_tendermint_node(opt.tendermint_node_ip, 
                                        opt.tendermint_node_rpc_port,
-                                       encrypted_message.get_msg()).await {
+                                       encrypted_message.serialize().unwrap()).await {
         Ok(_) => {},
         Err(err) => println!(">> Error when submitting tx. Err: {}", err),
     }
@@ -80,9 +81,19 @@ async fn query_tendermint_node(tendermint_node_ip: String,
 async fn submit_tx_to_tendermint_node(tendermint_node_ip: String,
                                      tendermint_node_rpc_port: u16,
                                      tx: Vec<u8>) -> Result<RPCResult<BroadcastTxCommitResult>, Box<dyn Error>> {
-    let address = format!("{tendermint_node_ip}:{tendermint_node_rpc_port}");
-    let req_url = address + "/broadcast_tx_commit?tx=" + std::str::from_utf8(&tx)?;
-    let response = reqwest::get(req_url).await?.json::<RPCResult<BroadcastTxCommitResult>>().await?;
+    let address = format!("http://{tendermint_node_ip}:{tendermint_node_rpc_port}");
+    let tx_encoded: &str = &base64::encode(&tx);
+    let req_url = address + "/broadcast_tx_commit?tx=%22" + tx_encoded + "%22";
+    println!(">> Url query: {}", req_url);
+
+    let response_body = reqwest::get(req_url).await?.text().await?;
+    println!("Broadcast response: {}", response_body);
+
+    // 2.) Parse the results as JSON.
+    let response: RPCResult<BroadcastTxCommitResult> = serde_json::from_str(&response_body)?;
+    
+
+    //let response = reqwest::get(req_url).await?.json::<RPCResult<BroadcastTxCommitResult>>().await?;
     Ok(response)
 }
 

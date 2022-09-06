@@ -28,8 +28,8 @@ impl Application for FairOrderApp {
     // has decrypted the ciphertext. Hence, deliver_tx will obtain the decrypted transaction.
     // This sample code does not return the decrypted tx back to the client_app.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
-        println!(">> Delivered an encrypted tx.");
-        let ciphertext = request.tx;
+        println!(">> Delivered an encrypted tx. {:?}", request.tx);
+        let ciphertext = base64::decode(&request.tx).unwrap();
         let (result_sender, result_receiver) = channel();
         let command = Command::DecryptTx { encrypted_tx: ciphertext, result_sender};
         channel_send(&self.command_sender, command).unwrap();
