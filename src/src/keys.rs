@@ -1,6 +1,8 @@
 use std::convert::TryInto;
+
 use std::fmt::format;
 use std::vec;
+use std::time::Instant;
 
 use derive::Serializable;
 use rasn::AsnType;
@@ -11,6 +13,8 @@ use rasn::ber::encode;
 use rasn::der::decode;
 use serde::ser::SerializeSeq;
 
+use crate::BIGINT;
+use crate::ONE;
 use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::ciphers::bz03::Bz03PrivateKey;
 use crate::dl_schemes::ciphers::bz03::Bz03PublicKey;
@@ -27,6 +31,16 @@ use crate::interface::Serializable;
 use crate::interface::ThresholdCryptoError;
 use crate::proto::scheme_types::ThresholdScheme;
 use crate::rand::RNG;
+use crate::rsa_schemes::bigint::RsaBigInt;
+use crate::rsa_schemes::common::fac;
+use crate::rsa_schemes::common::gen_strong_prime;
+use crate::rsa_schemes::common::shamir_share_rsa;
+
+use crate::rsa_schemes::signatures::sh00::Sh00PrivateKey;
+use crate::rsa_schemes::signatures::sh00::Sh00PublicKey;
+use crate::rsa_schemes::signatures::sh00::Sh00VerificationKey;
+
+const DEBUG:bool = false;
 
 #[macro_export]
 macro_rules! unwrap_enum_vec {
@@ -53,7 +67,8 @@ pub enum PrivateKey {
     Sg02(Sg02PrivateKey),
     Bz03(Bz03PrivateKey),
     Bls04(Bls04PrivateKey),
-    Cks05(Cks05PrivateKey)
+    Cks05(Cks05PrivateKey),
+    Sh00(Sh00PrivateKey)
 }
 
 impl PartialEq for PrivateKey {
@@ -62,6 +77,7 @@ impl PartialEq for PrivateKey {
             (Self::Sg02(l0), Self::Sg02(r0)) => l0.eq(r0),
             (Self::Bz03(l0), Self::Bz03(r0)) => l0.eq(r0),
             (Self::Bls04(l0), Self::Bls04(r0)) => l0.eq(r0),
+            (Self::Sh00(l0), Self::Sh00(r0)) => l0.eq(r0),
             _ => false
         }
     }
@@ -73,7 +89,18 @@ impl PrivateKey {
             Self::Sg02(_) => ThresholdScheme::Sg02,
             Self::Bz03(_) => ThresholdScheme::Bz03,
             Self::Bls04(_) => ThresholdScheme::Bls04,
-            Self::Cks05(_) => ThresholdScheme::Cks05
+            Self::Cks05(_) => ThresholdScheme::Cks05,
+            Self::Sh00(_) => ThresholdScheme::Sh00
+        }
+    }
+
+    pub fn get_id(&self) -> u16 {
+        match self {
+            PrivateKey::Sg02(key) => key.get_id(),
+            PrivateKey::Bz03(key) => key.get_id(),
+            PrivateKey::Bls04(key) => key.get_id(),
+            PrivateKey::Cks05(key) => key.get_id(),
+            PrivateKey::Sh00(key) => key.get_id()
         }
     }
 
@@ -82,7 +109,8 @@ impl PrivateKey {
             PrivateKey::Sg02(key) => key.get_group(),
             PrivateKey::Bz03(key) => key.get_group(),
             PrivateKey::Bls04(key) => key.get_group(),
-            PrivateKey::Cks05(key) => key.get_group()
+            PrivateKey::Cks05(key) => key.get_group(),
+            PrivateKey::Sh00(key) => key.get_group()
         }
     }
 
@@ -91,7 +119,8 @@ impl PrivateKey {
             PrivateKey::Sg02(key) => key.get_threshold(),
             PrivateKey::Bz03(key) => key.get_threshold(),
             PrivateKey::Bls04(key) => key.get_threshold(),
-            PrivateKey::Cks05(key) => key.get_threshold()
+            PrivateKey::Cks05(key) => key.get_threshold(),
+            PrivateKey::Sh00(key) => key.get_threshold()
         }
     }
 
@@ -109,7 +138,8 @@ impl PrivateKey {
             PrivateKey::Sg02(key) => PublicKey::Sg02(key.get_public_key()),
             PrivateKey::Bz03(key) => PublicKey::Bz03(key.get_public_key()),
             PrivateKey::Bls04(key) => PublicKey::Bls04(key.get_public_key()),
-            PrivateKey::Cks05(key) => PublicKey::Cks05(key.get_public_key())
+            PrivateKey::Cks05(key) => PublicKey::Cks05(key.get_public_key()),
+            PrivateKey::Sh00(key) => PublicKey::Sh00(key.get_public_key())
         }
     }
 
@@ -208,10 +238,12 @@ impl Decode for PrivateKey {
                     Ok(PrivateKey::Bz03(key))
                 }, 
                 ThresholdScheme::Cks05 => {
-                    todo!();
+                    let key: Cks05PrivateKey = decode(&bytes).unwrap();
+                    Ok(PrivateKey::Cks05(key))
                 },
                 ThresholdScheme::Sh00 => {
-                    todo!();
+                    let key: Sh00PrivateKey = decode(&bytes).unwrap();
+                    Ok(PrivateKey::Sh00(key))
                 },
                 _ => {
                     panic!("unknown key encoding!");
@@ -256,6 +288,14 @@ impl Encode for PrivateKey {
                 })?;
                 Ok(())
             },
+            Self::Sh00(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
         }
     }
 }
@@ -266,7 +306,8 @@ pub enum PublicKey {
     Sg02(Sg02PublicKey),
     Bz03(Bz03PublicKey),
     Bls04(Bls04PublicKey),
-    Cks05(Cks05PublicKey)
+    Cks05(Cks05PublicKey),
+    Sh00(Sh00PublicKey)
 }
 
 impl Decode for PublicKey {
@@ -293,7 +334,8 @@ impl Decode for PublicKey {
                     Ok(PublicKey::Cks05(key))
                 },
                 ThresholdScheme::Sh00 => {
-                    todo!();
+                    let key: Sh00PublicKey = decode(&bytes).unwrap();
+                    Ok(PublicKey::Sh00(key))
                 },
                 _ => {
                     panic!("unknown key encoding!");
@@ -338,6 +380,15 @@ impl Encode for PublicKey {
                 })?;
                 Ok(())
             },
+
+            Self::Sh00(key) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
+                    key.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
         }
     }
 }
@@ -349,6 +400,7 @@ impl PublicKey {
             PublicKey::Bz03(_key) => ThresholdScheme::Bz03,
             PublicKey::Bls04(_key) => ThresholdScheme::Bls04,
             PublicKey::Cks05(_key) => ThresholdScheme::Cks05,
+            PublicKey::Sh00(_key) => ThresholdScheme::Sh00,
         }
     }
 
@@ -358,6 +410,7 @@ impl PublicKey {
             PublicKey::Bz03(key) => key.get_group(),
             PublicKey::Bls04(key) => key.get_group(),
             PublicKey::Cks05(key) => key.get_group(),
+            PublicKey::Sh00(key) => key.get_group(),
         }
     }
 
@@ -367,6 +420,7 @@ impl PublicKey {
             PublicKey::Bz03(key) => key.get_threshold(),
             PublicKey::Bls04(key) => key.get_threshold(),
             PublicKey::Cks05(key) => key.get_threshold(),
+            PublicKey::Sh00(key) => key.get_threshold(),
         }
     }
 
@@ -386,8 +440,22 @@ impl PublicKey {
 
 pub struct KeyGenerator {}
 
+pub struct KeyParams {
+    e: RsaBigInt
+}
+
+impl KeyParams {
+    pub fn new() -> Self {
+        return Self { e: BIGINT!(65537) }
+    }
+
+    pub fn set_e(&mut self, e: &RsaBigInt) {
+        self.e.set(e);
+    }
+}
+
 impl KeyGenerator {
-    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: &ThresholdScheme, group: &Group) -> Result<Vec<PrivateKey>, ThresholdCryptoError> {
+    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: &ThresholdScheme, group: &Group, params: &Option<KeyParams>) -> Result<Vec<PrivateKey>, ThresholdCryptoError> {
         match scheme {
             ThresholdScheme::Bz03 => {
                 if !group.supports_pairings() {
@@ -470,7 +538,71 @@ impl KeyGenerator {
             },
 
             ThresholdScheme::Sh00 => {
-                todo!();
+                let mut e = BIGINT!(65537);
+
+                if params.is_some() {
+                    e.set(&params.as_ref().unwrap().e);
+                }
+
+                let modsize: usize;
+                match group {
+                    Group::Rsa512 => modsize = 512,
+                    Group::Rsa1024 => modsize = 1024,
+                    Group::Rsa2048 => modsize = 2048,
+                    &Group::Rsa4096 => modsize = 4096,
+                    _ => return Err(ThresholdCryptoError::WrongGroup)
+                }
+
+                let PLEN = modsize/2 - 2; 
+                
+                let mut p1 = RsaBigInt::new_rand(rng, PLEN);
+                let mut q1 = RsaBigInt::new_rand(rng, PLEN);
+
+                let mut p = RsaBigInt::new();
+                let mut q = RsaBigInt::new();
+
+                if DEBUG { println!("generating strong primes..."); }
+
+                let now = Instant::now();
+                gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN);
+                let elapsed_time = now.elapsed().as_millis();
+                if DEBUG { println!("found first prime p in {}ms: {}", elapsed_time, p.to_string()); }
+                
+                let now = Instant::now();
+                gen_strong_prime(&mut q1, &mut q, &e,  rng, PLEN);
+                let elapsed_time = now.elapsed().as_millis();
+                if DEBUG { println!("found second prime q in {}ms: {}", elapsed_time, q.to_string()); }
+                
+                let N = p.mul(&q);
+                let m = p1.mul(&q1);
+
+                let v = RsaBigInt::new_rand(rng, modsize - 1).pow(2).rmod(&N);
+
+                let d = e.inv_mod(&m);
+
+                let delta = fac(n);
+                let (xi, vi) = shamir_share_rsa(&d, k, n, &N, &m, &v, modsize, rng);
+                
+                let mut u;
+                let mut up;
+                let mut uq;
+                loop {
+                    u = RsaBigInt::new_rand(rng, modsize - 1);
+                    up = u.pow_mod(&p1, &p);
+                    uq = u.pow_mod(&q1, &q);
+                    if up.equals(&ONE!()) != uq.equals(&ONE!())  {
+                        break;
+                    }
+                }
+
+                let verificationKey = Sh00VerificationKey::new(v, vi, u);
+                let pubkey = Sh00PublicKey::new(k as u16, N,  e.clone(), verificationKey, delta, modsize);
+                
+                let mut pks: Vec<PrivateKey> = Vec::new();
+                for i in 0..n {
+                    pks.push(PrivateKey::Sh00(Sh00PrivateKey::new(xi[i].0, m.clone(), xi[i].1.clone(), pubkey.clone())))
+                }
+                Ok(pks)
             }
         }
     }

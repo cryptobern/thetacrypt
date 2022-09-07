@@ -1,5 +1,5 @@
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignedMessage, Sh00SignatureShare}};
 
 pub trait Serializable:
     Sized
@@ -513,12 +513,14 @@ impl Encode for DecryptionShare {
 #[rasn(enumerated)]
 pub enum SignatureShare {
     Bls04(Bls04SignatureShare),
+    Sh00(Sh00SignatureShare)
 }
 
 impl SignatureShare {
     pub fn get_id(&self) -> u16 {
         match self {
             Self::Bls04(share) => share.get_id(),
+            Self::Sh00(share) => share.get_id(),
             _ => todo!()
         }
     }
@@ -526,6 +528,7 @@ impl SignatureShare {
     pub fn get_label(&self) -> Vec<u8> {
         match self {
             Self::Bls04(share) => share.get_label(),
+            Self::Sh00(share) => share.get_label(),
             _ => todo!()
         }
     }
@@ -533,6 +536,7 @@ impl SignatureShare {
     pub fn get_group(&self) -> Group {
         match self {
             Self::Bls04(share) => share.get_group(),
+            Self::Sh00(share) => share.get_group(),
             _ => todo!()
         }
     }
@@ -540,6 +544,7 @@ impl SignatureShare {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
             Self::Bls04(share) => share.get_scheme(),
+            Self::Sh00(share) => share.get_scheme(),
             _ => todo!()
         }
     }
@@ -576,6 +581,11 @@ impl Decode for SignatureShare {
                     let share: Bls04SignatureShare = decode(&bytes).unwrap();
                     Ok(SignatureShare::Bls04(share))
                 }, 
+
+                ThresholdScheme::Sh00 => {
+                    let share: Sh00SignatureShare = decode(&bytes).unwrap();
+                    Ok(SignatureShare::Sh00(share))
+                }, 
                 _ => {
                     panic!("invalid scheme!");
                 }
@@ -595,6 +605,15 @@ impl Encode for SignatureShare {
                 })?;
                 Ok(())
             },
+
+            Self::Sh00(share) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
+                    share.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
         }
     }
 }
@@ -603,6 +622,7 @@ impl Encode for SignatureShare {
 #[rasn(enumerated)]
 pub enum SignedMessage {
     Bls04(Bls04SignedMessage),
+    Sh00(Sh00SignedMessage)
 }
 
 impl SignedMessage {
@@ -631,6 +651,11 @@ impl Decode for SignedMessage {
                     let share: Bls04SignedMessage = decode(&bytes).unwrap();
                     Ok(SignedMessage::Bls04(share))
                 }, 
+
+                ThresholdScheme::Sh00 => {
+                    let share: Sh00SignedMessage = decode(&bytes).unwrap();
+                    Ok(SignedMessage::Sh00(share))
+                }, 
                 _ => {
                     panic!("invalid scheme!");
                 }
@@ -650,6 +675,15 @@ impl Encode for SignedMessage {
                 })?;
                 Ok(())
             },
+
+            Self::Sh00(share) => {
+                encoder.encode_sequence(tag, |sequence| {
+                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
+                    share.serialize().unwrap().encode(sequence)?;
+                    Ok(())
+                })?;
+                Ok(())
+            },
         }
     }
 }
@@ -662,7 +696,14 @@ impl ThresholdSignature {
             SignedMessage::Bls04(s) => {
                 match pubkey {
                     PublicKey::Bls04(key) => Bls04ThresholdSignature::verify(s, key),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
+                    _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
+                }
+            },
+
+            SignedMessage::Sh00(s) => {
+                match pubkey {
+                    PublicKey::Sh00(key) => Ok(Sh00ThresholdSignature::verify(s, key)),
+                    _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
                 }
             }
         }
@@ -673,6 +714,9 @@ impl ThresholdSignature {
             PrivateKey::Bls04(s) => {
                 Result::Ok(SignatureShare::Bls04(Bls04ThresholdSignature::partial_sign(msg, label,s, params)))
             },
+            PrivateKey::Sh00(s) => {
+                Result::Ok(SignatureShare::Sh00(Sh00ThresholdSignature::partial_sign(msg, label,s, params)))
+            },
             _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
         }
     }
@@ -682,6 +726,13 @@ impl ThresholdSignature {
             SignatureShare::Bls04(s) => {
                 match pubkey {
                     PublicKey::Bls04(key) => Bls04ThresholdSignature::verify_share(s, msg, key),
+                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
+                }
+            },
+
+            SignatureShare::Sh00(s) => {
+                match pubkey {
+                    PublicKey::Sh00(key) => Ok(Sh00ThresholdSignature::verify_share(s, msg, key)),
                 _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
                 }
             }
@@ -695,6 +746,16 @@ impl ThresholdSignature {
 
                 if shares.is_ok() {
                     return Ok(SignedMessage::Bls04(Bls04ThresholdSignature::assemble(&shares.unwrap(), msg, key)));
+                }
+
+                Err(shares.err().unwrap())
+            },
+
+            PublicKey::Sh00(key) => {
+                let shares = unwrap_enum_vec!(shares, SignatureShare::Sh00, ThresholdCryptoError::WrongScheme);
+
+                if shares.is_ok() {
+                    return Ok(SignedMessage::Sh00(Sh00ThresholdSignature::assemble(&shares.unwrap(), msg, key)));
                 }
 
                 Err(shares.err().unwrap())
@@ -727,6 +788,7 @@ pub enum ThresholdCryptoError {
     SerializationFailed,
     DeserializationFailed,
     CurveDoesNotSupportPairings,
+    ParamsNotSet
 }
 
 pub struct ThresholdCipherParams {

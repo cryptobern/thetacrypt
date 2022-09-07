@@ -1,28 +1,46 @@
 use std::borrow::BorrowMut;
 
-use derive::{PublicKey, PrivateKey, Share, Serializable};
+use derive::{PublicKey, PrivateKey, DlShare, Serializable};
 use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
-use crate::{interface::{PrivateKey, PublicKey, Share, ThresholdSignature, ThresholdSignatureParams}, rsa_schemes::{keygen::{RsaKeyGenerator, RsaPrivateKey, RsaScheme}, bigint::BigInt, common::{interpolate, ext_euclid}}, unwrap_keys, BIGINT, rand::{RNG, RngAlgorithm}};
+use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, proto::scheme_types::{Group, ThresholdScheme}};
 
-#[derive(PublicKey, AsnType, Clone)]
+#[derive(AsnType, Clone, Debug, Serializable)]
 pub struct Sh00PublicKey {
-    t: u32,
-    N: BigInt,
-    e: BigInt,
-    verificationKey:Sh00VerificationKey,
+    t: u16,
+    N: RsaBigInt,
+    e: RsaBigInt,
+    verification_key:Sh00VerificationKey,
     delta:usize,
     modbits:usize
 }  
 
 impl Sh00PublicKey {
-    pub fn new(t:u32,
-        N: BigInt,
-        e: BigInt,
-        verificationKey:Sh00VerificationKey,
+    pub fn new(t:u16,
+        N: RsaBigInt,
+        e: RsaBigInt,
+        verification_key:Sh00VerificationKey,
         delta:usize,
         modbits:usize) -> Self {
-        Self {t, N, e, verificationKey, delta, modbits}
+        Self {t, N, e, verification_key: verification_key, delta, modbits}
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        return self.t;
+    }
+
+    pub fn get_modbits(&self) -> usize {
+        return self.modbits;
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self.modbits {
+            512 => Group::Rsa512,
+            1024 => Group::Rsa1024,
+            2046 => Group::Rsa2048,
+            4096 => Group::Rsa4096,
+            _ => panic!("invalid modbits value")
+        }
     }
 }
 
@@ -32,7 +50,7 @@ impl Encode for Sh00PublicKey {
             self.t.encode(sequence)?;
             self.N.encode(sequence)?;
             self.e.encode(sequence)?;
-            self.verificationKey.encode(sequence)?;
+            self.verification_key.encode(sequence)?;
             self.delta.encode(sequence)?;
             self.modbits.encode(sequence)?;
             Ok(())
@@ -45,39 +63,55 @@ impl Encode for Sh00PublicKey {
 impl Decode for Sh00PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let t = u32::decode(sequence)?;
-            let N = BigInt::decode(sequence)?;
-            let e = BigInt::decode(sequence)?;
-            let verificationKey = Sh00VerificationKey::decode(sequence)?;
+            let t = u16::decode(sequence)?;
+            let N = RsaBigInt::decode(sequence)?;
+            let e = RsaBigInt::decode(sequence)?;
+            let verification_key = Sh00VerificationKey::decode(sequence)?;
             let delta = usize::decode(sequence)?;
             let modbits = usize::decode(sequence)?;
 
-            Ok(Self{t, N, e, verificationKey, delta, modbits})
+            Ok(Self{t, N, e, verification_key: verification_key, delta, modbits})
         })
     }
 }
 
 impl PartialEq for Sh00PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.N.equals(&other.N) && self.e.equals(&other.e) && self.verificationKey.eq(&other.verificationKey) 
+        self.N.equals(&other.N) && self.e.equals(&other.e) && self.verification_key.eq(&other.verification_key) 
         && self.delta == other.delta && self.modbits == other.modbits
     }
 }
 
-#[derive(PrivateKey, AsnType, Clone)]
+#[derive(AsnType, Clone, Debug, Serializable)]
 pub struct Sh00PrivateKey {
-    id: u32,
-    m: BigInt,
-    si: BigInt,
+    id: u16,
+    m: RsaBigInt,
+    si: RsaBigInt,
     pubkey: Sh00PublicKey
 }
 
 impl Sh00PrivateKey {
-    pub fn new(id: u32,
-        m: BigInt,
-        si: BigInt,
+    pub fn new(id: u16,
+        m: RsaBigInt,
+        si: RsaBigInt,
         pubkey: Sh00PublicKey) -> Self {
         Self {id, m, si, pubkey}
+    }
+
+    pub fn get_public_key(&self) -> Sh00PublicKey {
+        return self.pubkey.clone();
+    }
+
+    pub fn get_id(&self) -> u16 {
+        return self.id;
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        return self.pubkey.get_threshold();
+    }
+
+    pub fn get_group(&self) -> Group {
+        return self.pubkey.get_group();
     }
 }
 
@@ -98,13 +132,13 @@ impl Encode for Sh00PrivateKey {
 impl Decode for Sh00PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
             let mut m_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
             let mut si_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
             let pubkey = Sh00PublicKey::decode(sequence)?;
 
-            let m = BigInt::from_bytes(&mut m_bytes);
-            let si = BigInt::from_bytes(&mut si_bytes);
+            let m = RsaBigInt::from_bytes(&mut m_bytes);
+            let si = RsaBigInt::from_bytes(&mut si_bytes);
             Ok(Self {id, m, si, pubkey})
         })
     }
@@ -116,22 +150,35 @@ impl PartialEq for Sh00PrivateKey {
     }
 }
 
-#[derive(Share, AsnType, Clone)]
+#[derive(AsnType, Clone, Debug, Serializable)]
 pub struct Sh00SignatureShare {
-    id:u32,
+    group:Group,
+    id:u16,
     label:Vec<u8>,
-    xi:BigInt,
-    z:BigInt,
-    c:BigInt
+    xi:RsaBigInt,
+    z:RsaBigInt,
+    c:RsaBigInt
 }
 
 impl Sh00SignatureShare {
-    pub fn get_id(&self) -> u32 {
+    pub fn get_id(&self) -> u16 {
         self.id.clone()
     }
 
-    pub fn get_data(&self) -> BigInt {
+    pub fn get_data(&self) -> RsaBigInt {
         self.xi.clone()
+    }
+
+    pub fn get_label(&self) -> Vec<u8> {
+        self.label.clone()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        ThresholdScheme::Sh00
     }
 }
 
@@ -139,6 +186,7 @@ impl Encode for Sh00SignatureShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.id.encode(sequence)?;
+            self.group.get_code().encode(sequence)?;
             self.label.encode(sequence)?;
             self.xi.encode(sequence)?;
             self.z.encode(sequence)?;
@@ -153,32 +201,37 @@ impl Encode for Sh00SignatureShare {
 impl Decode for Sh00SignatureShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
             let label = Vec::<u8>::decode(sequence)?;
-            let xi = BigInt::decode(sequence)?;
-            let z = BigInt::decode(sequence)?;
-            let c = BigInt::decode(sequence)?;
+            let xi = RsaBigInt::decode(sequence)?;
+            let z = RsaBigInt::decode(sequence)?;
+            let c = RsaBigInt::decode(sequence)?;
 
-            Ok(Self {id, label, xi, z, c})
+            Ok(Self {id, group, label, xi, z, c})
         })
     }
 }
 
 impl PartialEq for Sh00SignatureShare {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.label == other.label && self.xi == other.xi && self.z == other.z && self.c == other.c
+        self.id == other.id && self.label == other.label && self.xi == other.xi && self.z == other.z && self.c == other.c && self.group.eq(&other.group)
     }
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, AsnType, Serializable, Debug)]
 pub struct Sh00SignedMessage {
     msg: Vec<u8>,
-    sig: BigInt
+    sig: RsaBigInt
 }
 
 impl Sh00SignedMessage {
-    pub fn get_sig(&self) -> BigInt {
+    pub fn get_sig(&self) -> RsaBigInt {
         self.sig.clone()
+    }
+
+    pub fn get_msg(&self) -> Vec<u8> {
+        self.msg.clone()
     }
 }
 
@@ -198,7 +251,7 @@ impl Decode for Sh00SignedMessage {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
             let msg = Vec::<u8>::decode(sequence)?;
-            let sig = BigInt::decode(sequence)?;
+            let sig = RsaBigInt::decode(sequence)?;
 
             Ok(Self {msg, sig})
         })
@@ -211,17 +264,17 @@ impl PartialEq for Sh00SignedMessage {
     }
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, AsnType, Serializable, Debug)]
 pub struct Sh00VerificationKey {
-    v: BigInt,
-    vi: Vec<BigInt>,
-    u: BigInt
+    v: RsaBigInt,
+    vi: Vec<RsaBigInt>,
+    u: RsaBigInt
 }
 
 impl Sh00VerificationKey {
-    pub fn new(v: BigInt,
-        vi: Vec<BigInt>,
-        u: BigInt) -> Self {
+    pub fn new(v: RsaBigInt,
+        vi: Vec<RsaBigInt>,
+        u: RsaBigInt) -> Self {
             Self{ v, vi, u}
         }
 }
@@ -242,9 +295,9 @@ impl Encode for Sh00VerificationKey {
 impl Decode for Sh00VerificationKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let v = BigInt::decode(sequence)?;
-            let vi = Vec::<BigInt>::decode(sequence)?;
-            let u = BigInt::decode(sequence)?;
+            let v = RsaBigInt::decode(sequence)?;
+            let vi = Vec::<RsaBigInt>::decode(sequence)?;
+            let u = RsaBigInt::decode(sequence)?;
             Ok(Self {v, vi, u})
         })
     }
@@ -260,23 +313,15 @@ pub struct Sh00ThresholdSignature {
 }
 
 
-impl ThresholdSignature for Sh00ThresholdSignature {
-    type TSig = Sh00SignedMessage;
-
-    type TPubKey = Sh00PublicKey;
-
-    type TPrivKey = Sh00PrivateKey;
-
-    type TShare = Sh00SignatureShare;
-
-    fn verify(sig: &Self::TSig, pk: &Self::TPubKey) -> bool {
+impl Sh00ThresholdSignature {
+    pub fn verify(sig: &Sh00SignedMessage, pk: &Sh00PublicKey) -> bool {
         sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
     }
 
-    fn partial_sign(msg: &[u8], label: &[u8], sk: &Self::TPrivKey, params: &mut ThresholdSignatureParams) -> Self::TShare {
+    pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Sh00PrivateKey, params: &mut ThresholdSignatureParams) -> Sh00SignatureShare {
         let N = sk.get_public_key().N.clone();
-        let v = sk.get_public_key().verificationKey.v.clone();
-        let vi = sk.get_public_key().verificationKey.vi[(sk.id - 1) as usize].clone();
+        let v = sk.get_public_key().verification_key.v.clone();
+        let vi = sk.get_public_key().verification_key.vi[(sk.id - 1) as usize].clone();
         let si = sk.si.clone();
 
         let (x, _) = H(&msg, &sk.get_public_key()); 
@@ -286,7 +331,7 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
         
         let bits = 2*sk.pubkey.modbits + 2 + 2*8;
-        let r = BigInt::new_rand(&mut params.rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
+        let r = RsaBigInt::new_rand(&mut params.rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
 
         let v1 = v.pow_mod(&r, &N); //v1 = v^r
         let x1 = x_hat.pow_mod(&r, &N); // x1 = x_hat^r
@@ -296,13 +341,13 @@ impl ThresholdSignature for Sh00ThresholdSignature {
 
         let z = si.mul(&c).add(&r); // z = si*c + r
 
-        return Self::TShare {id: sk.get_id(), label:label.to_vec(), xi:xi, z:z, c:c }
+        return Sh00SignatureShare {id: sk.get_id(), group:sk.get_group(), label:label.to_vec(), xi:xi, z:z, c:c }
     }
 
-    fn verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool {
+    pub fn verify_share(share: &Sh00SignatureShare, msg: &[u8], pk: &Sh00PublicKey) -> bool {
         let N = pk.N.clone();
-        let v = pk.verificationKey.v.clone();
-        let vi = pk.verificationKey.vi[(share.id - 1) as usize].clone();
+        let v = pk.verification_key.v.clone();
+        let vi = pk.verification_key.vi[(share.id - 1) as usize].clone();
         let (x, _) = H(&msg,  &pk);
         let z = share.z.clone();
         let c = share.c.clone();
@@ -323,8 +368,8 @@ impl ThresholdSignature for Sh00ThresholdSignature {
         c2.equals(&c)
     }
 
-    fn assemble(shares: &Vec<Self::TShare>, msg: &[u8], pk: &Self::TPubKey) -> Self::TSig {
-        let u = pk.verificationKey.u.clone();
+    pub fn assemble(shares: &Vec<Sh00SignatureShare>, msg: &[u8], pk: &Sh00PublicKey) -> Sh00SignedMessage {
+        let u = pk.verification_key.u.clone();
         let N = pk.N.clone();
 
         let (a, b) = ext_euclid(&BIGINT!(4), &pk.e); // 4*a + e*b = 1
@@ -340,18 +385,11 @@ impl ThresholdSignature for Sh00ThresholdSignature {
     }
 }
 
-impl Sh00ThresholdSignature {
-    pub fn generate_keys(k: usize, n: usize, modsize: usize, rng: &mut RNG) -> Vec<Sh00PrivateKey> {
-        let keys = RsaKeyGenerator::generate_keys(k, n, rng, RsaScheme::Sh00(modsize));
-        unwrap_keys!(keys, RsaPrivateKey::Sh00)
-    }
-}
-
-fn H(m: &[u8], pk: &Sh00PublicKey) -> (BigInt, isize) {
+fn H(m: &[u8], pk: &Sh00PublicKey) -> (RsaBigInt, isize) {
     let mut x = H1(m, &pk.N, pk.modbits);
-    let j = BigInt::jacobi(&x, &pk.N);
+    let j = RsaBigInt::jacobi(&x, &pk.N);
     if j == -1 {
-        x = pk.verificationKey.u.pow_mod(&pk.e, &pk.N).mul_mod(&x, &pk.N); // x = x * u^e
+        x = pk.verification_key.u.pow_mod(&pk.e, &pk.N).mul_mod(&x, &pk.N); // x = x * u^e
     } else if j == 0 {
         panic!("jacobi(x, n) == 0"); //TODO: make sure j != 0 by changing hash function H1
     }
@@ -360,7 +398,7 @@ fn H(m: &[u8], pk: &Sh00PublicKey) -> (BigInt, isize) {
 }
 
 // TODO: improve hash function
-fn H1(m: &[u8], n: &BigInt, modbits:usize) -> BigInt {
+fn H1(m: &[u8], n: &RsaBigInt, modbits:usize) -> RsaBigInt {
     let mut hash = HASH256::new();
     hash.process_array(&m);
     let h = hash.hash();
@@ -381,10 +419,10 @@ fn H1(m: &[u8], n: &BigInt, modbits:usize) -> BigInt {
         }
     }
 
-    BigInt::from_bytes(&mut buf).rmod(&n)
+    RsaBigInt::from_bytes(&mut buf).rmod(&n)
 }
 
-fn H2(g1: &BigInt, g2: &BigInt, g3: &BigInt, g4: &BigInt, g5: &BigInt, g6: &BigInt) -> BigInt {
+fn H2(g1: &RsaBigInt, g2: &RsaBigInt, g3: &RsaBigInt, g4: &RsaBigInt, g5: &RsaBigInt, g6: &RsaBigInt) -> RsaBigInt {
     let mut buf:Vec<u8> = Vec::new();
 
     buf = [&buf[..], &g1.to_bytes()[..]].concat();
@@ -401,5 +439,5 @@ fn H2(g1: &BigInt, g2: &BigInt, g3: &BigInt, g4: &BigInt, g5: &BigInt, g6: &BigI
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
 
-    BigInt::from_bytes(&mut buf)
+    RsaBigInt::from_bytes(&mut buf)
 }
