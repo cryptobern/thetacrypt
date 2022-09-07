@@ -7,7 +7,7 @@ use cosmos_crypto::dl_schemes;
 // use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
 use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey};
 use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
-use cosmos_crypto::dl_schemes::dl_groups::dl_group::{DlGroup};
+
 use cosmos_crypto::interface::{Serializable};
 use cosmos_crypto::keys::{KeyGenerator, PrivateKey, PublicKey};
 use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
@@ -30,7 +30,7 @@ fn generate_keys(k: usize, n: usize) -> Result<(), Box<dyn std::error::Error>>{
                                                                         n, 
                                                                         &mut RNG::new(RngAlgorithm::MarsagliaZaman),
                                                                         &ThresholdScheme::Sg02,
-                                                                        &Group::Bls12381);
+                                                                        &Group::Bls12381).unwrap();
     for node_id in 0..n {
         let mut key_chain = KeyChain::new();
         key_chain.insert_key(sk_sg02_bls12381[node_id].clone(), String::from("sg02_bls12381"))?;

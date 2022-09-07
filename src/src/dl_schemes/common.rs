@@ -1,5 +1,4 @@
 
-use crate::proto::scheme_types::Group;
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
 use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}, proto::scheme_types::Group};
@@ -125,10 +124,4 @@ pub fn lagrange_coeff(group: &Group, indices: &[u8], i: isize) -> BigImpl {
     
     prod.rmod(&q);
     prod
-}
-
-pub trait DlDomain: PairingEngine {
-    fn is_pairing_friendly() -> bool;
-    fn name() -> &'static str;
-    fn get_type() -> Group;
 }

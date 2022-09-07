@@ -128,6 +128,10 @@ impl Bz03PrivateKey {
     pub fn get_n(&self) -> u16  {
         self.pubkey.get_n()
     }
+
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
 }
 
 

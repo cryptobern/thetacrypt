@@ -21,5 +21,8 @@ prost = "0.10"
 [features]
 std = []
 
+[build-dependencies]
+tonic-build = "0.7"
+
 [workspace]
 members = ["derive", "protocols", "network"]

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, TcError, ThresholdCipher};
+use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCryptoError, ThresholdCipher};
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 
@@ -9,14 +9,14 @@ type InstanceId = String;
 
 #[derive(Clone, Debug)]
 pub enum ProtocolError {
-    SchemeError(TcError),
+    SchemeError(ThresholdCryptoError),
     InvalidCiphertext,
     InstanceNotFound,
     InternalError,
 }
 
-impl From<TcError> for ProtocolError{
-    fn from(tc_error: TcError) -> Self {
+impl From<ThresholdCryptoError> for ProtocolError{
+    fn from(tc_error: ThresholdCryptoError) -> Self {
         ProtocolError::SchemeError(tc_error)
     }
 }
@@ -93,11 +93,19 @@ impl ThresholdCipherProtocol {
         loop {
            match self.chan_in.recv().await {
                 Some(share) => {
-                    self.on_receive_decryption_share(DecryptionShare::deserialize(&share))?;
-                    if self.decrypted {
-                        self.terminate().await?;
-                        return Ok(self.decrypted_plaintext.clone());
-                    }
+                    match DecryptionShare::deserialize(&share){
+                        Ok(deserialized_share) => {
+                            self.on_receive_decryption_share(deserialized_share)?;
+                            if self.decrypted {
+                                self.terminate().await?;
+                                return Ok(self.decrypted_plaintext.clone());
+                            }
+                        },
+                        Err(tcerror) => {
+                            println!(">> PROT: Could not deserialize share.");
+                            continue;        
+                        },
+                    };
                 },
                 None => {
                     println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);

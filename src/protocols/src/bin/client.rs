@@ -312,7 +312,7 @@ async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Send INVALID-ciphertext decrypt_sync request. The RPC call should return a decryptSyncResponse, but the contained 'plaintext' field should be None.
-    let PublicKey::Sg02(pk_sg02_bls12381) = pk;
+    let pk_sg02_bls12381 = if let PublicKey::Sg02(pk_sg02_bls12381) = pk {pk_sg02_bls12381} else { panic!()};
     let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decrypt_sync_request(3, &pk_sg02_bls12381);
     let invalid_ctxt_decrypt_request = invalid_ctxt_request.into_inner();
     let mut i = 1;

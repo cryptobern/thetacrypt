@@ -95,6 +95,15 @@ impl PrivateKey {
         }
     }
 
+    pub fn get_id(&self) -> u16 {
+        match self {
+            PrivateKey::Sg02(key) => key.get_id(),
+            PrivateKey::Bz03(key) => key.get_id(),
+            PrivateKey::Bls04(key) => key.get_id(),
+            PrivateKey::Cks05(key) => key.get_id(),
+        }
+    }
+
     pub fn get_public_key(&self) -> PublicKey {
         match self {
             PrivateKey::Sg02(key) => PublicKey::Sg02(key.get_public_key()),
@@ -117,6 +126,24 @@ impl PrivateKey {
         return Ok(key.unwrap());
     }
 }
+
+impl serde::Serialize for PrivateKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        match self.serialize(){
+            // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
+            Ok(key_bytes) => { 
+                let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
+                for element in key_bytes.iter() {
+                    seq.serialize_element(element)?;
+                }
+                seq.end()
+            },
+            Err(err) => { Err(serde::ser::Error::custom(format!("Could not serialize PrivateKey. err: {:?}", err))) }
+        }
+    }
+}
+
 
 struct PrivateKeyVisitor;
 impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
@@ -147,7 +174,7 @@ impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
             key_vec.push(next);
         }
         let key = PrivateKey::deserialize(&key_vec);  //TODO: fix
-        Ok(key)
+        Ok(key.unwrap())
     }
 }
 
