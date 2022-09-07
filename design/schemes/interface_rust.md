@@ -1,44 +1,33 @@
 # Threshold Crypto Library API (RUST Version)
 
-In Rust, no such concept as inheritance exists. Instead, the language uses the concept of "composition over inheritance," which means we have to structure the API differently. In this document, RUST notation and datatypes will be used. The library is built upon [Miracl Core](https://github.com/miracl/core).<br><br>
-
-## **Scheme Traits**
-The following three traits define the main interface of the different schemes. Additionally, each implementation of those traits should have a method `generate_keys`, that isn't included in the traits as the parameters may change depending on the underlying implementation.
+This library uses [Miracl Core](https://github.com/miracl/core) for the discrete logarithm schemes and [gmp-mpfr-sys]() for the RSA schemes.<br><br>
 
 **ThresholdCoin**<br>
-- **`type TPubKey: PublicKey`**
-- **`type TPrivKey: PrivateKey`**
-- **`type TShare: Share`**<br><br>
-- **`create_share(name: &[u8], sk: &Self::TPrivKey, rng: &mut RNG) -> Self::TShare`**
-- **`verify_share(share: &Self::TShare, name: &[u8], pk: &Self::TPubKey) -> bool`**
-- **`assemble(shares: &Vec<Self::TShare>) -> u8`**
+- **`create_share(name: &[u8], sk: &PrivateKey, rng: &mut RNG) -> Result<CoinShare, ThresholdCryptoError>`**
+- **`verify_share(share: &CoinShare, name: &[u8], pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+- **`assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError>`**
 <br><br>
 
 **ThresholdCipher**<br>
-- **`type CT: Ciphertext`**
-- **`type TPubKey: PublicKey`**
-- **`type TPrivKey: PrivateKey`**
-- **`type TShare: Share`**  <br><br>
-- **`encrypt(msg: &[u8], label: &[u8], pk: &Self::TPubKey) -> Self::CT`**
-- **`verify_ciphertext(ct: &Self::CT, pk: &Self::TPubKey) -> bool`**
-- **`partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey) -> Self::TShare`**
-- **`verify_share(sh: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool`**
-- **`assemble(ct: &Self::CT, shares: &Vec<Self::TShare>]) -> Vec<u8>`**
+- **`encrypt(msg: &[u8], label: &[u8], pk: &PublicKey) -> Result<Ciphertext, ThresholdCryptoError>`**
+- **`verify_ciphertext(ct: &Ciphertext, pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+- **`partial_decrypt(ct: &Ciphertext, sk: &PrivateKey) -> Result<DecryptionShare, ThresholdCryptoError>`**
+- **`verify_share(sh: &DecryptionShare, ct: &Ciphertext, pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+- **`assemble(ct: &Ciphertext, shares: &Vec<DecryptionShare>]) -> Result<Vec<u8>, ThresholdCryptoError>`**
 <br><br>
 
 **ThresholdSignature**<br>
-- **`type TSig`**
-- **`type TPubKey: PublicKey`**
-- **`type TPrivKey: PrivateKey`**
-- **`type TShare: Share`**
-- **`type TParams`**<br><br>
-- **`verify(sig: &Self::TSig, &pk: &Self::TPubKey) -> bool`**
-- **`partial_sign(msg: &[u8], sk: &Self::TPrivKey) -> Self::TShare`**
-- **`verify_share(share: &Self::TShare, msg: &[u8], pk: &Self::TPubKey) -> bool`**
-- **`assemble(shares: &Vec<Self::TShare>, msg: &Vec<u8>) -> bool`**
+- **`verify(sig: &SignedMessage, &pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+- **`partial_sign(msg: &[u8], sk: &PrivateKey) -> Result<SignatureShare, ThresholdCryptoError>`**
+- **`verify_share(share: &SignatureShare, msg: &[u8], pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+- **`assemble(shares: &Vec<SignatureShare>, msg: &Vec<u8>) -> Result<bool, ThresholdCryptoError>`**
 <br><br>
 
-The above traits define the types that are used in the corresponding scheme such as the public/private keys and shares. Those types rely on the following traits:
+To use one of the threshold schemes, we first have to create the public/private keys using the `KeyGenerator`.
+
+**KeyGenerator**<br>
+- **`generate_keys(sig: &SignedMessage, &pk: &PublicKey) -> Result<bool, ThresholdCryptoError>`**
+
 
 **Share** <br>
 - **`get_id(&self) -> usize`**
@@ -53,14 +42,13 @@ The above traits define the types that are used in the corresponding scheme such
 <br>
 
 **PrivateKey** <br>
-- **`type TPubKey: PublicKey`**
 - **`get_id(&self) -> usize`**
-- **`get_public_key(&self) -> Self::TPubKey`**
+- **`get_public_key(&self) -> PublicKey`**
 <br><br>
 
 ## **Miracl Core Integration**
 
-The underlying cryptography library [Miracl Core](https://github.com/miracl/core) implements various elliptic curves and different versions of big integer arithmetic. To use those primitives interchangeably in our threshold schemes, we need a wrapper around the library methods. This is mainly done using the traits `BigInt`, `DlGroup` and `PairingEngine`. <br>
+The underlying cryptography library [Miracl Core](https://github.com/miracl/core) implements various elliptic curves and different versions of big integer arithmetic. To use those primitives interchangeably in our threshold schemes, we need a wrapper around the library methods. This is mainly done using the enums `BigImpl` and `GroupElement`. <br>
 Miracl implements new structs `BIG` and `ECP` for each curve containing the corresponding big integer arithmetic and elliptic curve point implementations respectively. The first layer of abstraction for big integers is the trait `BigInt`:
 <br><br>
 
@@ -93,37 +81,33 @@ The second layer is the enum `BigImpl`, indicating which implementation a partic
         ...
     }
 
-`BigImpl` also implements the methods of the `BigInt` trait and the schemes therefore rely on `BigImpl`. Next trait is the `DlGroup` trait which wraps the different elliptic curve point implementations:
+`BigImpl` also implements the methods of the `BigInt` trait and the schemes therefore rely on `BigImpl`. Next we need to create an abstraction for the different elliptic curve point implementations:
 
-**DlGroup** <br>
-- **`type BigInt: BigInt`**
-- **`type DataType`** <br><br>
-- **`get_order(&self) -> BIG`**
-- **`new() -> Self`** returns generator                            
-- **`new_big(x: &BigImpl) -> Self`** returns generator^x
-- **`new_rand(rng: &mut RNG) -> Self`** returns random element in group
-- **`mul(&mut self, g: &Self)`**            
-- **`pow(&mut self, x: &BigImpl)`**                        
-- **`div(&mut self, g: &Self)`**            
-- **`get(&self) -> Self`**            
-- **`set(&mut self, g: &Self)`**             
-- **`to_bytes(&self) -> &[u8]`**
-- **`from_bytes(bytes: &[u8]) -> Self`**
+The first layer of abstraction is the union `GroupData` containing one field for each curve. As it is a union, the different fields share the memory location and therefore do not take up more space than is needed.
 
-For pairing friendly curves, another trait is neeeded, namely the `PairingEngine` trait that specifies alternate groups and defines a pairing operation.
+    #[repr(C)]
+    pub union GroupData {
+        pub bls12381: ManuallyDrop<Bls12381>,
+        pub bn254: ManuallyDrop<Bn254>,
+        pub ed25519: ManuallyDrop<Ed25519>,
+        ...
+    }
 
-**PairingEngine**<br>
-- **`type G2: DlGroup`**
-- **`type G3: DlGroup`** <br><br>
-- **`fn pair(g1: &Self::G2, g2: &Self) -> Self::G3`**
-- **`fn ddh(g1: &Self::G2, g2: &Self, g3:&Self::G2, g4:&Self) -> bool`**
+The next layer is the struct `GroupElement` with two members: Once a `data` field containing a `GroupData` object and an enum of type `Group` defining the curve the `data`object belongs to.
 
-<br>
-Now we want to be able to use pairing friendly and non pairing friendly curves interchangeably as long as pairings aren't needed. Therefore we need another trait that defines whether the corresponding curve is pairing friendly: <br><br>
+    pub struct GroupElement {
+        group: Group,
+        data: GroupData
+    }
 
+    pub enum Group {
+        Bls12381 = 0,
+        Bn254 = 1,
+        Ed25519 = 2,
+        Rsa512 = 3,
+        Rsa1024 = 4,
+        Rsa2048 = 5,
+        Rsa4096 = 6
+    }
 
-**DlDomain** <br>
-- **`is_pairing_friendly() -> bool`**
-
-
-
+The `GroupElement` struct implements various group operations and can therefore be used in the implementation of the schemes as a curve agnostic data type. Not all groups implement all operations though. Some of the curves support pairing operations, others don't. You can determine whether a group supports pairings by calling `supports_pairings()` on a `Group` object.
