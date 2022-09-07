@@ -1,6 +1,6 @@
 # Threshold Crypto Library API (RUST Version)
 
-This library uses [Miracl Core](https://github.com/miracl/core) for the discrete logarithm schemes and [gmp-mpfr-sys]() for the RSA schemes.<br><br>
+This library uses [Miracl Core](https://github.com/miracl/core) for the discrete logarithm schemes and [gmp-mpfr-sys](https://crates.io/crates/gmp-mpfr-sys) as a [GMP](https://gmplib.org/) wrapper for the RSA schemes.<br><br>
 
 **ThresholdCoin**<br>
 - **`create_share(name: &[u8], sk: &PrivateKey, rng: &mut RNG) -> Result<CoinShare, ThresholdCryptoError>`**
