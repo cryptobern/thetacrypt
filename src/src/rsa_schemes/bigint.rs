@@ -16,32 +16,32 @@ use crate::rand::RNG;
 
 #[macro_export] macro_rules! BIGINT {
     ($x:expr) => {
-        BigInt::new_int($x as isize)
+        RsaBigInt::new_int($x as isize)
     };
 }
 
 #[macro_export] macro_rules! ZERO {
     () => {
-        BigInt::new_int(0)
+        RsaBigInt::new_int(0)
     };
 }
 
 #[macro_export] macro_rules! ONE {
     () => {
-        BigInt::new_int(1)
+        RsaBigInt::new_int(1)
     };
 }
 
-#[derive(Serializable)]
-pub struct BigInt {
+#[derive(Serializable, Debug)]
+pub struct RsaBigInt {
     value: MaybeUninit<mpz_t>
 }
 
-impl AsnType for BigInt {
+impl AsnType for RsaBigInt {
     const TAG: rasn::Tag = rasn::Tag::BIT_STRING;
 }
 
-impl Encode for BigInt {
+impl Encode for RsaBigInt {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |encoder| {
             self.to_bytes().encode(encoder)?;
@@ -52,7 +52,7 @@ impl Encode for BigInt {
     }
 }
 
-impl Decode for BigInt {
+impl Decode for RsaBigInt {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
             let mut bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
@@ -61,13 +61,13 @@ impl Decode for BigInt {
     }
 }
 
-impl PartialEq for BigInt {
+impl PartialEq for RsaBigInt {
     fn eq(&self, other: &Self) -> bool {
         self.equals(&other)
     }
 }
 
-impl BigInt {
+impl RsaBigInt {
     pub fn new() -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
@@ -135,7 +135,7 @@ impl BigInt {
     }
 
     pub fn new_prime(rng: &mut RNG, len: usize) -> Self {
-        let mut x = BigInt::new();
+        let mut x = RsaBigInt::new();
 
         loop {
             x.rand(rng, len);
@@ -295,10 +295,10 @@ impl BigInt {
 
     pub fn coprime(&self, i:isize) -> bool {
         unsafe {
-            let x = BigInt::new_int(i);
-            let mut y = BigInt::new();
+            let x = RsaBigInt::new_int(i);
+            let mut y = RsaBigInt::new();
             gmp::mpz_gcd(y.value.as_mut_ptr(), self.value.as_ptr(), x.value.as_ptr());
-            y.equals(&BigInt::new_int(1))
+            y.equals(&RsaBigInt::new_int(1))
         }
     }
 
@@ -347,8 +347,8 @@ impl BigInt {
     }
 }
 
-impl Clone for BigInt {
+impl Clone for RsaBigInt {
     fn clone(&self) -> Self {
-        BigInt::new_copy(&self)
+        RsaBigInt::new_copy(&self)
     }
 }

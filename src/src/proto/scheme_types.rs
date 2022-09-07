@@ -16,5 +16,8 @@ pub enum Group {
     Bls12381 = 0,
     Bn254 = 1,
     Ed25519 = 2,
-    Rsa = 3,
+    Rsa512 = 3,
+    Rsa1024 = 4,
+    Rsa2048 = 5,
+    Rsa4096 = 6
 }

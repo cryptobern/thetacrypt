@@ -2,7 +2,8 @@ use core::panic;
 use std::mem::ManuallyDrop;
 use crate::proto::scheme_types::Group;
 
-use crate::{dl_schemes::{bigint::BigImpl, dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
+use crate::{dl_schemes::{dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
+use crate::dl_schemes::bigint::BigImpl;
 
 /*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
     group has a code (8-bit unsigned integer) that's used to encode the group when serializing
@@ -16,7 +17,10 @@ impl Group {
             Self::Bls12381 => 0,
             Self::Bn254 => 1,
             Self::Ed25519 => 2,
-            Self::Rsa => 3
+            Self::Rsa512 => 3,
+            Self::Rsa1024 => 3,
+            Self::Rsa2048 => 4,
+            Self::Rsa4096 => 5,
         }
     }
 
@@ -25,7 +29,10 @@ impl Group {
             0 => Self::Bls12381,
             1 => Self::Bn254,
             2 => Self::Ed25519,
-            3 => Self::Rsa,
+            3 => Self::Rsa512,
+            4 => Self::Rsa1024,
+            5 => Self::Rsa2048,
+            6 => Self::Rsa4096,
             _ => panic!("invalid code")
         }
     }
@@ -44,7 +51,10 @@ impl Group {
             Self::Bls12381 => true,
             Self::Bn254 => true,
             Self::Ed25519 => false,
-            Self::Rsa => false
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
         }
     }
 }

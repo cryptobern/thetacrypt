@@ -11,7 +11,7 @@ use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
 
-use crate::dl_schemes::bigint::*;
+use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::{common::*};
 use crate::group::{GroupElement};
 use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare};
@@ -107,6 +107,10 @@ pub struct Bz03PrivateKey {
 impl Bz03PrivateKey {
     pub fn new(id: u16, xi: &BigImpl, pubkey: &Bz03PublicKey) -> Self {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+
+    pub fn get_id(&self) -> u16 {
+        return self.id;
     }
 
     pub fn get_public_key(&self) -> Bz03PublicKey {
