@@ -109,10 +109,6 @@ impl Bz03PrivateKey {
         Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
     }
 
-    pub fn get_id(&self) -> u16 {
-        return self.id;
-    }
-
     pub fn get_public_key(&self) -> Bz03PublicKey {
         self.pubkey.clone()
     }

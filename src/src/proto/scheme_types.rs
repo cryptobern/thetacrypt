@@ -19,5 +19,5 @@ pub enum Group {
     Rsa512 = 3,
     Rsa1024 = 4,
     Rsa2048 = 5,
-    Rsa4096 = 6
+    Rsa4096 = 6,
 }

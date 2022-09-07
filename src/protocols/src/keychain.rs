@@ -1,18 +1,18 @@
 use std::{collections::{HashMap, HashSet}, fs::{self, File}, error::Error};
 use cosmos_crypto::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}, proto::scheme_types::ThresholdScheme};
 use cosmos_crypto::proto::scheme_types::Group;
-use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
+// use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 
 use crate::proto::protocol_types;
 
 
-#[derive(Serialize, Deserialize)]
+// #[derive(Serialize, Deserialize)]
 pub struct KeyChain {
     key_entries: Vec<PrivateKeyEntry>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+// #[derive(Serialize, Deserialize, Clone)]
 pub struct PrivateKeyEntry{
     pub id: String,
     is_default_for_scheme_and_group: bool,
@@ -47,18 +47,18 @@ impl KeyChain {
         }
     }
 
-    pub fn from_file(filename: &str) -> std::io::Result<Self> {
-        let key_chain_str = fs::read_to_string(filename)?;
-        let key_chain: KeyChain = serde_json::from_str(&key_chain_str)?; 
-        Ok(key_chain)
-    }
+    // pub fn from_file(filename: &str) -> std::io::Result<Self> {
+    //     let key_chain_str = fs::read_to_string(filename)?;
+    //     let key_chain: KeyChain = serde_json::from_str(&key_chain_str)?; 
+    //     Ok(key_chain)
+    // }
 
-    pub fn to_file(&self, filename: &str) -> std::io::Result<()> {
-        let serialized = serde_json::to_string(&self)?;
-        let mut file = File::create(filename)?;
-        writeln!(&mut file, "{}", serialized)?;
-        Ok(())
-    }
+    // pub fn to_file(&self, filename: &str) -> std::io::Result<()> {
+    //     let serialized = serde_json::to_string(&self)?;
+    //     let mut file = File::create(filename)?;
+    //     writeln!(&mut file, "{}", serialized)?;
+    //     Ok(())
+    // }
 
     // Inserts a key to the key_chain. A key_id must be given and must be unique among all keys (regardless of the key scheme).
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group
@@ -166,7 +166,7 @@ impl KeyChain {
         matching_public_key_entries
     }
 
-    // Convert from KeyEntry to protocol_types::PublicKeyEntry
+    // Convert from PrivateKeyEntry to protocol_types::PublicKeyEntry
     fn get_public_key_entry(&self, key_entry: &PrivateKeyEntry) -> Result<protocol_types::PublicKeyEntry, String> {
         let key_ser = key_entry.key
                                         .get_public_key()
