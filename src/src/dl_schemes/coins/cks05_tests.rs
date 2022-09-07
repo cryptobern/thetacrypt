@@ -4,13 +4,13 @@ use super::cks05::*;
 
 #[test]
 fn test_key_generation() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &crate::proto::scheme_types::ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &crate::proto::scheme_types::ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     assert!(keys.len() == 5);
 }
 
 #[test]
 fn test_public_key_serialization() {
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     let public_key = private_keys[0].get_public_key();
     assert!(private_keys.len() == 5);
 
@@ -21,7 +21,7 @@ fn test_public_key_serialization() {
 
 #[test]
 fn test_share_creation() {
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     let name = b"Label";
     let share = ThresholdCoin::create_share(name, &private_keys[0], &mut RNG::new(RngAlgorithm::MarsagliaZaman)).unwrap();
     let valid = ThresholdCoin::verify_share(&share, name, &private_keys[0].get_public_key()).unwrap();
@@ -30,7 +30,7 @@ fn test_share_creation() {
 
 #[test]
 fn test_share_serialization() {
-    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     let name = b"Label";
     let share = ThresholdCoin::create_share(name, &private_keys[0], &mut RNG::new(RngAlgorithm::MarsagliaZaman)).unwrap();
     
@@ -42,7 +42,7 @@ fn test_share_serialization() {
 
 #[test]
 fn test_full_scheme() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     let name = b"My Coin";
     let mut shares = Vec::new();
 
@@ -60,10 +60,10 @@ fn test_full_scheme() {
 
 #[test]
 fn test_invalid_share() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     let name = b"Label";
     let mut shares = Vec::new();
-    let keys2 = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381).unwrap();
+    let keys2 = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
 
     for i in 0..3 {
         shares.push(ThresholdCoin::create_share(name,&keys2[i as usize], &mut RNG::new(RngAlgorithm::MarsagliaZaman)).unwrap());
