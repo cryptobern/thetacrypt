@@ -83,7 +83,10 @@ async fn submit_tx_to_tendermint_node(tendermint_node_ip: String,
                                      tx: Vec<u8>) -> Result<RPCResult<BroadcastTxCommitResult>, Box<dyn Error>> {
     let address = format!("http://{tendermint_node_ip}:{tendermint_node_rpc_port}");
     let tx_encoded: &str = &base64::encode(&tx);
-    let req_url = address + "/broadcast_tx_commit?tx=%22" + tx_encoded + "%22";
+    let tx_encoded_escaped = urlencoding::encode(tx_encoded).to_owned();
+    println!(">> Encoded: {}", tx_encoded_escaped);
+
+    let req_url = address + "/broadcast_tx_async?tx=\"decrypt:" + &tx_encoded_escaped  + "\"";
     println!(">> Url query: {}", req_url);
 
     let response_body = reqwest::get(req_url).await?.text().await?;

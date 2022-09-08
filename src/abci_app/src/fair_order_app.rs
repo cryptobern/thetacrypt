@@ -6,6 +6,8 @@ use protocols::proto::protocol_types::{threshold_crypto_library_client::Threshol
 use tendermint_abci::{Application, Error};
 use tonic::transport::Channel;
 
+use base64;
+
 #[derive(Debug, Clone)]
 pub struct FairOrderApp {
     command_sender: Sender<Command>,
@@ -28,24 +30,50 @@ impl Application for FairOrderApp {
     // has decrypted the ciphertext. Hence, deliver_tx will obtain the decrypted transaction.
     // This sample code does not return the decrypted tx back to the client_app.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
-        println!(">> Delivered an encrypted tx. {:?}", request.tx);
-        let ciphertext = base64::decode(&request.tx).unwrap();
-        let (result_sender, result_receiver) = channel();
-        let command = Command::DecryptTx { encrypted_tx: ciphertext, result_sender};
-        channel_send(&self.command_sender, command).unwrap();
-        let decrypted_tx = channel_recv(&result_receiver).unwrap();
-        
-        ResponseDeliverTx { 
+        let mut default_resp = ResponseDeliverTx { 
             code: 0,
-            data: Default::default(),
+            data: Vec::new(),
             log: "".to_string(),
             info: "".to_string(),
             gas_wanted: 0,
             gas_used: 0,
             events: Vec::new(),
             codespace: "".to_string(),
+        };
+
+        let tx_str = match String::from_utf8(request.tx.clone()){
+            Ok(tx_str) => tx_str,
+            Err(err) => {
+                println!(">> Could not parse request.tx as a UTF8 string. Err:{:?}, Tx:{:?}", err, &request.tx);
+                return default_resp
+            },
+        };
+        
+        match tx_str.split_once(':'){
+            Some((command, argument)) => {
+                match command {
+                    "decrypt" => {
+                        println!(">> Received a decrypt command. {:?}", request.tx);
+                        return decrypt_ctxt(self.command_sender.clone(), argument)
+                    },
+                    _ => {
+                        println!(">> The received request.tx does not contain a known threshold crypto command.");
+                        return default_resp        
+                    }
+                }
+            },
+            None => {
+                println!(">> The received request.tx does not contain a threshold crypto command.");
+                return default_resp
+            },
         }
+        
+        
+        
+        println!(">> Delivered an encrypted tx. {:?}", &request.tx);
+        
     }
+    
 
     // The client_app, in order to encrypt a tx, needs the public key that corresponds to the secret-key shares
     // held by the nodes of the threshold library app. Since this is only a query (the client_app does not submit
@@ -87,6 +115,38 @@ impl Application for FairOrderApp {
         }
     }
    
+}
+
+fn decrypt_ctxt(command_sender: Sender<Command>, ctxt: &str) -> ResponseDeliverTx {
+    let mut default_resp = ResponseDeliverTx { 
+        code: 0,
+        data: Vec::new(),
+        log: "".to_string(),
+        info: "".to_string(),
+        gas_wanted: 0,
+        gas_used: 0,
+        events: Vec::new(),
+        codespace: "".to_string(),
+    };
+    println!(">> Encoded: {}", ctxt);
+    match base64::decode(ctxt){
+        Ok(ciphertext) => {
+            let (result_sender, result_receiver) = channel();
+            let command = Command::DecryptTx { encrypted_tx: ciphertext, result_sender};
+            channel_send(&command_sender, command).unwrap();
+            let decrypted_tx = channel_recv(&result_receiver).unwrap();
+            if let Some(plaintext) = decrypted_tx {  
+                default_resp.data = plaintext;
+                return default_resp;
+            }
+        },
+        Err(err) => {
+            println!(">> Could not decode ciphertext from base64. Err: {:?}", err);
+            return default_resp;
+        },
+             
+    }
+    return default_resp
 }
 
 
