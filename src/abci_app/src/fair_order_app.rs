@@ -1,6 +1,6 @@
 use std::{sync::mpsc::{Sender, Receiver, channel}, collections::HashMap, time::Duration};
 
-use tendermint_proto::abci::{RequestDeliverTx, RequestQuery, ResponseDeliverTx, ResponseQuery};
+use tendermint_proto::abci::{RequestDeliverTx, RequestQuery, ResponseDeliverTx, ResponseQuery, RequestCheckTx, ResponseCheckTx};
 use protocols::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
 
 use tendermint_abci::{Application, Error};
@@ -24,11 +24,11 @@ impl FairOrderApp {
 
 impl Application for FairOrderApp {
     
-    // For simplicity we assume the only tx ever delivered is encrypted, and request.tx contains the ciphertext.
-    // The abci_app is responsible for submiting this ciphertext to the threshold crypto library for decryption.
+    // deliver_tx checks if the deliver request.tx is a threshold-crypto related command.
+    // In this example we only handle decrypt comamnds:
+    // The abci_app is responsible for submiting the ciphertext to the threshold crypto library for decryption.
     // The 'channel_recv' endpoint used in this example is blocking, i.e., it will only return when the library
     // has decrypted the ciphertext. Hence, deliver_tx will obtain the decrypted transaction.
-    // This sample code does not return the decrypted tx back to the client_app.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
         let mut default_resp = ResponseDeliverTx { 
             code: 0,
@@ -41,6 +41,7 @@ impl Application for FairOrderApp {
             codespace: "".to_string(),
         };
 
+        // Try parsing request.tx as a UTF8 string.
         let tx_str = match String::from_utf8(request.tx.clone()){
             Ok(tx_str) => tx_str,
             Err(err) => {
@@ -49,6 +50,10 @@ impl Application for FairOrderApp {
             },
         };
         
+        // Check if request.tx is a threshold-crypto related command.
+        // We assume such commands are in the form <command>:<arg1>:<arg2>...,
+        // where <command> is a string and <arg> is a base64 encoded argument,
+        // e.g., decrypt:<ciphertext>.
         match tx_str.split_once(':'){
             Some((command, argument)) => {
                 match command {
@@ -67,11 +72,6 @@ impl Application for FairOrderApp {
                 return default_resp
             },
         }
-        
-        
-        
-        println!(">> Delivered an encrypted tx. {:?}", &request.tx);
-        
     }
     
 
@@ -113,6 +113,25 @@ impl Application for FairOrderApp {
             height: 0,
             codespace: "".to_string(),
         }
+    }
+
+
+    fn check_tx(&self, request: RequestCheckTx) -> ResponseCheckTx {
+        println!(">> CheckTx. Tx:{:?}", &request.tx);
+        let resp = ResponseCheckTx {
+            code: 0,
+            data: Vec::new(),
+            log: String::new(),
+            info: String::new(),
+            gas_wanted: 0,
+            gas_used: 0,
+            events: Vec::new(),
+            codespace: String::new(),
+            sender: String::new(),
+            priority: 0,
+            mempool_error: String::new(),
+        };
+        return resp;
     }
    
 }
