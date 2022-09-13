@@ -1,11 +1,8 @@
 use std::{sync::mpsc::{Sender, Receiver, channel}, collections::HashMap, time::Duration};
-
 use tendermint_proto::abci::{RequestDeliverTx, RequestQuery, ResponseDeliverTx, ResponseQuery, RequestCheckTx, ResponseCheckTx};
 use protocols::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
-
 use tendermint_abci::{Application, Error};
 use tonic::transport::Channel;
-
 use base64;
 
 #[derive(Debug, Clone)]
@@ -13,6 +10,10 @@ pub struct FairOrderApp {
     command_sender: Sender<Command>,
 }
 
+// FairOrderApp is a minimal ABCI app implementation, based on https://github.com/informalsystems/tendermint-rs/tree/main/abci.
+// It implements a Causal broadcast layer on top of Tendermint, by employing threshold encryption.
+// It delivers commands from Tendermint (deliver_tx(), query()) and handles them by calling, if required,
+// the threshold-crypto related operations to the threshold crypto library. These calls are made over
 impl FairOrderApp {
     pub async fn new(tcl_ip: String, tcl_port: u16) -> (Self, FairOrderDriver) { //todo: Pass through parameters, should change
         let (command_sender, command_receiver) = channel();
@@ -33,7 +34,7 @@ impl Application for FairOrderApp {
             let command = thresh_command_parts[0];
             match command {
                 "decrypt" => {
-                    println!(">> Delivered a decrypt command. {:?}", request.tx);
+                    println!(">> Delivered a decrypt command.");
                     let arg = thresh_command_parts[1];
                     if let Ok(encrypted_payload) = base64::decode(arg){
                         decrypt_result = FairOrderApp::handle_decrypt_command(self.command_sender.clone(), encrypted_payload);   
@@ -113,7 +114,6 @@ impl Application for FairOrderApp {
 
 
     fn check_tx(&self, request: RequestCheckTx) -> ResponseCheckTx {
-        println!(">> CheckTx. Tx:{:?}", &request.tx);
         let resp = ResponseCheckTx {
             code: 0,
             data: Vec::new(),
