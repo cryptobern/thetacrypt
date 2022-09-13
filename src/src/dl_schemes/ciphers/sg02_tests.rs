@@ -8,8 +8,9 @@ use crate::group::{GroupElement};
 #[test]
 fn test_scheme() {
     let mut params = ThresholdCipherParams::new();
-    
-    let private_keys = KeyGenerator::generate_keys(33, 40, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
+    let k = 3;
+    let n = 5;
+    let private_keys = KeyGenerator::generate_keys(k, n, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let public_key = private_keys[0].get_public_key();
     /* Serialisation usage */
 
@@ -19,7 +20,7 @@ fn test_scheme() {
     let ciphertext = ThresholdCipher::encrypt(&msg, label, &public_key, &mut params).unwrap();
     let mut shares = Vec::new();
     
-    for i in 0..33 {
+    for i in 0..k {
         shares.push(ThresholdCipher::partial_decrypt(&ciphertext, &private_keys[i as usize], &mut params).unwrap());
         assert!(ThresholdCipher::verify_share(&shares[i], &ciphertext, &public_key).unwrap());
     }

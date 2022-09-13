@@ -42,11 +42,10 @@ pub fn eval_pol(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
 
         xi = xi.pow_mod(&BigImpl::new_int(&group, len - i - 1), &q);
         tmp = tmp.mul_mod(&xi, &group.get_order());
-        val = val.add(&tmp);
+        val = val.add(&tmp).rmod(&q);
     }
 
-    val = val.add(&a[(len - 1) as usize]);
-    val = val.rmod(&q);
+    val = val.add(&a[(len - 1) as usize]).rmod(&q);
 
     val
 }
