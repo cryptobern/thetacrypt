@@ -1,17 +1,17 @@
 use std::time::Instant;
 use crate::rand::RNG;
-use crate::{rsa_schemes::{common::{gen_strong_prime, fac}, bigint::BigInt}, BIGINT, ONE};
+use crate::{rsa_schemes::{common::{gen_strong_prime, fac}, bigint::RsaBigInt}, BIGINT, ONE};
 
 use super::{common::shamir_share, signatures::sh00::{Sh00PrivateKey, Sh00PublicKey, Sh00VerificationKey}};
 
 const DEBUG:bool = false;
 
 pub enum RsaScheme {
-    SH00(usize)
+    Sh00(usize)
 }
 
 pub enum RsaPrivateKey {
-    SH00(Sh00PrivateKey)
+    Sh00(Sh00PrivateKey)
 }
 
 pub struct RsaKeyGenerator {}
@@ -19,14 +19,14 @@ pub struct RsaKeyGenerator {}
 impl RsaKeyGenerator {
     pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: RsaScheme) -> Vec<RsaPrivateKey> {
         match scheme {
-            RsaScheme::SH00(MODSIZE) => {
+            RsaScheme::Sh00(MODSIZE) => {
                 let PLEN = MODSIZE/2 - 2; 
 
-                let mut p1 = BigInt::new_rand(rng, PLEN);
-                let mut q1 = BigInt::new_rand(rng, PLEN);
+                let mut p1 = RsaBigInt::new_rand(rng, PLEN);
+                let mut q1 = RsaBigInt::new_rand(rng, PLEN);
 
-                let mut p: BigInt = BigInt::new();
-                let mut q: BigInt = BigInt::new();
+                let mut p: RsaBigInt = RsaBigInt::new();
+                let mut q: RsaBigInt = RsaBigInt::new();
 
                 let e = BIGINT!(65537); // Question: Should we be able to change this?
 
@@ -45,7 +45,7 @@ impl RsaKeyGenerator {
                 let N = p.mul(&q);
                 let m = p1.mul(&q1);
 
-                let v = BigInt::new_rand(rng, MODSIZE - 1).pow(2).rmod(&N);
+                let v = RsaBigInt::new_rand(rng, MODSIZE - 1).pow(2).rmod(&N);
 
                 let d = e.inv_mod(&m);
 
@@ -56,7 +56,7 @@ impl RsaKeyGenerator {
                 let mut up;
                 let mut uq;
                 loop {
-                    u = BigInt::new_rand(rng, MODSIZE - 1);
+                    u = RsaBigInt::new_rand(rng, MODSIZE - 1);
                     up = u.pow_mod(&p1, &p);
                     uq = u.pow_mod(&q1, &q);
                     if up.equals(&ONE!()) != uq.equals(&ONE!())  {
@@ -69,7 +69,7 @@ impl RsaKeyGenerator {
                 
                 let mut pks: Vec<RsaPrivateKey> = Vec::new();
                 for i in 0..n {
-                    pks.push(RsaPrivateKey::SH00(
+                    pks.push(RsaPrivateKey::Sh00(
                             Sh00PrivateKey::new(xi[i].0, m.clone(), xi[i].1.clone(), pubkey.clone())))
                 }
                 pks

@@ -1,52 +1,61 @@
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::zero_prefixed_literal)]
-#![allow(dead_code)]
+use chacha20poly1305::{Key, ChaCha20Poly1305, aead::{NewAead, Aead}, Nonce};
+use derive::{Serializable, DlShare};
+use mcore::hash256::HASH256;
+use rasn::{AsnType, Encoder, Encode, Decode};
 
-use derive::{PublicKey, PrivateKey, Ciphertext, Share};
-use mcore::hash256::*;
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
-use chacha20poly1305::aead::{Aead, NewAead};
-use rasn::types::{Integer, BitString};
-use rasn::{Encode, AsnType, Decode};
-use rasn::Encoder;
-use rasn::der::{encode, decode};
+use crate::{dl_schemes::{ common::{gen_symm_key, xor, interpolate}}, rand::RNG, interface::{ThresholdCipherParams, DlShare}, proto::scheme_types::{Group, ThresholdScheme}};
+use crate::group::{GroupElement};
+use crate::dl_schemes::bigint::BigImpl;
+pub struct Sg02ThresholdCipher {}
 
-use crate::dl_schemes::common::gen_symm_key;
-use crate::dl_schemes::common::interpolate;
-use crate::dl_schemes::common::xor;
-use crate::dl_schemes::dl_groups::dl_group::*;
-use crate::dl_schemes::keygen::{DlKeyGenerator, DlPrivateKey, DlScheme};
-use crate::rand::{RNG, RngAlgorithm};
-use crate::{interface::*, unwrap_keys};
-use crate::interface::PrivateKey;
-use crate::interface::PublicKey;
-use crate::interface::Share;
-use crate::interface::ThresholdCipher;
-use crate::dl_schemes::bigint::*;
-
-use crate::dl_schemes::{DlDomain, DlShare};
-
-pub struct Sg02ThresholdCipher<G: DlGroup> {
-    g: G
+#[derive(Clone, AsnType, Serializable, PartialEq)]
+pub struct Sg02PublicKey {
+    n: u16,
+    k: u16,
+    group: Group,
+    y: GroupElement,
+    verification_key: Vec<GroupElement>,
+    g_bar: GroupElement
 }
 
-#[derive(Clone, Debug, PublicKey, AsnType)]
-pub struct Sg02PublicKey<G: DlGroup> {
-    t: u32,
-    y: G,
-    verificationKey: Vec<G>,
-    g_bar: G
+impl Sg02PublicKey {
+    pub fn get_order(&self) -> BigImpl {
+        self.y.get_order()
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.group.clone()
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
+
+    pub fn get_n(&self) -> u16  {
+        self.n
+    }
+
+    pub fn new(n: usize, k: usize, group: &Group, y: &GroupElement, verification_key: &Vec<GroupElement>, g_bar:&GroupElement) -> Self {
+        if !y.is_type(&group) || !verification_key[0].is_type(&group) || !g_bar.is_type(&group) {
+            panic!("incompatible groups");
+        }
+        Self {n:n as u16, k:k as u16, group:group.clone(), y:y.clone(), verification_key:verification_key.clone(), g_bar:g_bar.clone()}
+    }
 }
 
-impl <G:DlGroup> Encode for Sg02PublicKey<G> {
+impl Encode for Sg02PublicKey {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            self.t.encode(sequence)?;
-            self.y.encode(sequence)?;
-            self.verificationKey.encode(sequence)?;
-            self.g_bar.encode(sequence)?;
+            self.group.get_code().encode(sequence)?;
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+
+            for i in 0..self.verification_key.len() {
+                self.verification_key[i].to_bytes().encode(sequence)?;
+            }
+
+            self.g_bar.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
@@ -55,34 +64,66 @@ impl <G:DlGroup> Encode for Sg02PublicKey<G> {
     }
 }
 
-impl <G:DlGroup> Decode for Sg02PublicKey<G> {
+impl Decode for Sg02PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let t = u32::decode(sequence)?;
-            let y: G = G::decode(sequence)?;
-            let verificationKey = Vec::<G>::decode(sequence)?;
-            let g_bar = G::decode(sequence)?;
+            let group = Group::from_code(u8::decode(sequence)?);
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
 
-            Ok(Self{t, y, verificationKey, g_bar})
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+            let mut verification_key = Vec::new();
+
+            for _i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let g_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+
+            Ok(Self{n, k, group:group, y, verification_key: verification_key, g_bar})
         })
     }
 }
 
-impl<G:DlGroup> PartialEq for Sg02PublicKey<G> {
-    fn eq(&self, other: &Self) -> bool {
-        self.verificationKey.eq(&other.verificationKey) && self.y.equals(&other.y)  
-        && self.g_bar.equals(&other.g_bar)
+#[derive(Clone, AsnType, Serializable, PartialEq)]
+pub struct Sg02PrivateKey {
+    id: u16,
+    xi: BigImpl,
+    pubkey: Sg02PublicKey,
+}
+
+impl Sg02PrivateKey {
+    pub fn get_order(&self) -> BigImpl {
+        self.pubkey.get_order()
+    }
+
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.k
+    }
+
+    pub fn get_group(&self) -> Group {
+        self.pubkey.get_group()
+    }
+
+    pub fn new(id:u16, xi: &BigImpl, pubkey: &Sg02PublicKey) -> Self {
+        Self {id:id.clone(), xi:xi.clone(), pubkey:pubkey.clone()}
+    }
+
+    pub fn get_public_key(&self) -> Sg02PublicKey {
+        self.pubkey.clone()
     }
 }
 
-#[derive(Clone, Debug, PrivateKey, AsnType)]
-pub struct Sg02PrivateKey<G: DlGroup> {
-    id: u32,
-    xi: BigImpl,
-    pubkey: Sg02PublicKey<G>,
-}
-
-impl <G:DlGroup> Encode for Sg02PrivateKey<G> {
+impl Encode for Sg02PrivateKey {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.id.encode(sequence)?;
@@ -95,49 +136,54 @@ impl <G:DlGroup> Encode for Sg02PrivateKey<G> {
     }
 }
 
-impl <G:DlGroup> Decode for Sg02PrivateKey<G> {
+impl Decode for Sg02PrivateKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
+            let id = u16::decode(sequence)?;
             let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Sg02PublicKey::<G>::decode(sequence)?;
-            let xi = G::BigInt::from_bytes(&xi_bytes);
+            let pubkey = Sg02PublicKey::decode(sequence)?;
+            let xi = BigImpl::from_bytes(&pubkey.group, &xi_bytes);
 
             Ok(Self {id, xi, pubkey})
         })
     }
 }
 
-impl<G: DlGroup> Sg02PrivateKey<G> {
-    pub fn new(id: u32, xi: &BigImpl, pubkey: &Sg02PublicKey<G>) -> Self {
-        Self {id, xi:xi.clone(), pubkey:pubkey.clone()}
-    }
-}
-
-impl<G: DlGroup> PartialEq for Sg02PrivateKey<G> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
-    }
-}
-
-#[derive(Clone, AsnType, Ciphertext)]
-pub struct Sg02Ciphertext<G: DlGroup> {
+#[derive(Clone, AsnType, Serializable, PartialEq)]
+pub struct Sg02Ciphertext{
     label: Vec<u8>,
     msg: Vec<u8>,
-    u: G,
-    u_bar: G,
+    u: GroupElement,
+    u_bar: GroupElement,
     e: BigImpl,
     f: BigImpl,
     c_k: Vec<u8>,
 }
 
-impl <G:DlGroup> Encode for Sg02Ciphertext<G> {
+impl Sg02Ciphertext {
+    pub fn new(label: Vec<u8>,
+        msg: Vec<u8>,
+        u: GroupElement,
+        u_bar: GroupElement,
+        e: BigImpl,
+        f: BigImpl,
+        c_k: Vec<u8>) -> Self{
+            Self {msg, label, u, u_bar, e, f, c_k}
+        }
+    pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
+    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
+    pub fn get_group(&self) -> Group { self.e.get_group() }
+}
+
+impl Encode for Sg02Ciphertext {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.u.get_group().get_code().encode(sequence)?;
             self.label.encode(sequence)?;
             self.msg.encode(sequence)?;
-            self.u.encode(sequence)?;
-            self.u_bar.encode(sequence)?;
+            self.u.to_bytes().encode(sequence)?;
+            self.u_bar.to_bytes().encode(sequence)?;
             self.e.to_bytes().encode(sequence)?;
             self.f.to_bytes().encode(sequence)?;
             self.c_k.encode(sequence)?;
@@ -148,221 +194,188 @@ impl <G:DlGroup> Encode for Sg02Ciphertext<G> {
     }
 }
 
-impl <G:DlGroup> Decode for Sg02Ciphertext<G> {
+impl Decode for Sg02Ciphertext {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let label:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let u = G::decode(sequence)?;
-            let u_bar = G::decode(sequence)?;
-            let e_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let f_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let group = Group::from_code(u8::decode(sequence)?);
+            let label = Vec::<u8>::decode(sequence)?;
+            let msg = Vec::<u8>::decode(sequence)?;
 
-            let e = G::BigInt::from_bytes(&e_bytes);
-            let f = G::BigInt::from_bytes(&f_bytes);
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let u = GroupElement::from_bytes(&bytes, &group, Option::None);
 
-            Ok(Self {label, msg, u, u_bar, e, f, c_k})
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let u_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let e = BigImpl::from_bytes(&group, &bytes);
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let f = BigImpl::from_bytes(&group, &bytes);
+
+            let c_k = Vec::<u8>::decode(sequence)?;
+
+            Ok(Self{label, msg, u, u_bar, e, f, c_k})
         })
     }
 }
 
-impl<G: DlGroup> PartialEq for Sg02Ciphertext<G> {
-    fn eq(&self, other: &Self) -> bool {
-        self.label.eq(&other.label) && self.msg.eq(&other.msg) && self.u.equals(&other.u) && 
-        self.u_bar.equals(&other.u_bar) && self.e.equals(&other.e) && self.f.equals(&other.f) && 
-        self.c_k.eq(&other.c_k)
-    }
-}
-
-#[derive(Clone, AsnType, Share)]
-pub struct Sg02DecryptionShare<G: DlGroup>  {
-    id: u32,
+#[derive(Clone, AsnType, Serializable, PartialEq, DlShare)]
+pub struct Sg02DecryptionShare {
+    id: u16,
     label: Vec<u8>,
-    data: G,
+    data: GroupElement,
     ei: BigImpl,
     fi: BigImpl,
 }
 
-impl<G: DlGroup> Sg02PublicKey<G> {
-    pub fn new(t: u32, y: &G, verificationKey: &Vec<G>, g_bar:&G) -> Self {
-        Self {t:t.clone(), y:y.clone(), verificationKey:verificationKey.clone(), g_bar:g_bar.clone()}
-    }
+impl Sg02DecryptionShare {
+    pub fn get_data(&self) -> GroupElement { self.data.clone() }
+    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
+    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
-impl<G:DlGroup> Encode for Sg02DecryptionShare<G> {
+impl Encode for Sg02DecryptionShare {
     fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.data.get_group().get_code().encode(sequence)?;
             self.id.encode(sequence)?;
             self.label.encode(sequence)?;
-            self.data.encode(sequence)?;
+            self.data.to_bytes().encode(sequence)?;
             self.ei.to_bytes().encode(sequence)?;
             self.fi.to_bytes().encode(sequence)?;
             Ok(())
         })?;
 
+
         Ok(())
     }
 }
 
-impl<G: DlGroup>Decode for Sg02DecryptionShare<G> {
+impl Decode for Sg02DecryptionShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let id = u32::decode(sequence)?;
-            let label = Vec::<u8>::decode(sequence)?.into();
-            let data = G::decode(sequence)?;
-            let ei_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let fi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let group = Group::from_code(u8::decode(sequence)?);
+            let id = u16::decode(sequence)?;
+            let label = Vec::<u8>::decode(sequence)?;
 
-            let ei = G::BigInt::from_bytes(&ei_bytes);
-            let fi = G::BigInt::from_bytes(&fi_bytes);
-            Ok(Self {id, label, data, ei, fi})
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let data = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let ei = BigImpl::from_bytes(&group, &bytes);
+
+            let bytes = Vec::<u8>::decode(sequence)?;
+            let fi = BigImpl::from_bytes(&group, &bytes);
+
+            Ok(Self{id, label, data, ei, fi})
         })
     }
 }
 
-impl<G: DlGroup> DlShare<G> for Sg02DecryptionShare<G> {
-    fn get_data(&self) -> G {
-        self.data.clone()
-    }
-}
 
-impl<G: DlGroup> PartialEq for Sg02DecryptionShare<G> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.label == other.label && self.data == other.data && self.ei == other.ei && self.fi == other.fi
-    }
-}
+impl Sg02ThresholdCipher {
+    pub fn encrypt(msg: &[u8], label: &[u8], pk: &Sg02PublicKey, params: &mut ThresholdCipherParams) -> Sg02Ciphertext {
+        let group = pk.get_group();
+        let order = group.get_order();
+        let rng = &mut params.rng;
 
+        let r = BigImpl::new_rand(&group, &order, rng);
+        let u = GroupElement::new_pow_big(&group, &r);
+        let ry = pk.y.pow(&r);
 
-impl<G:DlGroup> ThresholdCipher for Sg02ThresholdCipher<G> {
-    type TPubKey = Sg02PublicKey<G>;
-    type TPrivKey = Sg02PrivateKey<G>;
-    type CT = Sg02Ciphertext<G>;
-    type TShare = Sg02DecryptionShare<G>;
-
-    fn encrypt(msg: &[u8], label: &[u8], pk: &Sg02PublicKey<G>, params: &mut ThresholdCipherParams) -> Self::CT {
-        let r = G::BigInt::new_rand(&G::get_order(), &mut params.rng);
-        let mut u = G::new();
-        u.pow(&r);
-
-        let mut rY = pk.y.clone();
-        rY.pow(&r);
-
-        let k = gen_symm_key(&mut params.rng);
+        let k = gen_symm_key(rng);
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let encryption: Vec<u8> = cipher
-            .encrypt(Nonce::from_slice(&rY.to_bytes()[0..12]),  msg)
+            .encrypt(Nonce::from_slice(&ry.to_bytes()[0..12]),  msg)
             .expect("Failed to encrypt plaintext");
         
-        let c_k = xor(H(&rY), (k).to_vec());
+        let c_k = xor(h(&ry), (k).to_vec());
       
-        let s = G::BigInt::new_rand(&G::get_order(), &mut params.rng);
-        let mut w = G::new();
-        w.pow(&s);
+        let s = BigImpl::new_rand(&group, &order, rng);
+        let w = GroupElement::new_pow_big(&group, &s);
 
-        let mut w_bar = pk.g_bar.clone();
-        w_bar.pow(&s);
+        let w_bar = pk.g_bar.pow(&s);
+        let u_bar = pk.g_bar.pow(&r);
 
-        let mut u_bar = pk.g_bar.clone();
-        u_bar.pow(&r);
+        let e = h1(&c_k, &label, &u, &w, &u_bar, &w_bar);
 
-        let e = H1(&c_k, &label, &u, &w, &u_bar, &w_bar);
-
-        let mut f = s.clone();
-        f.add(&BigImpl::rmul(&e, &r, &G::get_order()));
-        f.rmod(&G::get_order());
+        let f = s
+            .add(&BigImpl::rmul(&e, &r, &order))
+            .rmod(&order);
 
         let c = Sg02Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
         c
     }
 
-    fn verify_ciphertext(ct: &Self::CT, pk: &Self::TPubKey) -> bool {
-        let mut w = G::new();
-        w.pow(&ct.f);
+    pub fn verify_ciphertext(ct: &Sg02Ciphertext, pk: &Sg02PublicKey) -> bool {
+        let w = GroupElement::new_pow_big(&pk.group, &ct.f).div(&ct.u.pow(&ct.e));
 
-        let mut rhs = ct.u.clone();
-        rhs.pow(&ct.e);
+        let w_bar = 
+            pk.g_bar
+            .pow(&ct.f)
+            .div(
+                &ct.u_bar
+                .pow(&ct.e)
+            );
 
-        w.div(&rhs);
-
-        let mut w_bar = pk.g_bar.clone();
-        w_bar.pow(&ct.f);
-
-        let mut rhs = ct.u_bar.clone();
-        rhs.pow(&ct.e);
-
-        w_bar.div(&rhs);
-
-        let e2 = H1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar);
-
+        let e2 = h1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar);
         ct.e.equals(&e2)
     }
+    
+    pub fn partial_decrypt(ct: &Sg02Ciphertext, sk: &Sg02PrivateKey, params: &mut ThresholdCipherParams) -> Sg02DecryptionShare {
+        let group = sk.get_group();
+        let order = group.get_order();
 
-    fn verify_share(share: &Self::TShare, ct: &Self::CT, pk: &Self::TPubKey) -> bool {
-        let mut ui_bar = ct.u.clone();
-        ui_bar.pow(&share.fi);
+        let data = ct.u.pow(&sk.xi);
+        let si = BigImpl::new_rand(&group, &order, &mut params.rng);
 
-        let mut rhs = share.data.clone();
-        rhs.pow(&share.ei);
+        let ui_bar = ct.u.pow(&si);
+        let hi_bar = GroupElement::new(&group).pow(&si);
 
-        ui_bar.div(&rhs);
-
-        let mut hi_bar = G::new();
-        hi_bar.pow(&share.fi);
-
-        let mut rhs = pk.verificationKey[(share.get_id() -1) as usize].clone();
-        rhs.pow(&share.ei);
-
-        hi_bar.div(&rhs);
-
-        let ei2 = H2(&share.data, &ui_bar, &hi_bar);
-
-        share.ei.equals(&ei2)
-    }
-
-    fn partial_decrypt(ct: &Self::CT, sk: &Self::TPrivKey, params: &mut ThresholdCipherParams) -> Self::TShare {
-        let mut data = ct.u.clone();
-        data.pow(&sk.xi);
-
-        let si = G::BigInt::new_rand(&G::get_order(), &mut params.rng);
-
-        let mut ui_bar = ct.u.clone();
-        ui_bar.pow(&si);
-
-        let mut hi_bar = G::new();
-        hi_bar.pow(&si);
-
-        let ei = H2(&data, &ui_bar, &hi_bar);
-        let mut fi = si.clone();
-        fi.add(&BigImpl::rmul(&sk.xi, &ei, &G::get_order()));
-        fi.rmod(&G::get_order());
+        let ei = h2(&data, &ui_bar, &hi_bar);
+        let fi = si.add(&BigImpl::rmul(&sk.xi, &ei, &order)).rmod(&order);
 
         Sg02DecryptionShare { id:sk.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
     }
 
-    fn assemble(shares: &Vec<Self::TShare>, ct: &Self::CT) -> Vec<u8> {
-        let rY = interpolate(shares);
-        let k = xor(H(&rY), ct.c_k.clone());
+    pub fn verify_share(share: &Sg02DecryptionShare, ct: &Sg02Ciphertext, pk: &Sg02PublicKey) -> bool {
+        let ui_bar = 
+            ct.u.pow(&share.fi)
+            .div(
+                &share.data
+                .pow(&share.ei)
+            );
+
+        let hi_bar = 
+            GroupElement::new(&pk.group)
+            .pow(&share.fi)
+            .div(
+                &pk.verification_key[(share.id - 1) as usize]
+                .pow(&share.ei)
+            );
+
+        let ei2 = h2(&share.data, &ui_bar, &hi_bar);
+
+        share.ei.equals(&ei2)
+    }
+
+    pub fn assemble(shares: &Vec<Sg02DecryptionShare>, ct: &Sg02Ciphertext) -> Vec<u8> {
+        let ry = interpolate(shares);
+        let k = xor(h(&ry), ct.c_k.clone());
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let msg = cipher
-            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.msg.as_ref())
+            .decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.msg.as_ref())
             .expect("Failed to decrypt ciphertext. Make sure you have enough valid decryption shares");
-        
         msg
     }
 }
 
-impl<D:DlDomain> Sg02ThresholdCipher<D> {
-    pub fn generate_keys(k: usize, n: usize, domain: D, rng: &mut RNG) -> Vec<Sg02PrivateKey<D>> {
-        let keys = DlKeyGenerator::generate_keys(k, n, rng, &DlScheme::SG02(domain));
-        unwrap_keys!(keys, DlPrivateKey::SG02)
-    }
-}
-
 // hash ECP to bit string
-fn H<G: DlGroup>(x: &G) -> Vec<u8> {
+fn h(x: &GroupElement) -> Vec<u8> {
     let mut h = HASH256::new();
     let buf = x.to_bytes();
 
@@ -372,9 +385,9 @@ fn H<G: DlGroup>(x: &G) -> Vec<u8> {
     r
 }
 
-fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl {
+fn h1(m1: &[u8], m2:&[u8], g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement) -> BigImpl {
     let mut buf:Vec<u8> = Vec::new();
-    let q = G::get_order();
+    let q = g1.get_order();
 
     buf = [&buf[..], &m1[..]].concat();
     buf = [&buf[..], &m2[..]].concat();
@@ -396,21 +409,19 @@ fn H1<G:DlGroup>(m1: &[u8], m2:&[u8], g1: &G, g2: &G, g3: &G, g4: &G) -> BigImpl
         let mut g:[u8;32];
         for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::get_order());
-
-    res
+    BigImpl::from_bytes(&g1.get_group(), &buf)
+    .rmod(&g1.get_order())
 }
 
-fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
+fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
     let mut buf:Vec<u8> = Vec::new();
-    let q = G::get_order();
+    let q = g1.get_order();
 
     buf = [&buf[..], &g1.to_bytes()[..]].concat();
     buf = [&buf[..], &g2.to_bytes()[..]].concat();
@@ -429,14 +440,12 @@ fn H2<G: DlGroup>(g1: &G, g2: &G, g3: &G) -> BigImpl {
         let mut g:[u8;32];
         for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
     }
 
-    let mut res = G::BigInt::from_bytes(&buf);
-    res.rmod(&G::get_order());
-
-    res
+    BigImpl::from_bytes(&g1.get_group(), &buf)
+    .rmod(&g1.get_order())
 }

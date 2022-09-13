@@ -1,26 +1,27 @@
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::dl_group::*, rand::RNG};
-use crate::dl_schemes::bigint::*;
+use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}, proto::scheme_types::Group};
+use super::bigint::BigImpl;
 
-use super::{DlShare};
+use crate::group::{GroupElement};
 
-pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<G>) {
+pub fn shamir_share(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<GroupElement>) {
     let mut coeff: Vec<BigImpl> = Vec::new();
-    let q = G::get_order();
+    let group = x.get_group();
+    let q = group.get_order();
 
     for _ in 0..k-1 {
-        coeff.push(G::BigInt::new_rand(&q, rng));
+        coeff.push(BigImpl::new_rand(&group, &q, rng));
     }
 
-    coeff.push(G::BigInt::new_copy(x));
+    coeff.push(BigImpl::new_copy(x));
     let mut shares: Vec<BigImpl> = Vec::new();
-    let mut h: Vec<G> = Vec::new();
+    let mut h: Vec<GroupElement> = Vec::new();
 
     for j in 1..n+1 {
-        let xi = eval_pol::<G>(&G::BigInt::new_int(j as isize), &mut coeff);
-        let mut hi = G::new();
-        hi.pow(&xi);
+        let xi = horner(&BigImpl::new_int(&group, j as isize), &mut coeff);
+        let mut hi = GroupElement::new(&group);
+        hi = hi.pow(&xi);
         h.push(hi);
         
         shares.push(xi);
@@ -29,26 +30,35 @@ pub fn shamir_share<G: DlGroup>(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) 
     (shares, h)
 }
 
-pub fn eval_pol<G: DlGroup>(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
-    let len = (a.len()) as isize;
-    let mut val = G::BigInt::new_int(0);
-    let q = G::get_order();
+pub fn eval_pol(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
+    let len = (a.len()) as i32;
+    let group = x.get_group();
+    let mut val = BigImpl::new_int(&group, 0);
+    let q = group.get_order();
     
     for i in 0..len - 1 {
-        let mut tmp = G::BigInt::new_copy(&a[i as usize].clone());
+        let mut tmp = BigImpl::new_copy(&a[i as usize].clone());
         let mut xi = x.clone();
 
-        xi.pow_mod(&G::BigInt::new_int(len - i - 1), &q);
-        tmp.mul_mod(&xi, &G::get_order());
-        val.add(&tmp);
+        xi = xi.pow_mod(&BigImpl::new_int(&group, (len - i - 1) as isize), &q);
+        tmp = tmp.mul_mod(&xi, &group.get_order());
+        val = val.add(&tmp).rmod(&q);
     }
 
-    val.add(&a[(len - 1) as usize]);
-    val.rmod(&q);
+    val = val.add(&a[(len - 1) as usize]).rmod(&q);
 
     val
 }
 
+pub fn horner(x: &BigImpl, a: &Vec<BigImpl>) ->  BigImpl {
+    let mut result = a[0].clone(); // Initialize result
+    let order = x.get_group().get_order();
+    for i in 1..a.len() {
+        result = result.mul_mod(&x, &order).add(&a[i]).rmod(&order);
+    }
+ 
+    return result;
+}
 
 pub fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
     let v3: Vec<u8> = v1
@@ -76,50 +86,50 @@ pub fn gen_symm_key(rng: &mut RNG) -> [u8; 32] {
     *k
 }
 
-pub fn interpolate<G: DlGroup, S: DlShare<G>>(shares: &Vec<S>) -> G { 
-    let ids:Vec<u8> = (0..shares.len()).map(|x| shares[x].get_id() as u8).collect();
-    let mut rY = G::new();
+pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement { 
+    let ids:Vec<u16> = (0..shares.len()).map(|x| shares[x].get_id()).collect();
+    let mut ry = GroupElement::new(&shares[0].get_group());
 
     for i in 0..shares.len() {
-        let l = lagrange_coeff::<G>(&ids, shares[i].get_id() as isize);
+        let l = lagrange_coeff(&shares[0].get_group(), &ids, shares[i].get_id() as i32);
         let mut ui = shares[i].get_data().clone();
-        ui.pow(&l);
+        ui = ui.pow(&l);
 
         if i == 0 {
-            rY = ui;
+            ry = ui;
         } else {
-            rY.mul(&ui);
+            ry = ry.mul(&ui);
         }
     }
 
-    rY
+    ry
 }
 
-pub fn lagrange_coeff<G: DlGroup>(indices: &[u8], i: isize) -> BigImpl {
-    let mut prod = G::BigInt::new_int(1);
-    let q = G::get_order();
+pub fn lagrange_coeff(group: &Group, indices: &[u16], i: i32) -> BigImpl {
+    let mut prod = BigImpl::new_int(group, 1);
+    let q = group.get_order();
     
     for k in 0..indices.len() {
-        let j:isize = indices[k].into();
+        let j = indices[k] as i32;
 
         if i != j {
             let mut ij;
             let val = (j - i).abs();
 
             if i > j {
-                ij = G::get_order();
-                ij.sub(&G::BigInt::new_int(val));
+                ij = q.clone();
+                ij = ij.sub(&BigImpl::new_int(group, val as isize));
             } else {
-                ij = G::BigInt::new_int(val);
+                ij = BigImpl::new_int(group, val as isize);
             }
-            ij.inv_mod(&q);
-            ij.imul(j as isize);
+            ij = ij.inv_mod(&q);
+            ij = ij.mul_mod(&BigImpl::new_int(group, j as isize), &q);
 
-            prod.rmod(&q);
-            prod.mul_mod(&ij, &q);
+            prod = prod.rmod(&q);
+            prod = prod.mul_mod(&ij, &q);
         }
     } 
     
-    prod.rmod(&q);
+    prod = prod.rmod(&q);
     prod
 }

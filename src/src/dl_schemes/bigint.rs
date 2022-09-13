@@ -1,11 +1,15 @@
+use std::mem::ManuallyDrop;
+
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use mcore::bn254::big::MODBYTES as BN254MODBYTES;
-use rasn::AsnType;
 use crate::dl_schemes::dl_groups::{bls12381::{Bls12381BIG}, bn254::Bn254BIG, ed25519::Ed25519BIG};
 use crate::interface::Serializable;
+use crate::proto::scheme_types::Group;
 use crate::rand::RNG;
+
+use crate::group::{GroupElement};
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
@@ -22,13 +26,13 @@ pub trait BigInt:
     fn new_copy(y: &BigImpl) -> BigImpl;
     fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl;
     fn from_bytes(bytes: &[u8]) -> BigImpl;
-    fn rmod(&mut self, y: &BigImpl);
-    fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl);
-    fn inv_mod(&mut self, m: &BigImpl);
-    fn add(&mut self, y: &BigImpl);
-    fn sub(&mut self, y: &BigImpl);
-    fn imul(&mut self, i: isize);
-    fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl);
+    fn rmod(&self, y: &BigImpl) -> BigImpl;
+    fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl;
+    fn inv_mod(&self, m: &BigImpl) -> BigImpl;
+    fn add(&self, y: &BigImpl) -> BigImpl;
+    fn sub(&self, y: &BigImpl) -> BigImpl;
+    fn imul(&self, i: isize) -> BigImpl;
+    fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl;
     fn to_bytes(&self) -> Vec<u8>;
     fn to_string(&self) -> String;
     fn equals(&self, y: &BigImpl) -> bool;
@@ -53,13 +57,77 @@ impl PartialEq for BigImpl{
 }
 
 impl BigImpl {
-    pub fn rmul(x: &BigImpl, y: &BigImpl, q: &BigImpl) -> BigImpl {
-        let mut z = x.clone();
-        z.mul_mod(&y, &q);
-        z
+    pub fn new(group: &Group) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new()
+            },
+            Group::Bn254 => {
+                Bn254BIG::new()
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new()
+            },
+            _ => {
+                todo!()
+            }
+        }
     }
 
-    pub fn rmod(&mut self, y: &BigImpl) {
+    pub fn new_rand(group: &Group, q: &BigImpl, rng: &mut RNG) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new_rand(q, rng)
+            },
+            Group::Bn254 => {
+                Bn254BIG::new_rand(q, rng)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new_rand(q, rng)
+            },
+            _ => todo!()
+        }
+    }
+
+    pub fn new_int(group: &Group, i: isize) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::new_int(i)
+            },
+            Group::Bn254 => {
+                Bn254BIG::new_int(i)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::new_int(i)
+            },
+            _ => todo!()
+        }
+    }
+
+    pub fn new_copy(x: &BigImpl) -> BigImpl {
+        x.clone()
+    }
+
+    pub fn from_bytes(group: &Group, bytes: &[u8]) -> BigImpl {
+        match group {
+            Group::Bls12381 => {
+                Bls12381BIG::from_bytes(bytes)
+            },
+            Group::Bn254 => {
+                Bn254BIG::from_bytes(bytes)
+            },
+            Group::Ed25519 => {
+                Ed25519BIG::from_bytes(bytes)
+            },
+            _ => todo!()
+        }
+    }
+
+    pub fn rmul(x: &BigImpl, y: &BigImpl, q: &BigImpl) -> BigImpl {
+        x.mul_mod(&y, &q)
+    }
+
+    pub fn rmod(&self, y: &BigImpl) -> BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.rmod(y),
             BigImpl::Bn254(x) => x.rmod(y),
@@ -67,7 +135,7 @@ impl BigImpl {
         }
     }
 
-    pub fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+    pub fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.mul_mod(y, m),
              BigImpl::Bn254(x) => x.mul_mod(y, m),
@@ -75,7 +143,7 @@ impl BigImpl {
         }
     }
 
-    pub fn add(&mut self, y: &BigImpl) {
+    pub fn add(&self, y: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.add(y),
              BigImpl::Bn254(x) => x.add(y),
@@ -83,7 +151,7 @@ impl BigImpl {
         }
     }
 
-    pub fn sub(&mut self, y: &BigImpl) {
+    pub fn sub(&self, y: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.sub(y),
              BigImpl::Bn254(x) => x.sub(y),
@@ -91,7 +159,7 @@ impl BigImpl {
         }
     }
 
-    pub fn inv_mod(&mut self, m: &BigImpl) {
+    pub fn inv_mod(&self, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.inv_mod(m),
              BigImpl::Bn254(x) => x.inv_mod(m),
@@ -99,7 +167,7 @@ impl BigImpl {
         }
     }
 
-    pub fn imul(&mut self, i: isize) {
+    pub fn imul(&self, i: isize) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.imul(i),
              BigImpl::Bn254(x) => x.imul(i),
@@ -107,7 +175,7 @@ impl BigImpl {
         }
     }
 
-    pub fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+    pub fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.pow_mod(y, m),
              BigImpl::Bn254(x) => x.pow_mod(y, m),
@@ -144,6 +212,14 @@ impl BigImpl {
             BigImpl::Bls12381(x) => x.equals(y),
             BigImpl::Bn254(x) => x.equals(y),
             BigImpl::Ed25519(x) => x.equals(y),
+       }
+    }
+
+    pub fn get_group(&self) -> Group {
+        match self {
+            BigImpl::Bls12381(_x) => Group::Bls12381,
+            BigImpl::Bn254(_x) => Group::Bn254,
+            BigImpl::Ed25519(_x) => Group::Ed25519,
        }
     }
 }
