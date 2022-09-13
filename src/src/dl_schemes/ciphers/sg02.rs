@@ -321,9 +321,7 @@ impl Sg02ThresholdCipher {
                 .pow(&ct.e)
             );
 
-        println!("w {} w_bar {}", w.to_string(), w_bar.to_string());
         let e2 = h1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar);
-
         ct.e.equals(&e2)
     }
     

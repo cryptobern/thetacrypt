@@ -144,7 +144,7 @@ impl FrostThresholdSignature {
         let group_commitment = compute_group_commitment(commitment_list, binding_factor_list, &sk.get_group());
 
         let participant_list = participants_from_commitment_list(commitment_list);
-        let lambda_i = lagrange_coeff(&group, &participant_list, sk.get_id() as isize);
+        let lambda_i = lagrange_coeff(&group, &participant_list, sk.get_id() as i32);
 
         let challenge = compute_challenge(&group_commitment, &sk.get_public_key(), msg);
 

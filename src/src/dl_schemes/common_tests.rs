@@ -1,4 +1,4 @@
-use crate::{proto::scheme_types::Group, dl_schemes::common::{shamir_share, eval_pol}, rand::{RNG, RngAlgorithm}};
+use crate::{proto::scheme_types::Group, dl_schemes::common::{shamir_share, eval_pol, horner}, rand::{RNG, RngAlgorithm}};
 
 use super::{bigint::BigImpl, dl_groups::bls12381::Bls12381};
 
@@ -22,6 +22,21 @@ fn test_eval_pol() {
     a.push(BigImpl::new_int(&GROUP, 3));
 
     let res = eval_pol(&mut x, &a).rmod(&BigImpl::new_int(&GROUP, 7));
+    let c = BigImpl::new_int(&GROUP, 4);
+
+    assert!(res.equals(&c));
+}
+
+#[test]
+fn test_horner() {
+    let mut x = BigImpl::new_int(&GROUP, 2);
+    let q = BigImpl::new_int(&GROUP, 13);
+    let mut a = Vec::new();
+    a.push(BigImpl::new_int(&GROUP, 1));
+    a.push(BigImpl::new_int(&GROUP, 2));
+    a.push(BigImpl::new_int(&GROUP, 3));
+
+    let res = horner(&mut x, &a).rmod(&BigImpl::new_int(&GROUP, 7));
     let c = BigImpl::new_int(&GROUP, 4);
 
     assert!(res.equals(&c));

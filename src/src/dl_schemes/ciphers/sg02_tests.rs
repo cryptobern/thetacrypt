@@ -1,15 +1,16 @@
-use std::mem::ManuallyDrop;
+use std::{mem::ManuallyDrop, time::Instant};
 
 use crate::{dl_schemes::{common::shamir_share, ciphers::sg02::{Sg02PublicKey, Sg02Ciphertext}}, rand::{RNG, RngAlgorithm}, interface::{Serializable, ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey, PrivateKey}, proto::scheme_types::{ThresholdScheme, Group}};
 use crate::util::{printbinary, hex2string};
 use crate::dl_schemes::bigint::BigImpl;
 use crate::group::{GroupElement};
+use std::fmt::Write;
 
 #[test]
 fn test_scheme() {
     let mut params = ThresholdCipherParams::new();
-    let k = 3;
-    let n = 5;
+    let k = 300;
+    let n = 400;
     let private_keys = KeyGenerator::generate_keys(k, n, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let public_key = private_keys[0].get_public_key();
     /* Serialisation usage */
@@ -35,8 +36,8 @@ fn test_public_key_serialization() {
    
     let private_keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let public_key = private_keys[0].get_public_key();
-    /* Serialisation usage */
 
+    /* Serialisation usage */
     let public_key_encoded = public_key.serialize().unwrap();
     let public_key_decoded = PublicKey::deserialize(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
