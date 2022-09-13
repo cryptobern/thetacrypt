@@ -212,6 +212,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                                                              self.state_command_sender.clone(), 
                                                              self.forwarder_command_sender.clone()).await;
 
+        // todo: Return the error here
         let return_result = match result {
             Ok(res) => Some(res),
             Err(_) => None

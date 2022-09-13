@@ -24,13 +24,33 @@ impl FairOrderApp {
 
 impl Application for FairOrderApp {
     
-    // deliver_tx checks if the deliver request.tx is a threshold-crypto related command.
-    // In this example we only handle decrypt comamnds:
-    // The abci_app is responsible for submiting the ciphertext to the threshold crypto library for decryption.
-    // The 'channel_recv' endpoint used in this example is blocking, i.e., it will only return when the library
-    // has decrypted the ciphertext. Hence, deliver_tx will obtain the decrypted transaction.
+    // deliver_tx() checks if the delivered request.tx is a threshold-crypto related command and, if it is,
+    // it handles it by calling the appropriate RPC endpoint of the treshold crypto library.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
-        let mut default_resp = ResponseDeliverTx { 
+        let mut decrypt_result = None;
+        let thresh_command_parts = FairOrderApp::extract_threshold_command_and_args(&request.tx);
+        if thresh_command_parts.len() > 0 {
+            let command = thresh_command_parts[0];
+            match command {
+                "decrypt" => {
+                    println!(">> Delivered a decrypt command. {:?}", request.tx);
+                    let arg = thresh_command_parts[1];
+                    if let Ok(encrypted_payload) = base64::decode(arg){
+                        decrypt_result = FairOrderApp::handle_decrypt_command(self.command_sender.clone(), encrypted_payload);   
+                    }
+                    else {
+                        println!(">> Could not decode ciphertext from base64 format.");
+                    }
+                },
+                _ => {
+                    !unimplemented!()
+                }
+            }
+        }
+
+        // standard deliver_tx code...
+
+        let mut response = ResponseDeliverTx { 
             code: 0,
             data: Vec::new(),
             log: "".to_string(),
@@ -41,78 +61,54 @@ impl Application for FairOrderApp {
             codespace: "".to_string(),
         };
 
-        // Try parsing request.tx as a UTF8 string.
-        let tx_str = match String::from_utf8(request.tx.clone()){
-            Ok(tx_str) => tx_str,
-            Err(err) => {
-                println!(">> Could not parse request.tx as a UTF8 string. Err:{:?}, Tx:{:?}", err, &request.tx);
-                return default_resp
-            },
-        };
-        
-        // Check if request.tx is a threshold-crypto related command.
-        // We assume such commands are in the form <command>:<arg1>:<arg2>...,
-        // where <command> is a string and <arg> is a base64 encoded argument,
-        // e.g., decrypt:<ciphertext>.
-        match tx_str.split_once(':'){
-            Some((command, argument)) => {
-                match command {
-                    "decrypt" => {
-                        println!(">> Received a decrypt command. {:?}", request.tx);
-                        return decrypt_ctxt(self.command_sender.clone(), argument)
-                    },
-                    _ => {
-                        println!(">> The received request.tx does not contain a known threshold crypto command.");
-                        return default_resp        
-                    }
-                }
-            },
-            None => {
-                println!(">> The received request.tx does not contain a threshold crypto command.");
-                return default_resp
-            },
+        if let Some(decrypted_payload) = decrypt_result{
+            response.data = decrypted_payload
         }
+        
+        response
     }
     
-
+    // query() checks if the received request.data contains a threshold-crypto related command and, if it does,
+    // it handles it by calling the appropriate RPC endpoint of the treshold crypto library.
     // The client_app, in order to encrypt a tx, needs the public key that corresponds to the secret-key shares
     // held by the nodes of the threshold library app. Since this is only a query (the client_app does not submit
     // any data to the blockchain), this can be implemented in the 'abci_querry' function.
-    // We assume the only query used by the client_app is for getting †he avaible public keys for encryption,
-    // hence in this code we do not check the content of RequestQuery.
-    // This simple implementation returns only the first key returned by the threshold library.
     fn query(&self, request: RequestQuery) -> ResponseQuery {
-        println!(">> Delivered a query for avaible encryption keys.");
-        let (result_sender, result_receiver) = channel();
-        let command = Command::GetEncryptionKeys { result_sender};
-        channel_send(&self.command_sender, command).unwrap();
-
-        let (mut return_key_id, mut return_key_bytes) = (String::new(), Vec::new());
-        let encryption_keys = channel_recv(&result_receiver).unwrap();
-        match encryption_keys {
-            Some(keys) => {
-                for (key_id, key_bytes) in keys {
-                    println!(">> Key: {:?}", key_bytes);
-                    if return_key_id.is_empty(){
-                        (return_key_id, return_key_bytes) = (key_id, key_bytes);
-                    }
+        let mut encryption_key: Option<(String, Vec<u8>)> = None;
+        let thresh_command_parts = FairOrderApp::extract_threshold_command_and_args(&request.data);
+        if thresh_command_parts.len() > 0 {
+            let command = thresh_command_parts[0];
+            match command {
+                "get_encryption_keys" => {
+                    println!(">> Delivered a query for avaible encryption keys.");
+                    encryption_key = FairOrderApp::handle_get_encryption_keys_command(self.command_sender.clone())
+                },
+                _ => {
+                    !unimplemented!()
                 }
-            },
-            None => {
-                println!(">> No keys returned.");
-            },
+            }
         }
-        ResponseQuery{
+
+        // standard deliver_tx code...
+        
+        let mut response = ResponseQuery{
             code: 0,
             log: "".to_string(),
             info: "".to_string(),
             index: 0,
-            key: return_key_id.into_bytes(),
-            value: return_key_bytes,
+            key: Vec::new(),
+            value: Vec::new(),
             proof_ops: None,
             height: 0,
             codespace: "".to_string(),
+        };
+
+        if let Some((encryption_key_id, encryption_key_bytes)) = encryption_key {
+            response.key = encryption_key_id.into_bytes();
+            response.value = encryption_key_bytes
         }
+
+        response
     }
 
 
@@ -136,36 +132,73 @@ impl Application for FairOrderApp {
    
 }
 
-fn decrypt_ctxt(command_sender: Sender<Command>, ctxt: &str) -> ResponseDeliverTx {
-    let mut default_resp = ResponseDeliverTx { 
-        code: 0,
-        data: Vec::new(),
-        log: "".to_string(),
-        info: "".to_string(),
-        gas_wanted: 0,
-        gas_used: 0,
-        events: Vec::new(),
-        codespace: "".to_string(),
-    };
-    println!(">> Encoded: {}", ctxt);
-    match base64::decode(ctxt){
-        Ok(ciphertext) => {
-            let (result_sender, result_receiver) = channel();
-            let command = Command::DecryptTx { encrypted_tx: ciphertext, result_sender};
-            channel_send(&command_sender, command).unwrap();
-            let decrypted_tx = channel_recv(&result_receiver).unwrap();
-            if let Some(plaintext) = decrypted_tx {  
-                default_resp.data = plaintext;
-                return default_resp;
+impl FairOrderApp {
+    // We assume threshold-crypto related commands are in the form <command>:<arg1>:<arg2>...,
+    // where <command> is a string and <arg_i> is an argument, encoded in a format that depends on the command.
+    // e.g., for a threshold decryption command: decrypt:<arg>, where <arg> is the base64-encoded ciphertext.
+    fn extract_threshold_command_and_args<'a>(request_tx: &'a Vec<u8>) -> Vec<&'a str> {
+        let tx_str = if let Ok(str) = std::str::from_utf8(request_tx) { str }
+                           else { return Vec::new(); };
+
+        let command_parts: Vec<&str> = tx_str.split(':').collect();
+        if command_parts.len() == 0 {
+            return Vec::new(); 
+        }
+        
+        let command = command_parts[0];
+        match command { //make the necessary correctness checks for each command
+            "decrypt" => { // Syntax is decrypt:ctxt, so command_parts.len() should be 2
+                if command_parts.len() >= 2 {
+                    return command_parts;
+                }
+            },
+            "get_encryption_keys" => {
+                return command_parts;
+            },
+            _ => {
+                return Vec::new()
             }
-        },
-        Err(err) => {
-            println!(">> Could not decode ciphertext from base64. Err: {:?}", err);
-            return default_resp;
-        },
-             
+        }
+        return Vec::new()
     }
-    return default_resp
+ 
+    // Handles a "get_encryption_keys" command, by using the corresponding RPC endpoint of the threshold crypto libary.
+    // If the library returns more than one public keys, this implementation for simplicity returns only the first
+    // (in a real application it should return all available keys).
+    fn handle_get_encryption_keys_command(command_sender: Sender<Command>) -> Option<(String, Vec<u8>)> {
+        let (result_sender, result_receiver) = channel();
+        let command = Command::GetEncryptionKeys { result_sender};
+        channel_send(&command_sender, command).unwrap();
+        
+        match channel_recv(&result_receiver).unwrap() {
+            Some(keys) => {
+                let (mut first_key_id, mut first_key_bytes) = (String::new(), Vec::new());
+                for (key_id, key_bytes) in keys {
+                    println!(">> Using the first key returned by treshold cypto library. Key id: {:?}", key_id);
+                    if first_key_id.is_empty() {
+                        (first_key_id, first_key_bytes) =  (key_id, key_bytes);
+                    }
+                }
+                return Some((first_key_id, first_key_bytes));
+            },
+            None => {
+                println!(">> No keys returned by the threshold crypto library.");
+                return None;
+            },
+        }
+
+    }
+
+    // Handles a "decrypt" command, by using the corresponding RPC endpoint of the threshold crypto libary.
+    // This implementation uses the decrypt_sync RPC endpoint, which means it will return the decrypted payload.
+    fn handle_decrypt_command(command_sender: Sender<Command>, ctxt: Vec<u8>) -> Option<Vec<u8>> {
+        let (result_sender, result_receiver) = channel();
+        let command = Command::DecryptTx { encrypted_tx: ctxt, result_sender};
+        channel_send(&command_sender, command).unwrap();
+        
+        let protocol_result = channel_recv(&result_receiver).unwrap();
+        protocol_result
+    }
 }
 
 
@@ -179,6 +212,7 @@ enum Command {
         result_sender: Sender<Option<HashMap<String, Vec<u8>>>>
     }
 }
+
 
 pub struct FairOrderDriver {
     tcl_client: ThresholdCryptoLibraryClient<tonic::transport::Channel>,
@@ -209,18 +243,18 @@ impl FairOrderDriver {
             let cmd = self.command_receiver.recv().map_err(Error::channel_recv)?;
             match cmd {
                 Command::DecryptTx { encrypted_tx, result_sender } => {
-                    println!(">> Received DecryptTx command.");
+                    println!(">> Initiating decryption of payload.");
                     let request = DecryptSyncRequest { ciphertext: encrypted_tx, key_id: None}; // todo: Remove this key_id
                     match self.tcl_client.decrypt_sync(request).await {
                         Ok(response) => { // The RPC call returned successfully.
                             match response.into_inner().plaintext {
                             // todo: Explain what this call returns: The instance_id used and the optional plaintext
                                 Some(plaintext) => {
-                                    // Decryption was succesfull, some plaintext was returned.
+                                    println!(">> Decryption protocol sucesfully terminated. Decrypted plaintext: {:?}", plaintext);
                                     channel_send(&result_sender, Some(plaintext))?
                                 },
                                 None => {
-                                    // Decryption failed (e.g., because the ciphertext was malformed).
+                                println!(">> Decryption failed.");
                                     channel_send(&result_sender, None)?
                                 },
                             }
@@ -234,11 +268,16 @@ impl FairOrderDriver {
                 },
 
                 Command::GetEncryptionKeys { result_sender } => {
-                    println!(">> Received GetEncryptionKeys command.");
+                    println!(">> Initiating a GetPublicKeysForEncryption request.");
                     let request = GetPublicKeysForEncryptionRequest{};
                     match self.tcl_client.get_public_keys_for_encryption(request).await {
                         Ok(response) => { // The RPC call returned successfully.
-                        //todo: Explain what this call returns: KeyEntry, with id, group, scheme, key_data,... For this simple demo, we ignore group and scheme (don't eveb return to user)
+                        // The GetPublicKeysForEncryption endpoint returns a GetPublicKeysForEncryptionResponse,
+                        // which contains a vector of PublicKeyEntry entries.
+                        // Each entry contains with a key id, the group and scheme for which the key works, and the key itself.
+                        // The groups and scheme can be used if the user app wants to encrypt using some specific scheme (e.g., for efficiency reasons).
+                        // In this implementation, we ignore group and scheme and do not even return them to the user app.
+                            println!(">> GetPublicKeysForEncryption request successfully terminated.");
                             let mut keys = HashMap::new();
                             for pk in response.into_inner().keys {
                                 keys.insert(pk.id, pk.key);
