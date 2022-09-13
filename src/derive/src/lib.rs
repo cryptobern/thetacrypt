@@ -145,9 +145,7 @@ pub fn derive_asntag_bitstring(input:TokenStream) -> TokenStream {
 #[proc_macro_derive(BigIntegerImpl)]
 pub fn derive_big_impl(input:TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
-    let generics = input.generics;
     let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let mut gname = input.ident.clone().to_string();
     gname = gname.replace("BIG", "");
@@ -225,26 +223,30 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
                 BigImpl::#group_name(Self { value:BIG::frombytes(bytes)})
             }
 
-            fn rmod(&mut self, y: &BigImpl) {
+            fn rmod(&self, y: &BigImpl) -> BigImpl {
                 if let BigImpl::#group_name(v) = y {
-                    self.value.rmod(&v.value);
+                    let mut x = self.clone();
+                    x.value.rmod(&v.value);
+                    BigImpl::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+            fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl {
                 if let (BigImpl::#group_name(v), BigImpl::#group_name(w)) = (y, m) {
-                    self.value = BIG::mul(&self.value, &v.value).dmod(&w.value);
+                    BigImpl::#group_name(Self { value:BIG::mul(&self.value, &v.value).dmod(&w.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
                 
             }
 
-            fn add(&mut self, y: &BigImpl) {
+            fn add(&self, y: &BigImpl) -> BigImpl {
                 if let BigImpl::#group_name(v) = y {
-                    self.value.add(&v.value);
+                    let mut x = self.clone();
+                    x.value.add(&v.value);
+                    BigImpl::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
@@ -260,32 +262,38 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
                 self.value.tostring()
             }
 
-            fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+            fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl {
                 if let (BigImpl::#group_name(v), BigImpl::#group_name(w)) = (y, m) {
-                    self.value = self.value.powmod(&v.value, &w.value);
+                    BigImpl::#group_name(Self { value:self.value.powmod(&v.value, &w.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn inv_mod(&mut self, m: &BigImpl) {
+            fn inv_mod(&self, m: &BigImpl) -> BigImpl {
                 if let BigImpl::#group_name(v) = m {
-                    self.value.invmodp(&v.value);
+                    let mut x = self.clone();
+                    x.value.invmodp(&v.value);
+                    BigImpl::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }   
             }
 
-            fn sub(&mut self, y: &BigImpl) {
+            fn sub(&self, y: &BigImpl) -> BigImpl {
                 if let BigImpl::#group_name(v) = y {
-                    self.value.sub(&v.value);
+                    let mut x = self.clone();
+                    x.value.sub(&v.value);
+                    BigImpl::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }  
             }
 
-            fn imul(&mut self, i: isize) {
-                self.value.imul(i);
+            fn imul(&self, i: isize) -> BigImpl {
+                let mut x = self.clone();
+                x.value.imul(i);
+                BigImpl::#group_name(x)
             }
 
             fn equals(&self, y: &BigImpl) -> bool {
@@ -311,16 +319,18 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
 #[proc_macro_derive(EcPairingGroupImpl)]
 pub fn derive_ec_pairing_impl(input:TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
-    let generics = input.generics;
     let name = &input.ident.clone();
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let lname = input.ident.clone().to_string().to_lowercase();
 
     let mut big_name = input.ident.clone().to_string();
     big_name.push_str("BIG");
     
     let big_impl_name = syn::Ident::new(&big_name, name.span());
+    let name_lower = syn::Ident::new(&lname, name.span());
     
     let expanded = quote! {
+        use crate::group::GroupData;
+
         impl #name {
             pub fn pair(g1: &Self, g2: &Self) -> Result<Self, ThresholdCryptoError> {
                 if g1.i != 1 && g2.i != 0 {
@@ -348,6 +358,14 @@ pub fn derive_ec_pairing_impl(input:TokenStream) -> TokenStream {
                 }
                 
                 Ok(p1.unwrap().equals(&p2.unwrap()))
+            }
+
+            pub fn identity() -> Self {
+                unsafe {
+                    let mut x = Self::new();
+                    (*x.value.ecp).inf();
+                    x
+                }
             }
         
             pub fn new() -> Self {
@@ -398,39 +416,68 @@ pub fn derive_ec_pairing_impl(input:TokenStream) -> TokenStream {
                 }
             }
         
-            pub fn mul(&mut self, g: &Self) {
+            pub fn mul(&self, g: &Self) -> GroupElement {
                 unsafe {
+                    let result;
                     match self.i {
-                        0 => {(*self.value.ecp).add(&(*g.value.ecp));},
-                        1 => {(*self.value.ecp2).add(&(*g.value.ecp2));},
-                        2 => {(*self.value.fp12).mul(&(*g.value.fp12));},
+                        0 => {
+                            let mut val = (*self.value.ecp).clone();
+                            val.add(&(*g.value.ecp));
+                            result = Self { value:ECPoint{ecp:ManuallyDrop::new(val)}, i:0};
+                        },
+                        1 => {
+                            let mut val = (*self.value.ecp2).clone();
+                            val.add(&(*g.value.ecp2));
+                            result =  Self { value:ECPoint{ecp2:ManuallyDrop::new(val)}, i:1};
+                        },
+                        2 => {
+                            let mut val = (*self.value.fp12).clone();
+                            val.mul(&(*g.value.fp12));
+                            result = Self { value:ECPoint{fp12:ManuallyDrop::new(val)}, i:2};
+                        },
                         _ => panic!("invalid i")
                     }
+
+                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
                 }
             }
         
-            pub fn pow (&mut self, x: &BigImpl) {
+            pub fn pow (&self, x: &BigImpl) -> GroupElement {
                 unsafe {
+                    let result;
                     if let BigImpl::#name(v) = x {
                         match self.i {
-                            0 => self.value.ecp = ManuallyDrop::new(self.value.ecp.mul(&v.value)),
-                            1 => self.value.ecp2 = ManuallyDrop::new(self.value.ecp2.mul(&v.value)),
-                            2 => self.value.fp12 = ManuallyDrop::new(self.value.fp12.pow(&v.value)),
+                            0 => result = Self { value: ECPoint{ ecp:ManuallyDrop::new(self.value.ecp.mul(&v.value)) }, i:0},
+                            1 => result = Self { value: ECPoint{ ecp2:ManuallyDrop::new(self.value.ecp2.mul(&v.value)) }, i:1},
+                            2 => result = Self { value: ECPoint{ fp12:ManuallyDrop::new(self.value.fp12.pow(&v.value)) }, i:2},
                             _ => panic!("invalid i")
                         }
                     } else {
                         panic!("Incompatible big integer implementation!");
                     }
+
+                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
                 }
             }
         
-            pub fn div(&mut self, g: &Self) {
+            pub fn div(&self, g: &Self) -> GroupElement {
                 unsafe {
+                    let result;
                     match self.i {
-                        0 => {(*self.value.ecp).sub(&g.value.ecp);},
-                        1 => {(*self.value.ecp2).sub(&g.value.ecp2);},
+                        0 => {
+                            let mut val = (*self.value.ecp).clone();
+                            val.sub(&g.value.ecp);
+                            result = Self { value: ECPoint { ecp:ManuallyDrop::new(val) }, i:0};
+                        },
+                        1 => {
+                            let mut val = (*self.value.ecp2).clone();
+                            val.sub(&g.value.ecp2);
+                            result = Self { value: ECPoint { ecp2:ManuallyDrop::new(val) }, i:1};
+                        },
                         _ => panic!("invalid i")
                     }
+
+                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
                 }
             }
         
@@ -540,25 +587,34 @@ pub fn derive_ec_pairing_impl(input:TokenStream) -> TokenStream {
 #[proc_macro_derive(EcGroupImpl)]
 pub fn derive_ec_impl(input:TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
-    let generics = input.generics;
     let name = &input.ident.clone();
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
+    let lname = input.ident.clone().to_string().to_lowercase();
+    
     let mut big_name = input.ident.clone().to_string();
     big_name.push_str("BIG");
     
     let big_impl_name = syn::Ident::new(&big_name, name.span());
+    let name_lower = syn::Ident::new(&lname ,name.span());
     
     let expanded = quote! {
+        use crate::group::GroupData;
+        use std::mem::ManuallyDrop;
+
         impl #name {
             pub fn new() -> Self {
                 Self { value:ECP::generator() }
             }
-        
+            
+            pub fn identity() -> Self {
+                let mut x = Self::new();
+                x.value.inf();
+                x
+            }
             
             pub fn new_pow_big (x: &BigImpl) -> Self {
                 if let BigImpl::#name(v) = x {
-                    Self { value:ECP::generator().mul(&v.value) }
+                    return Self { value:ECP::generator().mul(&v.value) };
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
@@ -572,20 +628,24 @@ pub fn derive_ec_impl(input:TokenStream) -> TokenStream {
                 Self { value:g.value.clone() }
             }
         
-            pub fn mul(&mut self, g: &Self) {
-                self.value.add(&g.value);
+            pub fn mul(&self, g: &Self) -> GroupElement {
+                let mut v = self.value.clone();
+                v.add(&g.value);
+                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(Self { value:v })})
             }
         
-            pub fn pow (&mut self, x: &BigImpl) {
+            pub fn pow (&self, x: &BigImpl) -> GroupElement {
                 if let BigImpl::#name(v) = x {
-                    self.value = self.value.mul(&v.value);
+                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: self.value.mul(&v.value) }) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
         
-            pub fn div(&mut self, g: &Self) {
-                self.value.sub(&g.value);
+            pub fn div(&self, g: &Self) -> GroupElement {
+                let mut v = self.value.clone();
+                v.sub(&g.value);
+                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: v } ) })
             }
         
             pub fn to_bytes(&self) -> Vec<u8> {

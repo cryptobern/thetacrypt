@@ -64,4 +64,12 @@ impl RNG {
     
         
     }
+
+    pub fn random_bytes(&mut self, num: usize) -> Vec<u8> {
+        let mut result = Vec::new();
+        for i in 0..num {
+            result.push(self.getbyte());
+        }
+        result
+    }
 }

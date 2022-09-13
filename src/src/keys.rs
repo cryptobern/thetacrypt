@@ -388,9 +388,12 @@ impl KeyGenerator {
                     return Err(ThresholdCryptoError::CurveDoesNotSupportPairings);
                 }
 
+                if !group.is_dl() {
+                    return Err(ThresholdCryptoError::IncompatibleGroup);
+                } 
+
                 let x = BigImpl::new_rand(&group, &group.get_order(), rng);
-                let mut y = GroupElement::new_ecp2(&group);
-                y.pow(&x);
+                let y = GroupElement::new_pow_big_ecp2(&group, &x);
 
                 let (shares, h) = shamir_share(&x, k, n, rng);
                 let mut private_keys = Vec::new();
@@ -404,6 +407,10 @@ impl KeyGenerator {
             },
 
             ThresholdScheme::Sg02 => {
+                if !group.is_dl() {
+                    return Err(ThresholdCryptoError::IncompatibleGroup);
+                } 
+
                 let x = BigImpl::new_rand(group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
@@ -426,9 +433,12 @@ impl KeyGenerator {
                     return Err(ThresholdCryptoError::CurveDoesNotSupportPairings);
                 }
 
+                if !group.is_dl() {
+                    return Err(ThresholdCryptoError::IncompatibleGroup);
+                } 
+
                 let x = BigImpl::new_rand(&group, &group.get_order(), rng);
-                let mut y = GroupElement::new(&group);
-                y.pow(&x);
+                let y = GroupElement::new_pow_big(&group, &x);
 
                 let (shares, h) = shamir_share(&x, k, n, rng);
                 let mut private_keys = Vec::new();
@@ -442,9 +452,12 @@ impl KeyGenerator {
             },
 
             ThresholdScheme::Cks05 => {
+                if !group.is_dl() {
+                    return Err(ThresholdCryptoError::IncompatibleGroup);
+                } 
+
                 let x = BigImpl::new_rand(&group, &group.get_order(), rng);
-                let mut y = GroupElement::new(&group);
-                y.pow(&x);
+                let y = GroupElement::new_pow_big(&group, &x);
 
                 let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) = shamir_share(&x, k as usize, n as usize, rng);
                 let mut private_keys = Vec::new();
@@ -464,6 +477,10 @@ impl KeyGenerator {
             },
 
             ThresholdScheme::Sh00 => {
+                if group.is_dl() {
+                    return Err(ThresholdCryptoError::IncompatibleGroup);
+                }
+
                 let mut e = BIGINT!(65537);
 
                 if params.is_some() {

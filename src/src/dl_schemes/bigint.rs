@@ -26,13 +26,13 @@ pub trait BigInt:
     fn new_copy(y: &BigImpl) -> BigImpl;
     fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl;
     fn from_bytes(bytes: &[u8]) -> BigImpl;
-    fn rmod(&mut self, y: &BigImpl);
-    fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl);
-    fn inv_mod(&mut self, m: &BigImpl);
-    fn add(&mut self, y: &BigImpl);
-    fn sub(&mut self, y: &BigImpl);
-    fn imul(&mut self, i: isize);
-    fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl);
+    fn rmod(&self, y: &BigImpl) -> BigImpl;
+    fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl;
+    fn inv_mod(&self, m: &BigImpl) -> BigImpl;
+    fn add(&self, y: &BigImpl) -> BigImpl;
+    fn sub(&self, y: &BigImpl) -> BigImpl;
+    fn imul(&self, i: isize) -> BigImpl;
+    fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl;
     fn to_bytes(&self) -> Vec<u8>;
     fn to_string(&self) -> String;
     fn equals(&self, y: &BigImpl) -> bool;
@@ -124,12 +124,10 @@ impl BigImpl {
     }
 
     pub fn rmul(x: &BigImpl, y: &BigImpl, q: &BigImpl) -> BigImpl {
-        let mut z = x.clone();
-        z.mul_mod(&y, &q);
-        z
+        x.mul_mod(&y, &q)
     }
 
-    pub fn rmod(&mut self, y: &BigImpl) {
+    pub fn rmod(&self, y: &BigImpl) -> BigImpl {
         match self {
             BigImpl::Bls12381(x) => x.rmod(y),
             BigImpl::Bn254(x) => x.rmod(y),
@@ -137,7 +135,7 @@ impl BigImpl {
         }
     }
 
-    pub fn mul_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+    pub fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.mul_mod(y, m),
              BigImpl::Bn254(x) => x.mul_mod(y, m),
@@ -145,7 +143,7 @@ impl BigImpl {
         }
     }
 
-    pub fn add(&mut self, y: &BigImpl) {
+    pub fn add(&self, y: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.add(y),
              BigImpl::Bn254(x) => x.add(y),
@@ -153,7 +151,7 @@ impl BigImpl {
         }
     }
 
-    pub fn sub(&mut self, y: &BigImpl) {
+    pub fn sub(&self, y: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.sub(y),
              BigImpl::Bn254(x) => x.sub(y),
@@ -161,7 +159,7 @@ impl BigImpl {
         }
     }
 
-    pub fn inv_mod(&mut self, m: &BigImpl) {
+    pub fn inv_mod(&self, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.inv_mod(m),
              BigImpl::Bn254(x) => x.inv_mod(m),
@@ -169,7 +167,7 @@ impl BigImpl {
         }
     }
 
-    pub fn imul(&mut self, i: isize) {
+    pub fn imul(&self, i: isize) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.imul(i),
              BigImpl::Bn254(x) => x.imul(i),
@@ -177,7 +175,7 @@ impl BigImpl {
         }
     }
 
-    pub fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) {
+    pub fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl {
         match self {
              BigImpl::Bls12381(x) => x.pow_mod(y, m),
              BigImpl::Bn254(x) => x.pow_mod(y, m),

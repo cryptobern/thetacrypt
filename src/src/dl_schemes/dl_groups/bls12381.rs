@@ -7,7 +7,6 @@ use crate::{rand::RNG, interface::ThresholdCryptoError, proto::scheme_types::Gro
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
 use crate::group::{GroupElement};
 
-
 #[repr(C)]
 union ECPoint {
     ecp: ManuallyDrop<ECP>,

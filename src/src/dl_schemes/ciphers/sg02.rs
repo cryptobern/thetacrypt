@@ -161,6 +161,15 @@ pub struct Sg02Ciphertext{
 }
 
 impl Sg02Ciphertext {
+    pub fn new(label: Vec<u8>,
+        msg: Vec<u8>,
+        u: GroupElement,
+        u_bar: GroupElement,
+        e: BigImpl,
+        f: BigImpl,
+        c_k: Vec<u8>) -> Self{
+            Self {msg, label, u, u_bar, e, f, c_k}
+        }
     pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
@@ -268,13 +277,13 @@ impl Decode for Sg02DecryptionShare {
 
 impl Sg02ThresholdCipher {
     pub fn encrypt(msg: &[u8], label: &[u8], pk: &Sg02PublicKey, params: &mut ThresholdCipherParams) -> Sg02Ciphertext {
+        let group = pk.get_group();
+        let order = group.get_order();
         let rng = &mut params.rng;
-        let r = BigImpl::new_rand(&pk.group, &pk.y.get_order(), rng);
-        let mut u = GroupElement::new(&pk.group);
-        u.pow(&r);
 
-        let mut ry = pk.y.clone();
-        ry.pow(&r);
+        let r = BigImpl::new_rand(&group, &order, rng);
+        let u = GroupElement::new_pow_big(&group, &r);
+        let ry = pk.y.pow(&r);
 
         let k = gen_symm_key(rng);
         let key = Key::from_slice(&k);
@@ -285,84 +294,70 @@ impl Sg02ThresholdCipher {
         
         let c_k = xor(h(&ry), (k).to_vec());
       
-        let s = BigImpl::new_rand(&pk.group, &pk.y.get_order(), rng);
-        let mut w = GroupElement::new(&pk.group);
-        w.pow(&s);
+        let s = BigImpl::new_rand(&group, &order, rng);
+        let w = GroupElement::new_pow_big(&group, &s);
 
-        let mut w_bar = pk.g_bar.clone();
-        w_bar.pow(&s);
-
-        let mut u_bar = pk.g_bar.clone();
-        u_bar.pow(&r);
+        let w_bar = pk.g_bar.pow(&s);
+        let u_bar = pk.g_bar.pow(&r);
 
         let e = h1(&c_k, &label, &u, &w, &u_bar, &w_bar);
 
-        let mut f = s.clone();
-        f.add(&BigImpl::rmul(&e, &r, &pk.y.get_order()));
-        f.rmod(&pk.y.get_order());
+        let f = s
+            .add(&BigImpl::rmul(&e, &r, &order))
+            .rmod(&order);
 
         let c = Sg02Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
         c
     }
 
     pub fn verify_ciphertext(ct: &Sg02Ciphertext, pk: &Sg02PublicKey) -> bool {
-        let mut w = GroupElement::new(&pk.group);
-        w.pow(&ct.f);
+        let w = GroupElement::new_pow_big(&pk.group, &ct.f).div(&ct.u.pow(&ct.e));
 
-        let mut rhs = ct.u.clone();
-        rhs.pow(&ct.e);
+        let w_bar = 
+            pk.g_bar
+            .pow(&ct.f)
+            .div(
+                &ct.u_bar
+                .pow(&ct.e)
+            );
 
-        w.div(&rhs);
-
-        let mut w_bar = pk.g_bar.clone();
-        w_bar.pow(&ct.f);
-
-        let mut rhs = ct.u_bar.clone();
-        rhs.pow(&ct.e);
-
-        w_bar.div(&rhs);
-
+        println!("w {} w_bar {}", w.to_string(), w_bar.to_string());
         let e2 = h1(&ct.c_k, &ct.label, &ct.u, &w, &ct.u_bar, &w_bar);
 
         ct.e.equals(&e2)
     }
     
     pub fn partial_decrypt(ct: &Sg02Ciphertext, sk: &Sg02PrivateKey, params: &mut ThresholdCipherParams) -> Sg02DecryptionShare {
-        let mut data = ct.u.clone();
-        data.pow(&sk.xi);
+        let group = sk.get_group();
+        let order = group.get_order();
 
-        let si = BigImpl::new_rand(&sk.xi.get_group(), &sk.xi.get_group().get_order(), &mut params.rng);
+        let data = ct.u.pow(&sk.xi);
+        let si = BigImpl::new_rand(&group, &order, &mut params.rng);
 
-        let mut ui_bar = ct.u.clone();
-        ui_bar.pow(&si);
-
-        let mut hi_bar = GroupElement::new(&sk.xi.get_group());
-        hi_bar.pow(&si);
+        let ui_bar = ct.u.pow(&si);
+        let hi_bar = GroupElement::new(&group).pow(&si);
 
         let ei = h2(&data, &ui_bar, &hi_bar);
-        let mut fi = si.clone();
-        fi.add(&BigImpl::rmul(&sk.xi, &ei, &sk.xi.get_group().get_order()));
-        fi.rmod(&sk.xi.get_group().get_order());
+        let fi = si.add(&BigImpl::rmul(&sk.xi, &ei, &order)).rmod(&order);
 
         Sg02DecryptionShare { id:sk.id.clone(), data:data, label:ct.label.clone(), ei:ei, fi:fi}
     }
 
     pub fn verify_share(share: &Sg02DecryptionShare, ct: &Sg02Ciphertext, pk: &Sg02PublicKey) -> bool {
-        let mut ui_bar = ct.u.clone();
-        ui_bar.pow(&share.fi);
+        let ui_bar = 
+            ct.u.pow(&share.fi)
+            .div(
+                &share.data
+                .pow(&share.ei)
+            );
 
-        let mut rhs = share.data.clone();
-        rhs.pow(&share.ei);
-
-        ui_bar.div(&rhs);
-
-        let mut hi_bar = GroupElement::new(&pk.group);
-        hi_bar.pow(&share.fi);
-
-        let mut rhs = pk.verification_key[(share.id -1) as usize].clone();
-        rhs.pow(&share.ei);
-
-        hi_bar.div(&rhs);
+        let hi_bar = 
+            GroupElement::new(&pk.group)
+            .pow(&share.fi)
+            .div(
+                &pk.verification_key[(share.id - 1) as usize]
+                .pow(&share.ei)
+            );
 
         let ei2 = h2(&share.data, &ui_bar, &hi_bar);
 
@@ -377,7 +372,6 @@ impl Sg02ThresholdCipher {
         let msg = cipher
             .decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.msg.as_ref())
             .expect("Failed to decrypt ciphertext. Make sure you have enough valid decryption shares");
-        
         msg
     }
 }
@@ -417,16 +411,14 @@ fn h1(m1: &[u8], m2:&[u8], g1: &GroupElement, g2: &GroupElement, g3: &GroupEleme
         let mut g:[u8;32];
         for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
     }
 
-    let mut res = BigImpl::from_bytes(&g1.get_group(), &buf);
-    res.rmod(&g1.get_order());
-
-    res
+    BigImpl::from_bytes(&g1.get_group(), &buf)
+    .rmod(&g1.get_order())
 }
 
 fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
@@ -450,14 +442,12 @@ fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
         let mut g:[u8;32];
         for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
     }
 
-    let mut res = BigImpl::from_bytes(&g1.get_group(), &buf);
-    res.rmod(&g1.get_order());
-
-    res
+    BigImpl::from_bytes(&g1.get_group(), &buf)
+    .rmod(&g1.get_order())
 }
