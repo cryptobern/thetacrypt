@@ -2,17 +2,60 @@ use std::convert::TryInto;
 
 use crate::{dl_schemes::{bigint::BigImpl, common::{shamir_share, lagrange_coeff}}, group::GroupElement, interface::ThresholdCryptoError, rand::RNG, proto::scheme_types::Group};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
+use derive::Serializable;
 use mcore::hash512::HASH512;
+use rasn::{Encode, Decode, AsnType, Tag};
 
 const CONTEXT_STRING:&[u8] = b"FROST-ED25519-SHA512-v8";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, AsnType, Debug, PartialEq, Serializable)]
 pub struct FrostPublicKey {
     n: u16,
     k: u16,
     group: Group,
     y: GroupElement,
     h: Vec<GroupElement>
+}
+
+impl Encode for FrostPublicKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |sequence| {
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.y.get_group().get_code().encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+            
+            for i in 0..self.h.len() {
+                self.h[i].to_bytes().encode(sequence)?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for FrostPublicKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
+
+            let code = u8::decode(sequence)?;
+            let group = Group::from_code(code);
+            let y_b = Vec::<u8>::decode(sequence)?;
+            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(1));
+
+            let mut h = Vec::<GroupElement>::new();
+            for _i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+
+            Ok(Self{n, k, y, group, h})
+        })
+    }
 }
 
 impl FrostPublicKey {
@@ -29,14 +72,45 @@ impl FrostPublicKey {
     pub fn get_group(&self) -> Group {
         self.group.clone()
     }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, AsnType, Clone, Serializable, PartialEq)]
 pub struct FrostPrivateKey {
     id: u16,
     x: BigImpl,
     pubkey: FrostPublicKey,
     nonces: Vec<Nonce>
+}
+
+impl Encode for FrostPrivateKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.x.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for FrostPrivateKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u16::decode(sequence)?;
+            let x_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = FrostPublicKey::decode(sequence)?;
+            let x = BigImpl::from_bytes(&pubkey.group, &x_bytes);
+
+            Ok(Self {id, x, pubkey, nonces: Vec::new()})
+        })
+    }
 }
 
 impl FrostPrivateKey {
@@ -64,6 +138,10 @@ impl FrostPrivateKey {
     pub fn get_public_key(&self) -> FrostPublicKey {
         self.pubkey.clone()
     }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.get_threshold()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +166,7 @@ impl FrostCommitmentShare {
 }*/
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Nonce {
     hiding_nonce: BigImpl,
     binding_nonce: BigImpl
@@ -142,6 +220,12 @@ impl FrostThresholdSignature {
 
         let binding_factor = binding_factor.unwrap();
         let group_commitment = compute_group_commitment(commitment_list, binding_factor_list, &sk.get_group());
+
+        if group_commitment.is_err() {
+            return Err(group_commitment.unwrap_err());
+        }
+
+        let group_commitment = group_commitment.unwrap();
 
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, sk.get_id() as i32);
@@ -199,13 +283,21 @@ fn compute_binding_factors(commitment_list: &[FrostPublicCommitment], msg: &[u8]
     return binding_factor_list;
 }
 
-fn compute_group_commitment(commitment_list: &[FrostPublicCommitment], binding_factor_list: Vec<BindingFactor>, group: &Group) -> GroupElement {
+fn compute_group_commitment(commitment_list: &[FrostPublicCommitment], binding_factor_list: Vec<BindingFactor>, group: &Group) -> Result<GroupElement, ThresholdCryptoError> {
     let mut group_commitment = GroupElement::identity(group);
     for i in 0..commitment_list.len() {
         let binding_factor = binding_factor_for_participant(&binding_factor_list, commitment_list[i].id);
-        group_commitment = group_commitment.mul(&commitment_list[i].hiding_nonce_commitment);
+        if binding_factor.is_err() {
+            return Err(binding_factor.unwrap_err())
+        }
+        let binding_factor = binding_factor.unwrap();
+        group_commitment = group_commitment
+            .mul(&commitment_list[i].hiding_nonce_commitment)
+            .mul(
+                &commitment_list[i].hiding_nonce_commitment.pow(&binding_factor.factor)
+            );
     }
-    group_commitment
+    Ok(group_commitment)
 }
 
 fn compute_challenge(group_commitment: &GroupElement, pk: &FrostPublicKey, msg: &[u8]) -> BigImpl {
