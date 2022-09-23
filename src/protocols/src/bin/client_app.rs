@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
         if msg.is_empty(){ break };
 
-        let msg_encr = encrypt(&encryption_pk, msg, String::from("Label {i}"));
+        let msg_encr = encrypt(&encryption_pk, msg, format!("Label {i}"));
         let msg_ser = msg_encr.serialize().map_err(|e| {format!("Could not serialize msg. Err: {}", e)})?;
         let msg_enc: &str = &base64::encode(&msg_ser);
         let msg_esc = urlencoding::encode(msg_enc).to_owned();
@@ -68,9 +68,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match submit_decrypt_tx_to_tendermint(&opt, &msg_esc).await {
             Ok(res) => {
                 println!(">> Call to Tendermint succeeded.");
+                println!(">> RESPONSE: {:?}", res.result);
                 match res.result.deliver_tx.data {
                     Some(msg) => {
-                        println!(">> Returned data: {:?}.", msg);
+                        let msg_dec =  base64::decode(&msg)?;
+                        let msg_str = std::str::from_utf8(&msg_dec)?;
+                        println!(">> Returned data: {:?}.", msg_str);
                     },
                     None => {
                         println!(">>The decryption of the message failed.");
@@ -87,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn query_tendermint(opt: &Opt, query: &str) -> Result< RPCResult<RPCResponse<QueryResult>>, Box<dyn Error> > {  
     let address = format!("http://{}:{}", opt.tendermint_node_ip, opt.tendermint_node_rpc_port);
     let req_url = address + "/abci_query?data=\"" + query + "\""; // ?path=&data=" + tx;
+    //let req_url = address + "/abci_query"; 
     
     //De-comment for testing with POSTMAN mock server 
     // let address = format!("https://25492e3f-d30c-499b-8b1a-75efcd8870eb.mock.pstmn.io");

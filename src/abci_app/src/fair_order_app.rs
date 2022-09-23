@@ -28,9 +28,11 @@ impl Application for FairOrderApp {
     // deliver_tx() checks if the delivered request.tx is a threshold-crypto related command and, if it is,
     // it handles it by calling the appropriate RPC endpoint of the treshold crypto library.
     fn deliver_tx(&self, request: RequestDeliverTx) -> ResponseDeliverTx {
+        println!(">> Delivered a transaction.");
         let mut decrypt_result = None;
-        let thresh_command_parts = FairOrderApp::extract_threshold_command_and_args(&request.tx);
-        if thresh_command_parts.len() > 0 {
+
+        // check if request.tx contains a threshold-crypto related command
+        if let Some(thresh_command_parts) = FairOrderApp::extract_threshold_command_and_args(&request.tx){
             let command = thresh_command_parts[0];
             match command {
                 "decrypt" => {
@@ -75,9 +77,11 @@ impl Application for FairOrderApp {
     // held by the nodes of the threshold library app. Since this is only a query (the client_app does not submit
     // any data to the blockchain), this can be implemented in the 'abci_querry' function.
     fn query(&self, request: RequestQuery) -> ResponseQuery {
+        println!(">> Received a query.");
         let mut encryption_key: Option<(String, Vec<u8>)> = None;
-        let thresh_command_parts = FairOrderApp::extract_threshold_command_and_args(&request.data);
-        if thresh_command_parts.len() > 0 {
+        
+        // check if request.data contains a threshold-crypto related command
+        if let Some(thresh_command_parts) = FairOrderApp::extract_threshold_command_and_args(&request.data) {
             let command = thresh_command_parts[0];
             match command {
                 "get_encryption_keys" => {
@@ -114,6 +118,7 @@ impl Application for FairOrderApp {
 
 
     fn check_tx(&self, request: RequestCheckTx) -> ResponseCheckTx {
+        println!(">> Check_tx called.");
         let resp = ResponseCheckTx {
             code: 0,
             data: Vec::new(),
@@ -136,30 +141,32 @@ impl FairOrderApp {
     // We assume threshold-crypto related commands are in the form <command>:<arg1>:<arg2>...,
     // where <command> is a string and <arg_i> is an argument, encoded in a format that depends on the command.
     // e.g., for a threshold decryption command: decrypt:<arg>, where <arg> is the base64-encoded ciphertext.
-    fn extract_threshold_command_and_args<'a>(request_tx: &'a Vec<u8>) -> Vec<&'a str> {
-        let tx_str = if let Ok(str) = std::str::from_utf8(request_tx) { str }
-                           else { return Vec::new(); };
+    fn extract_threshold_command_and_args<'a>(request_tx: &'a Vec<u8>) -> Option<Vec<&'a str>> {
+        let tx_str = match std::str::from_utf8(request_tx){
+            Ok(str) => str,
+            Err(_) => return None,
+        };
 
         let command_parts: Vec<&str> = tx_str.split(':').collect();
         if command_parts.len() == 0 {
-            return Vec::new(); 
+            return None; 
         }
         
         let command = command_parts[0];
         match command { //make the necessary correctness checks for each command
             "decrypt" => { // Syntax is decrypt:ctxt, so command_parts.len() should be 2
                 if command_parts.len() >= 2 {
-                    return command_parts;
+                    return Some(command_parts);
                 }
             },
             "get_encryption_keys" => {
-                return command_parts;
+                return Some(command_parts);
             },
             _ => {
-                return Vec::new()
+                return None
             }
         }
-        return Vec::new()
+        return None
     }
  
     // Handles a "get_encryption_keys" command, by using the corresponding RPC endpoint of the threshold crypto libary.
@@ -250,7 +257,7 @@ impl FairOrderDriver {
                             match response.into_inner().plaintext {
                             // todo: Explain what this call returns: The instance_id used and the optional plaintext
                                 Some(plaintext) => {
-                                    println!(">> Decryption protocol sucesfully terminated. Decrypted plaintext: {:?}", plaintext);
+                                    println!(">> Decryption protocol sucesfully terminated. Decrypted plaintext: {:?}", std::str::from_utf8(&plaintext));
                                     channel_send(&result_sender, Some(plaintext))?
                                 },
                                 None => {

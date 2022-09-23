@@ -361,6 +361,7 @@ pub async fn init(rpc_listen_address: String,
                         let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
                         state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
                         let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
+                        
                         if ! status.started { // - The instance has not yet started... Backlog the message.
                             println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
                             backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
