@@ -1,3 +1,4 @@
+use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
 use mcore::hash256::HASH256;
 use prost::Message;
 use tokio::sync::mpsc::Sender;
@@ -61,6 +62,16 @@ enum StateUpdateCommand {
         instance_id: String,
         new_status: InstanceStatus
     },
+    // Returns the private keys that can be used with the given scheme and group
+    GetPrivateKeyByType { 
+        scheme: ThresholdScheme,
+        group: Group,
+        responder: tokio::sync::oneshot::Sender< Result<PrivateKeyEntry, String> >
+    },
+    // Returns all public keys that can be used for encryption.
+    GetPublicKeysForEncryption { 
+        responder: tokio::sync::oneshot::Sender< Result<Vec<PublicKeyEntry>, String> >
+    },
 }
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
@@ -71,7 +82,6 @@ fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
 }
 
 pub struct RpcRequestHandler {
-    key_chain: KeyChain,
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
@@ -101,12 +111,16 @@ impl RpcRequestHandler {
              return Err(Status::new(Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
         }
         
-        // Retrieve private and public key for this instance
+        // Retrieve private key for this instance
         let private_key_result: Result<PrivateKeyEntry, String> = if let Some(id) = key_id {
-            self.key_chain.get_key_by_id(id)
+            unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
         }
         else {
-            self.key_chain.get_key_by_type(ciphertext.get_scheme(), ciphertext.get_group()) 
+            let (response_sender, response_receiver) = oneshot::channel::<Result<PrivateKeyEntry, String>>();
+            let cmd = StateUpdateCommand::GetPrivateKeyByType { scheme: ciphertext.get_scheme(), group: ciphertext.get_group(), responder: response_sender };
+            self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+            let status = response_receiver.await.expect("response_receiver.await returned Err");
+            status
         };
         let private_key_entry = match private_key_result{
             Ok(key_entry) => key_entry,
@@ -220,7 +234,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");
-        match self.key_chain.get_public_keys_for_encryption(){
+        let (response_sender, response_receiver) = oneshot::channel::< Result< Vec<PublicKeyEntry>, String> >;
+        let cmd = StateUpdateCommand::GetPublicKeysForEncryption { responder: response_receiver } ;
+        self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+        let encryption_pks = response_receiver.await.expect("response_receiver.await returned Err");
+        match encryption_pks {
             Ok(keys) => {
                 // println!(">> REQH: Responding with {:?}.", keys[0].key);
                 Ok(Response::new(GetPublicKeysForEncryptionResponse { keys }))
@@ -228,7 +246,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             Err(err) => Err(Status::new(Code::Internal, err)),
         }
     }
-
 
     async fn get_decrypt_result(&self, request: Request<GetDecryptResultRequest>) -> Result<Response<GetDecryptResultResponse>, Status> {
         println!(">> REQH: Received a get_decrypt_result request.");
@@ -269,7 +286,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
 pub async fn init(rpc_listen_address: String,
                   rpc_listen_port: u32,
-                  key_chain: KeyChain,
+                  keychain: KeyChain,
                   mut incoming_message_receiver: tokio::sync::mpsc::Receiver<P2pMessage>,
                   outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
                   incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
@@ -292,7 +309,8 @@ pub async fn init(rpc_listen_address: String,
     // However, the channel must never be closed (i.e., one sender end, owned by the RpcRequestHandler, must always remain open).
     // let (result_sender, mut result_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Option<Vec<u8>>)>(32);
 
-    // Spawn State Manager
+    // Spawn State Manager.
+    // Takes ownerhsip of keychain
     println!(">> REQH: Initiating the state manager.");
     tokio::spawn( async move {
         let mut instances_status_map: HashMap<String, InstanceStatus> = HashMap::new();
@@ -327,6 +345,14 @@ pub async fn init(rpc_listen_address: String,
                         StateUpdateCommand::UpdateInstanceStatus { instance_id, new_status } => {
                             instances_status_map.insert(instance_id, new_status);
                         }
+                        StateUpdateCommand::GetPrivateKeyByType { scheme, group, responder } => {
+                            let key_entry = keychain.get_key_by_type(scheme, group);
+                            responder.send(key_entry).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                        },
+                        StateUpdateCommand::GetPublicKeysForEncryption { responder } => {
+                            let pks = keychain.get_public_keys_for_encryption();
+                            responder.send(pks).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                        },
                         _ => unimplemented!()
                     }
                 }
@@ -414,7 +440,6 @@ pub async fn init(rpc_listen_address: String,
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
     let service = RpcRequestHandler{
-        key_chain,
         state_command_sender,
         forwarder_command_sender,
         outgoing_message_sender,
