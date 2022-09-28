@@ -36,7 +36,7 @@ use crate::rsa_schemes::signatures::sh00::Sh00PrivateKey;
 use crate::rsa_schemes::signatures::sh00::Sh00PublicKey;
 use crate::rsa_schemes::signatures::sh00::Sh00VerificationKey;
 
-const DEBUG:bool = false;
+const DEBUG:bool = true;
 
 #[macro_export]
 macro_rules! unwrap_enum_vec {

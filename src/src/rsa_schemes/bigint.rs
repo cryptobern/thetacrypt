@@ -112,7 +112,6 @@ impl RsaBigInt {
             
             byte &= mask;
             bytes.push(byte);
-            //write!(&mut s, "{:02X}", byte).expect("Unable to get random bytes!");
         }
 
         for i in 0..bytelen {
@@ -121,9 +120,7 @@ impl RsaBigInt {
                 byte |= 1 << 7;
             }
             bytes.push(byte);
-            //write!(&mut s, "{:02X}", byte).expect("Unable to get random bytes!");
         }
-        //write!(&mut s, "\0").expect("Unable to null terminate string");
 
         
         unsafe {
@@ -171,15 +168,27 @@ impl RsaBigInt {
     }
 
     pub fn mul(&self, y:&Self) -> Self {
-        Self { value:self.value.clone().sub(&y.value) }
+        Self { value:self.value.clone().mul(&y.value) }
     }
 
     pub fn rmod(&self, m:&Self) -> Self {
-        Self { value:self.value.clone().pow_mod(&Integer::from(1), &m.value).unwrap() }
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_mod(z.as_mut_ptr(), self.value.as_raw(), m.value.as_raw());
+            Self { value: Integer::from_raw(z.assume_init()) }
+        }
+
     }
 
     pub fn mul_mod(&self, y:&Self, m:&Self) -> Self {
-        Self { value:y.value.clone().mul(&y.value).pow_mod(&Integer::from(1), &m.value).unwrap() }
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_mul(z.as_mut_ptr(), self.value.as_raw(), y.value.as_raw()); 
+            gmp::mpz_mod(z.as_mut_ptr(), z.as_ptr(), m.value.as_raw());
+            Self { value: Integer::from_raw(z.assume_init()) }
+        }
     }
 
     pub fn pow(&self, y: u32) -> Self {
@@ -195,7 +204,12 @@ impl RsaBigInt {
     }
 
     pub fn inv_mod(&self, m:&Self) -> Self {
-        Self { value:self.value.clone().invert(&m.value).unwrap() }
+        unsafe {
+            let mut z = MaybeUninit::uninit();
+            gmp::mpz_init(z.as_mut_ptr());
+            gmp::mpz_invert(z.as_mut_ptr(), self.value.as_raw(), m.value.as_raw());
+            Self { value: Integer::from_raw(z.assume_init())  }
+        }
     }
 
     pub fn equals(&self, y:&Self) -> bool {
@@ -209,27 +223,31 @@ impl RsaBigInt {
     }
 
     pub fn is_prime(&self) -> bool {
-        self.value.is_probably_prime(45).eq(&IsPrime::Yes)
+        !self.value.is_probably_prime(45).eq(&IsPrime::No)
     }
 
     pub fn is_even(&self) -> bool {
         self.value.is_even()
     }
 
-    pub fn jacobi(x: &Self, y:&Self) -> i32 {
-        x.value.jacobi(&y.value)
+    pub fn jacobi(x: &Self, y:&Self) -> isize {
+        x.value.jacobi(&y.value) as isize
     }
 
-    pub fn coprime(&self, u:u32) -> bool {
-        self.value.is_divisible_u(u)
+    pub fn coprime(&self, i:isize) -> bool {
+        !self.value.is_divisible(&Integer::from(i))
+
     }
 
     pub fn div(&self, y: &Self) -> Self {
         Self { value:self.value.clone().div(&y.value) }
     }
 
-    pub fn legendre(&self, y: &Self) -> i32 {
-        self.value.legendre(&y.value)
+    pub fn legendre(&self, y: &Self) -> isize {
+        unsafe {
+            gmp::mpz_legendre(self.value.as_raw(), y.value.as_raw()) as isize
+        }
+
     }
 
     pub fn to_string(&self) -> String {
