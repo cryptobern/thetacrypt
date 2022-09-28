@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::{dl_schemes::{bigint::BigImpl, common::{shamir_share, lagrange_coeff}}, group::GroupElement, interface::ThresholdCryptoError, rand::RNG, proto::scheme_types::Group};
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::GroupElement, interface::ThresholdCryptoError, rand::RNG, proto::scheme_types::Group};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
 use mcore::hash512::HASH512;
 
@@ -29,14 +29,17 @@ impl FrostPublicKey {
     pub fn get_group(&self) -> Group {
         self.group.clone()
     }
+
+    pub fn get_verification_key(&self, id: u16) -> GroupElement {
+        self.h[id as usize].clone()
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct FrostPrivateKey {
     id: u16,
     x: BigImpl,
-    pubkey: FrostPublicKey,
-    nonces: Vec<Nonce>
+    pubkey: FrostPublicKey
 }
 
 impl FrostPrivateKey {
@@ -44,8 +47,7 @@ impl FrostPrivateKey {
         Self {
             id:id as u16,
             x:x.clone(),
-            pubkey:pubkey.clone(),
-            nonces:Vec::new()
+            pubkey:pubkey.clone()
         }
     }
 
@@ -57,20 +59,26 @@ impl FrostPrivateKey {
         self.pubkey.get_group()
     }
 
-    pub fn push_nonce(&mut self, nonce:Nonce) {
+    /*pub fn push_nonce(&mut self, nonce:Nonce) {
         self.nonces.push(nonce);
-    }
+    }*/
     
     pub fn get_public_key(&self) -> FrostPublicKey {
         self.pubkey.clone()
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct FrostPublicCommitment {
+#[derive(Debug, Clone, PartialEq)]
+pub struct PublicCommitment {
     id: u16,
     hiding_nonce_commitment: GroupElement,
     binding_nonce_commitment: GroupElement
+}
+
+impl PublicCommitment {
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
 }
 
 /*
@@ -95,12 +103,6 @@ pub struct Nonce {
 }
 
 #[derive(Debug, Clone)]
-pub struct Commitment {
-    hiding_nonce_commitment: GroupElement,
-    binding_nonce_commitment: GroupElement
-}
-
-#[derive(Debug, Clone)]
 pub struct BindingFactor {
     id: u16,
     factor: BigImpl
@@ -108,10 +110,53 @@ pub struct BindingFactor {
 
 #[derive(Debug, Clone)]
 pub struct FrostSignatureShare {
+    id: u16,
     data: BigImpl
 }
 
-pub struct FrostThresholdSignature {}
+impl FrostSignatureShare {
+    pub fn get_id(&self) -> u16 {
+        self.id
+    }
+}
+
+pub struct FrostSignature { /* TODO: encode according to standard */
+    R: GroupElement,
+    z: BigImpl
+}
+
+pub struct FrostInstance {
+    nonce: Nonce,
+    commitment: PublicCommitment,
+    commitment_list: Vec<PublicCommitment>,
+    group_commitment: Option<GroupElement>
+}
+
+impl FrostInstance {
+    pub fn get_nonce(&self) -> &Nonce {
+        &self.nonce
+    }
+
+    pub fn get_commitment(&self) -> &PublicCommitment {
+        &self.commitment
+    }
+
+    pub fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
+        &self.commitment_list
+    }
+
+    pub fn get_group_commitment(&self) -> &Option<GroupElement> {
+        &self.group_commitment
+    }
+
+    pub fn set_commitments(&mut self, commitment_list: &[PublicCommitment]) {
+        self.commitment_list = commitment_list.to_vec();
+    }
+}
+
+pub struct FrostThresholdSignature {
+    group_commitment: GroupElement
+}
 
 impl FrostThresholdSignature {
     pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, group: &Group) -> Result<Vec<FrostPrivateKey>, ThresholdCryptoError> {
@@ -130,9 +175,10 @@ impl FrostThresholdSignature {
         return Result::Ok(private_keys);
     }
 
-    pub fn partial_sign(sk: &mut FrostPrivateKey, msg: &[u8], nonce: Nonce, commitment_list:&[FrostPublicCommitment]) -> Result<FrostSignatureShare, ThresholdCryptoError> {
+    pub fn partial_sign(sk: &FrostPrivateKey, msg: &[u8], commitment_list: &[PublicCommitment], instance: &mut FrostInstance) -> Result<FrostSignatureShare, ThresholdCryptoError> {
         let group = sk.get_group();
         let order = group.get_order();
+        let nonce = instance.get_nonce();
 
         let binding_factor_list = compute_binding_factors(commitment_list, msg, &sk.get_group());
         let binding_factor = binding_factor_for_participant(&binding_factor_list, sk.id);
@@ -141,11 +187,10 @@ impl FrostThresholdSignature {
         }
 
         let binding_factor = binding_factor.unwrap();
-        let group_commitment = compute_group_commitment(commitment_list, binding_factor_list, &sk.get_group());
+        let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &sk.get_group());
 
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, sk.get_id() as i32);
-
         let challenge = compute_challenge(&group_commitment, &sk.get_public_key(), msg);
 
         let share = 
@@ -158,24 +203,76 @@ impl FrostThresholdSignature {
                  &lambda_i
                  .mul_mod(&sk.x, &order)
                  .mul_mod(&challenge, &order)
-            );
-        Ok(FrostSignatureShare { data:share })
+            ).rmod(&order);
+
+        instance.commitment_list = commitment_list.to_vec();
+        instance.group_commitment = Option::Some(group_commitment);
+        Ok(FrostSignatureShare { id: sk.get_id(), data:share }) 
     }
 
-    /*pub fn preprocess(sk: &mut FrostPrivateKey, num:u16) -> Vec<Commitment> {
+    pub fn verify_share(share: &FrostSignatureShare, pk: &FrostPublicKey, instance: &FrostInstance, msg: &[u8]) -> Result<bool, ThresholdCryptoError> {
+        let commitment_list = instance.get_commitment_list();
+        
+        let commitment = instance.get_commitment();
 
-    }*/
+        let binding_factor_list = compute_binding_factors(&commitment_list, &msg, &pk.get_group());
+        let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
+        if binding_factor.is_err() {
+            return Err(binding_factor.expect_err(""));
+        }
 
-    pub fn commit(sk: &mut FrostPrivateKey, rng: &mut RNG) -> Commitment {
+        let binding_factor = binding_factor.unwrap();
+        let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &pk.get_group());
+
+        let comm_share = commitment.hiding_nonce_commitment.mul(&commitment.binding_nonce_commitment.pow(&binding_factor.factor));
+
+        let challenge = compute_challenge(&group_commitment, pk, msg);
+        let participant_list = participants_from_commitment_list(commitment_list);
+        let lambda_i = lagrange_coeff(&pk.get_group(), &participant_list, share.get_id() as i32);
+
+        println!("group_commitment: {}", group_commitment.to_string());
+
+        let l = GroupElement::new_pow_big(&pk.get_group(), &share.data);
+        let r = comm_share.mul(&pk.get_verification_key(share.get_id()).pow(&lambda_i.mul_mod(&challenge, &pk.get_group().get_order())));
+
+        Ok(l.eq(&r))
+    }
+
+    pub fn commit(sk: &FrostPrivateKey, rng: &mut RNG) -> FrostInstance {
         let hiding_nonce = nonce_generate(&sk.x, rng);
         let binding_nonce = nonce_generate(&sk.x, rng);
         let hiding_nonce_commitment = GroupElement::new_pow_big(&sk.get_group(), &hiding_nonce);
         let binding_nonce_commitment = GroupElement::new_pow_big(&sk.get_group(), &binding_nonce);
         let nonce = Nonce { hiding_nonce, binding_nonce };
-        sk.push_nonce(nonce);
-        let comm = Commitment { hiding_nonce_commitment, binding_nonce_commitment };
-        comm
+       // sk.push_nonce(nonce);
+        let comm = PublicCommitment { id: sk.get_id(), hiding_nonce_commitment, binding_nonce_commitment };
+
+        FrostInstance { nonce, commitment:comm, commitment_list:Vec::new(), group_commitment:Option::None }
     }
+
+    pub fn aggregate(instance: &FrostInstance, sig_shares: &Vec<FrostSignatureShare>) -> Result<FrostSignature, ThresholdCryptoError> {
+        let group_commitment;
+        if let Some(group_commit) = instance.get_group_commitment() {
+            group_commitment = group_commit;
+        } else {
+            return Err(ThresholdCryptoError::WrongState);
+        }
+
+        let mut z = BigImpl::new_int(&group_commitment.get_group(), 0);
+        for i in 0..sig_shares.len() {
+            z = z.add(&sig_shares[i].data);
+        }
+
+        Ok(FrostSignature { R: group_commitment.clone(), z })
+    }
+
+    pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
+        let challenge = compute_challenge(&signature.R, pk, msg);
+        let l = GroupElement::new_pow_big(&pk.get_group(), &signature.z);
+        let r = signature.R.mul(&pk.y.pow(&challenge));
+        l.eq(&r)
+    }
+
 }
 
 fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {
@@ -184,7 +281,7 @@ fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {
     return h3(&[k_enc, secret_enc].concat(), &secret.get_group());
 }
 
-fn compute_binding_factors(commitment_list: &[FrostPublicCommitment], msg: &[u8], group: &Group) -> Vec<BindingFactor> {
+fn compute_binding_factors(commitment_list: &[PublicCommitment], msg: &[u8], group: &Group) -> Vec<BindingFactor> {
     let msg_hash = h4(msg, group);
     let encoded_commitment_hash = h5(&encode_group_commitment_list(commitment_list), group);
     let rho_input_prefix = [msg_hash, encoded_commitment_hash].concat();
@@ -199,7 +296,7 @@ fn compute_binding_factors(commitment_list: &[FrostPublicCommitment], msg: &[u8]
     return binding_factor_list;
 }
 
-fn compute_group_commitment(commitment_list: &[FrostPublicCommitment], binding_factor_list: Vec<BindingFactor>, group: &Group) -> GroupElement {
+fn compute_group_commitment(commitment_list: &[PublicCommitment], binding_factor_list: &Vec<BindingFactor>, group: &Group) -> GroupElement {
     let mut group_commitment = GroupElement::identity(group);
     for i in 0..commitment_list.len() {
         let binding_factor = binding_factor_for_participant(&binding_factor_list, commitment_list[i].id);
@@ -215,7 +312,7 @@ fn compute_challenge(group_commitment: &GroupElement, pk: &FrostPublicKey, msg: 
     h2(&challenge_input, &pk.get_group())
 }
 
-fn encode_group_commitment_list(commitment_list: &[FrostPublicCommitment]) -> Vec<u8> {
+fn encode_group_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u8> {
     let mut encoded = Vec::new();
     for i in 0..commitment_list.len() {
         let enc_comm = 
@@ -239,7 +336,7 @@ fn binding_factor_for_participant(binding_factor_list: &Vec<BindingFactor> , ide
     Err(ThresholdCryptoError::IdNotFound)
 }
 
-fn participants_from_commitment_list(commitment_list: &[FrostPublicCommitment]) -> Vec<u16> {
+fn participants_from_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u16> {
     let mut identifiers = Vec::new();
 
     for i in 0..commitment_list.len() {

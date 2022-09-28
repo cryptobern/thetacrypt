@@ -299,14 +299,14 @@ impl Bz03ThresholdCipher {
             
         let c_k = xor(g(&rY), (k).to_vec());
 
-        let hr = h(&u, &encryption).pow(&r);
+        let hr = h(&u, &c_k).pow(&r);
 
         let c = Bz03Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
         c
     }
 
     pub fn verify_ciphertext(ct: &Bz03Ciphertext, _pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
-        let h = h(&ct.u, &ct.msg);
+        let h = h(&ct.u, &ct.c_k);
 
         GroupElement::ddh(&ct.u, &h, &GroupElement::new_ecp2(&ct.u.get_group()), &ct.hr)
     }
