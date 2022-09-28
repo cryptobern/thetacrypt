@@ -8,7 +8,7 @@ use crate::group::{GroupElement};
 use crate::dl_schemes::bigint::BigImpl;
 pub struct Sg02ThresholdCipher {}
 
-#[derive(Clone, AsnType, Serializable, PartialEq)]
+#[derive(Clone, Debug, AsnType, Serializable, PartialEq)]
 pub struct Sg02PublicKey {
     n: u16,
     k: u16,
@@ -90,7 +90,7 @@ impl Decode for Sg02PublicKey {
     }
 }
 
-#[derive(Clone, AsnType, Serializable, PartialEq)]
+#[derive(Clone, Debug, AsnType, Serializable, PartialEq)]
 pub struct Sg02PrivateKey {
     id: u16,
     xi: BigImpl,

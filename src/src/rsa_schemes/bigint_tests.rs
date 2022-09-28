@@ -33,3 +33,9 @@ fn test_equals() {
 
     assert!(x.equals(&y));
 }
+
+#[test]
+fn test_rand() {
+    let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::MarsagliaZaman), 32);
+    println!("{}", x.to_string());
+}

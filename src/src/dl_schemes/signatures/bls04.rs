@@ -13,7 +13,7 @@ pub struct Bls04ThresholdSignature {
     g: GroupElement
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, Debug, AsnType, Serializable)]
 pub struct Bls04PublicKey {
     group: Group,
     n: u16,
@@ -89,7 +89,7 @@ impl Decode for Bls04PublicKey {
 }
 
 
-#[derive(Clone, AsnType, Serializable, PartialEq)]
+#[derive(Clone, Debug, AsnType, Serializable, PartialEq)]
 pub struct Bls04PrivateKey {
     id: u16,
     xi: BigImpl,

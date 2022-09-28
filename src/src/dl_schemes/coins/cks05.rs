@@ -16,7 +16,7 @@ pub struct Cks05ThresholdCoin {
     g: GroupElement,
 }
 
-#[derive(AsnType, Clone, Serializable)]
+#[derive(AsnType, Debug, Clone, Serializable)]
 pub struct Cks05PublicKey {
     group: Group,
     n: u16,
@@ -98,7 +98,7 @@ impl PartialEq for Cks05PublicKey {
     }
 }
 
-#[derive(AsnType, Clone, Serializable)]
+#[derive(AsnType, Debug, Clone, Serializable)]
 pub struct Cks05PrivateKey {
     id: u16,
     xi: BigImpl,
