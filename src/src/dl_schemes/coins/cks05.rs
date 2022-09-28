@@ -226,16 +226,13 @@ impl Cks05ThresholdCoin {
         let q = sk.get_order();
 
         let c_bar = H(name, &sk.get_group());
-        let mut data = c_bar.clone();
-        data.pow(&sk.xi);
+        let data = c_bar.pow(&sk.xi);
 
         let s = BigImpl::new_rand(&sk.get_group(), &q, rng);
 
-        let mut h = GroupElement::new(&sk.get_group());
-        h.pow(&s);
+        let h = GroupElement::new(&sk.get_group()).pow(&s);
 
-        let mut h_bar = c_bar.clone();
-        h_bar.pow(&s);
+        let h_bar = c_bar.pow(&s);
 
         let c = H1(
             &GroupElement::new(&sk.get_group()),
@@ -246,9 +243,9 @@ impl Cks05ThresholdCoin {
             &h_bar,
         );
 
-        let mut z = s.clone();
-        z.add(&BigImpl::rmul(&c, &sk.xi, &q));
-        z.rmod(&q);
+        let z = s
+            .add(&BigImpl::rmul(&c, &sk.xi, &q))
+            .rmod(&q);
 
         Cks05CoinShare { id: sk.id, data, c, z,}
     }
@@ -256,21 +253,15 @@ impl Cks05ThresholdCoin {
     pub fn verify_share(share: &Cks05CoinShare, name: &[u8], pk: &Cks05PublicKey) -> bool {
         let c_bar = H(name, &share.get_group());
 
-        let mut h = GroupElement::new(&pk.group);
-        h.pow(&share.z);
+        let h = 
+            GroupElement::new(&pk.group)
+            .pow(&share.z)
+            .div(
+                &pk.verification_key[(share.id -1) as usize]
+                .pow(&share.c)
+            );
 
-        let mut rhs = pk.verification_key[(share.id -1) as usize].clone();
-        rhs.pow(&share.c);
-
-        h.div(&rhs);
-
-        let mut h_bar = c_bar.clone();
-        h_bar.pow(&share.z);
-
-        let mut rhs = share.data.clone();
-        rhs.pow(&share.c);
-
-        h_bar.div(&rhs);
+        let h_bar = c_bar.pow(&share.z).div(&share.data.pow(&share.c));
 
         let c = H1(
             &GroupElement::new(&pk.group),
@@ -310,7 +301,7 @@ fn H(name: &[u8], group: &Group) -> GroupElement {
         let mut g: [u8; 32];
         for i in 1..(((nbits - buf.len() * 4) / buf.len() * 8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
@@ -346,7 +337,7 @@ fn H1(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement
         let mut g: [u8; 32];
         for i in 1..(((nbits - buf.len() * 4) / buf.len() * 8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
@@ -377,7 +368,7 @@ fn H2(g: &GroupElement) -> u8 {
         let mut g: [u8; 32];
         for i in 1..(((nbits - buf.len() * 4) / buf.len() * 8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }

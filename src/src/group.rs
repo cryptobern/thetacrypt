@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt::Debug;
 use std::mem::ManuallyDrop;
 use crate::proto::scheme_types::Group;
 
@@ -12,6 +13,18 @@ use crate::dl_schemes::bigint::BigImpl;
     TODO: change code to standard way of encoding EC groups */
 
 impl Group {
+    pub fn is_dl(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => true,
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
+        }
+    }
+
     pub fn get_code(&self) -> u8 {
         match self {
             Self::Bls12381 => 0,
@@ -67,7 +80,14 @@ pub union GroupData {
     pub ed25519: ManuallyDrop<Ed25519>,
 }
 
+impl Debug for GroupData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GroupData").finish_non_exhaustive()
+    }
+}
+
 /* GroupElement is the representation of a single group element */
+#[derive(Debug)]
 pub struct GroupElement {
     group: Group,
     data: GroupData
@@ -114,6 +134,22 @@ impl Clone for GroupElement {
 // TODO: create macro to simplify match clauses
 
 impl GroupElement {
+    pub fn create(group: Group, data: GroupData) -> Self {
+        Self {group, data}
+    }
+
+    pub fn identity(group: &Group) -> GroupElement {
+        let data;
+        match group {
+            Group::Bls12381 => data = GroupData {bls12381:ManuallyDrop::new(Bls12381::identity())},
+            Group::Bn254 => data = GroupData {bn254:ManuallyDrop::new(Bn254::identity())},
+            Group::Ed25519 => data = GroupData {ed25519:ManuallyDrop::new(Ed25519::identity())},
+            _ => todo!()
+        }
+
+        Self { group:group.clone(), data }
+    }
+
     pub fn cmp_group(&self, group: &Self) -> bool {
         self.group.eq(&group.group)
     } 
@@ -242,7 +278,7 @@ impl GroupElement {
 
 
     /// self = self*y
-    pub fn mul(&mut self, y: &Self) {
+    pub fn mul(&self, y: &Self) -> Self{
         if self.group != y.group {
             panic!("incompatible groups!");
         }
@@ -258,7 +294,7 @@ impl GroupElement {
     }  
     
     /// self = self/y
-    pub fn div(&mut self, y: &Self) {
+    pub fn div(&self, y: &Self) -> Self {
         if self.group != y.group {
             panic!("incompatible groups!");
         }
@@ -274,7 +310,7 @@ impl GroupElement {
     }
 
     ///self = self^y
-    pub fn pow(&mut self, y: &BigImpl) {       
+    pub fn pow(&self, y: &BigImpl) -> Self {       
         unsafe {
             match self.group {
                 Group::Bls12381 => (*self.data.bls12381).pow(&y),
@@ -301,6 +337,17 @@ impl GroupElement {
                 Group::Bls12381 => (*self.data.bls12381).to_bytes(),
                 Group::Bn254 => (*self.data.bn254).to_bytes(),
                 Group::Ed25519 => (*self.data.ed25519).to_bytes(),
+                _ => todo!()
+            }
+        }
+    }
+
+    pub fn to_string(&self) -> String {       
+        unsafe {
+            match self.group {
+                Group::Bls12381 => (*self.data.bls12381).to_string(),
+                Group::Bn254 => (*self.data.bn254).to_string(),
+                Group::Ed25519 => (*self.data.ed25519).to_string(),
                 _ => todo!()
             }
         }

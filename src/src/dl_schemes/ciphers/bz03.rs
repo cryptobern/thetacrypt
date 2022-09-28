@@ -286,11 +286,9 @@ pub struct Bz03Params {
 impl Bz03ThresholdCipher {
     pub fn encrypt(msg: &[u8], label: &[u8], pk: &Bz03PublicKey, params: &mut ThresholdCipherParams) -> Bz03Ciphertext {
         let r = BigImpl::new_rand(&pk.get_group(), &pk.get_group().get_order(), &mut params.rng);
-        let mut u = GroupElement::new_ecp2(&pk.get_group());
-        u.pow(&r);
+        let u = GroupElement::new_ecp2(&pk.get_group()).pow(&r);
 
-        let mut rY = pk.y.clone();
-        rY.pow(&r);
+        let rY = pk.y.pow(&r);
 
         let k = gen_symm_key(&mut params.rng);
         let key = Key::from_slice(&k);
@@ -301,15 +299,14 @@ impl Bz03ThresholdCipher {
             
         let c_k = xor(g(&rY), (k).to_vec());
 
-        let mut hr = h(&u, &encryption);
-        hr.pow(&r);
+        let hr = h(&u, &c_k).pow(&r);
 
         let c = Bz03Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
         c
     }
 
     pub fn verify_ciphertext(ct: &Bz03Ciphertext, _pk: &Bz03PublicKey) -> Result<bool, ThresholdCryptoError> {
-        let h = h(&ct.u, &ct.msg);
+        let h = h(&ct.u, &ct.c_k);
 
         GroupElement::ddh(&ct.u, &h, &GroupElement::new_ecp2(&ct.u.get_group()), &ct.hr)
     }
@@ -319,10 +316,9 @@ impl Bz03ThresholdCipher {
     }
 
     pub fn partial_decrypt(ct: &Bz03Ciphertext, sk: &Bz03PrivateKey, _params: &mut ThresholdCipherParams) -> Bz03DecryptionShare {
-        let mut u = ct.u.clone();
-        u.pow(&sk.xi);
+        let data = ct.u.pow(&sk.xi);
 
-        Bz03DecryptionShare {group: u.get_group(), id:sk.id, data: u}
+        Bz03DecryptionShare {group: data.get_group(), id:sk.id, data}
     }
 
     pub fn assemble(shares: &Vec<Bz03DecryptionShare>, ct: &Bz03Ciphertext) -> Vec<u8> {
@@ -348,12 +344,9 @@ fn h(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
 
     let h = [&vec![0;big::MODBYTES - 32][..], &h.hash()[..]].concat();
 
-    let mut s = BigImpl::from_bytes(&g.get_group(),&h);
-    s.rmod(&g.get_group().get_order());
+    let s = BigImpl::from_bytes(&g.get_group(),&h).rmod(&g.get_group().get_order());
 
-    let mut res = GroupElement::new(&g.get_group());
-    res.pow(&s);
-    res
+    GroupElement::new(&g.get_group()).pow(&s)
 }
 
 // hash ECP to bit string

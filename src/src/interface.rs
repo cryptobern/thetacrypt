@@ -788,7 +788,10 @@ pub enum ThresholdCryptoError {
     SerializationFailed,
     DeserializationFailed,
     CurveDoesNotSupportPairings,
-    ParamsNotSet
+    ParamsNotSet,
+    IdNotFound,
+    IncompatibleGroup,
+    WrongState,
 }
 
 pub struct ThresholdCipherParams {

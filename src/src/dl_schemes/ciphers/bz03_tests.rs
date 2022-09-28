@@ -1,4 +1,4 @@
-use crate::{interface::{ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey, PrivateKey}, rand::{RngAlgorithm, RNG}, proto::scheme_types::{ThresholdScheme, Group}};
+use crate::{interface::{ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey, PrivateKey}, rand::{RngAlgorithm, RNG}, proto::scheme_types::{ThresholdScheme, Group}, dl_schemes::ciphers::sg02::Sg02Ciphertext};
 
 
 #[test]
@@ -109,4 +109,15 @@ fn test_invalid_share() {
         let valid = ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &keys[0].get_public_key());
         assert!(!valid.unwrap());
     }
+}
+#[test]
+fn test_valid_ciphertext() {
+    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Bz03, &Group::Bls12381, &Option::None).unwrap();
+    let mut params = ThresholdCipherParams::new();
+    let plaintext: Vec<u8> = String::from("plaintext").as_bytes().to_vec();
+    let label = b"Label";
+    let ciphertext = ThresholdCipher::encrypt(&plaintext, label, &keys[0].get_public_key(), &mut params).unwrap();
+    let keys2 = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Bz03, &Group::Bls12381, &Option::None).unwrap();
+
+    assert!(ThresholdCipher::verify_ciphertext(&ciphertext, &keys[0].get_public_key()).unwrap());
 }

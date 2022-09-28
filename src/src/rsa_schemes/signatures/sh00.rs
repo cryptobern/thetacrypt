@@ -394,7 +394,7 @@ fn H(m: &[u8], pk: &Sh00PublicKey) -> (RsaBigInt, isize) {
         panic!("jacobi(x, n) == 0"); //TODO: make sure j != 0 by changing hash function H1
     }
 
-    (x, j)
+    (x, j as isize)
 }
 
 // TODO: improve hash function
@@ -413,7 +413,7 @@ fn H1(m: &[u8], n: &RsaBigInt, modbits:usize) -> RsaBigInt {
         let mut g:[u8;32];
         for i in 1..max {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }

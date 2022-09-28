@@ -236,8 +236,7 @@ impl Bls04ThresholdSignature {
     }
 
     pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Bls04PrivateKey, _params: &mut ThresholdSignatureParams) -> Bls04SignatureShare {
-        let mut data = H(&msg, &sk.get_group());
-        data.pow(&sk.xi);
+        let data = H(&msg, &sk.get_group()).pow(&sk.xi);
 
         Bls04SignatureShare{ group:data.get_group(), id: sk.id, label:label.to_vec(), data:data }
     }
@@ -268,7 +267,7 @@ fn H(m: &[u8], group:&Group) -> GroupElement {
         let mut g:[u8;32];
         for i in 1..(((nbits - buf.len()*4)/buf.len()*8) as f64).ceil() as isize {
             g = h.clone();
-            hash.process_array(&[&g[..], &(i.to_ne_bytes()[..])].concat());
+            hash.process_array(&[&g[..], &(i.to_le_bytes()[..])].concat());
             g = hash.hash();
             buf = [&buf[..], &g].concat();
         }
