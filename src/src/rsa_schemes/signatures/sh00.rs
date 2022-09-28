@@ -394,7 +394,7 @@ fn H(m: &[u8], pk: &Sh00PublicKey) -> (RsaBigInt, isize) {
         panic!("jacobi(x, n) == 0"); //TODO: make sure j != 0 by changing hash function H1
     }
 
-    (x, j)
+    (x, j as isize)
 }
 
 // TODO: improve hash function

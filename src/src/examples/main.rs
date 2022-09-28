@@ -21,6 +21,7 @@ fn main() {
     let msg: Vec<u8> = String::from(plaintext).as_bytes().to_vec();
     let label = b"Label";
 
+    println!("K: {} N: {}", K, N);
     println!("Message: {}", plaintext);
 
     // perform threshold encryption using Sg02 scheme 
@@ -30,7 +31,7 @@ fn main() {
     let now = Instant::now();
     let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let elapsed_time = now.elapsed().as_millis();
-    println!("[{}ms]\tKeys generated", elapsed_time);
+    println!("[{}ms]\t{} Keys generated", K, elapsed_time);
 
     // initialize new random number generator
     let mut params = ThresholdCipherParams::new();
@@ -39,6 +40,7 @@ fn main() {
     let now = Instant::now();
     let ciphertext = ThresholdCipher::encrypt(&msg, label, &sk[0].get_public_key(), &mut params).unwrap();
     let encrypt_time = now.elapsed().as_millis();
+    println!("[{}ms]\tMessage encrypted", encrypt_time);
 
     let mut s = String::with_capacity(25);
     write!(&mut s, "[{}ms]\tCiphertext: ", encrypt_time).expect("error");
@@ -54,7 +56,7 @@ fn main() {
     let mut share_gen_time = 0;
     let mut share_verify_time = 0;
 
-    println!("[*] Generating shares...");
+    println!("[*] Generating and validating shares...");
 
     for i in 0..K {
         let now = Instant::now();
@@ -65,6 +67,8 @@ fn main() {
         let valid = ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].get_public_key()).unwrap();
         share_verify_time += now.elapsed().as_millis();
     }
+    println!("[{}ms]\t{} Shares generated", K, share_gen_time);
+    println!("[{}ms]\t{} Shares validated", K, share_verify_time);
 
     println!("[*] Decrypting...");
     // assemble decryption shares to restore original message
@@ -72,8 +76,5 @@ fn main() {
     let msg = ThresholdCipher::assemble(&shares, &ciphertext).unwrap();
     let elapsed_time = now.elapsed().as_millis();
 
-    println!("[{}ms]\tEncryption time", encrypt_time);
-    println!("[{}ms]\tShare generation time", share_gen_time);
-    println!("[{}ms]\tShare validation time", share_verify_time);
-    println!("[{}ms]\tDecryption time - Message: {}", elapsed_time, hex2string(&msg));
+    println!("[{}ms]\tMessage decrypted: {}", elapsed_time, hex2string(&msg));
 }

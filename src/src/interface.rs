@@ -794,6 +794,7 @@ pub enum ThresholdCryptoError {
     ParamsNotSet,
     IdNotFound,
     IncompatibleGroup,
+    WrongState,
 }
 
 pub struct ThresholdCipherParams {
