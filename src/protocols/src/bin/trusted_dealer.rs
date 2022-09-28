@@ -30,7 +30,8 @@ fn generate_keys(k: usize, n: usize) -> Result<(), Box<dyn std::error::Error>>{
                                                                         n, 
                                                                         &mut RNG::new(RngAlgorithm::MarsagliaZaman),
                                                                         &ThresholdScheme::Sg02,
-                                                                        &Group::Bls12381).unwrap();
+                                                                        &Group::Bls12381,
+                                                                        &Option::None).unwrap();
     for node_id in 0..n {
         let mut key_chain = KeyChain::new();
         key_chain.insert_key(sk_sg02_bls12381[node_id].clone(), String::from("sg02_bls12381"))?;

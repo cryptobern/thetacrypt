@@ -312,30 +312,30 @@ async fn test_multiple_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Send INVALID-ciphertext decrypt_sync request. The RPC call should return a decryptSyncResponse, but the contained 'plaintext' field should be None.
-    let pk_sg02_bls12381 = if let PublicKey::Sg02(pk_sg02_bls12381) = pk {pk_sg02_bls12381} else { panic!()};
-    let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decrypt_sync_request(3, &pk_sg02_bls12381);
-    let invalid_ctxt_decrypt_request = invalid_ctxt_request.into_inner();
-    let mut i = 1;
-    let mut handles= Vec::new();
-    for conn in connections.iter_mut(){
-        println!(">> Sending INVALID decrypt_sync request to server {i}.");
-        let mut conn2 = conn.clone();
-        let request2 = invalid_ctxt_decrypt_request.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
-            let response = conn2.decrypt_sync(request2).await;
-            Ok(response)
-        });
-        handles.push(handle);
-        i += 1;
-    }
+    // let pk_sg02_bls12381 = if let PublicKey::Sg02(pk_sg02_bls12381) = pk {pk_sg02_bls12381} else { panic!()};
+    // let (invalid_ctxt_request, original_ciphertext) = create_tampered_sg02_decrypt_sync_request(3, &pk_sg02_bls12381);
+    // let invalid_ctxt_decrypt_request = invalid_ctxt_request.into_inner();
+    // let mut i = 1;
+    // let mut handles= Vec::new();
+    // for conn in connections.iter_mut(){
+    //     println!(">> Sending INVALID decrypt_sync request to server {i}.");
+    //     let mut conn2 = conn.clone();
+    //     let request2 = invalid_ctxt_decrypt_request.clone();
+    //     let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> = tokio::spawn(async move {
+    //         let response = conn2.decrypt_sync(request2).await;
+    //         Ok(response)
+    //     });
+    //     handles.push(handle);
+    //     i += 1;
+    // }
 
-    for handle in handles {
-        let result = handle.await.expect("The task being joined has panicked.")?;
-        let response = result.expect("This should not return Err");
-        let plaintext = response.into_inner().plaintext;
-        assert!(plaintext == None);
-        // println!(">> Decrypted plaintext: {:?}.", String::from_utf8(plaintext).unwrap());
-    };
+    // for handle in handles {
+    //     let result = handle.await.expect("The task being joined has panicked.")?;
+    //     let response = result.expect("This should not return Err");
+    //     let plaintext = response.into_inner().plaintext;
+    //     assert!(plaintext == None);
+    //     // println!(">> Decrypted plaintext: {:?}.", String::from_utf8(plaintext).unwrap());
+    // };
 
     Ok(())
 }
@@ -578,33 +578,33 @@ fn create_ciphertext(sn: u32, pk: &PublicKey) -> Ciphertext {
     ciphertext
 }
 
-fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
-    let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
-    let req = DecryptRequest {
-        ciphertext: tampered_ciphertext.serialize().unwrap(),
-        key_id: None
-    };
-    (Request::new(req), original_ciphertext)
-}
+// fn create_tampered_sg02_decryption_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptRequest>, Sg02Ciphertext) {
+//     let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
+//     let req = DecryptRequest {
+//         ciphertext: tampered_ciphertext.serialize().unwrap(),
+//         key_id: None
+//     };
+//     (Request::new(req), original_ciphertext)
+// }
 
-fn create_tampered_sg02_decrypt_sync_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptSyncRequest>, Sg02Ciphertext) {
-    let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
-    let req = DecryptSyncRequest {
-        ciphertext: tampered_ciphertext.serialize().unwrap(),
-        key_id: None
-    };
-    (Request::new(req), original_ciphertext)
-}
+// fn create_tampered_sg02_decrypt_sync_request(sn: u32, pk: &Sg02PublicKey) -> (tonic::Request<DecryptSyncRequest>, Sg02Ciphertext) {
+//     let (original_ciphertext, tampered_ciphertext) = create_tampered_ciphertext(sn, pk);
+//     let req = DecryptSyncRequest {
+//         ciphertext: tampered_ciphertext.serialize().unwrap(),
+//         key_id: None
+//     };
+//     (Request::new(req), original_ciphertext)
+// }
 
-fn create_tampered_ciphertext(sn: u32, pk: &Sg02PublicKey) -> (Sg02Ciphertext, Sg02Ciphertext) {
-    let mut params = ThresholdCipherParams::new();
-    let msg_string = format!("Test message {}", sn);
-    let msg: Vec<u8> = msg_string.as_bytes().to_vec();
-    let label = format!("Label {}", sn);
-    let original_ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
-    let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&original_ciphertext);
-    (original_ciphertext, tampered_ciphertext)
-}
+// fn create_tampered_ciphertext(sn: u32, pk: &Sg02PublicKey) -> (Sg02Ciphertext, Sg02Ciphertext) {
+//     let mut params = ThresholdCipherParams::new();
+//     let msg_string = format!("Test message {}", sn);
+//     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
+//     let label = format!("Label {}", sn);
+//     let original_ciphertext = Sg02ThresholdCipher::encrypt(&msg, label.as_bytes(), &pk, &mut params);
+//     let tampered_ciphertext = Sg02ThresholdCipher::test_tamper_ciphertext(&original_ciphertext);
+//     (original_ciphertext, tampered_ciphertext)
+// }
 
 fn get_decryption_shares_permuted(k: u32, ctxt: &Ciphertext, sk: Vec<PrivateKey>) -> Vec<DecryptionShare> {
     let mut params = ThresholdCipherParams::new();

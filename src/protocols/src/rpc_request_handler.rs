@@ -234,8 +234,8 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");
-        let (response_sender, response_receiver) = oneshot::channel::< Result< Vec<PublicKeyEntry>, String> >;
-        let cmd = StateUpdateCommand::GetPublicKeysForEncryption { responder: response_receiver } ;
+        let (response_sender, response_receiver) = oneshot::channel::< Result< Vec<PublicKeyEntry>, String> >();
+        let cmd = StateUpdateCommand::GetPublicKeysForEncryption { responder: response_sender } ;
         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
         let encryption_pks = response_receiver.await.expect("response_receiver.await returned Err");
         match encryption_pks {
