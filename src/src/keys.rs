@@ -61,7 +61,7 @@ macro_rules! unwrap_enum_vec {
     };
 }
 
-#[derive(AsnType, Clone)]
+#[derive(AsnType, Clone, Debug)]
 #[rasn(enumerated)]
 pub enum PrivateKey {
     Sg02(Sg02PrivateKey),
@@ -291,7 +291,7 @@ impl Encode for PrivateKey {
     }
 }
 
-#[derive(AsnType, Clone, PartialEq)]
+#[derive(AsnType, Clone, PartialEq, Debug)]
 #[rasn(enumerated)]
 pub enum PublicKey {
     Sg02(Sg02PublicKey),

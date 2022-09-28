@@ -1,5 +1,5 @@
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignedMessage, Sh00SignatureShare}};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, frost::{FrostSignatureShare, FrostThresholdSignature}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignedMessage, Sh00SignatureShare}};
 
 pub trait Serializable:
     Sized
@@ -716,7 +716,10 @@ impl ThresholdSignature {
             },
             PrivateKey::Sh00(s) => {
                 Result::Ok(SignatureShare::Sh00(Sh00ThresholdSignature::partial_sign(msg, label,s, params)))
-            },
+            },/* 
+            PrivateKey::Frost(s) => {
+                Result::Ok(SignatureShare::Frost(FrostThresholdSignature::partial_sign(s, msg, label,s, params)))
+            },*/
             _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
         }
     }

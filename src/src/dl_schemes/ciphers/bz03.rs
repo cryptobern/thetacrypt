@@ -19,7 +19,7 @@ use crate::proto::scheme_types::{Group, ThresholdScheme};
 use crate::rand::RNG;
 
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, Debug, AsnType, Serializable)]
 pub struct Bz03PublicKey {
     n: u16,
     k: u16,
@@ -97,7 +97,7 @@ impl PartialEq for Bz03PublicKey {
     }
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, Debug, AsnType, Serializable)]
 pub struct Bz03PrivateKey {
     id: u16,
     xi: BigImpl,

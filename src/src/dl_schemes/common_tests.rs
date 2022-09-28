@@ -41,9 +41,3 @@ fn test_horner() {
 
     assert!(res.equals(&c));
 }
-
-/*
-2^2 + 2*2 + 3
-
-4 + 4 + 3 = 11
-*/
