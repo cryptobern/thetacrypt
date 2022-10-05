@@ -17,7 +17,8 @@ use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionSha
 use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use crate::proto::protocol_types::PublicKeyEntry;
 use cosmos_crypto::interface::Ciphertext;
-use crate::threshold_cipher_protocol::{ThresholdCipherProtocol, ProtocolError};
+use crate::protocol::ProtocolError;
+use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
 
 
 type InstanceId = String;

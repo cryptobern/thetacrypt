@@ -1,45 +1,11 @@
 use std::collections::HashSet;
 
-use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCryptoError, ThresholdCipher};
+use crate::protocol::ProtocolError;
+use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 
 
-type InstanceId = String;
-
-#[derive(Clone, Debug)]
-pub enum ProtocolError {
-    SchemeError(ThresholdCryptoError),
-    InvalidCiphertext,
-    InstanceNotFound,
-    InternalError,
-}
-
-impl From<ThresholdCryptoError> for ProtocolError{
-    fn from(tc_error: ThresholdCryptoError) -> Self {
-        ProtocolError::SchemeError(tc_error)
-    }
-}
-/*
-A protocol must expose two functions, run() and terminate().
-The caller should only have to call run() to start the protocol instance.
-
-About run(): The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
-In the begining it must make the necessary validity checks (e.g., valididity of ciphertext).
-There is a loop(), which handles incoming shares. The loop is exited when the instance is finished.
-This function is also responsible for returning the result to the caller.
-
-About terminate(): It is called by the instance to cleanup any data.
-
-Fields in ThresholdCipherProtocol:
-- chan_in: The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
-- chan_out: The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
-*/
-
-pub trait Protocol: Send + Clone + 'static {
-    fn run(&mut self);
-    fn terminate(&mut self);
-}
 
 // todo: Right now we have to .clone() all the parameters we give to the protocol, because it takes ownership.
 // If I did this with references then I would have to make them all 'static (because the protocol runs on a thread)

@@ -1,8 +1,24 @@
-A `Protocol` (`ThresholdCipherProtocol` or `ThresholdSignatureProtocol`) has the following interface:
-- on_init()
-- inChan: Used for incoming messages (such as threshold decryption shares)
-- outChan: Used for outgoing messages
+The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
 
+# How to use the RPC server
+The RPC types are defined in `src\proto\protocol_types.proto`.
+The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+
+An example RPC client can be found in `\src\bin\client.rs`. You can use this client as follows.
+From the root directory of the `protocols` project start 4 terminals and, for i = 1...4, run:
+```
+cargo run --bin server <i> -l
+```
+You should see each server process print that it is connected to the others and ready to receive client requests.
+
+Open a new terminal and run:
+```
+cargo run --bin client
+```
+This binary uses the `decrypt()` and `decrypt_sync()` RPC endpoints.
+
+
+# The RPC request handler
 The request handling code is implemented in the `ThresholdProtocolService`. It has the following endpoints:
 - decrypt: Start a `ThresholdCipherProtocol`.
 - sign; Start a `ThresholdSignatureProtocol`.
@@ -30,7 +46,6 @@ These channels are created by the handler just before spawning the new tokio tas
 ### State
 The state of the request handler currently is owned by the `ThresholdProtocolService`.
 It is initialized in the `tokio::main` function and then moved into `ThresholdProtocolService`.
-The methods that implement the s
 
 ### State Manager:
 Responsible for keeping all the state related to requests (open/terminated).
@@ -63,6 +78,33 @@ If we run this as a Tokio task, it will be constantly running, causing other Tok
 *todo*: Set tokio::runtime to use default - 1 worker threads, since we are using 1 for the state manager.
 https://docs.rs/tokio/1.2.0/tokio/attr.main.html
 https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#examples-2
+
+
+
+# Protocols
+
+## Functions in a protocol
+A protocol exposes two functions, run() and terminate(), defined in the `Protocol` trait.
+The caller should only have to call run() to start the protocol instance.
+
+- About run():
+The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
+In the beginning it must make the necessary validity checks (e.g., validity of ciphertext).
+There is a loop(), which handles incoming shares. The loop exits when the instance is finished.
+This function is also responsible for returning the result to the caller.
+
+- About terminate():
+It is called by the instance to clean up any data.
+
+## Fields in a protocol
+Protocol types contain the following fields.
+See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.rs`. 
+- chan_in:
+The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
+- chan_out:
+The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
+
+
 
 ### Key management:
 Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
