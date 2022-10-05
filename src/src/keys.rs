@@ -148,65 +148,65 @@ impl PrivateKey {
     }
 }
 
-// impl serde::Serialize for PrivateKey {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where S: serde::Serializer {
-//         match self.serialize(){
-//             // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
-//             Ok(key_bytes) => { 
-//                 let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
-//                 for element in key_bytes.iter() {
-//                     seq.serialize_element(element)?;
-//                 }
-//                 seq.end()
-//             },
-//             Err(err) => { Err(serde::ser::Error::custom(format!("Could not serialize PrivateKey. err: {:?}", err))) }
-//         }
-//     }
-// }
+impl serde::Serialize for PrivateKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        match self.serialize(){
+            // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
+            Ok(key_bytes) => { 
+                let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
+                for element in key_bytes.iter() {
+                    seq.serialize_element(element)?;
+                }
+                seq.end()
+            },
+            Err(err) => { Err(serde::ser::Error::custom(format!("Could not serialize PrivateKey. err: {:?}", err))) }
+        }
+    }
+}
 
 
-// struct PrivateKeyVisitor;
-// impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
-//     type Value = PrivateKey;
+struct PrivateKeyVisitor;
+impl<'de> serde::de::Visitor<'de> for PrivateKeyVisitor {
+    type Value = PrivateKey;
 
-//     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         formatter.write_str("a sequence of bytes")
-//     }
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a sequence of bytes")
+    }
 
-//     // fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-//     //     where E: serde::de::Error, {
-//     //     Ok(PrivateKey::deserialize(&Vec::from(v)))
-//     // }
+    // fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+    //     where E: serde::de::Error, {
+    //     Ok(PrivateKey::deserialize(&Vec::from(v)))
+    // }
 
-//     // fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
-//     //     where E: serde::de::Error, {
-//     //         match PrivateKey::deserialize(&v) {
-//     //             //TODO: fix
-//     //             PrivateKey::Sg02(sk) => { Ok(PrivateKey::Sg02(sk)) },
-//     //             _ => todo!()
-//     //         }
-//     // }
+    // fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+    //     where E: serde::de::Error, {
+    //         match PrivateKey::deserialize(&v) {
+    //             //TODO: fix
+    //             PrivateKey::Sg02(sk) => { Ok(PrivateKey::Sg02(sk)) },
+    //             _ => todo!()
+    //         }
+    // }
 
-//     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-//             where A: serde::de::SeqAccess<'de>, {
-//         let mut key_vec = Vec::new();
-//         while let Ok(Some(next)) = seq.next_element() {
-//             key_vec.push(next);
-//         }
-//         let key = PrivateKey::deserialize(&key_vec);  //TODO: fix
-//         Ok(key.unwrap())
-//     }
-// }
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: serde::de::SeqAccess<'de>, {
+        let mut key_vec = Vec::new();
+        while let Ok(Some(next)) = seq.next_element() {
+            key_vec.push(next);
+        }
+        let key = PrivateKey::deserialize(&key_vec);  //TODO: fix
+        Ok(key.unwrap())
+    }
+}
 
 
-// impl<'de> serde::Deserialize<'de> for PrivateKey {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where D: serde::Deserializer<'de> {
-//         // deserializer.deserialize_bytes(BytesVisitor)
-//         deserializer.deserialize_seq(PrivateKeyVisitor)
-//     }
-// }
+impl<'de> serde::Deserialize<'de> for PrivateKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de> {
+        // deserializer.deserialize_bytes(BytesVisitor)
+        deserializer.deserialize_seq(PrivateKeyVisitor)
+    }
+}
 
 
 impl Decode for PrivateKey {
