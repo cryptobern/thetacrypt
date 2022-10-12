@@ -108,7 +108,7 @@ pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement {
 pub fn lagrange_coeff(group: &Group, indices: &[u16], i: i32) -> BigImpl {
     let mut prod = BigImpl::new_int(group, 1);
     let q = group.get_order();
-    
+
     for k in 0..indices.len() {
         let j = indices[k] as i32;
 
