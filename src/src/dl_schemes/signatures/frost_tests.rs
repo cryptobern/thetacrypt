@@ -29,9 +29,12 @@ fn test_sign() {
 
     for i in 0..k {
         shares.push(FrostThresholdSignature::partial_sign(&keys[i], msg, &commits, &mut instances[i]).unwrap());
-        println!("{}", FrostThresholdSignature::verify_share(&shares[i], pk, &instances[i], msg).unwrap());
+        
+        assert!(FrostThresholdSignature::verify_share(&shares[i], pk, &instances[i], msg).unwrap());
+        //println!("{}", FrostThresholdSignature::verify_share(&shares[i], pk, &instances[i], msg).unwrap());
     }
 
     let signature = FrostThresholdSignature::aggregate(&instances[0], &shares).unwrap();
+    assert!(FrostThresholdSignature::verify(&signature, pk, msg));
     println!("{}", FrostThresholdSignature::verify(&signature, pk, msg));
 }
