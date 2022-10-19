@@ -9,8 +9,8 @@ use std::fmt::Write;
 #[test]
 fn test_scheme() {
     let mut params = ThresholdCipherParams::new();
-    let k = 300;
-    let n = 400;
+    let k = 3;
+    let n = 5;
     let private_keys = KeyGenerator::generate_keys(k, n, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let public_key = private_keys[0].get_public_key();
     /* Serialisation usage */

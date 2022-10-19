@@ -2,11 +2,13 @@ use std::convert::TryInto;
 
 use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::GroupElement, interface::ThresholdCryptoError, rand::RNG, proto::scheme_types::Group, rsa_schemes::bigint::RsaBigInt};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
+use derive::Serializable;
 use mcore::hash512::HASH512;
+use rasn::{AsnType, Decode, Encode};
 
 const CONTEXT_STRING:&[u8] = b"FROST-ED25519-SHA512-v8";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, AsnType, Serializable)]
 pub struct FrostPublicKey {
     n: u16,
     k: u16,
@@ -33,9 +35,57 @@ impl FrostPublicKey {
     pub fn get_verification_key(&self, id: u16) -> GroupElement {
         self.h[(id - 1) as usize].clone()
     }
+
+    pub fn get_n(&self) -> u16 {
+        self.n
+    }
+
+    pub fn get_threshold(&self) -> u16 {
+        self.k
+    }
 }
 
-#[derive(Debug, Clone)]
+
+impl Encode for FrostPublicKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |sequence| {
+            self.get_group().get_code().encode(sequence)?;
+            self.n.encode(sequence)?;
+            self.k.encode(sequence)?;
+            self.y.to_bytes().encode(sequence)?;
+            for i in 0..self.h.len() {
+                self.h[i].to_bytes().encode(sequence)?;
+            }
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for FrostPublicKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let group = Group::from_code(u8::decode(sequence)?);
+            let n = u16::decode(sequence)?;
+            let k = u16::decode(sequence)?;
+            let y_b = Vec::<u8>::decode(sequence)?;
+            let mut h = Vec::new();
+
+            for _i in 0..n {
+                let bytes = Vec::<u8>::decode(sequence)?;
+                h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+            }
+
+            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(0));
+
+            Ok(Self{group, n, k, y, h})
+        })
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, AsnType, Serializable)]
 pub struct FrostPrivateKey {
     id: u16,
     x: BigImpl,
@@ -59,12 +109,38 @@ impl FrostPrivateKey {
         self.pubkey.get_group()
     }
 
-    /*pub fn push_nonce(&mut self, nonce:Nonce) {
-        self.nonces.push(nonce);
-    }*/
+    pub fn get_threshold(&self) -> u16 {
+        self.pubkey.get_threshold()
+    }
     
     pub fn get_public_key(&self) -> FrostPublicKey {
         self.pubkey.clone()
+    }
+}
+
+impl Encode for FrostPrivateKey {
+    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
+        encoder.encode_sequence(tag, |sequence| {
+            self.id.encode(sequence)?;
+            self.x.to_bytes().encode(sequence)?;
+            self.pubkey.encode(sequence)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Decode for FrostPrivateKey {
+    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
+        decoder.decode_sequence(tag, |sequence| {
+            let id = u16::decode(sequence)?;
+            let x_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
+            let pubkey = FrostPublicKey::decode(sequence)?;
+            let x = BigImpl::from_bytes(&pubkey.group, &x_bytes);
+
+            Ok(Self {id, x, pubkey})
+        })
     }
 }
 

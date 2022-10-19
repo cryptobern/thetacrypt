@@ -8,6 +8,7 @@ use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdC
 #[derive(AsnType, Clone, Debug, Serializable)]
 pub struct Sh00PublicKey {
     t: u16,
+    n: u16,
     N: RsaBigInt,
     e: RsaBigInt,
     verification_key:Sh00VerificationKey,
@@ -16,17 +17,22 @@ pub struct Sh00PublicKey {
 }  
 
 impl Sh00PublicKey {
-    pub fn new(t:u16,
+    pub fn new(n:u16,
+        t:u16,
         N: RsaBigInt,
         e: RsaBigInt,
         verification_key:Sh00VerificationKey,
         delta:usize,
         modbits:usize) -> Self {
-        Self {t, N, e, verification_key: verification_key, delta, modbits}
+        Self {t, n, N, e, verification_key: verification_key, delta, modbits}
     }
 
     pub fn get_threshold(&self) -> u16 {
         return self.t;
+    }
+
+    pub fn get_n(&self) -> u16 {
+        return self.n;
     }
 
     pub fn get_modbits(&self) -> usize {
@@ -47,6 +53,7 @@ impl Sh00PublicKey {
 impl Encode for Sh00PublicKey {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
+            self.n.encode(sequence)?;
             self.t.encode(sequence)?;
             self.N.encode(sequence)?;
             self.e.encode(sequence)?;
@@ -63,6 +70,7 @@ impl Encode for Sh00PublicKey {
 impl Decode for Sh00PublicKey {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
+            let n = u16::decode(sequence)?;
             let t = u16::decode(sequence)?;
             let N = RsaBigInt::decode(sequence)?;
             let e = RsaBigInt::decode(sequence)?;
@@ -70,7 +78,7 @@ impl Decode for Sh00PublicKey {
             let delta = usize::decode(sequence)?;
             let modbits = usize::decode(sequence)?;
 
-            Ok(Self{t, N, e, verification_key: verification_key, delta, modbits})
+            Ok(Self{t, n, N, e, verification_key: verification_key, delta, modbits})
         })
     }
 }
@@ -92,10 +100,10 @@ pub struct Sh00PrivateKey {
 
 impl Sh00PrivateKey {
     pub fn new(id: u16,
-        m: RsaBigInt,
-        si: RsaBigInt,
-        pubkey: Sh00PublicKey) -> Self {
-        Self {id, m, si, pubkey}
+        m: &RsaBigInt,
+        si: &RsaBigInt,
+        pubkey: &Sh00PublicKey) -> Self {
+        Self {id, m:m.clone(), si:si.clone(), pubkey:pubkey.clone()}
     }
 
     pub fn get_public_key(&self) -> Sh00PublicKey {
