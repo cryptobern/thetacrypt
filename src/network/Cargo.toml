@@ -1,0 +1,28 @@
+[package]
+name = "network"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+mdns = ["libp2p-mdns"]
+tcp-tokio = ["libp2p-tcp", "libp2p-tcp/tokio"]
+
+[dependencies]
+async-std = { version = "1.11.0", features = ["attributes"] }
+config-file = "0.2.3"
+futures = "0.3.21" # for our async / await blocks
+libp2p = { version = "0.45.0", features = ["tcp-tokio", "mdns"]}
+libp2p-mdns = { version = "0.37.0", optional = true }
+libp2p-tcp = { version = "0.33.0", optional = true }
+once_cell = "1.5"
+protobuf = "3.0.3"
+rand = "0.8.5"
+reqwest = { version = "0.11.10", features = ["json"] } # reqwest with JSON parsing support
+serde = {version = "=1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.15", features = ["full"] }
+toml = { version = "0.5.9" }
+time = {version = "0.3.9"}
+tendermint-rpc = { version = "0.23.7", features = ["http-client"] }

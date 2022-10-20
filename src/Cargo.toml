@@ -30,4 +30,8 @@ path = "src/examples/main.rs"
 [features]
 std = []
 
+[build-dependencies]
+tonic-build = "0.7"
+
 [workspace]
+members = ["derive", "protocols", "network"]

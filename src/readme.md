@@ -10,4 +10,4 @@ To run the application, use
 
 # Documentation
 
-To get an overview of the library design, klick [here](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/interface_rust.md).
+To get an overview of the library design, click [here](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/interface_rust.md).
