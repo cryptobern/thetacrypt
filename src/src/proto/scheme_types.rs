@@ -1,6 +1,6 @@
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(u8)]
+#[repr(i32)]
 pub enum ThresholdScheme {
     Bz03 = 0,
     Sg02 = 1,
@@ -11,7 +11,7 @@ pub enum ThresholdScheme {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(u8)]
+#[repr(i32)]
 pub enum Group {
     Bls12381 = 0,
     Bn254 = 1,
@@ -19,5 +19,5 @@ pub enum Group {
     Rsa512 = 3,
     Rsa1024 = 4,
     Rsa2048 = 5,
-    Rsa4096 = 6
+    Rsa4096 = 6,
 }

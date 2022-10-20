@@ -783,7 +783,7 @@ impl ThresholdSignatureParams {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ThresholdCryptoError {
     WrongGroup,
     WrongScheme,
