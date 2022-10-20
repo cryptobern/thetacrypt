@@ -372,53 +372,6 @@ pub async fn init(rpc_listen_address: String,
         let check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNES_INTERVAL as u64));
         loop {
             tokio::select! {
-                incoming_message = incoming_message_receiver.recv() => { // An incoming message was received.
-                    let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
-                    if let Some(instance_sender) = instance_senders.get(&instance_id) {
-                        instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
-                        // println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
-                    }
-                    else { 
-                        // No channel was found for the given instance_id. This can happen for two reasons:
-                        // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
-                        // - The instance has not yet started because the corresponding request has not yet arrived.
-                        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-                        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
-                        state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
-                        let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
-                        if ! status.started { // - The instance has not yet started... Backlog the message.
-                            println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
-                            backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
-                        }
-                        else if status.finished { // - The instance has already finished... Do nothing
-                            // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
-                        }
-                        else { // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
-                            println!(">> FORW: ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
-                        }
-                    }
-                }
-
-                _ = backlog_interval.tick() => { // Retry sending the backlogged messages
-                    for _ in 0..backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
-                        let (P2pMessage{instance_id, message_data}, retries_left) = backlogged_messages.pop_front().unwrap(); 
-                        if let Some(instance_sender) = instance_senders.get(&instance_id) {
-                            instance_sender.send(message_data).await; 
-                            println!(">> FORW: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
-                        }
-                        else { // Instance still not started. If there are tries left, push_back() the message again
-                            if retries_left > 0 {
-                                backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, retries_left - 1));
-                                println!(">> FORW: Could not forward message to instance. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {:?}. Instance_id: {instance_id}", retries_left - 1);
-                            }
-                            else {
-                                println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
-                            }
-                        }
-                    }
-                    
-                }
-
                 forwarder_command = forwarder_command_receiver.recv() => { // Received a command.
                     let command = forwarder_command.expect("Sender for forwarder_command_receiver closed.");
                     match command {
@@ -431,6 +384,19 @@ pub async fn init(rpc_listen_address: String,
                             instance_senders.remove(&instance_id);
                         }
                     }
+                }
+                
+                incoming_message = incoming_message_receiver.recv() => { // An incoming message was received.
+                    let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
+                    forward_or_backlog(&instance_id, message_data, BACKLOG_MAX_RETRIES, &instance_senders, &mut backlogged_messages, &state_command_sender2).await;
+                }
+
+                _ = backlog_interval.tick() => { // Retry sending the backlogged messages
+                    for _ in 0..backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
+                        let (P2pMessage{instance_id, message_data}, retries_left) = backlogged_messages.pop_front().unwrap(); 
+                        forward_or_backlog(&instance_id, message_data, retries_left, &instance_senders, &mut backlogged_messages, &state_command_sender2).await;
+                    }
+                    
                 }
                 
             }
@@ -452,4 +418,46 @@ pub async fn init(rpc_listen_address: String,
         // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
         .serve(rpc_addr.parse().unwrap())
         .await.expect("");
+}
+
+
+async fn forward_or_backlog(instance_id: &String, 
+                            message_data: Vec<u8>, 
+                            backlog_retries_left: u32,
+                            instance_senders: &HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>> >,
+                            backlogged_messages: &mut VecDeque<(P2pMessage, u32)>,
+                            state_command_sender: &Sender<StateUpdateCommand> ){
+    // A channel was found for the given instance_id.
+    if let Some(instance_sender) = instance_senders.get(instance_id) {
+        instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
+        println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
+    }
+    else { 
+        // No channel was found for the given instance_id. This can happen for two reasons:
+        // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
+        // - The instance has not yet started because the corresponding request has not yet arrived.
+        // Ask the StateManager to find out what is the case.
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+        state_command_sender.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
+        let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
+        if ! status.started { 
+        // The instance has not yet started. Backlog the message, except if it was already backlogged too many times.
+            if backlog_retries_left > 0 {
+                backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, backlog_retries_left - 1));
+                println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {backlog_retries_left}.");
+            }
+            else {
+                println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
+            }
+        }
+        else if status.finished { 
+        // The instance has already finished. Do not backlog the message.
+            // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
+        }
+        else { 
+        // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
+            println!(">> FORW: INTERNAL ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
+        }
+    }
 }
