@@ -68,7 +68,7 @@ impl ThresholdCipherProtocol {
                             }
                         },
                         Err(tcerror) => {
-                            println!(">> PROT: Could not deserialize share.");
+                            println!(">> PROT: Could not deserialize share. Share will be ignored.");
                             continue;        
                         },
                     };
@@ -106,15 +106,25 @@ impl ThresholdCipherProtocol {
         }
 
         if self.received_share_ids.contains(&share.get_id()){
-            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}.", &self.instance_id, share.get_id());
+            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}. Share will be ignored.", &self.instance_id, share.get_id());
             return Ok(());
         }
         self.received_share_ids.insert(share.get_id());
 
-        if ! ThresholdCipher::verify_share(&share, &self.ciphertext, &self.pk)?{
-            println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}.", &self.instance_id, share.get_id());
-            return Ok(());
+        let verification_result = ThresholdCipher::verify_share(&share, &self.ciphertext, &self.pk);
+        match verification_result{
+            Ok(is_valid) => {
+                if ! is_valid {
+                    println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                    return Ok(());
+                }
+            },
+            Err(err) => {
+                println!(">> PROT: instance_id: {:?} encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                return Ok(());
+            },
         }
+        
         self.valid_shares.push(share);
         
         if self.valid_shares.len() >= self.threshold as usize { 
