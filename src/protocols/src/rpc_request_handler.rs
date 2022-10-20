@@ -181,7 +181,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         println!(">> REQH: Received a decrypt request.");
         let req: &DecryptRequest = request.get_ref();
 
-        // Do all required checks and create the new protocol instance
+        // Make all required checks and create the new protocol instance
         let (instance_id, mut prot) = match self.get_decryption_instance(&req.ciphertext, &req.key_id).await{
             Ok((instance_id, prot)) => (instance_id, prot),
             Err(err) => return Err(err),
@@ -310,7 +310,7 @@ pub async fn init(rpc_listen_address: String,
     // However, the channel must never be closed (i.e., one sender end, owned by the RpcRequestHandler, must always remain open).
     // let (result_sender, mut result_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Option<Vec<u8>>)>(32);
 
-    // Spawn State Manager.
+    // Spawn StateManager.
     // Takes ownerhsip of keychain
     println!(">> REQH: Initiating the state manager.");
     tokio::spawn( async move {
