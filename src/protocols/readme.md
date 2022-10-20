@@ -64,6 +64,11 @@ the `MessageForwarder` is the only responsible for maintaining these channels.
 When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageForwarder` about the
 existence of the new instance. This is done using a `MessageForwarderCommand`.
 
+### Backlog
+A logic for backlogging messages is implemented in the `MessageForwarder`. 
+This is necessary for the case when (due to asynchrony) a message (such as a decryption share) for an instance is received before
+the instance is started (because the actual request was delayed).
+
 ### Assigning instance-id
 Each protocol instance must be assigned an 'instance_id'.
 This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
@@ -88,7 +93,7 @@ This function is also responsible for returning the result to the caller.
 - About terminate():
 It is called by the instance to clean up any data.
 
-## Fields in a protocol
+### Fields in a protocol
 Protocol types contain the following fields.
 See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.rs`. 
 - chan_in:
