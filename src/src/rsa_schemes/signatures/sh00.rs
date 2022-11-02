@@ -228,25 +228,19 @@ impl PartialEq for Sh00SignatureShare {
 }
 
 #[derive(Clone, AsnType, Serializable, Debug)]
-pub struct Sh00SignedMessage {
-    msg: Vec<u8>,
+pub struct Sh00Signature {
     sig: RsaBigInt
 }
 
-impl Sh00SignedMessage {
+impl Sh00Signature {
     pub fn get_sig(&self) -> RsaBigInt {
         self.sig.clone()
     }
-
-    pub fn get_msg(&self) -> Vec<u8> {
-        self.msg.clone()
-    }
 }
 
-impl Encode for Sh00SignedMessage {
+impl Encode for Sh00Signature {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            self.msg.encode(sequence)?;
             self.sig.encode(sequence)?;
             Ok(())
         })?;
@@ -255,20 +249,19 @@ impl Encode for Sh00SignedMessage {
     }
 }
 
-impl Decode for Sh00SignedMessage {
+impl Decode for Sh00Signature {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
-            let msg = Vec::<u8>::decode(sequence)?;
             let sig = RsaBigInt::decode(sequence)?;
 
-            Ok(Self {msg, sig})
+            Ok(Self { sig})
         })
     }
 }
 
-impl PartialEq for Sh00SignedMessage {
+impl PartialEq for Sh00Signature {
     fn eq(&self, other: &Self) -> bool {
-        self.msg == other.msg && self.sig == other.sig
+        self.sig == other.sig
     }
 }
 
@@ -322,8 +315,8 @@ pub struct Sh00ThresholdSignature {
 
 
 impl Sh00ThresholdSignature {
-    pub fn verify(sig: &Sh00SignedMessage, pk: &Sh00PublicKey) -> bool {
-        sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&sig.msg, &pk.N, pk.modbits))
+    pub fn verify(sig: &Sh00Signature, pk: &Sh00PublicKey, msg: &[u8]) -> bool {
+        sig.sig.pow_mod(&pk.e, &pk.N).equals(&H1(&msg, &pk.N, pk.modbits))
     }
 
     pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Sh00PrivateKey, params: &mut ThresholdSignatureParams) -> Sh00SignatureShare {
@@ -376,7 +369,7 @@ impl Sh00ThresholdSignature {
         c2.equals(&c)
     }
 
-    pub fn assemble(shares: &Vec<Sh00SignatureShare>, msg: &[u8], pk: &Sh00PublicKey) -> Sh00SignedMessage {
+    pub fn assemble(shares: &Vec<Sh00SignatureShare>, msg: &[u8], pk: &Sh00PublicKey) -> Sh00Signature {
         let u = pk.verification_key.u.clone();
         let N = pk.N.clone();
 
@@ -389,7 +382,7 @@ impl Sh00ThresholdSignature {
             y = u.inv_mod(&pk.N).mul_mod(&y, &N);
         }
 
-        Sh00SignedMessage{sig:y, msg:msg.to_vec()} 
+        Sh00Signature{sig:y} 
     }
 }
 

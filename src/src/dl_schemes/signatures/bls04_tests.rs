@@ -1,4 +1,4 @@
-use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, SignedMessage}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}, proto::scheme_types::{ThresholdScheme, Group}};
+use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}, proto::scheme_types::{ThresholdScheme, Group}};
 
 
 #[test]
@@ -64,7 +64,7 @@ fn test_full_scheme() {
     }
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
-    assert!(ThresholdSignature::verify(&sig, &keys[0].get_public_key()).unwrap());
+    assert!(ThresholdSignature::verify(&sig, &keys[0].get_public_key(), &message).unwrap());
 
 }
 #[test]
@@ -84,7 +84,7 @@ fn test_signature_serialization() {
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
     let sig_encoded = sig.serialize().unwrap();
-    let sig_decoded = SignedMessage::deserialize(&sig_encoded).unwrap();
+    let sig_decoded = Signature::deserialize(&sig_encoded).unwrap();
     assert!(sig.eq(&sig_decoded));
 }
 
@@ -119,5 +119,5 @@ fn test_invalid_sig() {
     }
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
-    assert!(!ThresholdSignature::verify(&sig, &keys[0].get_public_key()).unwrap());
+    assert!(!ThresholdSignature::verify(&sig, &keys[0].get_public_key(), &message).unwrap());
 }   

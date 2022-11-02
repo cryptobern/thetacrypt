@@ -9,6 +9,7 @@ pub enum ThresholdScheme {
     Frost = 4,
     Sh00 = 5,
 }
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(u8)]
@@ -20,4 +21,21 @@ pub enum Group {
     Rsa1024 = 4,
     Rsa2048 = 5,
     Rsa4096 = 6
+}
+
+
+impl ThresholdScheme {
+    pub fn is_interactive(&self) -> bool {
+        match self {
+            Self::Frost => true,
+            _ => false
+        }
+    }
+
+    pub fn get_rounds(&self) -> u8 {
+        match self {
+            Self::Frost => 2,
+            _ => 1
+        }
+    }
 }
