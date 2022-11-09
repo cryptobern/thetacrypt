@@ -184,7 +184,7 @@ pub struct BindingFactor {
     factor: BigImpl
 }
 
-#[derive(AsnType, PartialEq, Clone, Serializable)]
+#[derive(AsnType, Debug, PartialEq, Clone, Serializable)]
 pub struct FrostSignatureShare {
     id: u16,
     data: BigImpl
@@ -297,7 +297,7 @@ impl FrostInstance {
     }
 }
 
-#[derive(AsnType, PartialEq, Clone)]
+#[derive(AsnType, Debug, PartialEq, Clone)]
 pub struct FrostRoundResult {
     id: u16,
     public_commitment: Option<PublicCommitment>,
@@ -408,6 +408,7 @@ impl FrostThresholdSignature {
     }
 
     pub fn commit(sk: &FrostPrivateKey, rng: &mut RNG, instance: &mut FrostInstance) -> Result<FrostRoundResult, ThresholdCryptoError> {
+        println!("commit");
         let hiding_nonce = nonce_generate(&sk.x, rng);
         let binding_nonce = nonce_generate(&sk.x, rng);
         let hiding_nonce_commitment = GroupElement::new_pow_big(&sk.get_group(), &hiding_nonce);
@@ -454,14 +455,18 @@ impl FrostThresholdSignature {
         Ok(instance.share.clone().unwrap())
     }
 
-    pub fn sign_round(sk: &FrostPrivateKey, msg: &[u8], instance: &mut FrostInstance, round: u8) -> Result<FrostRoundResult, ThresholdCryptoError> {
+    pub fn sign_round(sk: &FrostPrivateKey, msg: Option<&[u8]>, instance: &mut FrostInstance, round: u8) -> Result<FrostRoundResult, ThresholdCryptoError> {
         if round > ThresholdScheme::Frost.get_rounds() {
             return Err(ThresholdCryptoError::InvalidRound);
         }
 
+        if round != 0 && msg.is_none() {
+            return Err(ThresholdCryptoError::ParamsNotSet);
+        }
+
         match round {
             0 => return Self::commit(&sk, &mut RNG::new(RngAlgorithm::MarsagliaZaman), instance),
-            1 => return Self::partial_sign(&sk, msg, instance),
+            1 => return Self::partial_sign(&sk, msg.unwrap(), instance),
             _ => return Err(ThresholdCryptoError::InvalidRound)
         }
     }

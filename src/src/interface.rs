@@ -803,16 +803,21 @@ pub enum InteractiveSignatureInstance {
 }
 
 impl InteractiveSignatureInstance {
-    pub fn process_round_results(&self, rr: &RoundResult) {
+    pub fn process_round_results(&mut self, rr: &Vec<RoundResult>) -> Result<(), ThresholdCryptoError> {
         match self {
             Self::Frost(inst) => {
-
+                let round_results = unwrap_enum_vec!(rr, RoundResult::Frost, ThresholdCryptoError::WrongScheme);
+                if round_results.is_err() {
+                    return Err(round_results.unwrap_err())
+                }
+                inst.process_round_results(&round_results.unwrap());
+                Ok(())
             }
         }
     }
 }
 
-#[derive(AsnType, PartialEq, Clone)]
+#[derive(Debug, AsnType, PartialEq, Clone)]
 #[rasn(enumerated)]
 pub enum RoundResult {
     Frost(FrostRoundResult)
@@ -843,11 +848,12 @@ impl InteractiveThresholdSignature {
         }
     }
 
-    pub fn sign_round(sk: &PrivateKey, msg: &[u8], instance:&mut InteractiveSignatureInstance, round:u8) -> Result<RoundResult, ThresholdCryptoError>  {
+    pub fn sign_round(sk: &PrivateKey, msg: Option<&[u8]>, instance:&mut InteractiveSignatureInstance, round:u8) -> Result<RoundResult, ThresholdCryptoError>  {
         match sk {
             PrivateKey::Frost(key) => { 
                 match instance {
                     InteractiveSignatureInstance::Frost(inst) => {
+                        println!("match found");
                         let r = FrostThresholdSignature::sign_round(key, msg, inst, round);
                         if r.is_err() {
                             return Err(r.err().unwrap());

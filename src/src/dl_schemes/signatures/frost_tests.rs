@@ -1,4 +1,4 @@
-use crate::{dl_schemes::signatures::frost::FrostThresholdSignature, rand::{RNG, RngAlgorithm}, proto::scheme_types::{Group, ThresholdScheme}, keys::KeyGenerator, interface::InteractiveThresholdSignature};
+use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature, FrostInstance}, rand::{RNG, RngAlgorithm}, proto::scheme_types::{Group, ThresholdScheme}, keys::KeyGenerator, interface::{InteractiveThresholdSignature, InteractiveSignatureInstance}};
 
 
 #[test]
@@ -14,23 +14,29 @@ fn test_interface() {
     let keys = KeyGenerator::generate_keys(k, n, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Frost, &Group::Bls12381, &Option::None).unwrap();
     assert!(keys.len() == 5);
     let mut instances = Vec::new();
+
+    for i in 0..k {
+        instances.push(InteractiveSignatureInstance::Frost(FrostInstance::new()));
+    }
+    
     let mut shares = Vec::new();
     let msg = b"Test message!";
     let pk = keys[0].get_public_key();
 
     for i in 0..ThresholdScheme::get_rounds(&ThresholdScheme::Frost) {
-        let round_results = Vec::new();
+        println!("{} {}", i, keys.len());
+        let mut round_results = Vec::new();
 
         // execute round i
         for j in 0..k {
-            round_results.push(InteractiveThresholdSignature::sign_round(&keys[j], msg, &mut instances[j], i).unwrap());
+            round_results.push(InteractiveThresholdSignature::sign_round(&keys[j], Option::Some(msg), &mut instances[j], i).unwrap());
         }
 
         //if not last round
         if i != (ThresholdScheme::get_rounds(&ThresholdScheme::Frost) - 1) {
             // broadcast results from round i to other parties
             for j in 0..k {
-                instances[j].process_round_results(&round_results);
+                assert!(instances[j].process_round_results(&round_results).is_ok());
             }
         }
 
