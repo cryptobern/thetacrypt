@@ -1,5 +1,7 @@
 # Threshold Cryptography Library in Rust
 
+This is a WIP library for threshold cryptography implementing various threshold cipher, signatures and coin schemes. The library relies on Tendermint Core for atomic broadcast and runs as a service next to Tendermint on a node.
+
 ## Installation
 
 You can download and install Rust on Linux using 
@@ -10,7 +12,3 @@ To run the schemes test application, use
 
     cd src
     cargo run --release
-
-## Documentation
-
-To get an overview of the library design, click [here](https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/master/design/schemes/interface_rust.md).
