@@ -13,8 +13,8 @@ use cosmos_crypto::rand::{RNG, RngAlgorithm};
 use cosmos_crypto::util::{printbinary, hex2string};
 
 fn main() {
-    const K: usize = 1000; // threshold
-    const N: usize = 2000; // total number of secret shares
+    const K: usize = 30; // threshold
+    const N: usize = 50; // total number of secret shares
 
     // prepare message and label
     let plaintext = "This is a test message!  ";
@@ -67,8 +67,8 @@ fn main() {
         let valid = ThresholdCipher::verify_share(&shares[i as usize], &ciphertext, &sk[0].get_public_key()).unwrap();
         share_verify_time += now.elapsed().as_millis();
     }
-    println!("[{}ms]\t{} Shares generated", K, share_gen_time);
-    println!("[{}ms]\t{} Shares validated", K, share_verify_time);
+    println!("[{}ms]\t{} Shares generated", share_gen_time, K);
+    println!("[{}ms]\t{} Shares validated", share_verify_time, K);
 
     println!("[*] Decrypting...");
     // assemble decryption shares to restore original message
