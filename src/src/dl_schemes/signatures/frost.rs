@@ -157,21 +157,6 @@ impl PublicCommitment {
     }
 }
 
-/*
-struct FrostCommitmentShare {
-    d: GroupElement,
-    e: GroupElement
-}
-
-impl FrostCommitmentShare {
-    fn new(group: &Group, rng: &mut RNG) -> Self {
-        let _d = BigImpl::new_rand(group, &group.get_order(), rng);
-        let _e = BigImpl::new_rand(group, &group.get_order(), rng);
-        Self { d: GroupElement::new_pow_big(group, &_d), e: GroupElement::new_pow_big(group, &_e) }
-    }
-}*/
-
-
 #[derive(AsnType, PartialEq, Clone)]
 pub struct Nonce {
     hiding_nonce: BigImpl,
@@ -222,7 +207,7 @@ impl Decode for FrostSignatureShare {
     }
 }
 
-#[derive(AsnType, PartialEq, Clone, Serializable)]
+#[derive(AsnType, Debug, PartialEq, Clone, Serializable)]
 pub struct FrostSignature { /* TODO: encode according to standard */
     R: GroupElement,
     z: BigImpl
@@ -256,96 +241,123 @@ impl Decode for FrostSignature {
 }
 
 #[derive(AsnType, PartialEq, Clone)]
-pub struct FrostInstance {
-    nonce: Vec<Nonce>,
-    commitment: Vec<PublicCommitment>,
+pub struct FrostThresholdSignature<'a> {
+    round: u8,
+    key: &'a FrostPrivateKey,
+    msg: &'a [u8],
+    nonce: Option<Nonce>,
+    commitment: Option<PublicCommitment>,
     commitment_list: Vec<PublicCommitment>,
     group_commitment: Option<GroupElement>,
     share: Option<FrostSignatureShare>,
-    round_results: Vec<FrostRoundResult>
+    shares: Vec<FrostSignatureShare>,
+    received_round_results: u16,
+    signature: Option<FrostSignature>,
+    finished: bool,
 }
 
-impl FrostInstance {
-    pub fn new() -> Self {
-        Self {nonce:Vec::new(), commitment:Vec::new(), commitment_list: Vec::new(), group_commitment:None, share:None, round_results: Vec::new()}
+impl<'a> FrostThresholdSignature<'a> {
+    pub fn new(key: &'a FrostPrivateKey, msg: &'a[u8]) -> Self {
+        Self {round:0, msg, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, received_round_results: 0, finished: false, signature:Option::None}
     }
 
-    pub fn get_nonce(&self) -> &Nonce {
-        &self.nonce[0]
-    }
+    pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), ThresholdCryptoError> {
+        match round_result {
+            FrostRoundResult::RoundOne(result) => {
+                self.commitment_list.push(result.clone());
+                Ok(())
+            },
+            FrostRoundResult::RoundTwo(share) => {
+                let result = self.verify_share(share);
+                if result.is_err() {
+                    return Err(result.unwrap_err());
+                }
 
-    pub fn get_commitment(&self) -> &PublicCommitment {
-        &self.commitment[0]
-    }
+                if !result.unwrap() {
+                    return Err(ThresholdCryptoError::InvalidShare);
+                }
 
-    pub fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
-        &self.commitment_list
-    }
+                self.shares.push(share.clone());
 
-    pub fn get_group_commitment(&self) -> &Option<GroupElement> {
-        &self.group_commitment
-    }
+                if self.shares.len() == self.key.get_threshold() as usize {
+                    let sig = self.assemble();
+                    if sig.is_err() {
+                        return Err(sig.unwrap_err());
+                    }
 
-    pub fn set_commitments(&mut self, commitment_list: &[PublicCommitment]) {
-        self.commitment_list = commitment_list.to_vec();
-    }
+                    self.signature = Some(sig.unwrap());
+                }
 
-    pub fn process_round_results(&mut self, round_results: &Vec<FrostRoundResult>) {
-        for i in 0..round_results.len() {
-            self.commitment_list.push(round_results[i].public_commitment.clone().unwrap());
+                Ok(())
+            },
         }
     }
-}
 
-#[derive(AsnType, Debug, PartialEq, Clone)]
-pub struct FrostRoundResult {
-    id: u16,
-    public_commitment: Option<PublicCommitment>,
-    share: Option<FrostSignatureShare>
-}
-
-impl FrostRoundResult {
-    pub fn get_share(&self) -> FrostSignatureShare {
-        self.share.clone().unwrap()
-    }
-}
-
-#[derive(AsnType, PartialEq, Clone)]
-pub struct FrostThresholdSignature {
-    group_commitment: GroupElement
-}
-
-impl FrostThresholdSignature {
-    pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, group: &Group) -> Result<Vec<FrostPrivateKey>, ThresholdCryptoError> {
-        let x = BigImpl::new_rand(group, &group.get_order(), rng);
-        let y = GroupElement::new_pow_big(&group, &x);
-    
-        let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) = shamir_share(&x, k as usize, n as usize, rng);
-        let mut private_keys = Vec::new();
-    
-        let public_key = FrostPublicKey::new(n, k, group, &y, &h );
-    
-        for i in 0..shares.len() {
-            private_keys.push(FrostPrivateKey::new((i+1).try_into().unwrap(), &shares[i], &public_key));
+    pub fn get_signature(&self) -> Result<FrostSignature, ThresholdCryptoError> {
+        if self.signature.is_none() {
+            return Err(ThresholdCryptoError::ProtocolNotFinished);
         }
-    
-        return Result::Ok(private_keys);
+
+        Ok(self.signature.clone().unwrap())
     }
 
-    pub fn partial_sign(sk: &FrostPrivateKey, msg: &[u8], instance: &mut FrostInstance) -> Result<FrostRoundResult, ThresholdCryptoError> {
-        let group = sk.get_group();
+    pub fn is_finished(&self) -> bool {
+        false
+    }
+
+    pub fn do_round(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
+        if self.round == 0 {
+            let res = self.commit(&mut RNG::new(RngAlgorithm::MarsagliaZaman));
+            if res.is_ok() {
+                self.round += 1;
+                return Ok(res.unwrap());
+            }
+
+            return Err(res.unwrap_err());
+        } else if self.round == 1 {
+            let res = self.partial_sign();
+            if res.is_ok() {
+                self.round += 1;
+                return Ok(res.unwrap());
+            }
+
+            return Err(res.unwrap_err());
+        }
+
+        Err(ThresholdCryptoError::InvalidRound)
+    }
+
+    fn partial_sign(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
+        let group = self.key.get_group();
         let order = group.get_order();
-        let nonce = instance.get_nonce();
-        let commitment_list = instance.get_commitment_list();
 
-        let binding_factor_list = compute_binding_factors(commitment_list, msg, &sk.get_group());
-        let binding_factor = binding_factor_for_participant(&binding_factor_list, sk.id);
+        if self.get_nonce().is_none() {
+            return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
+        }
+
+        let nonce = self.get_nonce().as_ref().unwrap();
+        let commitment_list = self.get_commitment_list();
+
+        
+
+
+        println!("self.key.id = {}", self.key.id);
+        let binding_factor_list = compute_binding_factors(commitment_list, self.msg, &self.key.get_group());
+
+        for i in 0..binding_factor_list.len() {
+            println!("{}", binding_factor_list[i].id);
+        }
+
+
+        let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
             return Err(binding_factor.expect_err(""));
         }
 
+        println!("still running");
+
         let binding_factor = binding_factor.unwrap();
-        let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &sk.get_group());
+        let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
         if group_commitment.is_err() {
             return Err(group_commitment.expect_err(""));
         }
@@ -353,8 +365,8 @@ impl FrostThresholdSignature {
         let group_commitment = group_commitment.unwrap();
 
         let participant_list = participants_from_commitment_list(commitment_list);
-        let lambda_i = lagrange_coeff(&group, &participant_list, sk.get_id() as i32);
-        let challenge = compute_challenge(&group_commitment, &sk.get_public_key(), msg);
+        let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_id() as i32);
+        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), self.msg);
 
         let share = 
             nonce.hiding_nonce
@@ -365,23 +377,59 @@ impl FrostThresholdSignature {
             .rmod(&order)
             .add(
                  &lambda_i
-                 .mul_mod(&sk.x, &order)
+                 .mul_mod(&self.key.x, &order)
                  .mul_mod(&challenge, &order)
                 )
             .rmod(&order);
 
-        instance.commitment_list = commitment_list.to_vec();
-        instance.group_commitment = Option::Some(group_commitment);
+        self.commitment_list = commitment_list.to_vec();
+        self.group_commitment = Option::Some(group_commitment);
 
-        Ok(FrostRoundResult {share: Some(FrostSignatureShare { id: sk.get_id(), data:share }), id: sk.id, public_commitment:None})
+        Ok(FrostRoundResult::RoundTwo(FrostSignatureShare { id: self.key.get_id(), data:share }))
     }
 
-    pub fn verify_share(share: &FrostSignatureShare, pk: &FrostPublicKey, instance: &FrostInstance, msg: &[u8]) -> Result<bool, ThresholdCryptoError> {
-        let commitment_list = instance.get_commitment_list();
-        
-        let commitment = instance.get_commitment();
+    fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, ThresholdCryptoError> {
+        let hiding_nonce = nonce_generate(&self.key.x, rng);
+        let binding_nonce = nonce_generate(&self.key.x, rng);
+        let hiding_nonce_commitment = GroupElement::new_pow_big(&self.key.get_group(), &hiding_nonce);
+        let binding_nonce_commitment = GroupElement::new_pow_big(&self.key.get_group(), &binding_nonce);
+        let nonce = Nonce { hiding_nonce, binding_nonce };
+        let comm = PublicCommitment { id: self.key.get_id(), hiding_nonce_commitment, binding_nonce_commitment };
 
-        let binding_factor_list = compute_binding_factors(&commitment_list, &msg, &pk.get_group());
+       //FrostThresholdSignature { nonce, commitment:comm, commitment_list:Vec::new(), group_commitment:Option::None, share:Option::None }
+        self.commitment = Some(comm.clone());
+        self.nonce = Some(nonce.clone());
+
+        Ok(FrostRoundResult::RoundOne(comm))
+    }
+
+    fn assemble(&self) -> Result<FrostSignature, ThresholdCryptoError> {
+        let group_commitment;
+        if let Some(group_commit) = &self.group_commitment {
+            group_commitment = group_commit;
+        } else {
+            return Err(ThresholdCryptoError::WrongState);
+        }
+
+        let mut z = BigImpl::new_int(&group_commitment.get_group(), 0);
+        for i in 0..self.shares.len() {
+            z = z.add(&self.shares[i].data).rmod(&self.shares[i].data.get_group().get_order());
+        }
+
+        Ok(FrostSignature { R: group_commitment.clone(), z })
+    }
+
+    fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, ThresholdCryptoError> {
+        let commitment_list = self.get_commitment_list();
+        let pk = &self.key.pubkey;
+        let msg = self.msg;
+        if self.get_commitment().is_none() {
+            return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
+        }
+
+        let commitment = self.get_commitment().as_ref().unwrap();
+
+        let binding_factor_list = compute_binding_factors(&commitment_list, &self.msg, &self.key.get_group());
         let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
         if binding_factor.is_err() {
             return Err(binding_factor.expect_err(""));
@@ -407,37 +455,34 @@ impl FrostThresholdSignature {
         Ok(l.eq(&r))
     }
 
-    pub fn commit(sk: &FrostPrivateKey, rng: &mut RNG, instance: &mut FrostInstance) -> Result<FrostRoundResult, ThresholdCryptoError> {
-        println!("commit");
-        let hiding_nonce = nonce_generate(&sk.x, rng);
-        let binding_nonce = nonce_generate(&sk.x, rng);
-        let hiding_nonce_commitment = GroupElement::new_pow_big(&sk.get_group(), &hiding_nonce);
-        let binding_nonce_commitment = GroupElement::new_pow_big(&sk.get_group(), &binding_nonce);
-        let nonce = Nonce { hiding_nonce, binding_nonce };
-        let comm = PublicCommitment { id: sk.get_id(), hiding_nonce_commitment, binding_nonce_commitment };
-
-       //FrostInstance { nonce, commitment:comm, commitment_list:Vec::new(), group_commitment:Option::None, share:Option::None }
-        instance.commitment.push(comm.clone());
-        instance.nonce.push(nonce);
-
-        Ok(FrostRoundResult { id: sk.id, public_commitment: Some(comm), share:None })
+    fn get_nonce(&self) -> &Option<Nonce> {
+        &self.nonce
     }
 
-    pub fn assemble(instance: &FrostInstance, sig_shares: &Vec<FrostSignatureShare>) -> Result<FrostSignature, ThresholdCryptoError> {
-        let group_commitment;
-        if let Some(group_commit) = instance.get_group_commitment() {
-            group_commitment = group_commit;
-        } else {
-            return Err(ThresholdCryptoError::WrongState);
-        }
-
-        let mut z = BigImpl::new_int(&group_commitment.get_group(), 0);
-        for i in 0..sig_shares.len() {
-            z = z.add(&sig_shares[i].data).rmod(&sig_shares[i].data.get_group().get_order());
-        }
-
-        Ok(FrostSignature { R: group_commitment.clone(), z })
+    fn get_commitment(&self) -> &Option<PublicCommitment> {
+        &self.commitment
     }
+
+    fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
+        &self.commitment_list
+    }
+
+    fn get_group_commitment(&self) -> &Option<GroupElement> {
+        &self.group_commitment
+    }
+
+    pub fn is_ready_for_next_round(&self) -> bool {
+        true
+    }
+}
+
+#[repr(C)]
+#[derive(AsnType, Debug, PartialEq, Clone)]
+#[rasn(enumerated)]
+pub enum FrostRoundResult {
+    RoundOne(PublicCommitment),
+    RoundTwo(FrostSignatureShare)
+}
 
     pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
         let challenge = compute_challenge(&signature.R, pk, msg);
@@ -447,7 +492,7 @@ impl FrostThresholdSignature {
         l.eq(&r)
     }
 
-    pub fn get_share(instance: &FrostInstance) -> Result<FrostSignatureShare, ThresholdCryptoError> {
+    pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, ThresholdCryptoError> {
         if instance.share.is_none() {
             return Err(ThresholdCryptoError::WrongState);
         }
@@ -455,22 +500,6 @@ impl FrostThresholdSignature {
         Ok(instance.share.clone().unwrap())
     }
 
-    pub fn sign_round(sk: &FrostPrivateKey, msg: Option<&[u8]>, instance: &mut FrostInstance, round: u8) -> Result<FrostRoundResult, ThresholdCryptoError> {
-        if round > ThresholdScheme::Frost.get_rounds() {
-            return Err(ThresholdCryptoError::InvalidRound);
-        }
-
-        if round != 0 && msg.is_none() {
-            return Err(ThresholdCryptoError::ParamsNotSet);
-        }
-
-        match round {
-            0 => return Self::commit(&sk, &mut RNG::new(RngAlgorithm::MarsagliaZaman), instance),
-            1 => return Self::partial_sign(&sk, msg.unwrap(), instance),
-            _ => return Err(ThresholdCryptoError::InvalidRound)
-        }
-    }
-}
 
 fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {
     let k_enc = rng.random_bytes(32);

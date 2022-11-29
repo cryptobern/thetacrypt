@@ -1,6 +1,6 @@
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
 use rug::float::Round;
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04ThresholdSignature, Bls04Signature}, frost::{FrostSignatureShare, FrostThresholdSignature, FrostSignature, FrostInstance, FrostRoundResult}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignatureShare, Sh00Signature}};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04ThresholdSignature, Bls04Signature}, frost::{FrostSignatureShare, FrostThresholdSignature, FrostSignature, FrostRoundResult}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignatureShare, Sh00Signature}};
 
 pub trait Serializable:
     Sized
@@ -796,50 +796,65 @@ impl ThresholdSignature {
     }
 }
 
-#[derive(AsnType, PartialEq, Clone)]
-#[rasn(enumerated)]
-pub enum InteractiveSignatureInstance {
-    Frost(FrostInstance)
-}
-
-impl InteractiveSignatureInstance {
-    pub fn process_round_results(&mut self, rr: &Vec<RoundResult>) -> Result<(), ThresholdCryptoError> {
-        match self {
-            Self::Frost(inst) => {
-                let round_results = unwrap_enum_vec!(rr, RoundResult::Frost, ThresholdCryptoError::WrongScheme);
-                if round_results.is_err() {
-                    return Err(round_results.unwrap_err())
-                }
-                inst.process_round_results(&round_results.unwrap());
-                Ok(())
-            }
-        }
-    }
-}
-
 #[derive(Debug, AsnType, PartialEq, Clone)]
 #[rasn(enumerated)]
 pub enum RoundResult {
     Frost(FrostRoundResult)
 }
 
-
 impl RoundResult {
-    pub fn get_share(&self) -> SignatureShare {
+    /*pub fn get_share(&self) -> SignatureShare {
         match self {
             RoundResult::Frost(rr) => SignatureShare::Frost(rr.get_share())
         }
-    }
+    }*/
 }
 
-pub struct InteractiveThresholdSignature {}
+pub enum InteractiveThresholdSignature<'a> {
+    Frost(FrostThresholdSignature<'a>)
+}
 
-impl InteractiveThresholdSignature {
+impl<'a> InteractiveThresholdSignature<'a> {
+    pub fn new(key: &'a PrivateKey, msg: &'a[u8]) -> Result<Self, ThresholdCryptoError> {
+        match key {
+            PrivateKey::Frost(sk) => {
+                return Ok(Self::Frost(FrostThresholdSignature::new(&sk, msg)));
+            }, 
+            _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+    }
+
+    pub fn is_finished(&self) -> bool {
+        match self {
+            InteractiveThresholdSignature::Frost(i) => i.is_finished()
+        }
+    }
+
+    pub fn is_ready_for_next_round(&self) -> bool {
+        match self {
+            InteractiveThresholdSignature::Frost(i) => i.is_ready_for_next_round()
+        }
+    }
+
+    pub fn update(&mut self, rr: &RoundResult) -> Result<(), ThresholdCryptoError> {
+        match self {
+            Self::Frost(inst) => {
+                if let RoundResult::Frost(round_result) = rr {
+                    inst.update(&round_result);
+                    return Ok(());
+                }
+         
+                return Err(ThresholdCryptoError::WrongKeyProvided);
+                
+            }
+        }
+    }
+
     pub fn verify(sig: &Signature, pubkey: &PublicKey, msg: &[u8]) -> Result<bool, ThresholdCryptoError> {
         match sig {
             Signature::Frost(s) => {
                 match pubkey {
-                    PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
+                    //PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
                     _ => Err(ThresholdCryptoError::WrongKeyProvided)
                 }
             },
@@ -848,55 +863,29 @@ impl InteractiveThresholdSignature {
         }
     }
 
-    pub fn sign_round(sk: &PrivateKey, msg: Option<&[u8]>, instance:&mut InteractiveSignatureInstance, round:u8) -> Result<RoundResult, ThresholdCryptoError>  {
-        match sk {
-            PrivateKey::Frost(key) => { 
-                match instance {
-                    InteractiveSignatureInstance::Frost(inst) => {
-                        println!("match found");
-                        let r = FrostThresholdSignature::sign_round(key, msg, inst, round);
-                        if r.is_err() {
-                            return Err(r.err().unwrap());
-                        }
-                        Ok(RoundResult::Frost(r.unwrap()))
-                    }
+    pub fn do_round(&mut self) -> Result<RoundResult, ThresholdCryptoError>  {
+        match self {
+            Self::Frost(instance) => { 
+                let res = instance.do_round();
+                if res.is_ok() {
+                   return Ok(RoundResult::Frost(res.unwrap()));
                 }
-                
+
+                return Err(res.unwrap_err());
             }
             _ => Err(ThresholdCryptoError::WrongKeyProvided)
         }
     }
 
-    /*
-    pub fn verify_share(share: &SignatureShare, msg: &[u8], pubkey: &PublicKey) -> Result<bool, ThresholdCryptoError>  {
-        match share {
-            SignatureShare::Frost(s) => {
-                match pubkey {
-                    PublicKey::Frost(key) => FrostThresholdSignature::verify_share(s, msg, key),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided)
-                }
-            },
-            _ => Err(ThresholdCryptoError::WrongKeyProvided)
-        }
-    }*/
-
-    pub fn assemble(instance: &InteractiveSignatureInstance, shares: &Vec<SignatureShare>, msg: &[u8], pubkey: &PublicKey) -> Result<Signature, ThresholdCryptoError> {
-        match pubkey {
-            PublicKey::Frost(key) => {
-                let shares = unwrap_enum_vec!(shares, SignatureShare::Frost, ThresholdCryptoError::WrongScheme);
-
-                if shares.is_ok() {
-                    if let InteractiveSignatureInstance::Frost(inst) = instance {
-                        let r = FrostThresholdSignature::assemble(inst, &shares.unwrap());
-                        if r.is_ok() {
-                            return Ok(Signature::Frost(r.unwrap()));
-                        }
-
-                        return Err(r.err().unwrap());
-                    } 
+    pub fn get_signature(&self) -> Result<Signature, ThresholdCryptoError> {
+        match self {
+            Self::Frost(instance) => {
+                let res = instance.get_signature();
+                if res.is_ok() {
+                    return Ok(Signature::Frost(res.unwrap()));
                 }
 
-                Err(shares.err().unwrap())
+                return Err(res.unwrap_err());  
             },
             _ => Err(ThresholdCryptoError::WrongKeyProvided)
         }
@@ -931,7 +920,9 @@ pub enum ThresholdCryptoError {
     IncompatibleGroup,
     WrongState,
     PreviousRoundNotExecuted,
-    InvalidRound
+    InvalidRound,
+    InvalidShare,
+    ProtocolNotFinished,
 }
 
 pub struct ThresholdCipherParams {
