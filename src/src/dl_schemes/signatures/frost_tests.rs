@@ -18,8 +18,8 @@ fn test_interface() {
 
     let mut instances = Vec::new();
 
-    for _ in 0..k {
-        let I = InteractiveThresholdSignature::new(&keys[0], msg).unwrap();
+    for i in 0..k {
+        let I = InteractiveThresholdSignature::new(&keys[i], msg).unwrap();
         instances.push(I);
     }
 
@@ -41,7 +41,7 @@ fn test_interface() {
         round_results.clear();
     }
 
-    //let signature = instances[0].get_signature().unwrap();
+    let signature = instances[0].get_signature().unwrap();
 
-   // InteractiveThresholdSignature::verify(&signature, &pk, msg);
+    assert!(InteractiveThresholdSignature::verify(&signature, &pk, msg).unwrap());
 }

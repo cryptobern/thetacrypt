@@ -1,3 +1,5 @@
+use std::{error::Error, fmt::Display};
+
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
 use rug::float::Round;
 use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04ThresholdSignature, Bls04Signature}, frost::{FrostSignatureShare, FrostThresholdSignature, FrostSignature, FrostRoundResult}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignatureShare, Sh00Signature}};
@@ -840,8 +842,12 @@ impl<'a> InteractiveThresholdSignature<'a> {
         match self {
             Self::Frost(inst) => {
                 if let RoundResult::Frost(round_result) = rr {
-                    inst.update(&round_result);
-                    return Ok(());
+                    let rs = inst.update(&round_result);
+                    if rs.is_ok() {
+                        return Ok(());
+                    }
+                    
+                    return Err(rs.unwrap_err());
                 }
          
                 return Err(ThresholdCryptoError::WrongKeyProvided);
@@ -854,7 +860,7 @@ impl<'a> InteractiveThresholdSignature<'a> {
         match sig {
             Signature::Frost(s) => {
                 match pubkey {
-                    //PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
+                    PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
                     _ => Err(ThresholdCryptoError::WrongKeyProvided)
                 }
             },
@@ -923,6 +929,18 @@ pub enum ThresholdCryptoError {
     InvalidRound,
     InvalidShare,
     ProtocolNotFinished,
+    NotReadyForNextRound,
+}
+
+impl Error for ThresholdCryptoError {}
+
+impl Display for ThresholdCryptoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WrongGroup => write!(f, ""),
+            _ => write!(f, "")
+        }
+    }
 }
 
 pub struct ThresholdCipherParams {

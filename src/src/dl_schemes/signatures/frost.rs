@@ -251,14 +251,13 @@ pub struct FrostThresholdSignature<'a> {
     group_commitment: Option<GroupElement>,
     share: Option<FrostSignatureShare>,
     shares: Vec<FrostSignatureShare>,
-    received_round_results: u16,
     signature: Option<FrostSignature>,
-    finished: bool,
+    finished: bool
 }
 
 impl<'a> FrostThresholdSignature<'a> {
     pub fn new(key: &'a FrostPrivateKey, msg: &'a[u8]) -> Self {
-        Self {round:0, msg, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, received_round_results: 0, finished: false, signature:Option::None}
+        Self {round:0, msg, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
     }
 
     pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), ThresholdCryptoError> {
@@ -274,12 +273,16 @@ impl<'a> FrostThresholdSignature<'a> {
                 }
 
                 if !result.unwrap() {
+                    println!("invalid share");
                     return Err(ThresholdCryptoError::InvalidShare);
                 }
 
                 self.shares.push(share.clone());
 
+                println!("share added");
+
                 if self.shares.len() == self.key.get_threshold() as usize {
+                    println!("all shares received");
                     let sig = self.assemble();
                     if sig.is_err() {
                         return Err(sig.unwrap_err());
@@ -290,6 +293,25 @@ impl<'a> FrostThresholdSignature<'a> {
 
                 Ok(())
             },
+            _ => Err(ThresholdCryptoError::InvalidRound)
+        }
+    }
+
+    pub fn is_ready_for_next_round(&self) -> bool {
+        match self.round {
+            1 => {
+                if self.commitment_list.len() >= self.key.get_threshold() as usize {
+                    return true;
+                }
+                return false;
+            },
+            2 => {
+                if self.shares.len() >= self.key.get_threshold() as usize {
+                    return true;
+                }
+                return false;
+            },
+            _ => return false
         }
     }
 
@@ -302,7 +324,7 @@ impl<'a> FrostThresholdSignature<'a> {
     }
 
     pub fn is_finished(&self) -> bool {
-        false
+        self.round == 2 && self.signature.is_some()
     }
 
     pub fn do_round(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
@@ -318,6 +340,7 @@ impl<'a> FrostThresholdSignature<'a> {
             let res = self.partial_sign();
             if res.is_ok() {
                 self.round += 1;
+
                 return Ok(res.unwrap());
             }
 
@@ -337,24 +360,13 @@ impl<'a> FrostThresholdSignature<'a> {
 
         let nonce = self.get_nonce().as_ref().unwrap();
         let commitment_list = self.get_commitment_list();
-
         
-
-
-        println!("self.key.id = {}", self.key.id);
         let binding_factor_list = compute_binding_factors(commitment_list, self.msg, &self.key.get_group());
-
-        for i in 0..binding_factor_list.len() {
-            println!("{}", binding_factor_list[i].id);
-        }
-
 
         let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
             return Err(binding_factor.expect_err(""));
         }
-
-        println!("still running");
 
         let binding_factor = binding_factor.unwrap();
         let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
@@ -362,11 +374,20 @@ impl<'a> FrostThresholdSignature<'a> {
             return Err(group_commitment.expect_err(""));
         }
 
-        let group_commitment = group_commitment.unwrap();
+        let group_commitment = group_commitment.unwrap();     
 
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_id() as i32);
         let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), self.msg);
+
+        print!("sign part. list({}): ", self.key.get_id());
+
+        for i in 0..participant_list.len() {
+            print!("{}", participant_list[i]);
+        }
+        print!("\n");
+
+        println!("sign lambda: {} chall: {} binding_factor: {}", lambda_i.to_string(), challenge.to_string(), binding_factor.factor.to_string());
 
         let share = 
             nonce.hiding_nonce
@@ -382,7 +403,7 @@ impl<'a> FrostThresholdSignature<'a> {
                 )
             .rmod(&order);
 
-        self.commitment_list = commitment_list.to_vec();
+        //self.commitment_list = commitment_list.to_vec();
         self.group_commitment = Option::Some(group_commitment);
 
         Ok(FrostRoundResult::RoundTwo(FrostSignatureShare { id: self.key.get_id(), data:share }))
@@ -427,7 +448,11 @@ impl<'a> FrostThresholdSignature<'a> {
             return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
         }
 
-        let commitment = self.get_commitment().as_ref().unwrap();
+        let commitment = commitment_for_participant(&self.commitment_list, share.get_id());
+        if commitment.is_err() {
+            return Err(commitment.expect_err(""));
+        }
+        let commitment = commitment.unwrap();
 
         let binding_factor_list = compute_binding_factors(&commitment_list, &self.msg, &self.key.get_group());
         let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
@@ -471,8 +496,12 @@ impl<'a> FrostThresholdSignature<'a> {
         &self.group_commitment
     }
 
-    pub fn is_ready_for_next_round(&self) -> bool {
-        true
+    pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
+        let challenge = compute_challenge(&signature.R, pk, msg);
+        
+        let l = GroupElement::new_pow_big(&pk.get_group(), &signature.z);
+        let r = signature.R.mul(&pk.y.pow(&challenge));
+        l.eq(&r)
     }
 }
 
@@ -484,13 +513,7 @@ pub enum FrostRoundResult {
     RoundTwo(FrostSignatureShare)
 }
 
-    pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
-        let challenge = compute_challenge(&signature.R, pk, msg);
-        
-        let l = GroupElement::new_pow_big(&pk.get_group(), &signature.z);
-        let r = signature.R.mul(&pk.y.pow(&challenge));
-        l.eq(&r)
-    }
+    
 
     pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, ThresholdCryptoError> {
         if instance.share.is_none() {
@@ -534,6 +557,7 @@ fn compute_group_commitment(commitment_list: &[PublicCommitment], binding_factor
 
         group_commitment = group_commitment.mul(&commitment_list[i].hiding_nonce_commitment).mul(&commitment_list[i].binding_nonce_commitment.pow(&binding_factor));
     }
+
     Ok(group_commitment)
 }
 
@@ -562,6 +586,16 @@ fn binding_factor_for_participant(binding_factor_list: &Vec<BindingFactor> , ide
     for i in 0..binding_factor_list.len() {
         if identifier as u16 == binding_factor_list[i].id {
             return Ok(binding_factor_list[i].clone());
+        }
+    }
+
+    Err(ThresholdCryptoError::IdNotFound)
+}
+
+fn commitment_for_participant(commitment_list: &[PublicCommitment], identifier: u16) -> Result<PublicCommitment, ThresholdCryptoError> {
+    for i in 0..commitment_list.len() {
+        if identifier as u16 == commitment_list[i].id {
+            return Ok(commitment_list[i].clone());
         }
     }
 
