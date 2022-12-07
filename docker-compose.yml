@@ -1,0 +1,222 @@
+version: '3'
+
+services:
+  cosmoscrypto1:
+    container_name: cosmoscrypto1
+    build: 
+      context: ./DOCKER
+      network: host
+    command: server 1 -l
+    env_file:
+      - config.env
+    image: rust-threshold-library
+    ports:
+      - "27001:27000"
+      - "50051:50050"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.2
+
+  cosmoscrypto2:
+    container_name: cosmoscrypto2
+    build:
+      context: ./DOCKER
+      network: host
+    env_file:
+      - config.env
+    command: server 2 -l
+    image: rust-threshold-library
+    ports:
+      - "27002:27000"
+      - "50052:50050"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.3
+
+  cosmoscrypto3:
+    container_name: cosmoscrypto3
+    build:
+      context: ./DOCKER
+      network: host
+    env_file:
+      - config.env
+    command: server 3 -l
+    image: rust-threshold-library
+    ports:
+      - "27003:27000"
+      - "50053:50050"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.4
+
+  cosmoscrypto4:
+    container_name: cosmoscrypto4
+    build: 
+      context: ./DOCKER
+      network: host
+    env_file:
+      - config.env
+    command: server 4 -l
+    image: rust-threshold-library
+    ports:
+      - "27004:27000"
+      - "50054:50050"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.5
+
+  abci1:
+    container_name: abci1
+    build: 
+      context: ./DOCKER
+      network: host
+      dockerfile: ./abci.Dockerfile
+    env_file:
+      - config.env
+    image: abci-img
+    restart: always
+    command: fair_order_app --listen-ip 192.167.10.6 --tcl-ip 192.167.10.2
+    depends_on:
+      - cosmoscrypto1
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.6
+
+  abci2:
+    container_name: abci2
+    build: 
+      context: ./DOCKER
+      network: host
+      dockerfile: ./abci.Dockerfile
+    env_file:
+      - config.env
+    image: abci-img
+    restart: always
+    command: fair_order_app --listen-ip 192.167.10.7 --tcl-ip 192.167.10.3
+    depends_on:
+      - cosmoscrypto2
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.7
+
+  abci3:
+    container_name: abci3
+    build: 
+      context: ./DOCKER
+      network: host
+      dockerfile: ./abci.Dockerfile
+    env_file:
+      - config.env
+    image: abci-img
+    restart: always
+    command: fair_order_app --listen-ip 192.167.10.8 --tcl-ip 192.167.10.4
+    depends_on:
+      - cosmoscrypto3
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.8
+
+  abci4:
+    container_name: abci4
+    build: 
+      context: ./DOCKER
+      network: host
+      dockerfile: ./abci.Dockerfile
+    env_file:
+      - config.env
+    image: abci-img
+    restart: always
+    command: fair_order_app --listen-ip 192.167.10.9 --tcl-ip 192.167.10.5
+    depends_on:
+      - cosmoscrypto4
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.9
+
+  tendermint1:
+      container_name: tendermint1
+      image: "tendermint/tendermint:v0.34.20"
+      user: root
+      ports:
+        - "26656-26657:26656-26657"
+        - "6060:6060"
+        - "27000:26660"
+      environment:
+        - ID=0
+        - LOG=${LOG:-tendermint.log}
+      volumes:
+        - ./tmp:/tendermint:Z
+      command: node --proxy_app=tcp://abci1:26658 --home ./node0
+      depends_on:
+        - abci1
+      networks:
+        localnet:
+          ipv4_address: 192.167.20.10
+
+  tendermint2:
+    container_name: tendermint2
+    image: "tendermint/tendermint:v0.34.20"
+    user: root
+    ports:
+      - "26659-26660:26656-26657"
+    environment:
+      - ID=1
+      - LOG=${LOG:-tendermint.log}
+    volumes:
+      - ./tmp:/tendermint:Z
+    command: node --proxy_app=tcp://abci2:26658 --home ./node1
+    depends_on:
+      - abci2
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.11
+
+  tendermint3:
+    container_name: tendermint3 
+    image: "tendermint/tendermint:v0.34.20"
+    user: root
+    environment:
+      - ID=2
+      - LOG=${LOG:-tendermint.log}
+    volumes:
+      - ./tmp:/tendermint:Z
+    ports:
+      - "26661-26662:26656-26657"
+    command: node --proxy_app=tcp://abci3:26658 --home ./node2
+    depends_on: 
+      - abci3
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.12
+
+  tendermint4:
+    container_name: tendermint4
+    image: "tendermint/tendermint:v0.34.20"
+    user: root
+    environment:
+      - ID=3
+      - LOG=${LOG:-tendermint.log}
+    volumes:
+      - ./tmp:/tendermint:Z
+    ports:
+      - "26663-26664:26656-26657"
+    command: node --proxy_app=tcp://abci4:26658 --home ./node3
+    depends_on:
+      - abci4
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.13
+
+networks:
+  localnet:
+    driver: bridge
+    name: threshold-net
+    ipam:
+      driver: default
+      config:
+        -
+          subnet: 192.167.20.0/16
