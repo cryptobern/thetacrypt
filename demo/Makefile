@@ -10,7 +10,7 @@
 # 	# if you encounter this error
 # 	# -- Could not create directory /tendermint/config. mkdir /tendermint/config: permission denied
 # 	# you need to give docker the permission to write in that location 
-# 	# run -> chmod 777 tmp 
+# 	# run -> chmod 777 tmp m
 
 
 set-up:

@@ -4,7 +4,7 @@ services:
   cosmoscrypto1:
     container_name: cosmoscrypto1
     build: 
-      context: ./DOCKER
+      context: .
       network: host
     command: server 1 -l
     env_file:
@@ -21,7 +21,7 @@ services:
   cosmoscrypto2:
     container_name: cosmoscrypto2
     build:
-      context: ./DOCKER
+      context: .
       network: host
     env_file:
       - config.env
@@ -38,7 +38,7 @@ services:
   cosmoscrypto3:
     container_name: cosmoscrypto3
     build:
-      context: ./DOCKER
+      context: .
       network: host
     env_file:
       - config.env
@@ -55,7 +55,7 @@ services:
   cosmoscrypto4:
     container_name: cosmoscrypto4
     build: 
-      context: ./DOCKER
+      context: .
       network: host
     env_file:
       - config.env
@@ -72,7 +72,7 @@ services:
   abci1:
     container_name: abci1
     build: 
-      context: ./DOCKER
+      context: .
       network: host
       dockerfile: ./abci.Dockerfile
     env_file:
@@ -89,7 +89,7 @@ services:
   abci2:
     container_name: abci2
     build: 
-      context: ./DOCKER
+      context: .
       network: host
       dockerfile: ./abci.Dockerfile
     env_file:
@@ -106,7 +106,7 @@ services:
   abci3:
     container_name: abci3
     build: 
-      context: ./DOCKER
+      context: .
       network: host
       dockerfile: ./abci.Dockerfile
     env_file:
@@ -123,7 +123,7 @@ services:
   abci4:
     container_name: abci4
     build: 
-      context: ./DOCKER
+      context: .
       network: host
       dockerfile: ./abci.Dockerfile
     env_file:
