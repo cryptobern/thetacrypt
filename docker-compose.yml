@@ -140,7 +140,6 @@ services:
   tendermint1:
       container_name: tendermint1
       image: "tendermint/tendermint:v0.34.20"
-      user: root
       ports:
         - "26656-26657:26656-26657"
         - "6060:6060"
@@ -160,7 +159,6 @@ services:
   tendermint2:
     container_name: tendermint2
     image: "tendermint/tendermint:v0.34.20"
-    user: root
     ports:
       - "26659-26660:26656-26657"
     environment:
@@ -178,7 +176,6 @@ services:
   tendermint3:
     container_name: tendermint3 
     image: "tendermint/tendermint:v0.34.20"
-    user: root
     environment:
       - ID=2
       - LOG=${LOG:-tendermint.log}
@@ -196,7 +193,6 @@ services:
   tendermint4:
     container_name: tendermint4
     image: "tendermint/tendermint:v0.34.20"
-    user: root
     environment:
       - ID=3
       - LOG=${LOG:-tendermint.log}
