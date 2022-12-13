@@ -820,7 +820,16 @@ impl<'a> InteractiveThresholdSignature<'a> {
     pub fn new(key: &'a PrivateKey, msg: &'a[u8]) -> Result<Self, ThresholdCryptoError> {
         match key {
             PrivateKey::Frost(sk) => {
-                return Ok(Self::Frost(FrostThresholdSignature::new(&sk, msg)));
+                return Ok(Self::Frost(FrostThresholdSignature::new(&sk)));
+            }, 
+            _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+    }
+
+    pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
+        match self {
+            Self::Frost(instance) => {
+                return instance.set_msg(msg);
             }, 
             _ => Err(ThresholdCryptoError::WrongScheme)
         }
@@ -930,6 +939,8 @@ pub enum ThresholdCryptoError {
     InvalidShare,
     ProtocolNotFinished,
     NotReadyForNextRound,
+    MessageNotSpecified,
+    MessageAlreadySpecified,
 }
 
 impl Error for ThresholdCryptoError {}

@@ -244,7 +244,7 @@ impl Decode for FrostSignature {
 pub struct FrostThresholdSignature<'a> {
     round: u8,
     key: &'a FrostPrivateKey,
-    msg: &'a [u8],
+    msg: Option<&'a[u8]>,
     nonce: Option<Nonce>,
     commitment: Option<PublicCommitment>,
     commitment_list: Vec<PublicCommitment>,
@@ -256,8 +256,16 @@ pub struct FrostThresholdSignature<'a> {
 }
 
 impl<'a> FrostThresholdSignature<'a> {
-    pub fn new(key: &'a FrostPrivateKey, msg: &'a[u8]) -> Self {
-        Self {round:0, msg, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
+    pub fn new(key: &'a FrostPrivateKey) -> Self {
+        Self {round:0, msg:None, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
+    }
+
+    pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
+        if self.msg.is_some() {
+            return Err(ThresholdCryptoError::MessageAlreadySpecified);
+        }
+        self.msg = Some(msg);
+        Ok(())
     }
 
     pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), ThresholdCryptoError> {
@@ -358,10 +366,14 @@ impl<'a> FrostThresholdSignature<'a> {
             return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
         }
 
+        if self.msg.is_none() {
+            return Err(ThresholdCryptoError::MessageNotSpecified);
+        }
+
         let nonce = self.get_nonce().as_ref().unwrap();
         let commitment_list = self.get_commitment_list();
         
-        let binding_factor_list = compute_binding_factors(commitment_list, self.msg, &self.key.get_group());
+        let binding_factor_list = compute_binding_factors(commitment_list, self.msg.unwrap(), &self.key.get_group());
 
         let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
@@ -378,7 +390,7 @@ impl<'a> FrostThresholdSignature<'a> {
 
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_id() as i32);
-        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), self.msg);
+        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), self.msg.unwrap());
 
         print!("sign part. list({}): ", self.key.get_id());
 
@@ -448,13 +460,17 @@ impl<'a> FrostThresholdSignature<'a> {
             return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
         }
 
+        if self.msg.is_none() {
+            return Err(ThresholdCryptoError::MessageNotSpecified);
+        }
+
         let commitment = commitment_for_participant(&self.commitment_list, share.get_id());
         if commitment.is_err() {
             return Err(commitment.expect_err(""));
         }
         let commitment = commitment.unwrap();
 
-        let binding_factor_list = compute_binding_factors(&commitment_list, &self.msg, &self.key.get_group());
+        let binding_factor_list = compute_binding_factors(&commitment_list, &self.msg.unwrap(), &self.key.get_group());
         let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
         if binding_factor.is_err() {
             return Err(binding_factor.expect_err(""));
@@ -470,7 +486,7 @@ impl<'a> FrostThresholdSignature<'a> {
 
         let comm_share = commitment.hiding_nonce_commitment.mul(&commitment.binding_nonce_commitment.pow(&binding_factor.factor));
 
-        let challenge = compute_challenge(&group_commitment, pk, msg);
+        let challenge = compute_challenge(&group_commitment, pk, msg.unwrap());
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&pk.get_group(), &participant_list, share.get_id() as i32);
 
