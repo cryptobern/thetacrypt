@@ -23,7 +23,7 @@ RUN apt-get update && \
 
 ENV PROJECT_PATH=/threasholdLibrary
 
-COPY ../src $PROJECT_PATH
+COPY ./src $PROJECT_PATH
 
 RUN cargo install --path $PROJECT_PATH/protocols
 

@@ -4,8 +4,9 @@ services:
   cosmoscrypto1:
     container_name: cosmoscrypto1
     build: 
-      context: .
+      context: ..
       network: host
+      dockerfile: ./demo/Dockerfile
     command: server 1 -l
     env_file:
       - config.env
@@ -21,8 +22,9 @@ services:
   cosmoscrypto2:
     container_name: cosmoscrypto2
     build:
-      context: .
+      context: ..
       network: host
+      dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
     command: server 2 -l
@@ -38,8 +40,9 @@ services:
   cosmoscrypto3:
     container_name: cosmoscrypto3
     build:
-      context: .
+      context: ..
       network: host
+      dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
     command: server 3 -l
@@ -55,8 +58,9 @@ services:
   cosmoscrypto4:
     container_name: cosmoscrypto4
     build: 
-      context: .
+      context: ..
       network: host
+      dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
     command: server 4 -l
@@ -72,9 +76,9 @@ services:
   abci1:
     container_name: abci1
     build: 
-      context: .
+      context: ..
       network: host
-      dockerfile: ./abci.Dockerfile
+      dockerfile: ./demo/abci.Dockerfile
     env_file:
       - config.env
     image: abci-img
@@ -89,9 +93,9 @@ services:
   abci2:
     container_name: abci2
     build: 
-      context: .
+      context: ..
       network: host
-      dockerfile: ./abci.Dockerfile
+      dockerfile: ./demo/abci.Dockerfile
     env_file:
       - config.env
     image: abci-img
@@ -106,9 +110,9 @@ services:
   abci3:
     container_name: abci3
     build: 
-      context: .
+      context: ..
       network: host
-      dockerfile: ./abci.Dockerfile
+      dockerfile: ./demo/abci.Dockerfile
     env_file:
       - config.env
     image: abci-img
@@ -123,9 +127,9 @@ services:
   abci4:
     container_name: abci4
     build: 
-      context: .
+      context: ..
       network: host
-      dockerfile: ./abci.Dockerfile
+      dockerfile: ./demo/abci.Dockerfile
     env_file:
       - config.env
     image: abci-img
