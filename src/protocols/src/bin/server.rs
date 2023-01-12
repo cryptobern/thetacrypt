@@ -65,7 +65,6 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
                 protocols_to_net_receiver,
                 net_to_protocols_sender,
                 tendermint_config,
-                my_id,
             ).await;
         });
     }

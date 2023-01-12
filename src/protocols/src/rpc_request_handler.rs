@@ -1,3 +1,4 @@
+use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
 use mcore::hash256::HASH256;
 use prost::Message;
 use tokio::sync::mpsc::Sender;
@@ -16,7 +17,8 @@ use crate::proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionSha
 use crate::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use crate::proto::protocol_types::PublicKeyEntry;
 use cosmos_crypto::interface::Ciphertext;
-use crate::threshold_cipher_protocol::{ThresholdCipherProtocol, ProtocolError};
+use crate::protocol::ProtocolError;
+use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
 
 
 type InstanceId = String;
@@ -61,6 +63,16 @@ enum StateUpdateCommand {
         instance_id: String,
         new_status: InstanceStatus
     },
+    // Returns the private keys that can be used with the given scheme and group
+    GetPrivateKeyByType { 
+        scheme: ThresholdScheme,
+        group: Group,
+        responder: tokio::sync::oneshot::Sender< Result<PrivateKeyEntry, String> >
+    },
+    // Returns all public keys that can be used for encryption.
+    GetPublicKeysForEncryption { 
+        responder: tokio::sync::oneshot::Sender< Result<Vec<PublicKeyEntry>, String> >
+    },
 }
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
@@ -71,7 +83,6 @@ fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
 }
 
 pub struct RpcRequestHandler {
-    key_chain: KeyChain,
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
@@ -84,7 +95,6 @@ impl RpcRequestHandler {
         let ciphertext = match Ciphertext::deserialize(ciphertext_bytes) {
             Ok(ctxt) => ctxt,
             Err(err) => {
-                println!(">> REQH: Could not deserialize ciphertext. Quitting request.");
                 return Err(Status::new(Code::InvalidArgument, format!("Could not deserialize ciphertext. Err: {:?}", err)));
             },
         };
@@ -102,12 +112,16 @@ impl RpcRequestHandler {
              return Err(Status::new(Code::AlreadyExists, format!("A similar request with request_id {instance_id} already exists.")))
         }
         
-        // Retrieve private and public key for this instance
+        // Retrieve private key for this instance
         let private_key_result: Result<PrivateKeyEntry, String> = if let Some(id) = key_id {
-            self.key_chain.get_key_by_id(id)
+            unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
         }
         else {
-            self.key_chain.get_key_by_type(ciphertext.get_scheme(), ciphertext.get_group()) 
+            let (response_sender, response_receiver) = oneshot::channel::<Result<PrivateKeyEntry, String>>();
+            let cmd = StateUpdateCommand::GetPrivateKeyByType { scheme: ciphertext.get_scheme(), group: ciphertext.get_group(), responder: response_sender };
+            self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+            let status = response_receiver.await.expect("response_receiver.await returned Err");
+            status
         };
         let private_key_entry = match private_key_result{
             Ok(key_entry) => key_entry,
@@ -167,7 +181,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         println!(">> REQH: Received a decrypt request.");
         let req: &DecryptRequest = request.get_ref();
 
-        // Do all required checks and create the new protocol instance
+        // Make all required checks and create the new protocol instance
         let (instance_id, mut prot) = match self.get_decryption_instance(&req.ciphertext, &req.key_id).await{
             Ok((instance_id, prot)) => (instance_id, prot),
             Err(err) => return Err(err),
@@ -222,7 +236,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");
-        match self.key_chain.get_public_keys_for_encryption(){
+        let (response_sender, response_receiver) = oneshot::channel::< Result< Vec<PublicKeyEntry>, String> >();
+        let cmd = StateUpdateCommand::GetPublicKeysForEncryption { responder: response_sender } ;
+        self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
+        let encryption_pks = response_receiver.await.expect("response_receiver.await returned Err");
+        match encryption_pks {
             Ok(keys) => {
                 // println!(">> REQH: Responding with {:?}.", keys[0].key);
                 Ok(Response::new(GetPublicKeysForEncryptionResponse { keys }))
@@ -230,7 +248,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             Err(err) => Err(Status::new(Code::Internal, err)),
         }
     }
-
 
     async fn get_decrypt_result(&self, request: Request<GetDecryptResultRequest>) -> Result<Response<GetDecryptResultResponse>, Status> {
         println!(">> REQH: Received a get_decrypt_result request.");
@@ -271,7 +288,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
 pub async fn init(rpc_listen_address: String,
                   rpc_listen_port: u32,
-                  key_chain: KeyChain,
+                  keychain: KeyChain,
                   mut incoming_message_receiver: tokio::sync::mpsc::Receiver<P2pMessage>,
                   outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
                   incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
@@ -294,7 +311,8 @@ pub async fn init(rpc_listen_address: String,
     // However, the channel must never be closed (i.e., one sender end, owned by the RpcRequestHandler, must always remain open).
     // let (result_sender, mut result_receiver) = tokio::sync::mpsc::channel::<(InstanceId, Option<Vec<u8>>)>(32);
 
-    // Spawn State Manager
+    // Spawn StateManager.
+    // Takes ownerhsip of keychain
     println!(">> REQH: Initiating the state manager.");
     tokio::spawn( async move {
         let mut instances_status_map: HashMap<String, InstanceStatus> = HashMap::new();
@@ -329,6 +347,14 @@ pub async fn init(rpc_listen_address: String,
                         StateUpdateCommand::UpdateInstanceStatus { instance_id, new_status } => {
                             instances_status_map.insert(instance_id, new_status);
                         }
+                        StateUpdateCommand::GetPrivateKeyByType { scheme, group, responder } => {
+                            let key_entry = keychain.get_key_by_type(scheme, group);
+                            responder.send(key_entry).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                        },
+                        StateUpdateCommand::GetPublicKeysForEncryption { responder } => {
+                            let pks = keychain.get_public_keys_for_encryption();
+                            responder.send(pks).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                        },
                         _ => unimplemented!()
                     }
                 }
@@ -347,54 +373,6 @@ pub async fn init(rpc_listen_address: String,
         let check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNES_INTERVAL as u64));
         loop {
             tokio::select! {
-                incoming_message = incoming_message_receiver.recv() => { // An incoming message was received.
-                    let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
-                    if let Some(instance_sender) = instance_senders.get(&instance_id) {
-                        instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
-                        // println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
-                    }
-                    else { 
-                        // No channel was found for the given instance_id. This can happen for two reasons:
-                        // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
-                        // - The instance has not yet started because the corresponding request has not yet arrived.
-                        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-                        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
-                        state_command_sender2.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
-                        let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
-                        
-                        if ! status.started { // - The instance has not yet started... Backlog the message.
-                            println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {BACKLOG_MAX_RETRIES}.");
-                            backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, BACKLOG_MAX_RETRIES));
-                        }
-                        else if status.finished { // - The instance has already finished... Do nothing
-                            // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
-                        }
-                        else { // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
-                            println!(">> FORW: ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
-                        }
-                    }
-                }
-
-                _ = backlog_interval.tick() => { // Retry sending the backlogged messages
-                    for _ in 0..backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
-                        let (P2pMessage{instance_id, message_data}, retries_left) = backlogged_messages.pop_front().unwrap(); 
-                        if let Some(instance_sender) = instance_senders.get(&instance_id) {
-                            instance_sender.send(message_data).await; 
-                            println!(">> FORW: Forwared message in net_to_prot. Instance_id: {:?}", &instance_id);
-                        }
-                        else { // Instance still not started. If there are tries left, push_back() the message again
-                            if retries_left > 0 {
-                                backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, retries_left - 1));
-                                println!(">> FORW: Could not forward message to instance. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {:?}. Instance_id: {instance_id}", retries_left - 1);
-                            }
-                            else {
-                                println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
-                            }
-                        }
-                    }
-                    
-                }
-
                 forwarder_command = forwarder_command_receiver.recv() => { // Received a command.
                     let command = forwarder_command.expect("Sender for forwarder_command_receiver closed.");
                     match command {
@@ -409,6 +387,19 @@ pub async fn init(rpc_listen_address: String,
                     }
                 }
                 
+                incoming_message = incoming_message_receiver.recv() => { // An incoming message was received.
+                    let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
+                    forward_or_backlog(&instance_id, message_data, BACKLOG_MAX_RETRIES, &instance_senders, &mut backlogged_messages, &state_command_sender2).await;
+                }
+
+                _ = backlog_interval.tick() => { // Retry sending the backlogged messages
+                    for _ in 0..backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
+                        let (P2pMessage{instance_id, message_data}, retries_left) = backlogged_messages.pop_front().unwrap(); 
+                        forward_or_backlog(&instance_id, message_data, retries_left, &instance_senders, &mut backlogged_messages, &state_command_sender2).await;
+                    }
+                    
+                }
+                
             }
         }
     });
@@ -417,7 +408,6 @@ pub async fn init(rpc_listen_address: String,
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
     let service = RpcRequestHandler{
-        key_chain,
         state_command_sender,
         forwarder_command_sender,
         outgoing_message_sender,
@@ -429,4 +419,46 @@ pub async fn init(rpc_listen_address: String,
         // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
         .serve(rpc_addr.parse().unwrap())
         .await.expect("");
+}
+
+
+async fn forward_or_backlog(instance_id: &String, 
+                            message_data: Vec<u8>, 
+                            backlog_retries_left: u32,
+                            instance_senders: &HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>> >,
+                            backlogged_messages: &mut VecDeque<(P2pMessage, u32)>,
+                            state_command_sender: &Sender<StateUpdateCommand> ){
+    // A channel was found for the given instance_id.
+    if let Some(instance_sender) = instance_senders.get(instance_id) {
+        instance_sender.send(message_data).await; // No error if this returns Err, it only means the instance has in the meanwhile finished.
+        println!(">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}", &instance_id);
+    }
+    else { 
+        // No channel was found for the given instance_id. This can happen for two reasons:
+        // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
+        // - The instance has not yet started because the corresponding request has not yet arrived.
+        // Ask the StateManager to find out what is the case.
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+        state_command_sender.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
+        let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
+        if ! status.started { 
+        // The instance has not yet started. Backlog the message, except if it was already backlogged too many times.
+            if backlog_retries_left > 0 {
+                backlogged_messages.push_back((P2pMessage{instance_id: instance_id.clone(), message_data}, backlog_retries_left - 1));
+                println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {backlog_retries_left}.");
+            }
+            else {
+                println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
+            }
+        }
+        else if status.finished { 
+        // The instance has already finished. Do not backlog the message.
+            // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
+        }
+        else { 
+        // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
+            println!(">> FORW: INTERNAL ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
+        }
+    }
 }

@@ -1,89 +1,112 @@
-A `Protocol` (`ThresholdCipherProtocol` or `ThresholdSignatureProtocol`) has the following interface:
-- on_init()
-- inChan: Used for incoming messages (such as threshold decryption shares)
-- outChan: Used for outgoing messages
+The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
 
-The request handling code is implemented in the `ThresholdProtocolService`. It has the following endpoints:
-- decrypt: Start a `ThresholdCipherProtocol`.
-- sign; Start a `ThresholdSignatureProtocol`.
-- store_decryption_share: Used to send a decryption share to an existing threshold cipher protocol.
-- store_signature_share: Used to send a signature share to an existing threshold cipher protocol.
+# Exposing protocols over RPC
+All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
-Currently a `Request`, (`DecryptRequest` or `ThresholdSignatureRequest`) does not contain
-a unique identifier. Hence, the application is responsible to make sure it sends each request once to the
-threshold crypto library.
+The RPC types are defined in `src\proto\protocol_types.proto`. Currently, the following endpoints are implemented:
+- decrypt()
+- get_decrypt_result()
+- decrypt_sync()
+- get_public_keys_for_encryption()
 
-The request handling code in the library uniquely identifies a `DecryptRequest` by the `label`
-field, which is serialized inside `DecryptRequest.ciphertext`, and a `ThresholdSignatureRequest`
-by the field `ThresholdSignatureRequest.message`.
+See the documentation for each of them in `src\proto\protocol_types.proto`
 
+# How to use the RPC server and client
+The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+From the root directory of the `protocols` project start 4 terminals and, for i = 1...4, run:
+```
+cargo run --bin server <i> -l
+```
+You should see each server process print that it is connected to the others and ready to receive client requests.
 
-### Request Handler:
-The idea is that there exists a single request handler struct (the ThresholdProtocolService),
-and the corresponding handler method is run every time a request is received.
-It checks the exact type of the request and starts the appropriate protocol as a new tokio task.
-Each protocol (tokio task) owns: 
-1) chan_in: the receiver end of a network-to-protocol channel, used for receiving messages (such as shares) from the network, and
-2) chan_out: the sender end of a protocol-to-network channel, used for sending messages to the network.
-These channels are created by the handler just before spawning the new tokio task.
-
-### State
-The state of the request handler currently is owned by the `ThresholdProtocolService`.
-It is initialized in the `tokio::main` function and then moved into `ThresholdProtocolService`.
-The methods that implement the s
-
-### State Manager:
-Responsible for keeping all the state related to requests (open/terminated).
-It only keeps the state, and does not implement any other logic (e.g., when to store
-a result of a request).
-There exists a separate Tokio task, the `StateManager`, responsible for the following:
-1) Handling the state of the request handler, i.e., the sender ends of the `network-to-protocol` channels
-and the receiver ends of `protocol-to-network` channels.
-The `StateManager` is created once, in the `tokio::main` function. It exposes a sender channel end to the request handler,
-called `state_manager_sender`. All updates to the state (i.e., adding and removing network-to-protocol and protocol-to-network
-channels, querying the state) take place by sending a `StateUpdateCommand` on `state_manager_sender`.
-2) It loops over all protocol-to-network channels and forwards the messages to the Network.
-3) It loops over all result-channels and handles the result of each instance.
-4) When the `RequestHandler` receives a decryption share (`push_decryption_share` method) it uses the `StateManager`
-to retrieve the appropriate network-to-protocol channel and then sends the share over that channel.
+An example RPC client can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
+```
+cargo run --bin client
+```
+This client binary uses the `decrypt()` and `decrypt_sync()` RPC endpoints.
 
 
-When the `StateManager` must return a value as response to `StateUpdateCommand` (e.g., `GetNetToProtSender`, `GetInstanceIdExists`),
-then this value is also returned via a channel. The caller (e.g., the `RequestHandler`) creates a `oneshot::channel` and
-sends the sender end (`tokio::sync::oneshot::Sender`) with the command. The `StateManager` will send the response through
-this sender, and the receiver gets it back on the corresponding receiver end.
+# The RPC request handler
+The RPC request handler (defined in `src\proto\protocol_types.proto`) is implemented in `src\rpc_request_handler.rs` by the `RpcRequestHandler` struct. The logic is the following:
+- The request handler is constantly listening for requests. The corresponding handler method (e.g., `decrypt()`, `decrypt_sync()`, `get_decrypt_result()`, etc.) is run every time a request is received.
+- For every received request (e.g., `DecryptRequest` for the `decrypt()` endpoint) make all the required correctness checks and then start a new protocol (in our example a `ThresholdCipherProtocol`) instance in a new tokio thread.
+- Each instance is assigned and identified by a unique `instance_id`. For example, a threshold-decryption instance is identified by the concatenation of the `label` field (which is part of `DecryptRequest.ciphertext`) and the hash of the ciphertext.
+- There exist separate tokio threads for handling the state and for forwarding incoming messages to the appropriate instance, as described in the following.
 
-*todo*: The `StateManager` runs a busy loop. Can we change this?
-The State Manager is spawned in a dedicated OS thread, not on a Tokio "green" thread, for the following reason:
-Currently, the best way I have found to make the State manager loop over the state_manager_receiver and all the
-prot_to_net channels is by having a `loop()` and `try_receive()` inside (maybe this is possible with `tokio::select!`,
-but don't know how). But this means the State Manager will be running a busy loop forever (there is no `.await`).
-If we run this as a Tokio task, it will be constantly running, causing other Tokio tasks to starve.
-        
-*todo*: Set tokio::runtime to use default - 1 worker threads, since we are using 1 for the state manager.
-https://docs.rs/tokio/1.2.0/tokio/attr.main.html
-https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#examples-2
+### State and state manager
+We use the "share memory by communicating" paradigm.
+There exists a Tokio task, the `StateManager`, spawned in the `init()` function of `src\rpc_request_handler.rs`, that is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
+It only keeps the state, and does not implement any other logic (e.g., when to start a request, when to update the status of a request).
 
-### Key management:
+Any state query or update _must_ happen through the `StateManager`. To this end, the `StateManager` listens for
+`StateUpdateCommand`s on the receiver end of a channel, named `state_command_receiver`. Any other thread, owing a clone
+of `state_command_sender` can submit state queries/updates. All these queries/updates are serialized in the 
+`state_command_sender -> state_command_receiver` channel and processed serially by the `StateManager`
+
+When the `StateManager` must return a value as response to `StateUpdateCommand` (e.g., `StateUpdateCommand::GetInstanceStatus`),
+then this value is also returned via a channel. The caller creates a `oneshot::channel` and
+sends the sender end (`tokio::sync::oneshot::Sender`) as part of the `StateUpdateCommand`.
+The `StateManager` will use this sender to respond, and the receiver awaits it on the corresponding receiver end.
+
+### MessageForwarder
+The `MessageForwarder` is responsible for forwarding received messages (received from the network) to the appropriate
+protocol instance (e.g., decryption shares to the corresponding threshold-decryption protocol instance).
+The `MessageForwarder` maintains a channel with _every_ protocol instance, where the sender end is owned 
+by `MessageForwarder` (see `instance_senders` variable)
+and the receiver end by the protocol. An instance is identified by its instance_id.
+The `MessageForwarder` constantly listens on `incoming_message_receiver` (the network layer owns the sender end
+of this channel) and forwards received messages to the appropriate instance, using the appropriate `instance_sender`.
+
+*Note:* The channels for communication between the `MessageForwarder` and protocol instances is an exception to the rule
+that all state is handled by the `StateManager`.
+This is because only the `MessageForwarder` needs to know how to reach each instance, i.e.,
+the `MessageForwarder` is the only responsible for maintaining these channels.
+When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageForwarder` about the
+existence of the new instance. This is done using a `MessageForwarderCommand`.
+
+### Backlog
+A logic for backlogging messages is implemented in the `MessageForwarder`. 
+This is necessary for the case when (due to asynchrony) a message (such as a decryption share) for an instance is received before
+the instance is started (because the actual request was delayed).
+
+### Assigning instance-id
+Each protocol instance must be assigned an 'instance_id'.
+This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
+The logic for assigning instance ids is abstracted in functions such as `assign_decryption_instance_id()`.
+
+
+
+# Protocols
+Threshold protocols are implemented in the `src\` directory, e.g.,
+`src\threshold_cipher_protocol.rs`.
+
+### Functions in a protocol
+A protocol exposes two functions, run() and terminate().
+The caller should only have to call run() to start the protocol instance.
+
+- About run():
+The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
+In the beginning it must make the necessary validity checks (e.g., validity of ciphertext).
+There is a loop(), which handles incoming shares. The loop exits when the instance is finished.
+This function is also responsible for returning the result to the caller.
+
+- About terminate():
+It is called by the instance to clean up any data.
+
+### Fields in a protocol
+Protocol types contain the following fields.
+See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.rs`. 
+- chan_in:
+The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
+- chan_out:
+The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
+
+
+
+# Key management:
 Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
 There is one key for every possible combination of algorithm and domain. In the future, the user should
 be able to ask our library to create more keys.
 Each key is uniquely identified by a key-id and contains the secret key (through which we have access
 to the corresponding public key and the threshold) and the key metadata (for now, the algorithm and domain
 it can be used for).
-When a request is received, we use the key that corresponds to the algorithm and DlGroup fields of the request.
-todo: Redesign this. The user should not have to specify all of the algorithm, domain, and key. Probably only key?
-
-### Context:
-Context variable that contains all the variables required by the Request Handler and the protocols.
-There must exist only one instance of Context.
-
-### Assigning instance-id
-Each incoming request (e.g., 'DecryptRequest' on 'ThresholdSignatureRequest' request) must be assigned an 'instance_id'.
-This identifies each protocol instance with a unique id. This id will be used to forward decryption shares to the corresponding protocol instance.
-It is also returned to the caller (e.g., through the 'DecryptReponse' or 'ThresholdSignatureResponse').
-The logic for assigning an id to each protocol instance is abstracted in the functions `assign_decryption_instance_id()`, `assign_signature_instance_id()`.
-
-TODOs:
-- There are many clone() calls, see if you can avoid them (especially in the request handler methods that are executed often, eg cloning keys).
-- There are many unwrap(). Handle failures.

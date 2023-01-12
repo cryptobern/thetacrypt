@@ -1,45 +1,11 @@
 use std::collections::HashSet;
 
-use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, TcError, ThresholdCipher};
+use crate::protocol::ProtocolError;
+use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
 use cosmos_crypto::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 
 
-type InstanceId = String;
-
-#[derive(Clone, Debug)]
-pub enum ProtocolError {
-    SchemeError(TcError),
-    InvalidCiphertext,
-    InstanceNotFound,
-    InternalError,
-}
-
-impl From<TcError> for ProtocolError{
-    fn from(tc_error: TcError) -> Self {
-        ProtocolError::SchemeError(tc_error)
-    }
-}
-/*
-A protocol must expose two functions, run() and terminate().
-The caller should only have to call run() to start the protocol instance.
-
-About run(): The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
-In the begining it must make the necessary validity checks (e.g., valididity of ciphertext).
-There is a loop(), which handles incoming shares. The loop is exited when the instance is finished.
-This function is also responsible for returning the result to the caller.
-
-About terminate(): It is called by the instance to cleanup any data.
-
-Fields in ThresholdCipherProtocol:
-- chan_in: The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
-- chan_out: The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
-*/
-
-pub trait Protocol: Send + Clone + 'static {
-    fn run(&mut self);
-    fn terminate(&mut self);
-}
 
 // todo: Right now we have to .clone() all the parameters we give to the protocol, because it takes ownership.
 // If I did this with references then I would have to make them all 'static (because the protocol runs on a thread)
@@ -93,11 +59,19 @@ impl ThresholdCipherProtocol {
         loop {
            match self.chan_in.recv().await {
                 Some(share) => {
-                    self.on_receive_decryption_share(DecryptionShare::deserialize(&share))?;
-                    if self.decrypted {
-                        self.terminate().await?;
-                        return Ok(self.decrypted_plaintext.clone());
-                    }
+                    match DecryptionShare::deserialize(&share){
+                        Ok(deserialized_share) => {
+                            self.on_receive_decryption_share(deserialized_share)?;
+                            if self.decrypted {
+                                self.terminate().await?;
+                                return Ok(self.decrypted_plaintext.clone());
+                            }
+                        },
+                        Err(tcerror) => {
+                            println!(">> PROT: Could not deserialize share. Share will be ignored.");
+                            continue;        
+                        },
+                    };
                 },
                 None => {
                     println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
@@ -132,15 +106,25 @@ impl ThresholdCipherProtocol {
         }
 
         if self.received_share_ids.contains(&share.get_id()){
-            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}.", &self.instance_id, share.get_id());
+            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}. Share will be ignored.", &self.instance_id, share.get_id());
             return Ok(());
         }
         self.received_share_ids.insert(share.get_id());
 
-        if ! ThresholdCipher::verify_share(&share, &self.ciphertext, &self.pk)?{
-            println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}.", &self.instance_id, share.get_id());
-            return Ok(());
+        let verification_result = ThresholdCipher::verify_share(&share, &self.ciphertext, &self.pk);
+        match verification_result{
+            Ok(is_valid) => {
+                if ! is_valid {
+                    println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                    return Ok(());
+                }
+            },
+            Err(err) => {
+                println!(">> PROT: instance_id: {:?} encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                return Ok(());
+            },
         }
+        
         self.valid_shares.push(share);
         
         if self.valid_shares.len() >= self.threshold as usize { 

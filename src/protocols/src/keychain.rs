@@ -12,7 +12,7 @@ pub struct KeyChain {
     key_entries: Vec<PrivateKeyEntry>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PrivateKeyEntry{
     pub id: String,
     is_default_for_scheme_and_group: bool,
@@ -166,7 +166,7 @@ impl KeyChain {
         matching_public_key_entries
     }
 
-    // Convert from KeyEntry to protocol_types::PublicKeyEntry
+    // Convert from PrivateKeyEntry to protocol_types::PublicKeyEntry
     fn get_public_key_entry(&self, key_entry: &PrivateKeyEntry) -> Result<protocol_types::PublicKeyEntry, String> {
         let key_ser = key_entry.key
                                         .get_public_key()
