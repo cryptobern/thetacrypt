@@ -1,86 +1,96 @@
 /// ---------- Decrypt a ciphertext ----------
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptRequest {
-    #[prost(bytes="vec", tag="1")]
+    #[prost(bytes = "vec", tag = "1")]
     pub ciphertext: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, optional, tag="2")]
+    #[prost(string, optional, tag = "2")]
     pub key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptReponse {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub instance_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptSyncRequest {
-    #[prost(bytes="vec", tag="1")]
+    #[prost(bytes = "vec", tag = "1")]
     pub ciphertext: ::prost::alloc::vec::Vec<u8>,
-    #[prost(string, optional, tag="2")]
+    #[prost(string, optional, tag = "2")]
     pub key_id: ::core::option::Option<::prost::alloc::string::String>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DecryptSyncReponse {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub instance_id: ::prost::alloc::string::String,
-    #[prost(bytes="vec", optional, tag="2")]
+    #[prost(bytes = "vec", optional, tag = "2")]
     pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDecryptResultRequest {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub instance_id: ::prost::alloc::string::String,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetDecryptResultResponse {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub instance_id: ::prost::alloc::string::String,
-    #[prost(bool, tag="2")]
+    #[prost(bool, tag = "2")]
     pub is_started: bool,
-    #[prost(bool, tag="3")]
+    #[prost(bool, tag = "3")]
     pub is_finished: bool,
-    #[prost(bytes="vec", optional, tag="4")]
+    #[prost(bytes = "vec", optional, tag = "4")]
     pub plaintext: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// ---------- Get available keys ----------
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PublicKeyEntry {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
-    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::ThresholdScheme", tag="2")]
+    #[prost(enumeration = "super::scheme_types::ThresholdScheme", tag = "2")]
     pub scheme: i32,
-    #[prost(enumeration="::cosmos_crypto::proto::scheme_types::Group", tag="3")]
+    #[prost(enumeration = "super::scheme_types::Group", tag = "3")]
     pub group: i32,
     /// bool is_default = 3;
-    #[prost(bytes="vec", tag="4")]
+    #[prost(bytes = "vec", tag = "4")]
     pub key: ::prost::alloc::vec::Vec<u8>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPublicKeysForEncryptionRequest {
-}
+pub struct GetPublicKeysForEncryptionRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPublicKeysForEncryptionResponse {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPublicKeysForSignatureRequest {
-}
+pub struct GetPublicKeysForSignatureRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPublicKeysForSignatureResponse {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub keys: ::prost::alloc::vec::Vec<PublicKeyEntry>,
 }
 /// ---------- Push decryption share, test only ----------
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PushDecryptionShareRequest {
-    #[prost(string, tag="1")]
+    #[prost(string, tag = "1")]
     pub instance_id: ::prost::alloc::string::String,
-    #[prost(bytes="vec", tag="2")]
+    #[prost(bytes = "vec", tag = "2")]
     pub decryption_share: ::prost::alloc::vec::Vec<u8>,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PushDecryptionShareResponse {
-}
+pub struct PushDecryptionShareResponse {}
 /// Generated client implementations.
 pub mod threshold_crypto_library_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
@@ -234,7 +244,7 @@ pub mod threshold_crypto_library_client {
             );
             self.inner.unary(request.into_request(), path, codec).await
         }
-        ///this is an alternative way to send shares. used only for testing
+        /// this is an alternative way to send shares. used only for testing
         pub async fn push_decryption_share(
             &mut self,
             request: impl tonic::IntoRequest<super::PushDecryptionShareRequest>,
@@ -260,7 +270,7 @@ pub mod threshold_crypto_library_client {
 pub mod threshold_crypto_library_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    ///Generated trait containing gRPC methods that should be implemented for use with ThresholdCryptoLibraryServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with ThresholdCryptoLibraryServer.
     #[async_trait]
     pub trait ThresholdCryptoLibrary: Send + Sync + 'static {
         /// decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
@@ -285,7 +295,7 @@ pub mod threshold_crypto_library_server {
             tonic::Response<super::GetPublicKeysForEncryptionResponse>,
             tonic::Status,
         >;
-        ///this is an alternative way to send shares. used only for testing
+        /// this is an alternative way to send shares. used only for testing
         async fn push_decryption_share(
             &self,
             request: tonic::Request<super::PushDecryptionShareRequest>,

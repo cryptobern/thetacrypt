@@ -1,6 +1,5 @@
 extern crate network;
 
-pub mod proto;
 pub mod keychain;
 pub mod rpc_request_handler;
 pub mod protocol;

@@ -13,7 +13,7 @@ use cosmos_crypto::keys::{KeyGenerator, PrivateKey, PublicKey};
 use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
 use cosmos_crypto::rand::{RNG, RngAlgorithm};
 use protocols::keychain::KeyChain;
-use protocols::proto::protocol_types;
+use thetacrypt_proto::protocol_types;
 
 fn main(){
     let args: Vec<String> = env::args().collect();

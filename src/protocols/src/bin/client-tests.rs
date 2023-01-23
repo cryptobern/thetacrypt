@@ -13,12 +13,12 @@ use cosmos_crypto::keys::{PublicKey, PrivateKey};
 use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
 use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, DecryptionShare, Ciphertext};
 
-use protocols::proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use protocols::proto::protocol_types;
-use protocols::proto::protocol_types::{PushDecryptionShareRequest};
-use protocols::proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
-use protocols::proto::protocol_types::{DecryptRequest, DecryptReponse};
-use protocols::proto::protocol_types::{DecryptSyncRequest, DecryptSyncReponse};
+use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use thetacrypt_proto::protocol_types;
+use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest};
+use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
+use thetacrypt_proto::protocol_types::{DecryptRequest, DecryptReponse};
+use thetacrypt_proto::protocol_types::{DecryptSyncRequest, DecryptSyncReponse};
 use protocols::keychain::KeyChain;
 
 

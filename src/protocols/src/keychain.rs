@@ -4,7 +4,7 @@ use cosmos_crypto::proto::scheme_types::Group;
 use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 
-use crate::proto::protocol_types;
+use thetacrypt_proto::protocol_types;
 
 
 #[derive(Serialize, Deserialize)]

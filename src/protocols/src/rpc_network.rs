@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tonic::transport::Channel;
 
-use crate::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, self};
+use thetacrypt_proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, self};
 
 type PeerId = u32;
 type IpAddres = String;

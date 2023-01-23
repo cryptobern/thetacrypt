@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 cosmos_crypto = {path = "../", version = "0.1.0"}
+thetacrypt_proto = {path = "../../thetacrypt_proto", version = "0.1.0"}
 tonic = "0.8"
 prost = "0.11"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
@@ -26,11 +27,3 @@ text_io = "0.1.12"
 [build-dependencies]
 tonic-build = "0.8"
 prost-build = "0.11.1"
-
-# [[bin]]
-# name = "server"
-# path = "src/server.rs"
-
-# [[bin]] 
-# name = "client"
-# path = "src/client.rs"

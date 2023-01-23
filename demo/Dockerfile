@@ -21,13 +21,14 @@ RUN apt-get update && \
 
 # RUN apk add libc-dev openssl-dev gdb strace && apk update
 
-ENV PROJECT_PATH=/threasholdLibrary
+ENV PROJECT_PATH=/rootLibrary
 
-COPY ./src $PROJECT_PATH
+COPY ./src $PROJECT_PATH/threasholdLibrary
+COPY ./thetacrypt_proto $PROJECT_PATH/thetacrypt_proto/
 
-RUN cargo install --path $PROJECT_PATH/protocols
+RUN cargo install --path $PROJECT_PATH/threasholdLibrary/protocols
 
-WORKDIR $PROJECT_PATH/protocols
+WORKDIR $PROJECT_PATH/threasholdLibrary/protocols
 
 #after docker run you can override CMD 
 

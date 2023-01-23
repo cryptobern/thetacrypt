@@ -1,6 +1,6 @@
 use std::{sync::mpsc::{Sender, Receiver, channel}, collections::HashMap, time::Duration};
 use tendermint_proto::abci::{RequestDeliverTx, RequestQuery, ResponseDeliverTx, ResponseQuery, RequestCheckTx, ResponseCheckTx};
-use protocols::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
+use thetacrypt_proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, DecryptSyncRequest, GetPublicKeysForEncryptionRequest};
 use tendermint_abci::{Application, Error};
 use tonic::transport::Channel;
 use base64;

@@ -15,13 +15,14 @@ RUN apt-get update && \
     apt install -y protobuf-compiler && \
     apt-get install m4
 
-ENV PROJECT_PATH=/threasholdLibrary
+ENV PROJECT_PATH=/img_root
 
-COPY ./src $PROJECT_PATH
+COPY ./thetacrypt_proto $PROJECT_PATH/thetacrypt_proto/
+COPY ./demo/abci_app $PROJECT_PATH/demo/abci_app/
 
-RUN cargo install --path $PROJECT_PATH/abci_app
+WORKDIR $PROJECT_PATH/demo/abci_app
 
-WORKDIR $PROJECT_PATH/abci_app
+RUN cargo install --path $PROJECT_PATH/demo/abci_app
 
 #after docker run you can override CMD 
 
