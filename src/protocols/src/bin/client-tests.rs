@@ -9,9 +9,9 @@ use mcore::hash256::HASH256;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 
-use cosmos_crypto::keys::{PublicKey, PrivateKey};
-use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
-use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, DecryptionShare, Ciphertext};
+use schemes::keys::{PublicKey, PrivateKey};
+use schemes::proto::scheme_types::{Group, ThresholdScheme};
+use schemes::interface::{ThresholdCipher, ThresholdCipherParams, DecryptionShare, Ciphertext};
 
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use thetacrypt_proto::protocol_types;

@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-cosmos_crypto = {path = "../", version = "0.1.0"}
-thetacrypt_proto = {path = "../../thetacrypt_proto", version = "0.1.0"}
+schemes = {path = "../schemes", version = "0.1.0"}
+thetacrypt_proto = {path = "../proto", version = "0.1.0"}
 tonic = "0.8"
 prost = "0.11"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-mcore = {path="../mcore", version="0.1.0", features=["std"]}
+mcore = {path="../schemes/mcore", version="0.1.0", features=["std"]}
 rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

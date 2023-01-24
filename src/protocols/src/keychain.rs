@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, fs::{self, File}, error::Error};
-use cosmos_crypto::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}, proto::scheme_types::ThresholdScheme};
-use cosmos_crypto::proto::scheme_types::Group;
+use schemes::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}, proto::scheme_types::ThresholdScheme};
+use schemes::proto::scheme_types::Group;
 use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 
@@ -17,7 +17,7 @@ pub struct PrivateKeyEntry{
     pub id: String,
     is_default_for_scheme_and_group: bool,
     is_default_for_operation: bool,
-    pub key: cosmos_crypto::keys::PrivateKey
+    pub key: schemes::keys::PrivateKey
 }
 
 #[derive(PartialEq, Eq)]

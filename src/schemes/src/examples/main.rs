@@ -6,11 +6,11 @@
 use std::time::Instant;
 
 use std::fmt::Write;
-use cosmos_crypto::interface::{ThresholdCipherParams, ThresholdCipher};
-use cosmos_crypto::keys::{KeyGenerator};
-use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
-use cosmos_crypto::rand::{RNG, RngAlgorithm};
-use cosmos_crypto::util::{printbinary, hex2string};
+use schemes::interface::{ThresholdCipherParams, ThresholdCipher};
+use schemes::keys::{KeyGenerator};
+use schemes::proto::scheme_types::{ThresholdScheme, Group};
+use schemes::rand::{RNG, RngAlgorithm};
+use schemes::util::{printbinary, hex2string};
 
 fn main() {
     const K: usize = 30; // threshold

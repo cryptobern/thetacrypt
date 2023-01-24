@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::protocol::ProtocolError;
-use cosmos_crypto::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
-use cosmos_crypto::keys::{PrivateKey, PublicKey};
+use schemes::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
+use schemes::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 
 

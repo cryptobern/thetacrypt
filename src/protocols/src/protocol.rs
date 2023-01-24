@@ -1,4 +1,4 @@
-use cosmos_crypto::interface::ThresholdCryptoError;
+use schemes::interface::ThresholdCryptoError;
 
 
 type InstanceId = String;

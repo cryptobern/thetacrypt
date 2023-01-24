@@ -2,7 +2,7 @@
 //     tonic::include_proto!("requests");
 // }
 use std::{error::Error, io::Read};
-use cosmos_crypto::{keys::PublicKey, interface::{ThresholdCipherParams, Ciphertext, ThresholdCipher}};
+use schemes::{keys::PublicKey, interface::{ThresholdCipherParams, Ciphertext, ThresholdCipher}};
 use structopt::StructOpt;
 use serde::{Deserialize, Deserializer, Serialize};
 use reqwest;

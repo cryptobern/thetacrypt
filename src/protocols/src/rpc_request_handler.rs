@@ -1,4 +1,4 @@
-use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
+use schemes::proto::scheme_types::{ThresholdScheme, Group};
 use mcore::hash256::HASH256;
 use prost::Message;
 use tokio::sync::mpsc::Sender;
@@ -9,14 +9,14 @@ use tokio::sync::oneshot;
 use tonic::{transport::Server, Request, Response, Status};
 
 use network::types::message::P2pMessage;
-use cosmos_crypto::keys::{PrivateKey, PublicKey};
+use schemes::keys::{PrivateKey, PublicKey};
 use crate::keychain::{KeyChain, PrivateKeyEntry};
 use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
 use thetacrypt_proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncRequest, DecryptSyncReponse, GetDecryptResultRequest, GetDecryptResultResponse};
 use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use thetacrypt_proto::protocol_types::PublicKeyEntry;
-use cosmos_crypto::interface::Ciphertext;
+use schemes::interface::Ciphertext;
 use crate::protocol::ProtocolError;
 use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
 

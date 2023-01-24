@@ -3,15 +3,15 @@ use std::fs::File;
 use std::io::Write;
 use std::thread::panicking;
 
-use cosmos_crypto::dl_schemes;
-// use cosmos_crypto::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
-use cosmos_crypto::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey};
-use cosmos_crypto::dl_schemes::dl_groups::bls12381::Bls12381;
+use schemes::dl_schemes;
+// use schemes::dl_schemes::ciphers::bz03::Bz03ThresholdCipher;
+use schemes::dl_schemes::ciphers::sg02::{Sg02ThresholdCipher, Sg02PrivateKey, Sg02PublicKey};
+use schemes::dl_schemes::dl_groups::bls12381::Bls12381;
 
-use cosmos_crypto::interface::{Serializable};
-use cosmos_crypto::keys::{KeyGenerator, PrivateKey, PublicKey};
-use cosmos_crypto::proto::scheme_types::{ThresholdScheme, Group};
-use cosmos_crypto::rand::{RNG, RngAlgorithm};
+use schemes::interface::{Serializable};
+use schemes::keys::{KeyGenerator, PrivateKey, PublicKey};
+use schemes::proto::scheme_types::{ThresholdScheme, Group};
+use schemes::rand::{RNG, RngAlgorithm};
 use protocols::keychain::KeyChain;
 use thetacrypt_proto::protocol_types;
 

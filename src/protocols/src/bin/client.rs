@@ -3,9 +3,9 @@ use std::{thread, time};
 use tokio::task::JoinHandle;
 use tonic::{Status, Response};
 
-use cosmos_crypto::proto::scheme_types::{Group, ThresholdScheme};
-use cosmos_crypto::interface::{ThresholdCipher, ThresholdCipherParams, Ciphertext};
-use cosmos_crypto::keys::{PublicKey};
+use schemes::proto::scheme_types::{Group, ThresholdScheme};
+use schemes::interface::{ThresholdCipher, ThresholdCipherParams, Ciphertext};
+use schemes::keys::{PublicKey};
 
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use thetacrypt_proto::protocol_types::{GetDecryptResultRequest};
