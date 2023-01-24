@@ -8,7 +8,7 @@ RUN apt-get update && \
 
 ENV PROJECT_PATH=/img_root
 
-COPY ./thetacrypt_proto $PROJECT_PATH/thetacrypt_proto/
+COPY ./src/proto $PROJECT_PATH/src/proto/
 COPY ./demo/abci_app $PROJECT_PATH/demo/abci_app/
 
 RUN cargo install --path $PROJECT_PATH/demo/abci_app

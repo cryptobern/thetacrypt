@@ -24,7 +24,6 @@ RUN apt-get update && \
 ENV PROJECT_PATH=/rootLibrary
 
 COPY ./src $PROJECT_PATH/threasholdLibrary
-COPY ./thetacrypt_proto $PROJECT_PATH/thetacrypt_proto/
 
 WORKDIR $PROJECT_PATH/threasholdLibrary/protocols
 
