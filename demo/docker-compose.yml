@@ -7,7 +7,7 @@ services:
       context: ..
       network: host
       dockerfile: ./demo/Dockerfile
-    command: server 1 -l
+    command: /target/release/server 1 -l
     env_file:
       - config.env
     image: rust-threshold-library
@@ -27,7 +27,7 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: server 2 -l
+    command: /target/release/server 2 -l
     image: rust-threshold-library
     ports:
       - "27002:27000"
@@ -45,7 +45,7 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: server 3 -l
+    command: /target/release/server 3 -l
     image: rust-threshold-library
     ports:
       - "27003:27000"
@@ -63,7 +63,7 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: server 4 -l
+    command: /target/release/server 4 -l
     image: rust-threshold-library
     ports:
       - "27004:27000"
@@ -83,7 +83,7 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: fair_order_app --listen-ip 192.167.10.6 --tcl-ip 192.167.10.2
+    command: ./fair_order_app --listen-ip 192.167.10.6 --tcl-ip 192.167.10.2
     depends_on:
       - cosmoscrypto1
     networks:
@@ -100,7 +100,7 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: fair_order_app --listen-ip 192.167.10.7 --tcl-ip 192.167.10.3
+    command: ./fair_order_app --listen-ip 192.167.10.7 --tcl-ip 192.167.10.3
     depends_on:
       - cosmoscrypto2
     networks:
@@ -117,7 +117,7 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: fair_order_app --listen-ip 192.167.10.8 --tcl-ip 192.167.10.4
+    command: ./fair_order_app --listen-ip 192.167.10.8 --tcl-ip 192.167.10.4
     depends_on:
       - cosmoscrypto3
     networks:
@@ -134,7 +134,7 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: fair_order_app --listen-ip 192.167.10.9 --tcl-ip 192.167.10.5
+    command: ./fair_order_app --listen-ip 192.167.10.9 --tcl-ip 192.167.10.5
     depends_on:
       - cosmoscrypto4
     networks:
