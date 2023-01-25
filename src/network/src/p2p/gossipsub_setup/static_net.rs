@@ -5,6 +5,7 @@ use libp2p::{
     swarm::SwarmEvent,
     PeerId, Swarm,
 };
+use log::debug;
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -39,12 +40,12 @@ pub async fn init(
 
     // load listener address from config file
     let listen_addr = get_p2p_listen_addr(&localnet_config, my_id);
-    println!(">> NET: Listening for P2P on: {}", listen_addr);
+    debug!("NET: Listening for P2P on: {}", listen_addr);
 
     // bind port to listener address
     match swarm.listen_on(listen_addr.clone()) {
         Ok(_) => (),
-        Err(error) => println!(">> NET: listen {:?} failed: {:?}", listen_addr, error),
+        Err(error) => debug!("NET: listen {:?} failed: {:?}", listen_addr, error),
     }
 
     // dial another peer in the network
@@ -84,23 +85,25 @@ async fn dial_local_net(swarm: &mut Swarm<Gossipsub>, config: Config, my_id: u32
                             // only useful output when the endpoint is of Enum variant "Dialer".
                             // from https://docs.rs/libp2p/latest/libp2p/core/enum.ConnectedPoint.html:
                             // "For Dialer, this returns address. For Listener, this returns send_back_addr."
-                            println!(
-                                ">> NET: Connected to endpoint: {:?}",
+                            debug!(
+                                "NET: Connected to endpoint: {:?}",
                                 endpoint.get_remote_address()
                             );
-                            println!(">> NET: Ready for client requests ...");
+                            debug!("NET: Ready for client requests ...");
                             break;
                         }
                         SwarmEvent::OutgoingConnectionError { .. } => {
                             index = (index + 1) % n; // try next peer address in next iteration
 
-                            println!(">> NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec.");
+                            debug!(
+                                "NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec."
+                            );
                             tokio::time::sleep(Duration::from_millis(2000)).await;
                         }
                         _ => {}
                     }
                 }
-                Err(e) => println!(">> NET: Dial {:?} failed: {:?}", dial_addr, e),
+                Err(e) => debug!("NET: Dial {:?} failed: {:?}", dial_addr, e),
             };
         }
     }

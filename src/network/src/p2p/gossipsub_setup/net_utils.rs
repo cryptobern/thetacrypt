@@ -13,6 +13,7 @@ use libp2p::{
     tcp::TokioTcpConfig,
     PeerId, Swarm, Transport,
 };
+use log::debug;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -151,7 +152,7 @@ pub async fn run_event_loop(
             // reads msg from the channel and publish it to the network
             msg = outgoing_msg_receiver.recv() => {
                 if let Some(data) = msg {
-                    println!(">> NET: Sending a message");
+                    debug!("NET: Sending a message");
                     swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
                 }
                 // todo: Terminate the loop
@@ -159,25 +160,20 @@ pub async fn run_event_loop(
             }
             // polls swarm events
             event = swarm.select_next_some() => match event {
-                // handles (incoming) Gossipsub-Message
+                // Handles (incoming) Gossipsub-Message
                 SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
-                    println!(">> NET: Received a message");
-                    // add incoming message to internal channel
+                    debug!("NET: Received a message");
                     incoming_msg_sender.send(message.data.into()).await.unwrap();
                 }
-                // handles NewListenAddr event
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    println!(">> NET: Listening on {:?}", address);
+                    debug!("NET: Listening on {:?}", address);
                 }
-
-                // tells us with which endpoints we are actually connected with
-                // not so nice to display since multiple events are produced
-                // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
-                //     if endpoint.is_dialer() {
-                //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());
-                //     }
-                // }
-
+                SwarmEvent::Dialing(peer_id) => {
+                    debug!("NET: Attempting to dial peer {peer_id}");
+                }
+                SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
+                    debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
+                }
                 _ => {}
             }
         }
