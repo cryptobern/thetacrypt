@@ -5,8 +5,8 @@ use libp2p::{
     swarm::SwarmEvent,
     PeerId, Swarm,
 };
-use log::debug;
-use std::time::Duration;
+use log::{debug, info};
+
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::config::static_net::{config_service::*, deserialize::Config};
@@ -61,50 +61,45 @@ pub async fn init(
     .await;
 }
 
-// dial a peer in the local network, if it fails, retry another peer
+/// Dial all peers, and wait for at least one connection to be established.
+///
+/// Dialing all peers will let the underlying gossipsub network know of their existence, thus
+/// allowing it to build up its mesh network.
 async fn dial_local_net(swarm: &mut Swarm<Gossipsub>, config: Config, my_id: u32) {
-    let mut index = 0;
-    let n = config.ids.len();
+    // Start by dialing all peers other than ourselves, letting the underlying network layer know
+    // of their existenec, allowing it to connect if required.
+    for peer_id in &config.ids {
+        if *peer_id == my_id {
+            // Let's not dial ourselves.
+            continue;
+        }
 
+        let dial_addr = get_dial_addr(&config, *peer_id);
+        // Note that the dial() method will *not* erorr if connection fails - e.g. dialing a
+        // not-yet-reachable peer will work just fine. I assume it will rather fail if the thing we
+        // pass is not actually dial-able - e.g. an invalid IP, or a peer ID of a peer we do not
+        // know of.
+        // As such, .dial() seems to just be a way to let the network layer know of peers which
+        // exist, so it can try to connect to them.
+        match swarm.dial(dial_addr.clone()) {
+            Ok(_) => {}
+            Err(e) => debug!("NET: Dial {:?} failed: {:?}", dial_addr, e),
+        };
+    }
+
+    debug!("NET: Waiting for connection to first peer");
+    // Now we wait until we've successfully connected to at least one peer.
     loop {
-        let p_id = config.ids[index];
-        if p_id == my_id {
-            index = (index + 1) % n;
-            continue; // don't dial own address
-        } else {
-            let dial_addr = get_dial_addr(&config, p_id);
-            match swarm.dial(dial_addr.clone()) {
-                Ok(_) => {
-                    // println!(">> NET: Dialed {:?}", dial_addr);
-                    match swarm.select_next_some().await {
-                        SwarmEvent::ConnectionEstablished { endpoint, .. } => {
-                            println!();
-                            // wrong output --> might display dial_addr from a node that is not running yet!
-                            // println!(">> NET: Connected to dial_addr: {:?}", dial_addr);
-
-                            // only useful output when the endpoint is of Enum variant "Dialer".
-                            // from https://docs.rs/libp2p/latest/libp2p/core/enum.ConnectedPoint.html:
-                            // "For Dialer, this returns address. For Listener, this returns send_back_addr."
-                            debug!(
-                                "NET: Connected to endpoint: {:?}",
-                                endpoint.get_remote_address()
-                            );
-                            debug!("NET: Ready for client requests ...");
-                            break;
-                        }
-                        SwarmEvent::OutgoingConnectionError { .. } => {
-                            index = (index + 1) % n; // try next peer address in next iteration
-
-                            debug!(
-                                "NET: Connection to {dial_addr} NOT successful. Retrying in 2 sec."
-                            );
-                            tokio::time::sleep(Duration::from_millis(2000)).await;
-                        }
-                        _ => {}
-                    }
-                }
-                Err(e) => debug!("NET: Dial {:?} failed: {:?}", dial_addr, e),
-            };
+        match swarm.select_next_some().await {
+            SwarmEvent::ConnectionEstablished { endpoint, .. } => {
+                debug!(
+                    "NET: Successfully connected to first peer on: {:?}",
+                    endpoint.get_remote_address()
+                );
+                info!("NET: Ready for client requests...");
+                break;
+            }
+            _ => {}
         }
     }
 }

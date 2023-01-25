@@ -34,8 +34,7 @@ use trust_dns_resolver::config::*;
 use trust_dns_resolver::system_conf::read_system_conf;
 use tokio::runtime::Handle;
 
-
-
+use tokio::time;
 
 // use crate::config::localnet_config::{config_service::*, deserialize::Config};
 use crate::types::message::P2pMessage;
@@ -147,8 +146,21 @@ pub async fn run_event_loop(
     mut outgoing_msg_receiver: Receiver<P2pMessage>,
     incoming_msg_sender: Sender<P2pMessage>,
 ) -> ! {
+    let mut list_peers_timer = time::interval(Duration::from_secs(60));
     loop {
         tokio::select! {
+            // Periodically list all our known peers.
+            _tick = list_peers_timer.tick() => {
+                debug!("NET: My currently known peers: ");
+                for (peer, _) in swarm.behaviour().all_peers() {
+                    debug!("- {}", peer);
+                }
+
+                debug!("NET: My currently connected mesh peers: ");
+                for peer in swarm.behaviour().all_mesh_peers() {
+                    debug!("- {}", peer);
+                }
+            }
             // reads msg from the channel and publish it to the network
             msg = outgoing_msg_receiver.recv() => {
                 if let Some(data) = msg {
@@ -173,6 +185,9 @@ pub async fn run_event_loop(
                 }
                 SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
                     debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
+                },
+                SwarmEvent::ConnectionClosed { peer_id, endpoint, num_established: _, cause } => {
+                    debug!("NET: Closed connection to peer {peer_id} on {} due to {:?}", endpoint.get_remote_address(), cause);
                 }
                 _ => {}
             }
