@@ -42,7 +42,7 @@ make testnet-start
 ```
 3) The last step will allow you to run a client app that starts the interaction with the blockchain and triggers the decryption protocol implementend by our library. Open another terminal window and type: <br>
 ```
-docker run -it --network=threshold-net rust-threshold-library client_app --tendermint-node-ip 192.167.20.10
+docker run -it --network=threshold-net rust-threshold-library ./client_app --tendermint-node-ip 192.167.20.10
 ```
 In this way you make use of the image of the library already built and run everything inside the docker network defined in the compose file. 
 
