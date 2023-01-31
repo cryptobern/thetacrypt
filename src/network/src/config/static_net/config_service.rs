@@ -7,7 +7,7 @@ use std::str::FromStr;
 use crate::config::static_net::deserialize::Config;
 
 // load config file
-pub fn load_config(my_id: &u32) -> Config {
+pub fn load_config() -> Config {
 
     let number_of_nodes = match env::var("NUMBER_OF_NODES") {
         Ok(number_of_nodes) => number_of_nodes,

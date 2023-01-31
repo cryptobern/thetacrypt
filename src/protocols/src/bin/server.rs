@@ -12,9 +12,9 @@ use protocols::{rpc_request_handler, keychain::KeyChain};
 use tokio::signal;
 
 const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net/config.toml";
-const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
+// const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
 // todo: Read from conf file
-const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
+// const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
@@ -30,11 +30,11 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
 
     let my_id = u32::from_str(&args[1])?;
 
-    let localnet_config = static_net::config_service::load_config(&my_id);
+    let localnet_config = static_net::config_service::load_config();
     let my_addr = tendermint_net::config_service::get_rpc_base_address(&tendermint_config);
     let mut my_port = tendermint_net::config_service::get_rpc_port(&tendermint_config);
-    let my_keyfile = format!("conf/keys_{my_id}.json");
     
+    let my_keyfile = format!("conf/keys_{my_id}.json");
     println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
     let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
 
@@ -70,9 +70,9 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Read key file
-    let my_keyfile = format!("conf/keys_{my_id}.json");
-    println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
-    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
+    // let my_keyfile = format!("conf/keys_{my_id}.json");
+    // println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
+    // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
 
     // Start Rpc Request handler in a new thread
     println!(">> MAIN: Starting the RPC request handler.");
