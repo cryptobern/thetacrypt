@@ -27,6 +27,9 @@ COPY ./src $PROJECT_PATH/threasholdLibrary
 
 WORKDIR $PROJECT_PATH/threasholdLibrary/protocols
 
+#just to fix the issue with the snow dependency
+RUN cargo update -p curve25519-dalek@4.0.0-rc.0 --precise 4.0.0-pre.5 
+
 RUN cargo build --release 
 
 
