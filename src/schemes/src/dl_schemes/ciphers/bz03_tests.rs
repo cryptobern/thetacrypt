@@ -1,5 +1,5 @@
 use crate::{interface::{ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey, PrivateKey}, rand::{RngAlgorithm, RNG}, dl_schemes::ciphers::sg02::Sg02Ciphertext};
-use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
+
 
 #[test]
 fn test_public_key_serialization() {

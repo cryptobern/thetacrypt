@@ -10,7 +10,7 @@ use schemes::dl_schemes::dl_groups::bls12381::Bls12381;
 
 use schemes::interface::{Serializable};
 use schemes::keys::{KeyGenerator, PrivateKey, PublicKey};
-use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
+use schemes::{interface::ThresholdScheme, group::Group};
 use schemes::rand::{RNG, RngAlgorithm};
 use protocols::keychain::KeyChain;
 use thetacrypt_proto::protocol_types;

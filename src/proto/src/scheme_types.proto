@@ -1,7 +1,7 @@
 syntax = "proto3";
 package scheme_types;
 
-enum ThresholdScheme {
+enum ThresholdSchemeCode {
     Bz03 = 0;
     Sg02 = 1;
     Bls04 = 2;
@@ -10,7 +10,7 @@ enum ThresholdScheme {
     Sh00 = 5;
 }
 
-enum Group {
+enum GroupCode {
     Bls12381 = 0;
     Bn254 = 1;
     Ed25519 = 2;

@@ -1,10 +1,12 @@
 use std::{collections::{HashMap, HashSet}, fs::{self, File}, error::Error};
-use schemes::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}}
-use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
+use schemes::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}};
+use schemes::group::Group;
+use schemes::interface::ThresholdScheme;
 use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 
 use thetacrypt_proto::protocol_types;
+use thetacrypt_proto::scheme_types;
 
 
 #[derive(Serialize, Deserialize)]
@@ -12,6 +14,7 @@ pub struct KeyChain {
     key_entries: Vec<PrivateKeyEntry>,
 }
 
+// Corresponds to protocol_types::PublicKeyEntry
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PrivateKeyEntry{
     pub id: String,
@@ -173,7 +176,7 @@ impl KeyChain {
                                         .serialize()
                                         .map_err( |err| format!("Serialization for key {:?} failed.", key_entry.id))?;
         let public_key_entry = protocol_types::PublicKeyEntry { id: key_entry.id.clone(),
-                                                                                scheme: key_entry.key.get_scheme() as i32, 
+                                                                                scheme: key_entry.key.get_scheme().get_id() as i32, 
                                                                                 group: key_entry.key.get_group() as i32, 
                                                                                 key: key_ser};
         Ok(public_key_entry)

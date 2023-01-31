@@ -1,5 +1,5 @@
 use crate::{dl_schemes::signatures::frost::FrostThresholdSignature, rand::{RNG, RngAlgorithm}};
-use thetacrypt_proto::scheme_types::Group;
+use crate::group::Group;
 
 
 #[test]

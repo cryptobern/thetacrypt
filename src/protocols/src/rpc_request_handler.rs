@@ -1,4 +1,4 @@
-use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
+
 use mcore::hash256::HASH256;
 use prost::Message;
 use tokio::sync::mpsc::Sender;
@@ -16,6 +16,7 @@ use thetacrypt_proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSy
 use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
 use thetacrypt_proto::protocol_types::PublicKeyEntry;
+use thetacrypt_proto::scheme_types::{GroupCode, ThresholdSchemeCode}; use schemes::{interface::ThresholdScheme, group::Group};
 use schemes::interface::Ciphertext;
 use crate::protocol::ProtocolError;
 use crate::threshold_cipher_protocol::ThresholdCipherProtocol;

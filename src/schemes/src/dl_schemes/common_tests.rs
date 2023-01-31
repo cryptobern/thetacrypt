@@ -1,6 +1,6 @@
 use crate::{dl_schemes::common::{shamir_share, eval_pol, horner}, rand::{RNG, RngAlgorithm}};
 
-use thetacrypt_proto::scheme_types::Group;
+use crate::group::Group;
 
 use super::{bigint::BigImpl, dl_groups::bls12381::Bls12381};
 

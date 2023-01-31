@@ -54,8 +54,8 @@ message GetDecryptResultResponse {
 // ---------- Get available keys ----------
 message PublicKeyEntry {
     string id = 1;
-    scheme_types.ThresholdScheme scheme = 2;
-    scheme_types.Group group = 3;
+    scheme_types.ThresholdSchemeCode scheme = 2;
+    scheme_types.GroupCode group = 3;
     // bool is_default = 3;
     bytes key = 4;
 }

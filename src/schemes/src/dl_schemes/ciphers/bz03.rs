@@ -13,9 +13,9 @@ use rasn::{AsnType, Tag, Encode, Decode};
 
 use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::{common::*};
-use crate::group_ex::{GroupElement};
+use crate::group::{GroupElement};
 use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare};
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use crate::interface::ThresholdScheme; use  crate::group::Group;
 use crate::rand::RNG;
 
 

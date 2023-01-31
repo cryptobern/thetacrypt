@@ -9,8 +9,9 @@ use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
 
 use crate::interface::DlShare;
-use crate::{group_ex::GroupElement, dl_schemes::{common::interpolate}, rand::RNG};
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use crate::{group::GroupElement, dl_schemes::{common::interpolate}, rand::RNG};
+use crate::interface::ThresholdScheme;
+use  crate::group::Group;
 use crate::dl_schemes::bigint::BigImpl;
 
 pub struct Cks05ThresholdCoin {

@@ -1,10 +1,89 @@
 use core::panic;
 use std::fmt::Debug;
 use std::mem::ManuallyDrop;
-use thetacrypt_proto::scheme_types::Group;
+use thetacrypt_proto::scheme_types::GroupCode;
 
 use crate::{dl_schemes::{dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
 use crate::dl_schemes::bigint::BigImpl;
+
+/*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
+    group has a code (8-bit unsigned integer) that's used to encode the group when serializing
+    group elements. 
+
+    TODO: change code to standard way of encoding EC groups */
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Group {
+    Bls12381 = GroupCode::Bls12381 as isize,
+    Bn254  = GroupCode::Bn254 as isize,
+    Ed25519 = GroupCode::Ed25519 as isize,
+    Rsa512  = GroupCode::Rsa512  as isize,
+    Rsa1024 = GroupCode::Rsa1024 as isize,
+    Rsa2048 = GroupCode::Rsa2048 as isize,
+    Rsa4096 = GroupCode::Rsa4096 as isize,
+
+}
+
+impl Group {
+    pub fn is_dl(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => true,
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
+        }
+    }
+
+    pub fn get_code(&self) -> u8 {
+        match self {
+            Self::Bls12381 => 0,
+            Self::Bn254 => 1,
+            Self::Ed25519 => 2,
+            Self::Rsa512 => 3,
+            Self::Rsa1024 => 3,
+            Self::Rsa2048 => 4,
+            Self::Rsa4096 => 5,
+        }
+    }
+
+    pub fn from_code(code: u8) -> Self {
+        match code {
+            0 => Self::Bls12381,
+            1 => Self::Bn254,
+            2 => Self::Ed25519,
+            3 => Self::Rsa512,
+            4 => Self::Rsa1024,
+            5 => Self::Rsa2048,
+            6 => Self::Rsa4096,
+            _ => panic!("invalid code")
+        }
+    }
+
+    pub fn get_order(&self) -> BigImpl {
+        match self {
+            Self::Bls12381 => Bls12381::get_order(),
+            Self::Bn254 => Bn254::get_order(),
+            Self::Ed25519 => Ed25519::get_order(),
+            _ => panic!("not applicable")
+        }
+    }
+
+    pub fn supports_pairings(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => false,
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
+        }
+    }
+}
 
 /* GroupData holds the actual group element */
 #[repr(C)]

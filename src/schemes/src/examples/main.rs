@@ -8,7 +8,8 @@ use std::time::Instant;
 use std::fmt::Write;
 use schemes::interface::{ThresholdCipherParams, ThresholdCipher};
 use schemes::keys::{KeyGenerator};
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use schemes::interface::ThresholdScheme;
+use schemes::group::Group;
 use schemes::rand::{RNG, RngAlgorithm};
 use schemes::util::{printbinary, hex2string};
 

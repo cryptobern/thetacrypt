@@ -3,7 +3,7 @@ use std::{thread, time};
 use tokio::task::JoinHandle;
 use tonic::{Status, Response};
 
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use schemes::interface::ThresholdScheme; use  schemes::group::Group;
 use schemes::interface::{ThresholdCipher, ThresholdCipherParams, Ciphertext};
 use schemes::keys::{PublicKey};
 

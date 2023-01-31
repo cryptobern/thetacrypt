@@ -1,5 +1,5 @@
 use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, SignedMessage}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}};
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use crate::interface::ThresholdScheme; use  crate::group::Group;
 
 
 #[test]

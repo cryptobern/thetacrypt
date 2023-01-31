@@ -5,8 +5,8 @@ use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12,
 use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{rand::RNG, interface::ThresholdCryptoError};
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
-use crate::group_ex::{GroupElement};
-use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
+use crate::group::{GroupElement};
+use crate::interface::ThresholdScheme; use  crate::group::Group;
 
 #[repr(C)]
 union ECPoint {
