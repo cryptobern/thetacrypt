@@ -3,10 +3,11 @@ use std::mem::ManuallyDrop;
 use derive::{Serializable, EcPairingGroupImpl, BigIntegerImpl};
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}};
 use rasn::{AsnType, Decode, Encode, Encoder};
-use crate::{ rand::RNG, interface::ThresholdCryptoError, proto::scheme_types::Group, proto::scheme_types::ThresholdScheme};
+use crate::{ rand::RNG, interface::ThresholdCryptoError};
+use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
 
-use crate::group::{GroupElement};
+use crate::group_ex::{GroupElement};
 
 #[repr(C)]
 union ECPoint {

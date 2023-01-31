@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, fs::{self, File}, error::Error};
-use schemes::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}, proto::scheme_types::ThresholdScheme};
-use schemes::proto::scheme_types::Group;
+use schemes::{keys::{PrivateKey, PublicKey}, interface::{Ciphertext}}
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use serde::{Serialize, Deserialize, Serializer, ser::{SerializeSeq, SerializeStruct}};
 use std::io::Write;
 

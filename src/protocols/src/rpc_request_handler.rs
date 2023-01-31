@@ -1,4 +1,4 @@
-use schemes::proto::scheme_types::{ThresholdScheme, Group};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use mcore::hash256::HASH256;
 use prost::Message;
 use tokio::sync::mpsc::Sender;

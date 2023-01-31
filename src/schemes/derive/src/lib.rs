@@ -329,7 +329,7 @@ pub fn derive_ec_pairing_impl(input:TokenStream) -> TokenStream {
     let name_lower = syn::Ident::new(&lname, name.span());
     
     let expanded = quote! {
-        use crate::group::GroupData;
+        use crate::group_ex::GroupData;
 
         impl #name {
             pub fn pair(g1: &Self, g2: &Self) -> Result<Self, ThresholdCryptoError> {

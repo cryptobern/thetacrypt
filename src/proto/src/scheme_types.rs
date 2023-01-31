@@ -35,7 +35,24 @@ impl ThresholdScheme {
             _ => None,
         }
     }
-}
+
+    pub fn get_id(&self) -> u8 {
+        *self as u8
+    }
+
+    pub fn from_id(id: u8) -> ThresholdScheme {
+        match id {
+            0 => Self::Bz03,
+            1 => Self::Sg02,
+            2 => Self::Bls04,
+            3 => Self::Cks05,
+            4 => Self::Frost,
+            5 => Self::Sh00,
+            _ => panic!("unknown scheme id")
+        }
+    }
+} 
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum Group {
@@ -74,6 +91,69 @@ impl Group {
             "Rsa2048" => Some(Self::Rsa2048),
             "Rsa4096" => Some(Self::Rsa4096),
             _ => None,
+        }
+    }
+
+/*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
+    group has a code (8-bit unsigned integer) that's used to encode the group when serializing
+    group elements. 
+
+    TODO: change code to standard way of encoding EC groups */
+    pub fn is_dl(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => true,
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
+        }
+    }
+
+    pub fn get_code(&self) -> u8 {
+        match self {
+            Self::Bls12381 => 0,
+            Self::Bn254 => 1,
+            Self::Ed25519 => 2,
+            Self::Rsa512 => 3,
+            Self::Rsa1024 => 3,
+            Self::Rsa2048 => 4,
+            Self::Rsa4096 => 5,
+        }
+    }
+
+    pub fn from_code(code: u8) -> Self {
+        match code {
+            0 => Self::Bls12381,
+            1 => Self::Bn254,
+            2 => Self::Ed25519,
+            3 => Self::Rsa512,
+            4 => Self::Rsa1024,
+            5 => Self::Rsa2048,
+            6 => Self::Rsa4096,
+            _ => panic!("invalid code")
+        }
+    }
+
+    pub fn get_order(&self) -> BigImpl {
+        match self {
+            Self::Bls12381 => Bls12381::get_order(),
+            Self::Bn254 => Bn254::get_order(),
+            Self::Ed25519 => Ed25519::get_order(),
+            _ => panic!("not applicable")
+        }
+    }
+
+    pub fn supports_pairings(&self) -> bool {
+        match self {
+            Self::Bls12381 => true,
+            Self::Bn254 => true,
+            Self::Ed25519 => false,
+            Self::Rsa512 => false,
+            Self::Rsa1024 => false,
+            Self::Rsa2048 => false,
+            Self::Rsa4096 => false,
         }
     }
 }

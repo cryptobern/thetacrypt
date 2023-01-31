@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use crate::proto::scheme_types::Group;
+use thetacrypt_proto::scheme_types::Group;
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
@@ -10,7 +10,7 @@ use crate::interface::Serializable;
 
 use crate::rand::RNG;
 
-use crate::group::{GroupElement};
+use crate::group_ex::{GroupElement};
 
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 

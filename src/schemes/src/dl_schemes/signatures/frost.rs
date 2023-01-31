@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
-use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::GroupElement, interface::ThresholdCryptoError, rand::RNG, proto::scheme_types::Group, rsa_schemes::bigint::RsaBigInt};
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group_ex::GroupElement, interface::ThresholdCryptoError, rand::RNG, rsa_schemes::bigint::RsaBigInt};
+use thetacrypt_proto::scheme_types::Group;
 use chacha20poly1305::aead::generic_array::typenum::Gr;
 use mcore::hash512::HASH512;
 

@@ -1,5 +1,6 @@
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, frost::{FrostSignatureShare, FrostThresholdSignature}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, proto::scheme_types::{ThresholdScheme, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignedMessage, Sh00SignatureShare}};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04SignedMessage, Bls04ThresholdSignature}, frost::{FrostSignatureShare, FrostThresholdSignature}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group_ex::{GroupElement}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignedMessage, Sh00SignatureShare}};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 
 pub trait Serializable:
     Sized
@@ -21,26 +22,6 @@ pub trait DlShare {
     fn get_data(&self) -> GroupElement;
     fn get_group(&self) -> Group;
 }
-
-impl ThresholdScheme {
-    pub fn get_id(&self) -> u8 {
-        *self as u8
-    }
-
-    pub fn from_id(id: u8) -> ThresholdScheme {
-        match id {
-            0 => Self::Bz03,
-            1 => Self::Sg02,
-            2 => Self::Bls04,
-            3 => Self::Cks05,
-            4 => Self::Frost,
-            5 => Self::Sh00,
-            _ => panic!("unknown scheme id")
-        }
-    }
-}
-
-
 
 /* Threshold Coin */
 

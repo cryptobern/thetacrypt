@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::{keychain::KeyChain, proto::protocol_types::PublicKeyEntry};
-use schemes::{keys::{KeyGenerator, PrivateKey}, rand::{RngAlgorithm, RNG}, proto::scheme_types::ThresholdScheme, proto::scheme_types::Group};
+use schemes::{keys::{KeyGenerator, PrivateKey}, rand::{RngAlgorithm, RNG}};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group}
 
 #[test]
 fn test_insert_and_get_key(){

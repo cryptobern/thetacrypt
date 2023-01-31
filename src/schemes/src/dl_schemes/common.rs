@@ -1,10 +1,12 @@
 
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}, proto::scheme_types::Group};
+use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}};
+
+use thetacrypt_proto::scheme_types::Group;
 use super::bigint::BigImpl;
 
-use crate::group::{GroupElement};
+use crate::group_ex::{GroupElement};
 
 pub fn shamir_share(x: &BigImpl, k: usize, n: usize, rng: &mut RNG) -> (Vec<BigImpl>, Vec<GroupElement>) {
     let mut coeff: Vec<BigImpl> = Vec::new();

@@ -1,6 +1,6 @@
-use crate::{dl_schemes::bigint::BigImpl, proto::scheme_types::Group};
-
-use super::{group::GroupElement};
+use crate::dl_schemes::bigint::BigImpl;
+use thetacrypt_proto::scheme_types::Group;
+use super::{group_ex::GroupElement};
 use crate::dl_schemes::dl_groups::bls12381::Bls12381;
 
 static GROUP: Group = Group::Bls12381;

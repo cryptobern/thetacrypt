@@ -10,7 +10,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 
 use schemes::keys::{PublicKey, PrivateKey};
-use schemes::proto::scheme_types::{Group, ThresholdScheme};
+use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
 use schemes::interface::{ThresholdCipher, ThresholdCipherParams, DecryptionShare, Ciphertext};
 
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;

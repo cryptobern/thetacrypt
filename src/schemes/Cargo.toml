@@ -18,6 +18,7 @@ derive = { path="derive", version = "0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 prost = "0.10"
 rand_chacha = "0.3.1"
+thetacrypt_proto = {path = "../proto", version = "0.1.0"}
 
 [lib]
 name = "schemes"

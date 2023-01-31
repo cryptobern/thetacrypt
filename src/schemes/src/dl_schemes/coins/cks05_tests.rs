@@ -1,10 +1,11 @@
-use crate::{dl_schemes::{dl_groups::{bls12381::Bls12381}}, rand::{RNG, RngAlgorithm}, interface::{Serializable, ThresholdCoin, CoinShare}, util::printbinary, keys::{KeyGenerator, PublicKey}, proto::scheme_types::{Group, ThresholdScheme}};
+use crate::{dl_schemes::{dl_groups::{bls12381::Bls12381}}, rand::{RNG, RngAlgorithm}, interface::{Serializable, ThresholdCoin, CoinShare}, util::printbinary, keys::{KeyGenerator, PublicKey}};
+use thetacrypt_proto::scheme_types::{Group, ThresholdScheme};
 use super::cks05::*;
 
 
 #[test]
 fn test_key_generation() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &crate::proto::scheme_types::ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Cks05, &Group::Bls12381, &Option::None).unwrap();
     assert!(keys.len() == 5);
 }
 
