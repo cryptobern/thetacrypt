@@ -123,7 +123,11 @@ impl ThresholdCipherProtocol {
         if self.valid_shares.len() >= self.key.sk.get_threshold() as usize { 
             self.decrypted_plaintext = ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
-            println!(">> PROT: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.", &self.instance_id, String::from_utf8(self.decrypted_plaintext.clone()).unwrap());
+            println!(
+                ">> PROT: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.",
+                &self.instance_id,
+                hex::encode(self.decrypted_plaintext.clone())
+            );
             return Ok(());
         }
         return Ok(());
