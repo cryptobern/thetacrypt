@@ -1,28 +1,21 @@
-
-use mcore::hash256::HASH256;
-use prost::Message;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
-use std::collections::{HashMap, VecDeque};
-
-use tokio::sync::oneshot;
+use std::{collections::{HashMap, VecDeque}, sync::Arc};
 use tonic::{transport::Server, Request, Response, Status};
 
 use network::types::message::P2pMessage;
-use schemes::keys::{PrivateKey, PublicKey};
-use crate::keychain::{KeyChain, PrivateKeyEntry};
+use schemes::{keys::{PrivateKey, PublicKey}, interface::{ThresholdScheme, Ciphertext}, group::Group};
 use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{ThresholdCryptoLibrary,ThresholdCryptoLibraryServer};
-use thetacrypt_proto::protocol_types::{DecryptRequest, DecryptReponse, DecryptSyncRequest, DecryptSyncReponse, GetDecryptResultRequest, GetDecryptResultResponse};
+use thetacrypt_proto::protocol_types::{DecryptRequest, DecryptReponse};
+use thetacrypt_proto::protocol_types::{DecryptSyncRequest, DecryptSyncReponse};
+use thetacrypt_proto::protocol_types::{GetDecryptResultRequest, GetDecryptResultResponse};
 use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
-use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse};
-use thetacrypt_proto::protocol_types::PublicKeyEntry;
-use thetacrypt_proto::scheme_types::{GroupCode, ThresholdSchemeCode}; use schemes::{interface::ThresholdScheme, group::Group};
-use schemes::interface::Ciphertext;
-use crate::protocol::ProtocolError;
+use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry};
+use mcore::hash256::HASH256;
+
+use crate::{keychain::KeyChain, types::{Key, ProtocolError, InstanceId}};
 use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
 
-
-type InstanceId = String;
 
 const BACKLOG_MAX_RETRIES: u32 = 10;
 const BACKLOG_WAIT_INTERVAL: u32 = 5; //seconds. todo: exponential backoff
@@ -68,11 +61,11 @@ enum StateUpdateCommand {
     GetPrivateKeyByType { 
         scheme: ThresholdScheme,
         group: Group,
-        responder: tokio::sync::oneshot::Sender< Result<PrivateKeyEntry, String> >
+        responder: tokio::sync::oneshot::Sender< Result<Arc<Key>, String> >
     },
     // Returns all public keys that can be used for encryption.
-    GetPublicKeysForEncryption { 
-        responder: tokio::sync::oneshot::Sender< Result<Vec<PublicKeyEntry>, String> >
+    GetEncryptionKeys { 
+        responder: tokio::sync::oneshot::Sender< Vec<Arc<Key>> >
     },
 }
 
@@ -105,7 +98,10 @@ impl RpcRequestHandler {
         
         // Check whether an instance with this instance_id already exists
         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+        let cmd = StateUpdateCommand::GetInstanceStatus { 
+            instance_id: instance_id.clone(),
+            responder: response_sender
+        };
         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
         let status = response_receiver.await.expect("response_receiver.await returned Err");
         if status.started {
@@ -114,28 +110,30 @@ impl RpcRequestHandler {
         }
         
         // Retrieve private key for this instance
-        let private_key_result: Result<PrivateKeyEntry, String> = if let Some(id) = key_id {
+        let key: Arc<Key>; 
+        if let Some(_) = key_id {
             unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
         }
         else {
-            let (response_sender, response_receiver) = oneshot::channel::<Result<PrivateKeyEntry, String>>();
-            let cmd = StateUpdateCommand::GetPrivateKeyByType { scheme: ciphertext.get_scheme(), group: ciphertext.get_group(), responder: response_sender };
+            let (response_sender, response_receiver) = oneshot::channel::<Result<Arc<Key>, String>>();
+            let cmd = StateUpdateCommand::GetPrivateKeyByType {
+                scheme: ciphertext.get_scheme(),
+                group: ciphertext.get_group(),
+                responder: response_sender
+            };
             self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
-            let status = response_receiver.await.expect("response_receiver.await returned Err");
-            status
+            let key_result = response_receiver.await.expect("response_receiver.await returned Err");
+            match key_result {
+                Ok(key_entry) => { key = key_entry },
+                Err(err) => { return Err(Status::new(Code::InvalidArgument, err)) }
+            };
         };
-        let private_key_entry = match private_key_result{
-            Ok(key_entry) => key_entry,
-            Err(err) => {
-                return Err(Status::new(Code::InvalidArgument, err));
-            }
-        };
-        println!(">> REQH: Using key with id: {:?} for request {:?}", private_key_entry.id, &instance_id);
-        let private_key: PrivateKey = private_key_entry.key;
-        let public_key: PublicKey = private_key.get_public_key();
+        println!(">> REQH: Using key with id: {:?} for request {:?}", key.id, &instance_id);
 
         // Initiate the state of the new instance.
-        let cmd = StateUpdateCommand::AddNewInstance { instance_id: instance_id.clone()};
+        let cmd = StateUpdateCommand::AddNewInstance {
+            instance_id: instance_id.clone()
+        };
         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
 
         // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
@@ -146,8 +144,7 @@ impl RpcRequestHandler {
 
         // Create the new protocol instance
         let prot = ThresholdCipherProtocol::new(
-            private_key.clone(),
-            public_key.clone(),
+            key,
             ciphertext,
             receiver_for_new_instance,
             self.outgoing_message_sender.clone(),
@@ -166,7 +163,10 @@ impl RpcRequestHandler {
             finished: true,
             result,
         }; 
-        let cmd = StateUpdateCommand::UpdateInstanceStatus { instance_id: instance_id.clone(), new_status};
+        let cmd = StateUpdateCommand::UpdateInstanceStatus {
+            instance_id: instance_id.clone(),
+            new_status
+        };
         state_command_sender.send(cmd).await.expect("The receiver for state_command_sender has been closed.");
         
         // Inform MessageForwarder that the instance was terminated.
@@ -217,7 +217,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         };
 
         // Start the new protocol instance
-        let result = prot.run().await;
+        let result: Result<Vec<u8>, ProtocolError> = prot.run().await;
 
         // Protocol terminated, update state with the result.
         println!(">> REQH: Received result from protocol with instance_id: {:?}", instance_id);
@@ -237,17 +237,26 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn get_public_keys_for_encryption(&self, request: Request<GetPublicKeysForEncryptionRequest>) -> Result<Response<GetPublicKeysForEncryptionResponse>, Status> { 
         println!(">> REQH: Received a get_public_keys_for_encryption request.");
-        let (response_sender, response_receiver) = oneshot::channel::< Result< Vec<PublicKeyEntry>, String> >();
-        let cmd = StateUpdateCommand::GetPublicKeysForEncryption { responder: response_sender } ;
+        let (response_sender, response_receiver) = oneshot::channel::< Vec<Arc<Key>> >();
+        let cmd = StateUpdateCommand::GetEncryptionKeys { 
+            responder: response_sender
+        } ;
         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
-        let encryption_pks = response_receiver.await.expect("response_receiver.await returned Err");
-        match encryption_pks {
-            Ok(keys) => {
-                // println!(">> REQH: Responding with {:?}.", keys[0].key);
-                Ok(Response::new(GetPublicKeysForEncryptionResponse { keys }))
-            },
-            Err(err) => Err(Status::new(Code::Internal, err)),
+        let key_entries = response_receiver.await.expect("response_receiver.await returned Err");
+        let mut public_keys: Vec<PublicKeyEntry> = Vec::new();
+        for entry in key_entries {
+            let e = PublicKeyEntry { 
+                id: entry.id.clone(), 
+                scheme: entry.sk.get_scheme() as i32,
+                group: entry.sk.get_group() as i32,
+                key: match entry.sk.get_public_key().serialize() {
+                            Ok(key_ser) => key_ser,
+                            Err(err) => return Err(Status::new(Code::Internal, err.to_string())),
+                        }
+            };
+            public_keys.push(e);
         }
+        Ok(Response::new(GetPublicKeysForEncryptionResponse { keys: public_keys }))
     }
 
     async fn get_decrypt_result(&self, request: Request<GetDecryptResultRequest>) -> Result<Response<GetDecryptResultResponse>, Status> {
@@ -256,7 +265,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
         // Get status of the instance by contacting the state manager
         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: req.instance_id.clone(), responder: response_sender };
+        let cmd = StateUpdateCommand::GetInstanceStatus {
+            instance_id: req.instance_id.clone(),
+            responder: response_sender
+        };
         self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");
         let status = response_receiver.await.expect("response_receiver.await returned Err");
 
@@ -349,12 +361,12 @@ pub async fn init(rpc_listen_address: String,
                             instances_status_map.insert(instance_id, new_status);
                         }
                         StateUpdateCommand::GetPrivateKeyByType { scheme, group, responder } => {
-                            let key_entry = keychain.get_key_by_type(scheme, group);
+                            let key_entry = keychain.get_key_by_scheme_and_group(scheme, group);
                             responder.send(key_entry).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
                         },
-                        StateUpdateCommand::GetPublicKeysForEncryption { responder } => {
-                            let pks = keychain.get_public_keys_for_encryption();
-                            responder.send(pks).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                        StateUpdateCommand::GetEncryptionKeys { responder } => {
+                            let key_entries = keychain.get_encryption_keys();
+                            responder.send(key_entries).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
                         },
                         _ => unimplemented!()
                     }
@@ -440,7 +452,10 @@ async fn forward_or_backlog(instance_id: &String,
         // - The instance has not yet started because the corresponding request has not yet arrived.
         // Ask the StateManager to find out what is the case.
         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-        let cmd = StateUpdateCommand::GetInstanceStatus { instance_id: instance_id.clone(), responder: response_sender };
+        let cmd = StateUpdateCommand::GetInstanceStatus { 
+            instance_id: instance_id.clone(),
+            responder: response_sender
+        };
         state_command_sender.send(cmd).await.expect("The receiver for state_command_sender3 has been closed.");
         let status = response_receiver.await.expect("The sender for response_receiver dropped before sending a response.");
         if ! status.started { 

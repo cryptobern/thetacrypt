@@ -3,13 +3,13 @@ The `protocols` package implements threshold-cryptographic protocols and an RPC 
 # Exposing protocols over RPC
 All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
-The RPC types are defined in `src\proto\protocol_types.proto`. Currently, the following endpoints are implemented:
+The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following endpoints are implemented:
 - decrypt()
 - get_decrypt_result()
 - decrypt_sync()
 - get_public_keys_for_encryption()
 
-See the documentation for each of them in `src\proto\protocol_types.proto`
+See the documentation for each of them in `protocol_types.proto`.
 
 # How to use the RPC server and client
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
@@ -27,7 +27,7 @@ This client binary uses the `decrypt()` and `decrypt_sync()` RPC endpoints.
 
 
 # The RPC request handler
-The RPC request handler (defined in `src\proto\protocol_types.proto`) is implemented in `src\rpc_request_handler.rs` by the `RpcRequestHandler` struct. The logic is the following:
+The RPC request handler (defined in the `protocol_types.proto` of the `proto` crate) is implemented in `src\rpc_request_handler.rs` by the `RpcRequestHandler` struct. The logic is the following:
 - The request handler is constantly listening for requests. The corresponding handler method (e.g., `decrypt()`, `decrypt_sync()`, `get_decrypt_result()`, etc.) is run every time a request is received.
 - For every received request (e.g., `DecryptRequest` for the `decrypt()` endpoint) make all the required correctness checks and then start a new protocol (in our example a `ThresholdCipherProtocol`) instance in a new tokio thread.
 - Each instance is assigned and identified by a unique `instance_id`. For example, a threshold-decryption instance is identified by the concatenation of the `label` field (which is part of `DecryptRequest.ciphertext`) and the hash of the ciphertext.
@@ -100,13 +100,34 @@ See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.
 The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
 - chan_out:
 The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
+- key:
+Of type `Arc<protocols::types::Key>`, defined in `protocol/types.rs`. 
+The secret key and public keys, of type `schemes::keys::PrivateKey` and `schemes::keys::PublicKey`, respectively, as accessible as
+`key.sk` and `key.sk.get_public_key`.
+The threshold is also accessible as `key.sk.get_threshold()`.
 
 
 
-# Key management:
-Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
+# Key management
+Notice that by *key* we always refer to a private key. The `KeyChain` always returns private keys. The corresponding public key is accessible through the private.
+
+Keys are represented by `struct Key` in `common_types.rs`.
+It contains the public fields `id`, which uniquely represents a key entry, and `sk`, which contains the actual secret key
+of type `schemes::keys::PrivateKey` (through which we have access to the corresponding public key as `sk.get_public_key()`),
+and some private metadata used internally by `KeyChain`.
+
+The logic for handling keys is encapsulated in `struct KeyChain` in `keychain.rs`.
+If exposes methods for creating, (de)serializing, and retrieving keys, such as ` get_key_by_id()` and `get_key_by_scheme_and_group()`.
+There is a certain logic regarding which keys are returned each time and which are considered default.
+This is documented in comments in `keychain.rs`.
+
+### Reading from a file upon server initialization
+Right now keys are read from file "keys_<replica_id>" upon initialization in `server.rs`.
 There is one key for every possible combination of algorithm and domain. In the future, the user should
 be able to ask our library to create more keys.
-Each key is uniquely identified by a key-id and contains the secret key (through which we have access
-to the corresponding public key and the threshold) and the key metadata (for now, the algorithm and domain
-it can be used for).
+
+
+### Tests
+Tests are written in `\test` directory, using either the `#[test]` attribute for unit tests or the `tokio::test` for integration tests.
+
+Run the tests with `cargo test`.

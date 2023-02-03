@@ -1,24 +1,19 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
-use crate::protocol::ProtocolError;
 use schemes::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
 use schemes::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 
+use crate::types::{ProtocolError, Key};
 
 
-// todo: Right now we have to .clone() all the parameters we give to the protocol, because it takes ownership.
-// If I did this with references then I would have to make them all 'static (because the protocol runs on a thread)
-// but I did not figure out how to make those references live long enough.
 pub struct ThresholdCipherProtocol {
-    sk: PrivateKey,
-    pk: PublicKey,
+    key: Arc<Key>,
     ciphertext: Ciphertext,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
-    // result_chan_out: tokio::sync::mpsc::Sender<(InstanceId, Option<Vec<u8>>)>,
     instance_id: String,
-    threshold: u16,
     valid_shares: Vec<DecryptionShare>,
     decrypted: bool,
     decrypted_plaintext: Vec<u8>,
@@ -26,17 +21,14 @@ pub struct ThresholdCipherProtocol {
 }
 
 impl ThresholdCipherProtocol {
-    pub fn new( sk: PrivateKey,
-                pk: PublicKey,
+    pub fn new( key: Arc<Key>,
                 ciphertext: Ciphertext,
                 chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
                 chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
                 instance_id: String,
               ) -> Self {
         ThresholdCipherProtocol{
-            threshold: sk.get_threshold(),
-            sk,
-            pk,
+            key,
             ciphertext,
             chan_in,
             chan_out,
@@ -50,7 +42,8 @@ impl ThresholdCipherProtocol {
 
     pub async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>{
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-        if ! ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.pk)?{
+        let valid_ctxt = ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.key.sk.get_public_key())?;
+        if !valid_ctxt {
             println!(">> PROT: instance_id: {:?} found INVALID ciphertext. Protocol instance will quit.", &self.instance_id );
             self.terminate().await?;
             return Err(ProtocolError::InvalidCiphertext);
@@ -86,8 +79,8 @@ impl ThresholdCipherProtocol {
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send decryption share
         let mut params = ThresholdCipherParams::new();
-        println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.sk.get_id());
-        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.sk, &mut params)?;
+        println!(">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.", &self.instance_id, self.key.sk.get_id());
+        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.key.sk, &mut params)?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
         let message = P2pMessage{
             instance_id: self.instance_id.clone(),
@@ -111,7 +104,7 @@ impl ThresholdCipherProtocol {
         }
         self.received_share_ids.insert(share.get_id());
 
-        let verification_result = ThresholdCipher::verify_share(&share, &self.ciphertext, &self.pk);
+        let verification_result = ThresholdCipher::verify_share(&share, &self.ciphertext, &self.key.sk.get_public_key());
         match verification_result{
             Ok(is_valid) => {
                 if ! is_valid {
@@ -127,7 +120,7 @@ impl ThresholdCipherProtocol {
         
         self.valid_shares.push(share);
         
-        if self.valid_shares.len() >= self.threshold as usize { 
+        if self.valid_shares.len() >= self.key.sk.get_threshold() as usize { 
             self.decrypted_plaintext = ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
             println!(">> PROT: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.", &self.instance_id, String::from_utf8(self.decrypted_plaintext.clone()).unwrap());
