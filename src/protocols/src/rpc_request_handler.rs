@@ -19,7 +19,7 @@ use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
 
 const BACKLOG_MAX_RETRIES: u32 = 10;
 const BACKLOG_WAIT_INTERVAL: u32 = 5; //seconds. todo: exponential backoff
-const CHECK_TERMINATED_CHANNES_INTERVAL: u32 = 30;
+const CHECK_TERMINATED_CHANNELS_INTERVAL: u32 = 30;
 
 #[derive(Debug)]
 pub enum MessageForwarderCommand {
@@ -383,7 +383,7 @@ pub async fn init(rpc_listen_address: String,
         let mut instance_senders: HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>> >= HashMap::new();
         let mut backlogged_messages: VecDeque<(P2pMessage, u32)> = VecDeque::new();
         let mut backlog_interval = tokio::time::interval(tokio::time::Duration::from_secs(BACKLOG_WAIT_INTERVAL as u64));
-        let check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNES_INTERVAL as u64));
+        let check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNELS_INTERVAL as u64));
         loop {
             tokio::select! {
                 forwarder_command = forwarder_command_receiver.recv() => { // Received a command.

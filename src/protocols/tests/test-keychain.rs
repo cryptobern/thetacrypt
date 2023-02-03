@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, fs::remove_file};
 
 use schemes::{keys::{KeyGenerator, PrivateKey}, rand::{RngAlgorithm, RNG}, interface::ThresholdScheme, group::Group};
 
@@ -61,6 +61,7 @@ fn test_keychain_serialization(){
     
     key_chain.to_file("tests/test_keychain_ser.txt").expect("KeyChain::to_file returned Err");
     let key_chain_unser = KeyChain::from_file("tests/test_keychain_ser.txt").expect("KeyChain::from_file returned Err");
+    let _ = remove_file("tests/test_keychain_ser.txt");
 
     for i in 0..2 {
         let key_id = format!("sg02_bls12381_{i}");
