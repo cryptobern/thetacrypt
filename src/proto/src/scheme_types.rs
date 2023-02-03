@@ -24,18 +24,6 @@ impl ThresholdSchemeCode {
             ThresholdSchemeCode::Sh00 => "Sh00",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "Bz03" => Some(Self::Bz03),
-            "Sg02" => Some(Self::Sg02),
-            "Bls04" => Some(Self::Bls04),
-            "Cks05" => Some(Self::Cks05),
-            "Frost" => Some(Self::Frost),
-            "Sh00" => Some(Self::Sh00),
-            _ => None,
-        }
-    }
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -63,19 +51,6 @@ impl GroupCode {
             GroupCode::Rsa1024 => "Rsa1024",
             GroupCode::Rsa2048 => "Rsa2048",
             GroupCode::Rsa4096 => "Rsa4096",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "Bls12381" => Some(Self::Bls12381),
-            "Bn254" => Some(Self::Bn254),
-            "Ed25519" => Some(Self::Ed25519),
-            "Rsa512" => Some(Self::Rsa512),
-            "Rsa1024" => Some(Self::Rsa1024),
-            "Rsa2048" => Some(Self::Rsa2048),
-            "Rsa4096" => Some(Self::Rsa4096),
-            _ => None,
         }
     }
 }
