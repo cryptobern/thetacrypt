@@ -62,6 +62,17 @@ The interface of `ThresholdSignature` is as follows:
 - **`assemble(shares: &Vec<SignatureShare>, msg: &[u8], pubkey: &PublicKey) -> Result<SignedMessage, ThresholdCryptoError> `**
 - **`verify(sig: &SignedMessage, pubkey: &PublicKey) -> Result<bool, ThresholdCryptoError>`** 
 
+Additionally the library supports threshold signature schemes that need interaction between the different parties. For such schemes, an `InteractiveThresholdSignature` instance is needed:
+
+**InteractiveThresholdSignature**<br>
+- **`new(key: &PrivateKey, msg: &[u8], label: &[u8]) -> Result<Self, ThresholdCryptoError>`** 
+- **`do_round(&mut self) -> Result<RoundResult, ThresholdCryptoError> `**
+- **`update(&mut self, round_result: &RoundResult) -> Result<(), ThresholdCryptoError> `**
+- **`has_next_round(&self) -> bool `**
+- **`is_ready_for_next_round(&self) -> bool `**
+- **`get_signature(&self) -> Result<Signature, ThresholdCryptoError>`** 
+- **`get_label(&self) -> Vec<u8>`**
+
 ## Threshold Coin
 Threshold Coin schemes are used to collaboratively generate randomness (one random bit). Each random coin has a name that all participants need to know. `K` out of `N` participants create coin shares using the name of the coin and those shares can then be verified and assembled to retrieve the random coin.
 

@@ -1,6 +1,8 @@
 use core::panic;
 use std::fmt::Debug;
 use std::mem::ManuallyDrop;
+use rasn::AsnType;
+
 use crate::proto::scheme_types::Group;
 
 use crate::{dl_schemes::{dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
@@ -87,7 +89,7 @@ impl Debug for GroupData {
 }
 
 /* GroupElement is the representation of a single group element */
-#[derive(Debug)]
+#[derive(Debug, AsnType)]
 pub struct GroupElement {
     group: Group,
     data: GroupData
