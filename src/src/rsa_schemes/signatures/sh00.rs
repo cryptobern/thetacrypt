@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use derive::{PublicKey, PrivateKey, DlShare, Serializable};
 use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
-use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, proto::scheme_types::{Group, ThresholdScheme}};
+use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, proto::scheme_types::{Group, ThresholdScheme}, group::GroupElement};
 
 #[derive(AsnType, Clone, Debug, Serializable)]
 pub struct Sh00PublicKey {
@@ -162,19 +162,19 @@ pub struct Sh00SignatureShare {
 
 impl Sh00SignatureShare {
     pub fn get_id(&self) -> u16 {
-        self.id.clone()
+        self.id
     }
 
-    pub fn get_data(&self) -> RsaBigInt {
-        self.xi.clone()
+    pub fn get_data(&self) -> &RsaBigInt {
+        &self.xi
     }
 
-    pub fn get_label(&self) -> Vec<u8> {
-        self.label.clone()
+    pub fn get_label(&self) -> &[u8] {
+        &self.label
     }
 
-    pub fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_group(&self) -> &Group {
+        &self.group
     }
 
     pub fn get_scheme(&self) -> ThresholdScheme {

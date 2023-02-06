@@ -157,10 +157,8 @@ pub struct Bls04SignatureShare {
 }
 
 impl Bls04SignatureShare {
-    pub fn get_data(&self) -> GroupElement { self.data.clone() }
-    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_label(&self) -> &[u8]{ &self.label }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Bls04 }
-    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
 impl Encode for Bls04SignatureShare {
@@ -238,7 +236,7 @@ impl Bls04ThresholdSignature {
     pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Bls04PrivateKey, _params: &mut ThresholdSignatureParams) -> Bls04SignatureShare {
         let data = H(&msg, &sk.get_group()).pow(&sk.xi);
 
-        Bls04SignatureShare{ group:data.get_group(), id: sk.id, label:label.to_vec(), data:data }
+        Bls04SignatureShare{ group:data.get_group().clone(), id: sk.id, label:label.to_vec(), data:data }
     }
 
     pub fn verify_share(share: &Bls04SignatureShare, msg: &[u8], pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
@@ -247,7 +245,7 @@ impl Bls04ThresholdSignature {
 
     pub fn assemble(shares: &Vec<Bls04SignatureShare>, msg: &[u8], _pk: &Bls04PublicKey) -> Bls04SignedMessage {
         let sig = interpolate(&shares);
-        Bls04SignedMessage{group: sig.get_group(), sig:sig, msg:msg.to_vec() } 
+        Bls04SignedMessage{group: sig.get_group().clone(), sig:sig, msg:msg.to_vec() } 
     }
 }
 

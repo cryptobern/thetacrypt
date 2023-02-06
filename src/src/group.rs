@@ -158,8 +158,8 @@ impl GroupElement {
         self.group.eq(&group)
     }
 
-    pub fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_group(&self) -> &Group {
+        &self.group
     }
     
     pub fn new(group: &Group) -> Self {

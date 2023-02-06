@@ -167,24 +167,21 @@ impl PartialEq for Bz03PrivateKey {
     }
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, AsnType, Serializable, DlShare)]
 pub struct Bz03DecryptionShare{
     group: Group,
     id: u16,
-    data: GroupElement
+    data: GroupElement,
+    label: Vec<u8>
 }
 
-impl DlShare for Bz03DecryptionShare {
-    fn get_id(&self) -> u16 {
-        self.id
+impl Bz03DecryptionShare {
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        ThresholdScheme::Bz03
     }
 
-    fn get_data(&self) -> GroupElement {
-        self.data.clone()
-    }
-
-    fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_label(&self) -> &[u8] {
+        &self.label
     }
 }
 
@@ -192,6 +189,7 @@ impl Encode for Bz03DecryptionShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.group.get_code().encode(sequence)?;
+            self.label.encode(sequence)?;
             self.id.encode(sequence)?;
             self.data.to_bytes().encode(sequence)?;
             Ok(())
@@ -205,10 +203,11 @@ impl Decode for Bz03DecryptionShare {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
             let group = Group::from_code(u8::decode(sequence)?);
+            let label = Vec::<u8>::decode(sequence)?;
             let id = u16::decode(sequence)?;
             let bytes = Vec::<u8>::decode(sequence)?;
             let data = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
-            Ok(Self {group, id, data})
+            Ok(Self {group, label, id, data})
         })
     }
 }
@@ -232,7 +231,7 @@ impl Bz03Ciphertext {
     pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
-    pub fn get_group(&self) -> Group { self.u.get_group() }
+    pub fn get_group(&self) -> &Group { self.u.get_group() }
 }
 
 impl Encode for Bz03Ciphertext {
@@ -318,7 +317,7 @@ impl Bz03ThresholdCipher {
     pub fn partial_decrypt(ct: &Bz03Ciphertext, sk: &Bz03PrivateKey, _params: &mut ThresholdCipherParams) -> Bz03DecryptionShare {
         let data = ct.u.pow(&sk.xi);
 
-        Bz03DecryptionShare {group: data.get_group(), id:sk.id, data}
+        Bz03DecryptionShare {group: data.get_group().clone(), label: ct.label.clone(), id:sk.id, data}
     }
 
     pub fn assemble(shares: &Vec<Bz03DecryptionShare>, ct: &Bz03Ciphertext) -> Vec<u8> {

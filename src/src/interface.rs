@@ -18,8 +18,8 @@ pub trait Serializable:
 
 pub trait DlShare {
     fn get_id(&self) -> u16;
-    fn get_data(&self) -> GroupElement;
-    fn get_group(&self) -> Group;
+    fn get_data(&self) -> &GroupElement;
+    fn get_group(&self) -> &Group;
 }
 
 impl ThresholdScheme {
@@ -58,7 +58,7 @@ impl CoinShare {
         }
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         match self {
             Self::Cks05(share) => share.get_group(),
             _ => todo!()
@@ -72,7 +72,7 @@ impl CoinShare {
         }
     }
 
-    pub fn get_data(&self) -> GroupElement {
+    pub fn get_data(&self) -> &GroupElement {
         match self {
             Self::Cks05(share) => share.get_data(),
             _ => todo!()
@@ -191,7 +191,7 @@ impl Ciphertext {
         }
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         match self {
             Ciphertext::Sg02(ct) => ct.get_group(),
             Ciphertext::Bz03(ct) => ct.get_group(),
@@ -414,20 +414,23 @@ impl DecryptionShare {
     pub fn get_id(&self) -> u16 {
         match self {
             Self::Sg02(share) => share.get_id(),
+            Self::Bz03(share) => share.get_id(),
             _ => todo!()
         }
     }
 
-    pub fn get_label(&self) -> Vec<u8> {
+    pub fn get_label(&self) -> &[u8] {
         match self {
             DecryptionShare::Sg02(share) => share.get_label(),
+            DecryptionShare::Bz03(share) => share.get_label(),
             _ => todo!()
         }
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         match self {
             Self::Sg02(share) => share.get_group(),
+            Self::Bz03(share) => share.get_group(),
             _ => todo!()
         }
     }
@@ -435,13 +438,15 @@ impl DecryptionShare {
     pub fn get_scheme(&self) -> ThresholdScheme {
         match self {
             Self::Sg02(share) => share.get_scheme(),
+            Self::Bz03(share) => share.get_scheme(),
             _ => todo!()
         }
     }
 
-    pub fn get_data(&self) -> GroupElement {
+    pub fn get_data(&self) -> &GroupElement {
         match self {
             Self::Sg02(share) => share.get_data(),
+            Self::Bz03(share) => share.get_data(),
             _ => todo!()
         }
     }
@@ -525,7 +530,7 @@ impl SignatureShare {
         }
     }
 
-    pub fn get_label(&self) -> Vec<u8> {
+    pub fn get_label(&self) -> &[u8] {
         match self {
             Self::Bls04(share) => share.get_label(),
             Self::Sh00(share) => share.get_label(),
@@ -533,7 +538,7 @@ impl SignatureShare {
         }
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         match self {
             Self::Bls04(share) => share.get_group(),
             Self::Sh00(share) => share.get_group(),
@@ -549,7 +554,7 @@ impl SignatureShare {
         }
     }
 
-    pub fn get_data(&self) -> GroupElement {
+    pub fn get_data(&self) -> &GroupElement {
         match self {
             Self::Bls04(share) => share.get_data(),
             _ => todo!()

@@ -177,15 +177,13 @@ pub struct Cks05CoinShare {
 }
 
 impl Cks05CoinShare {
-    pub fn get_data(&self) -> GroupElement { self.data.clone() }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Cks05 }
-    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
 impl Encode for Cks05CoinShare {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
-            (self.data.get_group() as u8).encode(sequence)?;
+            (self.data.get_group().get_code() as u8).encode(sequence)?;
             self.id.encode(sequence)?;
             self.data.to_bytes().encode(sequence)?;
             self.c.to_bytes().encode(sequence)?;

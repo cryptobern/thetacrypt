@@ -80,11 +80,11 @@ pub fn dlshare_derive(input:TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #impl_generics DlShare for #name #ty_generics #where_clause {
-            fn get_id(&self) -> u16 { self.id.clone() }
+            fn get_id(&self) -> u16 { self.id }
 
-            fn get_group(&self) -> Group { self.data.get_group() }
+            fn get_group(&self) -> &Group { self.data.get_group() }
 
-            fn get_data(&self) -> GroupElement { self.data.clone() }
+            fn get_data(&self) -> &GroupElement { &self.data }
         }
     };
 
