@@ -10,8 +10,8 @@ fn test_insert_and_get_key(){
 
     // insert a key 
     let key_id = format!("sg02_bls12381_1");
-    let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
-    default_sg02_bls12381 = sk_sg02_bls12381[0].clone();
+    let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None);
+    default_sg02_bls12381 = sk_sg02_bls12381.unwrap()[0].clone();
     let res = key_chain.insert_key(default_sg02_bls12381.clone(), key_id.clone());
     assert!(matches!(res, Ok(_)));
 
@@ -25,8 +25,8 @@ fn test_insert_and_get_key(){
 
     // insert another key, should return ok
     let key_id = format!("sg02_bls12381_2");
-    let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
-    non_default_sg02_bls12381 = sk_sg02_bls12381[0].clone();
+    let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None);
+    non_default_sg02_bls12381 = sk_sg02_bls12381.unwrap()[0].clone();
     let res = key_chain.insert_key(non_default_sg02_bls12381.clone(), key_id.clone());
     assert!(matches!(res, Ok(_)));
 
@@ -83,7 +83,7 @@ fn fill_key_chain() -> (KeyChain, HashMap<String, PrivateKey>) {
     let mut keys: HashMap<String, PrivateKey> = HashMap::new();
     for i in 0..2 {
         let key_id = format!("sg02_bls12381_{i}");
-        let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381);
+        let sk_sg02_bls12381 = KeyGenerator::generate_keys(3, 4, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
         keys.insert(key_id.clone(), sk_sg02_bls12381[0].clone());
         key_chain.insert_key(sk_sg02_bls12381[0].clone(), key_id.clone()).unwrap();
     }
