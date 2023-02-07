@@ -1,99 +1,56 @@
-use std::str::FromStr;
-// use std::str::from_utf8;    
-// use std::convert::TryInto;
-// use std::thread::sleep;
-use std::{env, result};
-// use std::fs::{File, self};
+use std::process::exit;
 
-use network::config::tendermint_net;
-use network::config::static_net;
-use network::types::message::P2pMessage;
-use protocols::{rpc_request_handler, keychain::KeyChain};
-use tokio::signal;
+use log::{error, info};
 
-const TENDERMINT_CONFIG_PATH: &str = "../network/src/config/tendermint_net/config.toml";
-// const LOCAL_CONFIG_PATH: &str = "../network/src/config/static_net/config.toml";
-// todo: Read from conf file
-// const RPC_DEFAULT_LISTEN_PORT: u32 = 50050;
+use protocols::{
+    keychain::KeyChain,
+    server::{cli, config, start_server},
+};
 
 #[tokio::main]
-async fn main()  -> Result<(), Box<dyn std::error::Error>> {
-    // Read configuration files
-    // TODO: Remove the two config option (everything is read from the config.env file)  
-    let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
-    //let localnet_config = static_net::config_service::load_config(LOCAL_CONFIG_PATH.to_string());
+async fn main() {
+    env_logger::init();
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        panic!("Please provide server ID.")
-    }
+    let version = env!("CARGO_PKG_VERSION");
+    info!("Starting server, version: {}", version);
 
-    let my_id = u32::from_str(&args[1])?;
+    let cli = cli::parse();
 
-    let localnet_config = static_net::config_service::load_config();
-    let my_addr = tendermint_net::config_service::get_rpc_base_address(&tendermint_config);
-    let mut my_port = tendermint_net::config_service::get_rpc_port(&tendermint_config);
-    
-    let my_keyfile = format!("conf/keys_{my_id}.json");
-    println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
-    let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
+    info!(
+        "Loading configuration from file: {}",
+        cli.config_file
+            .to_str()
+            .unwrap_or("Unable to print path, was not valid UTF-8"),
+    );
+    let cfg = match config::from_file(&cli.config_file) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("{}", e);
+            exit(1);
+        }
+    };
 
-    // Create channel for sending P2P messages received at the network module to the protocols
-    let (net_to_protocols_sender, net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
-    let net_to_protocols_sender2 = net_to_protocols_sender.clone(); //test
+    info!(
+        "Loading keychain from file: {}",
+        cli.keychain_file
+            .to_str()
+            .unwrap_or("Unable to print path, was not valid UTF-8")
+    );
+    let keychain = match KeyChain::from_file(&cli.keychain_file) {
+        Ok(key_chain) => key_chain,
+        Err(e) => {
+            error!("{}", e);
+            exit(1);
+        }
+    };
 
-    // Create channel for sending P2P messages from a protocol to the network module
-    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    start_server(&cfg, keychain).await;
 
-
-    // if "-l" is provided as cli argument we set up a local network
-    if args.len() == 3 && args[2] == "-l" {
-        println!(">> MAIN: Initiating LOCAL lib_P2P-based network instance.");
-        my_port = static_net::config_service::get_rpc_port(&localnet_config, my_id);
-        tokio::spawn(async move {
-            network::p2p::gossipsub_setup::static_net::init(
-                protocols_to_net_receiver,
-                net_to_protocols_sender,
-                localnet_config,
-                my_id,
-            ).await;
-        });
-    } else {
-        println!(">> MAIN: Initiating lib_P2P-based network instance with TENDERMINT.");
-        tokio::spawn(async move {
-            network::p2p::gossipsub_setup::tendermint_net::init(
-                protocols_to_net_receiver,
-                net_to_protocols_sender,
-                tendermint_config,
-            ).await;
-        });
-    }
-
-    // Read key file
-    // let my_keyfile = format!("conf/keys_{my_id}.json");
-    // println!(">> MAIN: Reading keys from keychain file: {}", my_keyfile);
-    // let key_chain: KeyChain = KeyChain::from_file(&my_keyfile)?; 
-
-    // Start Rpc Request handler in a new thread
-    println!(">> MAIN: Starting the RPC request handler.");
-    tokio::spawn(async move {
-        rpc_request_handler::init(
-            my_addr,
-            my_port.into(),
-            key_chain,
-            net_to_protocols_receiver,
-            protocols_to_net_sender,
-            net_to_protocols_sender2,
-        ).await;
-    });
-
-    // Wait until termination signal
+    info!("Server is running");
     tokio::select! {
-        _ = signal::ctrl_c() => {
-            println!(">> MAIN: Terminating.");
-            return Ok(());
-        },
+        _ = tokio::signal::ctrl_c() => {
+            info!("Received interrupt signal, shutting down");
+            return;
+        }
     }
-    
-    Ok(())
-}   
+}
