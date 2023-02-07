@@ -73,7 +73,7 @@ fn test_get_public_keys(){
                                                 .clone();
         assert!(pk_sg02_bls12381.scheme == ThresholdScheme::Sg02 as i32);
         assert!(pk_sg02_bls12381.group == Group::Bls12381 as i32);
-        assert!(pk_sg02_bls12381.key == private_key.serialize().expect("Error in serializing public key"));
+        assert!(pk_sg02_bls12381.key == private_key.get_public_key().serialize().expect("Error in serializing public key"));
     }
 
 }
