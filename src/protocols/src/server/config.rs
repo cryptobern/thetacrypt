@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-/// Read a node's configuration from a JSON encoding on disk.
+/// Read a server's configuration from a JSON encoding on disk.
 pub fn from_file(file: &PathBuf) -> Result<Config, String> {
     let data = match fs::read_to_string(file) {
         Ok(s) => s,
@@ -18,7 +18,7 @@ pub fn from_file(file: &PathBuf) -> Result<Config, String> {
     }
 }
 
-/// Build a node's configuration based on a JSON serialization.
+/// Build a server's configuration based on a JSON serialization.
 pub fn from_json(data: &str) -> Result<Config, String> {
     let cfg: Config = match serde_json::from_str(data) {
         Ok(cfg) => cfg,
@@ -28,14 +28,14 @@ pub fn from_json(data: &str) -> Result<Config, String> {
     new(cfg.id, cfg.listen_address, cfg.peers)
 }
 
-/// Configuration of the node binary.
+/// Configuration of the server binary.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    /// ID of this node.
+    /// ID of this server.
     pub id: u32,
-    /// Address which the node will attempt to bind to.
+    /// Address which the server will attempt to bind to.
     pub listen_address: String,
-    /// Vector of peers this node will connect to. Must also contain itself as a peer.
+    /// Vector of peers this server will connect to. Must also contain itself as a peer.
     pub peers: Vec<Peer>,
 }
 
@@ -83,29 +83,29 @@ impl Config {
         self.peers.iter().map(|p| p.rpc_port).collect()
     }
 
-    /// Get this node's P2P port. Returns an error if this node is not found in the list of peers.
+    /// Get this server's P2P port. Returns an error if this server is not found in the list of peers.
     pub fn my_p2p_port(&self) -> Result<u16, String> {
         match self.self_peer() {
             Some(peer) => Ok(peer.p2p_port),
             None => Err(format!(
-                "Config for node with ID {} not found in list of configured peers",
+                "Config for server with ID {} not found in list of configured peers",
                 self.id
             )),
         }
     }
 
-    /// Get this node's RPC port. Returns an error if this node is not found in the list of peers.
+    /// Get this server's RPC port. Returns an error if this server is not found in the list of peers.
     pub fn my_rpc_port(&self) -> Result<u16, String> {
         match self.self_peer() {
             Some(peer) => Ok(peer.rpc_port),
             None => Err(format!(
-                "Config for node with ID {} not found in list of configured peers",
+                "Config for server with ID {} not found in list of configured peers",
                 self.id
             )),
         }
     }
 
-    /// Get peer which corresponds to this node itself.
+    /// Get peer which corresponds to this server itself.
     pub fn self_peer(&self) -> Option<&Peer> {
         for peer in &self.peers {
             if peer.id == self.id {
@@ -117,7 +117,7 @@ impl Config {
     }
 }
 
-/// A single peer of this node.
+/// A single peer of this server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Peer {
     pub id: u32,

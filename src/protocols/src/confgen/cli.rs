@@ -26,17 +26,17 @@ pub struct CLI {
     pub listen_address: String,
     #[arg(
         long,
-        help = "Strategy to use to assign P2P and RPC ports. Static uses the same ports for all nodes. Consecutive starts at the provided ports, and increments them by one per node.",
+        help = "Strategy to use to assign P2P and RPC ports. Static uses the same ports for all servers. Consecutive starts at the provided ports, and increments them by one per server.",
         default_value_t = PortMappingStrategy::Static,
     )]
     pub port_mapping_strategy: PortMappingStrategy,
 
-    #[arg(long, help = "Path to file containing IPs of nodes, one per line")]
+    #[arg(long, help = "Path to file containing IPs of servers, one per line")]
     pub ip_file: PathBuf,
 
     #[arg(
         long,
-        help = "Whether to shuffle list of peers in each configuration file. This can help ensure that nodes do not all connect to the same primary peer"
+        help = "Whether to shuffle list of peers in each configuration file. This can help ensure that servers do not all connect to the same primary peer"
     )]
     pub shuffle_peers: bool,
 
@@ -48,7 +48,7 @@ pub struct CLI {
     pub outdir: PathBuf,
 }
 
-/// Enum representing how ports are assigned to nodes. Static uses the same port for all nodes,
+/// Enum representing how ports are assigned to servers. Static uses the same port for all servers,
 /// while consecutive uses incremental ports.
 #[derive(ValueEnum, Debug, Clone)]
 pub enum PortMappingStrategy {

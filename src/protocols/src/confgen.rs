@@ -59,7 +59,7 @@ pub fn run(
     info!("Writing configurations to disk");
     for cfg in configs {
         let mut outfile = outdir.clone();
-        outfile.push(format!("node_{:03}.json", cfg.id));
+        outfile.push(format!("server_{:03}.json", cfg.id));
 
         let data = match serde_json::to_string(&cfg) {
             Ok(s) => s,
