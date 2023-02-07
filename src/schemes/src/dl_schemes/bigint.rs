@@ -216,11 +216,11 @@ impl BigImpl {
        }
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         match self {
-            BigImpl::Bls12381(_x) => Group::Bls12381,
-            BigImpl::Bn254(_x) => Group::Bn254,
-            BigImpl::Ed25519(_x) => Group::Ed25519,
+            BigImpl::Bls12381(_x) => &Group::Bls12381,
+            BigImpl::Bn254(_x) => &Group::Bn254,
+            BigImpl::Ed25519(_x) => &Group::Ed25519,
        }
     }
 }

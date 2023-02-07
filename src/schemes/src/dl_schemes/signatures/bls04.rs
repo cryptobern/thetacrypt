@@ -158,10 +158,8 @@ pub struct Bls04SignatureShare {
 }
 
 impl Bls04SignatureShare {
-    pub fn get_data(&self) -> GroupElement { self.data.clone() }
-    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_label(&self) -> &[u8]{ &self.label }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Bls04 }
-    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
 impl Encode for Bls04SignatureShare {
@@ -194,22 +192,20 @@ impl Decode for Bls04SignatureShare {
 }
 
 #[derive(Clone, AsnType, Serializable, PartialEq)]
-pub struct Bls04SignedMessage {
+pub struct Bls04Signature {
     group: Group,
-    msg: Vec<u8>,
     sig: GroupElement // ECP2
 }
 
-impl Bls04SignedMessage {
+impl Bls04Signature {
     pub fn get_sig(&self) -> GroupElement { self.sig.clone() }
     pub fn get_group(&self) -> Group { self.group.clone() }
 }
 
-impl Encode for Bls04SignedMessage {
+impl Encode for Bls04Signature {
     fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
         encoder.encode_sequence(tag, |sequence| {
             self.group.get_code().encode(sequence)?;
-            self.msg.encode(sequence)?;
             self.sig.to_bytes().encode(sequence)?;
             Ok(())
         })?;
@@ -218,37 +214,36 @@ impl Encode for Bls04SignedMessage {
     }
 }
 
-impl Decode for Bls04SignedMessage {
+impl Decode for Bls04Signature {
     fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
         decoder.decode_sequence(tag, |sequence| {
             let group = Group::from_code(u8::decode(sequence)?);
-            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
             let bytes = Vec::<u8>::decode(sequence)?;
             let sig = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
 
-            Ok(Self {group, msg, sig})
+            Ok(Self {group, sig})
         })
     }
 }
 
 impl Bls04ThresholdSignature {
-    pub fn verify(sig: &Bls04SignedMessage, pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
-        GroupElement::ddh(&H(&sig.msg, &pk.get_group()), &pk.y ,&sig.sig, &GroupElement::new(&sig.get_group()))
+    pub fn verify(sig: &Bls04Signature, pk: &Bls04PublicKey, msg:&[u8]) -> Result<bool, ThresholdCryptoError> {
+        GroupElement::ddh(&H(&msg, &pk.get_group()), &pk.y ,&sig.sig, &GroupElement::new(&sig.get_group()))
     }
 
     pub fn partial_sign(msg: &[u8], label: &[u8], sk: &Bls04PrivateKey, _params: &mut ThresholdSignatureParams) -> Bls04SignatureShare {
         let data = H(&msg, &sk.get_group()).pow(&sk.xi);
 
-        Bls04SignatureShare{ group:data.get_group(), id: sk.id, label:label.to_vec(), data:data }
+        Bls04SignatureShare{ group:data.get_group().clone(), id: sk.id, label:label.to_vec(), data:data }
     }
 
     pub fn verify_share(share: &Bls04SignatureShare, msg: &[u8], pk: &Bls04PublicKey) -> Result<bool, ThresholdCryptoError> {
         GroupElement::ddh(&H(&msg, &share.get_group()), &pk.verification_key[(share.id - 1) as usize], &share.data, &GroupElement::new(&share.get_group()))
     }
 
-    pub fn assemble(shares: &Vec<Bls04SignatureShare>, msg: &[u8], _pk: &Bls04PublicKey) -> Bls04SignedMessage {
+    pub fn assemble(shares: &Vec<Bls04SignatureShare>, msg: &[u8], _pk: &Bls04PublicKey) -> Bls04Signature {
         let sig = interpolate(&shares);
-        Bls04SignedMessage{group: sig.get_group(), sig:sig, msg:msg.to_vec() } 
+        Bls04Signature{group: sig.get_group().clone(), sig:sig } 
     }
 }
 

@@ -1,9 +1,10 @@
 use core::panic;
-use std::fmt::Debug;
-use std::mem::ManuallyDrop;
+use std::{fmt::Debug, mem::ManuallyDrop};
+use rasn::AsnType;
+
 use thetacrypt_proto::scheme_types::GroupCode;
 
-use crate::{dl_schemes::{dl_groups::{bls12381::{Bls12381}, bn254::{Bn254}, ed25519::Ed25519}}, rand::RNG, interface::ThresholdCryptoError};
+use crate::{dl_schemes::dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519}, rand::RNG, interface::ThresholdCryptoError};
 use crate::dl_schemes::bigint::BigImpl;
 
 /*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
@@ -100,7 +101,7 @@ impl Debug for GroupData {
 }
 
 /* GroupElement is the representation of a single group element */
-#[derive(Debug)]
+#[derive(Debug, AsnType)]
 pub struct GroupElement {
     group: Group,
     data: GroupData
@@ -171,8 +172,8 @@ impl GroupElement {
         self.group.eq(&group)
     }
 
-    pub fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_group(&self) -> &Group {
+        &self.group
     }
     
     pub fn new(group: &Group) -> Self {

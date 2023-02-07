@@ -118,7 +118,7 @@ impl RpcRequestHandler {
             let (response_sender, response_receiver) = oneshot::channel::<Result<Arc<Key>, String>>();
             let cmd = StateUpdateCommand::GetPrivateKeyByType {
                 scheme: ciphertext.get_scheme(),
-                group: ciphertext.get_group(),
+                group: *ciphertext.get_group(),
                 responder: response_sender
             };
             self.state_command_sender.send(cmd).await.expect("Receiver for state_command_sender closed.");

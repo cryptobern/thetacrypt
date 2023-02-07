@@ -174,7 +174,7 @@ impl Sg02Ciphertext {
     pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
     pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
-    pub fn get_group(&self) -> Group { self.e.get_group() }
+    pub fn get_group(&self) -> &Group { self.e.get_group() }
 }
 
 impl Encode for Sg02Ciphertext {
@@ -231,10 +231,8 @@ pub struct Sg02DecryptionShare {
 }
 
 impl Sg02DecryptionShare {
-    pub fn get_data(&self) -> GroupElement { self.data.clone() }
-    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_label(&self) -> &[u8]{ &self.label }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
-    pub fn get_group(&self) -> Group { self.data.get_group() }
 }
 
 impl Encode for Sg02DecryptionShare {
