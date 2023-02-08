@@ -23,7 +23,7 @@ use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, Public
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
 // It is meant to test the basic network logic RpcRequestHandler, MessageForwarder, etc.
-// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
 // They should be able to connect to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,7 +38,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     let mut connections = connect_to_all_local().await;
 
     // Ask for decrypt result before sending decrypt request
-    let mut i = 1;
+    let mut i = 0;
     let get_result_request = GetDecryptResultRequest {
         instance_id: String::from("Some instance that does not exist yet."),
     };
@@ -56,7 +56,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Send decrypt request 1
-    let mut i = 1;
+    let mut i = 0;
     let mut instance_id = String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request 1 to server {i}.");
@@ -67,7 +67,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
         instance_id = response.get_ref().instance_id.clone();
 
         // Immediately ask for decrypt result. The instance cannot have finished at this point
-        if i <= 2 {
+        if i == 0 {
             let get_result_request = GetDecryptResultRequest {
                 instance_id: instance_id.clone(),
             };
@@ -89,7 +89,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     thread::sleep(time::Duration::from_millis(1000));
 
     // Ask for decrypt result. Instance should have finished by now.
-    let mut i = 1;
+    let mut i = 0;
     let get_result_request = GetDecryptResultRequest {
         instance_id: instance_id.clone(),
     };
@@ -115,10 +115,23 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Send decrypt request 2
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request 2 to server {i}.");
         let _ = conn.decrypt(request2.clone()).await.unwrap();
+        i += 1;
+    }
+
+    // Send DUPLICATE requests
+    let mut i = 0;
+    for conn in connections.iter_mut() {
+        println!(">> Sending DUPLICATE decryption request 1 to server {i}.");
+        let response = conn
+            .decrypt(request.clone())
+            .await
+            .expect_err("This should return Err");
+        assert!(response.code() == Code::AlreadyExists);
+        // let response2 = conn.decrypt(request2.clone()).await.unwrap();
         i += 1;
     }
 
@@ -127,7 +140,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
 // It is meant to test the decrypt_sync endpoint.
-// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
 // They should be able to connecto to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
@@ -142,7 +155,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     let mut connections = connect_to_all_local().await;
 
     // Send decrypt_sync request
-    let mut i = 1;
+    let mut i = 0;
     let mut handles = Vec::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decrypt_sync request with sn=100 to server {i}.");
@@ -171,7 +184,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Send DUPLICATE decrypt_sync request. The RPC call should return and error
-    let mut i = 1;
+    let mut i = 0;
     let mut handles = Vec::new();
     for conn in connections.iter_mut() {
         println!(">> Sending AGAIN decrypt_sync request with sn=100 to server {i}.");
@@ -192,7 +205,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Send a second decrypt_sync request
-    let mut i = 1;
+    let mut i = 0;
     let mut handles = Vec::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decrypt_sync request with sn=101 to server {i}.");
@@ -224,7 +237,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // test_local_servers_backlog() tests the backlog functionality on nodes that run on localhost.
-// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054. They should be able to connect to each other.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003. They should be able to connect to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
@@ -232,12 +245,12 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .sk
         .get_public_key();
-    let (request, _) = create_decryption_request(1, &pk);
-    let (request2, _) = create_decryption_request(2, &pk);
+    let (request, _) = create_decryption_request(10, &pk);
+    let (request2, _) = create_decryption_request(11, &pk);
 
     let mut connections = connect_to_all_local().await;
 
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         // Send two decryption request to one server and wait before you send it to the next,
         println!(">> Sending decryption request 1 to server {i}.");
@@ -254,19 +267,19 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
 // test_tendermint_servers() tests basic library functionality, such as the `decrypt` endpoint,
 // for nodes that run on docker containers.
 // To run it, start *four* threshold-library server instances with peer ids 1--4,
-// istening on ips 192.167.10.2--4 and port 50050.
+// istening on ips 192.167.10.2--4 and port 51000.
 async fn test_servers_dockerized() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .sk
         .get_public_key();
-    let (request, ciphertext) = create_decryption_request(1, &pk);
-    let (request2, ciphertext2) = create_decryption_request(2, &pk);
+    let (request, ciphertext) = create_decryption_request(20, &pk);
+    let (request2, ciphertext2) = create_decryption_request(21, &pk);
 
     let mut connections = connect_to_all_dockerized().await;
 
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request 1 to server {i}.");
         let response = conn
@@ -277,7 +290,7 @@ async fn test_servers_dockerized() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Send DUPLICATE requests
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending DUPLICATE decryption request 1 to server {i}.");
         let response = conn
@@ -289,7 +302,7 @@ async fn test_servers_dockerized() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
 
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request 2 to server {i}.");
         let response = conn.decrypt(request2.clone()).await.unwrap();
@@ -312,7 +325,7 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
     // Ask all the nodes for their available public keys. We say each node "advertises" some public keys.
     let req = GetPublicKeysForEncryptionRequest {};
     let mut responses = Vec::new();
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending a get-keys request to node {i}.");
         match conn.get_public_keys_for_encryption(req.clone()).await {
@@ -369,10 +382,10 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
     );
     let public_key = PublicKey::deserialize(&advertised_key_entry.key).unwrap();
     // todo: Do the following over an Rpc endpoint
-    let (request, _) = create_decryption_request(1, (&public_key));
+    let (request, _) = create_decryption_request(30, (&public_key));
 
     // Submit the decryption request to the nodes.
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request to server {i}.");
         let response = conn.decrypt(request.clone()).await.unwrap();
@@ -392,10 +405,10 @@ fn get_public_key_entry_digest(key_entry: &PublicKeyEntry) -> [u8; 32] {
 
 async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
-        (0, String::from("127.0.0.1"), 50051),
-        (1, String::from("127.0.0.1"), 50052),
-        (2, String::from("127.0.0.1"), 50053),
-        (3, String::from("127.0.0.1"), 50054),
+        (0, String::from("127.0.0.1"), 51000),
+        (1, String::from("127.0.0.1"), 51001),
+        (2, String::from("127.0.0.1"), 51002),
+        (3, String::from("127.0.0.1"), 51003),
     ];
     let mut connections = Vec::new();
     for peer in peers.iter() {
@@ -415,10 +428,10 @@ async fn connect_to_all_dockerized() -> Vec<ThresholdCryptoLibraryClient<tonic::
 {
     // ips of tendermint nodes, rpc endpoints of threshold app
     let peers = vec![
-        (0, String::from("192.167.10.2"), 50050),
-        (1, String::from("192.167.10.3"), 50050),
-        (2, String::from("192.167.10.4"), 50050),
-        (3, String::from("192.167.10.5"), 50050),
+        (0, String::from("192.167.10.2"), 51000),
+        (1, String::from("192.167.10.3"), 51000),
+        (2, String::from("192.167.10.4"), 51000),
+        (3, String::from("192.167.10.5"), 51000),
     ];
     let mut connections = Vec::new();
     for peer in peers.iter() {

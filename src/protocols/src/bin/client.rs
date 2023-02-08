@@ -12,7 +12,7 @@ use thetacrypt_proto::protocol_types::threshold_crypto_library_client::Threshold
 use thetacrypt_proto::protocol_types::DecryptRequest;
 
 // Send a single decrypt() request.
-// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 50051-50054.
+// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
 // They should be able to connect to each other.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut input = String::new();
 
-    let mut i = 1;
+    let mut i = 0;
     for conn in connections.iter_mut() {
         io::stdin().read_line(&mut input)?;
         println!(">> Sending decryption request 1 to server {i}.");
@@ -50,10 +50,10 @@ fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Cipher
 
 async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let peers = vec![
-        (0, String::from("127.0.0.1"), 50051),
-        (1, String::from("127.0.0.1"), 50052),
-        (2, String::from("127.0.0.1"), 50053),
-        (3, String::from("127.0.0.1"), 50054),
+        (0, String::from("127.0.0.1"), 51000),
+        (1, String::from("127.0.0.1"), 51001),
+        (2, String::from("127.0.0.1"), 51002),
+        (3, String::from("127.0.0.1"), 51003),
     ];
     let mut connections = Vec::new();
     for peer in peers.iter() {

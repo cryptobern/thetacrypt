@@ -24,8 +24,7 @@ fn generate_keys(k: usize, n: usize) -> Result<(), Box<dyn std::error::Error>>{
     for node_id in 0..n {
         let mut key_chain = KeyChain::new();
         key_chain.insert_key(sk_sg02_bls12381[node_id].clone(), String::from("sg02_bls12381"))?;
-        // attention: Nodes use ids 1 to n
-        let keyfile = format!("conf/keys_{:?}.json", node_id + 1);
+        let keyfile = format!("conf/keys_{:?}.json", node_id);
         key_chain.to_file(&keyfile)?;
     }
     Ok(())

@@ -12,13 +12,48 @@ The RPC types are defined in `protocol_types.proto` of the `proto` crate. Curren
 See the documentation for each of them in `protocol_types.proto`.
 
 # How to use the RPC server and client
-The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
-From the root directory of the `protocols` project start 4 terminals and, for i = 1...4, run:
+
+### Generating server configuration
+You can use the `confgen` binary to generate the configuration files that are needed to start server instances.
+For help, run:
 ```
-cargo run --bin server <i> -l
+cargo run --bin confgen -- --help
+```
+or, if you have already installed the binary, simply:
+```
+confgen --help
+```
+
+The steps to generate the configuration files are the following (assuming `src\protocols` as cwd).
+1. Create a file with the IP addresses of the servers. For example, for a local deployment, you can use:
+```
+cat > conf/server_ips << EOF
+127.0.0.1
+127.0.0.1
+127.0.0.1
+127.0.0.1
+EOF
+```
+
+2. Generate configuration files:
+```
+cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
+```
+
+3. Generate the keys for each server. Currently, the library offers a `trusted_dealer.rs` binary for this. It writes the keys for each server in the `conf\` directory. For a deployment with 4 servers and a threshold of 3, run:
+```
+cargo run --bin trusted_dealer -- 3 4
+```
+
+### Starting the server binary
+The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+From the root directory of the `protocols` project start 4 terminals and, for i = 0...3, run:
+```
+cargo run --bin server -- --config-file conf/server_<i>.json --key-file conf/keys_<i>.json
 ```
 You should see each server process print that it is connected to the others and ready to receive client requests.
 
+### Starting a client binary
 An example RPC client can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
 cargo run --bin client
