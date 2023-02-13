@@ -31,7 +31,7 @@ struct Opt {
     tcl_ip: String,
     
     /// IP where the threshold crypto library is listening.
-    #[structopt(long, default_value = "50050")]
+    #[structopt(long, default_value = "51000")]
     tcl_port: u16,
  
 }

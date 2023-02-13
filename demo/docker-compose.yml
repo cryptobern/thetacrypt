@@ -7,9 +7,11 @@ services:
       context: ..
       network: host
       dockerfile: ./demo/Dockerfile
-    command: /target/release/server 1 -l
+    command: /target/release/server --config-file conf/server_0.json --key-file conf/keys_0.json
     env_file:
       - config.env
+    volumes:
+      - ./config:/target/release/conf:Z
     image: rust-threshold-library
     ports:
       - "27001:27000"
@@ -17,7 +19,7 @@ services:
     restart: always
     networks:
       localnet:
-        ipv4_address: 192.167.10.2
+        ipv4_address: 192.167.20.2
 
   cosmoscrypto2:
     container_name: cosmoscrypto2
@@ -27,7 +29,9 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: /target/release/server 2 -l
+    volumes:
+      - ./config:/target/release/conf:Z      
+    command: /target/release/server --config-file conf/server_1.json --key-file conf/keys_1.json
     image: rust-threshold-library
     ports:
       - "27002:27000"
@@ -35,7 +39,7 @@ services:
     restart: always
     networks:
       localnet:
-        ipv4_address: 192.167.10.3
+        ipv4_address: 192.167.20.3
 
   cosmoscrypto3:
     container_name: cosmoscrypto3
@@ -45,7 +49,9 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: /target/release/server 3 -l
+    volumes:
+      - ./config:/target/release/conf:Z
+    command: /target/release/server --config-file conf/server_2.json --key-file conf/keys_2.json
     image: rust-threshold-library
     ports:
       - "27003:27000"
@@ -53,7 +59,7 @@ services:
     restart: always
     networks:
       localnet:
-        ipv4_address: 192.167.10.4
+        ipv4_address: 192.167.20.4
 
   cosmoscrypto4:
     container_name: cosmoscrypto4
@@ -63,7 +69,9 @@ services:
       dockerfile: ./demo/Dockerfile
     env_file:
       - config.env
-    command: /target/release/server 4 -l
+    volumes:
+      - ./config:/target/release/conf:Z
+    command: /target/release/server --config-file conf/server_3.json --key-file conf/keys_3.json
     image: rust-threshold-library
     ports:
       - "27004:27000"
@@ -71,7 +79,7 @@ services:
     restart: always
     networks:
       localnet:
-        ipv4_address: 192.167.10.5
+        ipv4_address: 192.167.20.5
 
   abci1:
     container_name: abci1
@@ -83,12 +91,12 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: ./fair_order_app --listen-ip 192.167.10.6 --tcl-ip 192.167.10.2
+    command: ./fair_order_app --listen-ip 192.167.20.6 --tcl-ip 192.167.20.2
     depends_on:
       - cosmoscrypto1
     networks:
       localnet:
-        ipv4_address: 192.167.10.6
+        ipv4_address: 192.167.20.6
 
   abci2:
     container_name: abci2
@@ -100,12 +108,12 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: ./fair_order_app --listen-ip 192.167.10.7 --tcl-ip 192.167.10.3
+    command: ./fair_order_app --listen-ip 192.167.20.7 --tcl-ip 192.167.20.3
     depends_on:
       - cosmoscrypto2
     networks:
       localnet:
-        ipv4_address: 192.167.10.7
+        ipv4_address: 192.167.20.7
 
   abci3:
     container_name: abci3
@@ -117,12 +125,12 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: ./fair_order_app --listen-ip 192.167.10.8 --tcl-ip 192.167.10.4
+    command: ./fair_order_app --listen-ip 192.167.20.8 --tcl-ip 192.167.20.4
     depends_on:
       - cosmoscrypto3
     networks:
       localnet:
-        ipv4_address: 192.167.10.8
+        ipv4_address: 192.167.20.8
 
   abci4:
     container_name: abci4
@@ -134,12 +142,12 @@ services:
       - config.env
     image: abci-img
     restart: always
-    command: ./fair_order_app --listen-ip 192.167.10.9 --tcl-ip 192.167.10.5
+    command: ./fair_order_app --listen-ip 192.167.20.9 --tcl-ip 192.167.20.5
     depends_on:
       - cosmoscrypto4
     networks:
       localnet:
-        ipv4_address: 192.167.10.9
+        ipv4_address: 192.167.20.9
 
   tendermint1:
       container_name: tendermint1

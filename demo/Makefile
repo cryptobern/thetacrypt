@@ -17,18 +17,28 @@ set-up:
 	@if ! [ -d tmp ]; then mkdir tmp; fi
 	@chmod -R 777 tmp
 	@cp config-template.toml tmp/config-template.toml
+	@if ! [ -d config ]; then mkdir config; fi
+	@chmod -R 777 config
+	@cp server_ips.txt config/server_ips.txt
+	docker build -t rust-threshold-library -f Dockerfile .. 
 .PHONY: set-up
 
-testnet-start: set-up
+config-files: #set-up
+	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf; fi
+	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
 	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/tendermint:v0.34.20 testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
-	docker-compose up
-.PHONY: testnet-start
+.PHONY: config-files
 
-testnet-stop:
+demo-start: config-files
+	docker-compose up
+.PHONY: demo-start
+
+demo-stop:
 	docker-compose down
-.PHONY: testnet-stop
+.PHONY: demo-stop
 
 clean-up:
 	@rm -r tmp
+	@rm -r config
 .PHONY: clean-up
 
