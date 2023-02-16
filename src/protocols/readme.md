@@ -70,8 +70,9 @@ The RPC request handler (defined in the `protocol_types.proto` of the `proto` cr
 
 ### State and state manager
 We use the "share memory by communicating" paradigm.
-There exists a Tokio task, the `StateManager`, spawned in the `init()` function of `src\rpc_request_handler.rs`, that is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
-It only keeps the state, and does not implement any other logic (e.g., when to start a request, when to update the status of a request).
+The `StateManager`, defined in `src\state_manager.rs`, is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
+It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
+The `StateManager` only keeps the state, and does not implement any other logic (e.g., when to start a request, when to update the status of a request).
 
 Any state query or update _must_ happen through the `StateManager`. To this end, the `StateManager` listens for
 `StateUpdateCommand`s on the receiver end of a channel, named `state_command_receiver`. Any other thread, owing a clone
@@ -84,8 +85,10 @@ sends the sender end (`tokio::sync::oneshot::Sender`) as part of the `StateUpdat
 The `StateManager` will use this sender to respond, and the receiver awaits it on the corresponding receiver end.
 
 ### MessageForwarder
-The `MessageForwarder` is responsible for forwarding received messages (received from the network) to the appropriate
+The `MessageForwarder`, defined in `src\message_forwarder.rs`, is responsible for forwarding received messages
+(received from the network) to the appropriate
 protocol instance (e.g., decryption shares to the corresponding threshold-decryption protocol instance).
+It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
 The `MessageForwarder` maintains a channel with _every_ protocol instance, where the sender end is owned 
 by `MessageForwarder` (see `instance_senders` variable)
 and the receiver end by the protocol. An instance is identified by its instance_id.
