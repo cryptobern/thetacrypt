@@ -2,15 +2,21 @@ use std::collections::HashMap;
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::{types::{InstanceStatus, StateUpdateCommand, ProtocolError}, keychain::KeyChain};
+use crate::{
+    keychain::KeyChain,
+    types::{InstanceStatus, ProtocolError, StateUpdateCommand},
+};
 
 pub(crate) struct StateManager {
     keychain: KeyChain,
-    state_command_receiver: Receiver<StateUpdateCommand>
+    state_command_receiver: Receiver<StateUpdateCommand>,
 }
 
 impl StateManager {
-    pub(crate) fn new(keychain: KeyChain, state_command_receiver: Receiver<StateUpdateCommand>) -> Self {
+    pub(crate) fn new(
+        keychain: KeyChain,
+        state_command_receiver: Receiver<StateUpdateCommand>,
+    ) -> Self {
         StateManager {
             keychain,
             state_command_receiver,
