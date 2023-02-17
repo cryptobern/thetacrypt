@@ -249,16 +249,44 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
     let (request2, _) = create_decryption_request(11, &pk);
 
     let mut connections = connect_to_all_local().await;
+    let mut instance_id1 = String::new();
 
     let mut i = 0;
     for conn in connections.iter_mut() {
         // Send two decryption request to one server and wait before you send it to the next,
         println!(">> Sending decryption request 1 to server {i}.");
-        let _ = conn.decrypt(request.clone()).await.unwrap();
+        let response1 = conn.decrypt(request.clone()).await.unwrap();
+        instance_id1 = response1.get_ref().instance_id.clone();
         println!(">> Sending decryption request 2 to server {i}.");
         let _ = conn.decrypt(request2.clone()).await.unwrap();
-        // Make this bigger than BACKLOG_WAIT_INTERVAL and smaller than BACKLOG_MAX_RETRIES * BACKLOG_WAIT_INTERVAL
-        thread::sleep(time::Duration::from_millis(7000));
+        thread::sleep(time::Duration::from_millis(2000));
+        i += 1;
+    }
+
+    // Ask for decrypt result. Instance should have finished by now.
+    let mut i = 0;
+    let get_result_request
+     = GetDecryptResultRequest {
+        instance_id: instance_id1,
+    };
+    for conn in connections.iter_mut() {
+        println!(">> Sending get_decrypt_result request to server {i}.");
+        let response = conn
+            .get_decrypt_result(get_result_request.clone())
+            .await
+            .expect("This should not return Err");
+        let get_result_response = response.into_inner();
+        assert!(get_result_response.is_started == true);
+        assert!(get_result_response.is_finished == true);
+        match get_result_response.plaintext {
+            Some(plaintext) => {
+                println!(
+                    ">> Decrypted plaintext: {:?}.",
+                    String::from_utf8(plaintext).unwrap()
+                );
+            }
+            None => panic!("This should return Some(plaintext)."),
+        }
         i += 1;
     }
     Ok(())

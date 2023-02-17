@@ -1,136 +1,151 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use network::types::message::P2pMessage;
-use tokio::sync::{
-    mpsc::{Receiver, Sender},
-    oneshot,
-};
 
-use crate::types::{InstanceId, InstanceStatus, MessageForwarderCommand, StateUpdateCommand};
+use crate::types::InstanceId;
 
-const BACKLOG_MAX_RETRIES: u32 = 10;
-const BACKLOG_WAIT_INTERVAL: u32 = 5; //seconds. todo: exponential backoff
+const BACKLOG_CHECK_INTERVAL: u32 = 600; //seconds.
 
-// MessageForwarder is responsible for forwarding messages to the appropriate instance (by maintaining a channel with each instance)
+#[derive(Debug)]
+pub(crate) enum MessageForwarderCommand {
+    // Inform the MessageForwarder that a new protocol instance has been created.
+    // Upon receiving this command, the MessageForwarder creates a new channel to communicate with the new instance
+    // and returns (by sending it through the responder) the receiver end of that channel.
+    InsertInstance {
+        instance_id: String,
+        responder: tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<Vec<u8>>>,
+    },
+    // Inform the MessageForwarder that a protocol instance has terminated.
+    RemoveInstance {
+        instance_id: String,
+    },
+}
+
+// BacklogData keeps all the messages that are destined for a specific instance,
+// plus a field checked, which is used to detect too old backlog data.
+struct BacklogData {
+    messages: Vec<Vec<u8>>,
+    checked: bool,
+}
+
+// MessageForwarder is responsible for forwarding messages to the appropriate instance
 // and backlogging messages when instance has not yet started.
+// For every new protocol instance, it creates a channel and stores the sender end in instance_senders.
 pub(crate) struct MessageForwarder {
     instance_senders: HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>>>,
-    backlogged_messages: VecDeque<(P2pMessage, u32)>,
+    backlogged_instances: HashMap<InstanceId, BacklogData>,
     backlog_interval: tokio::time::Interval,
     forwarder_command_receiver: Receiver<MessageForwarderCommand>,
     message_receiver: Receiver<P2pMessage>,
-    state_command_sender: Sender<StateUpdateCommand>,
 }
 
 impl MessageForwarder {
     pub(crate) fn new(
         command_receiver: Receiver<MessageForwarderCommand>,
         message_receiver: Receiver<P2pMessage>,
-        state_command_sender: Sender<StateUpdateCommand>,
     ) -> Self {
         MessageForwarder {
             instance_senders: HashMap::new(),
-            backlogged_messages: VecDeque::new(),
+            backlogged_instances: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
-                BACKLOG_WAIT_INTERVAL as u64,
+                BACKLOG_CHECK_INTERVAL as u64,
             )),
             forwarder_command_receiver: command_receiver,
             message_receiver,
-            state_command_sender,
         }
     }
 
     pub(crate) async fn run(&mut self) {
-        // let check_terminated_interval = tokio::time::interval(tokio::time::Duration::from_secs(CHECK_TERMINATED_CHANNELS_INTERVAL as u64));
         loop {
             tokio::select! {
-                forwarder_command = self.forwarder_command_receiver.recv() => { // Received a command.
+
+                forwarder_command = self.forwarder_command_receiver.recv() => {
                     let command = forwarder_command.expect("Sender for forwarder_command_receiver closed.");
                     match command {
-                        MessageForwarderCommand::GetReceiverForNewInstance { instance_id , responder} => {
-                            let (message_to_instance_sender, message_to_instance_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-                            self.instance_senders.insert(instance_id, message_to_instance_sender);
-                            responder.send(message_to_instance_receiver).expect("The receiver for responder in MessageForwarderCommand::GetReceiverForNewInstance has been closed.");
+                        MessageForwarderCommand::InsertInstance { instance_id , responder} => {
+                            if ! self.instance_senders.contains_key(&instance_id) {
+                                // Create channel for new instance and send the receiver end back to the caller
+                                let (forwarder_to_instance_sender, forwarder_to_instance_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+                                responder.send(forwarder_to_instance_receiver).expect("The receiver end of the responder in MessageForwarderCommand::GetReceiverForNewInstance has been closed.");
+                                // Check if we have any backlogged messages for the new instance. If yes, remove them from backlogged_data and forward all messages..
+                                if let Some(backlog_data) =  self.backlogged_instances.remove(&instance_id) {
+                                    for message_data in backlog_data.messages {
+                                        MessageForwarder::forward(&forwarder_to_instance_sender, message_data, &instance_id).await;
+                                    }
+                                }
+                                // Keep sender end of channel in instance_senders.
+                                self.instance_senders.insert(instance_id, forwarder_to_instance_sender);
+                            }
                         },
-                        MessageForwarderCommand::RemoveReceiverForInstance { instance_id} => {
+                        MessageForwarderCommand::RemoveInstance { instance_id} => {
                             self.instance_senders.remove(&instance_id);
                         }
                     }
                 }
 
-                incoming_message = self.message_receiver.recv() => { // An incoming message was received.
+                incoming_message = self.message_receiver.recv() => {
                     let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
-                    self.forward_or_backlog(&instance_id, message_data, BACKLOG_MAX_RETRIES).await;
+                    // Check whether a channel exists for the given instance_id.
+                    if let Some(instance_sender) = self.instance_senders.get(&instance_id) {
+                        // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has in the meanwhile finished.)
+                        MessageForwarder::forward(&instance_sender, message_data, &instance_id).await;
+                    } else {
+                        // Otherwise, backlog the message. This can happen for two reasons:
+                        // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
+                        // - The instance has not yet started because the corresponding request has not yet arrived.
+                        // In both cases, we backlog the message. If the instance has already been finished,
+                        // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
+                        println!(
+                            ">> FORW: Backlogging message for instance with id: {:?}",
+                            &instance_id
+                        );
+                        if let Some(backlog_data) =  self.backlogged_instances.get_mut(&instance_id) {
+                            backlog_data.messages.push(message_data);
+                        } else {
+                            let mut backlog_data = BacklogData{ messages: Vec::new(), checked: false };
+                            backlog_data.messages.push(message_data);
+                            self.backlogged_instances.insert(instance_id, backlog_data);
+                        }
+                    }
                 }
 
-                _ = self.backlog_interval.tick() => { // Retry sending the backlogged messages
-                    for _ in 0..self.backlogged_messages.len() { // always pop_front() and push_back(). If we pop_front() exactly backlogged_messages.len() times, we are ok.
-                        let (P2pMessage{instance_id, message_data}, retries_left) = self.backlogged_messages.pop_front().unwrap();
-                        self.forward_or_backlog(&instance_id, message_data, retries_left).await;
+                // Detect and delete too old backlog data, so the backlogged_instances field does not grow forever.
+                // We assume that an instance will be started at most BACKLOG_CHECK_INTERVAL seconds
+                // after a message for that instance has been received. Otherwise, it will never start, so we can delete backlogged messages.
+                // Every BACKLOG_CHECK_INTERVAL seconds, go through all backlogged_instances.
+                // If the field 'checked' is true, delete the backlogged instance. If it is false, set it to true.
+                // This ensures that, if a backlogged instance gets deleted, then it has been waiting for at least BACKLOG_CHECK_INTERVAL seconds.
+                _ = self.backlog_interval.tick() => {
+                    self.backlogged_instances.retain(|_, v| v.checked == false);
+                    for (_, v) in self.backlogged_instances.iter_mut(){
+                        v.checked = true;
                     }
-
+                    println!(">> FORW: Old backlogged instances deleted");
                 }
 
             }
         }
     }
 
-    async fn forward_or_backlog(
-        &mut self,
-        instance_id: &String,
+    async fn forward(
+        instance_sender: &Sender<Vec<u8>>,
         message_data: Vec<u8>,
-        backlog_retries_left: u32,
+        instance_id: &String,
     ) {
-        // A channel was found for the given instance_id.
-        if let Some(instance_sender) = self.instance_senders.get(instance_id) {
-            // It is ok if the following returns Err, it only means the instance has in the meanwhile finished.
-            instance_sender
-                .send(message_data)
-                .await
-                .map_err(|_err| println!(">> FORW: Instance {:?} has finished,", &instance_id))
-                .ok();
-            println!(
-                ">> FORW: Forwarded message in net_to_prot. Instance_id: {:?}",
-                &instance_id
-            );
-        } else {
-            // No channel was found for the given instance_id. This can happen for two reasons:
-            // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
-            // - The instance has not yet started because the corresponding request has not yet arrived.
-            // Ask the StateManager to find out what is the case.
-            let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
-            let cmd = StateUpdateCommand::GetInstanceStatus {
-                instance_id: instance_id.clone(),
-                responder: response_sender,
-            };
-            self.state_command_sender
-                .send(cmd)
-                .await
-                .expect("The receiver for state_command_sender3 has been closed.");
-            let status = response_receiver
-                .await
-                .expect("The sender for response_receiver dropped before sending a response.");
-            if !status.started {
-                // The instance has not yet started. Backlog the message, except if it was already backlogged too many times.
-                if backlog_retries_left > 0 {
-                    self.backlogged_messages.push_back((
-                        P2pMessage {
-                            instance_id: instance_id.clone(),
-                            message_data,
-                        },
-                        backlog_retries_left - 1,
-                    ));
-                    println!(">> FORW: Could not forward message to instance. Instance_id: {instance_id} does not exist yet. Retrying after {BACKLOG_WAIT_INTERVAL} seconds. Retries left: {backlog_retries_left}.");
-                } else {
-                    println!(">> FORW: Could not forward message to protocol instance. Abandoned after {BACKLOG_MAX_RETRIES} retries. Instance_id: {instance_id}");
-                }
-            } else if status.finished {
-                // The instance has already finished. Do not backlog the message.
-                // println!(">> FORW: Did not forward message in net_to_prot. Instance already terminated. Instance_id: {:?}", &instance_id);
-            } else {
-                // This should never happen. If status.started and !status.terminated, there should be a channel to that instance.
-                println!(">> FORW: INTERNAL ERROR: Could not find channel to instance. Instance_id: {:?}", &instance_id);
-            }
-        }
+        instance_sender
+            .send(message_data)
+            .await
+            .map_err(|_err| {
+                println!(
+                    ">> FORW: Instance {:?} has finished, message not forwarded.",
+                    instance_id
+                )
+            })
+            .ok();
+        println!(
+            ">> FORW: Forwarded message to instance with id: {:?}",
+            instance_id
+        );
     }
 }

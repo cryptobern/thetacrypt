@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
@@ -12,18 +12,23 @@ use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{
 use thetacrypt_proto::protocol_types::{DecryptReponse, DecryptRequest};
 use thetacrypt_proto::protocol_types::{DecryptSyncReponse, DecryptSyncRequest};
 use thetacrypt_proto::protocol_types::{GetDecryptResultRequest, GetDecryptResultResponse};
-use thetacrypt_proto::protocol_types::{
-    GetPublicKeysForEncryptionRequest, GetPublicKeysForEncryptionResponse, PublicKeyEntry,
-};
-use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest, PushDecryptionShareResponse};
 
-use crate::threshold_cipher_protocol::ThresholdCipherProtocol;
-use crate::types::StateUpdateCommand;
+use schemes::interface::Ciphertext;
+
+use thetacrypt_proto::protocol_types::{
+    threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
+    DecryptReponse, DecryptRequest, DecryptSyncReponse, DecryptSyncRequest,
+    GetDecryptResultRequest, GetDecryptResultResponse, GetPublicKeysForEncryptionRequest,
+    GetPublicKeysForEncryptionResponse, PublicKeyEntry, PushDecryptionShareRequest,
+    PushDecryptionShareResponse,
+};
+
 use crate::{
     keychain::KeyChain,
-    message_forwarder::MessageForwarder,
-    state_manager::StateManager,
-    types::{InstanceStatus, Key, MessageForwarderCommand, ProtocolError},
+    message_forwarder::{MessageForwarder, MessageForwarderCommand},
+    state_manager::{InstanceStatus, StateManager, StateUpdateCommand},
+    threshold_cipher_protocol::ThresholdCipherProtocol,
+    types::{Key, ProtocolError},
 };
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
@@ -125,7 +130,7 @@ impl RpcRequestHandler {
         // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
         let (response_sender, response_receiver) =
             oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
-        let cmd = MessageForwarderCommand::GetReceiverForNewInstance {
+        let cmd = MessageForwarderCommand::InsertInstance {
             instance_id: instance_id.clone(),
             responder: response_sender,
         };
@@ -170,7 +175,7 @@ impl RpcRequestHandler {
             .expect("The receiver for state_command_sender has been closed.");
 
         // Inform MessageForwarder that the instance was terminated.
-        let cmd = MessageForwarderCommand::RemoveReceiverForInstance { instance_id };
+        let cmd = MessageForwarderCommand::RemoveInstance { instance_id };
         forwarder_command_sender
             .send(cmd)
             .await
@@ -363,13 +368,11 @@ pub async fn init(
     outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
     incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 ) {
-    // Channel to send commands to the StateManager. There are two places in the code such a command can be sent from:
-    // - The RpcRequestHandler, when a new request is received (it takes ownership state_command_sender2)
-    // - The MessageForwarder, when it wants to know whether an instance has already finished (takes ownership of state_command_sender)
+    // Channel to send commands to the StateManager.
+    // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
     // The channel must never be closed.
     let (state_command_sender, state_command_receiver) =
         tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
-    let state_command_sender2 = state_command_sender.clone();
 
     // Channel to send commands to the MessageForwarder.
     // The sender end is owned by the RpcRequestHandler and must never be closed.
@@ -388,11 +391,7 @@ pub async fn init(
     // Takes ownershiip of forwarder_command_receiver, incoming_message_receiver, state_command_sender
     println!(">> REQH: Initiating MessageForwarder.");
     tokio::spawn(async move {
-        let mut mfw = MessageForwarder::new(
-            forwarder_command_receiver,
-            incoming_message_receiver,
-            state_command_sender,
-        );
+        let mut mfw = MessageForwarder::new(forwarder_command_receiver, incoming_message_receiver);
         mfw.run().await;
     });
 
@@ -400,10 +399,9 @@ pub async fn init(
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
     let service = RpcRequestHandler {
-        state_command_sender: state_command_sender2,
+        state_command_sender,
         forwarder_command_sender,
         outgoing_message_sender,
-        // result_sender,
         incoming_message_sender,
     };
     Server::builder()
