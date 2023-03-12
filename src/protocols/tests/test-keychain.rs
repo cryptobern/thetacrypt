@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs::remove_file, path::PathBuf};
 
 use schemes::{
     group::Group,
-    interface::ThresholdScheme,
+    interface::{ThresholdScheme, Serializable},
     keys::{KeyGenerator, PrivateKey},
     rand::{RngAlgorithm, RNG},
 };

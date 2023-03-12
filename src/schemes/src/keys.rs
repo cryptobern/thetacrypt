@@ -4,7 +4,8 @@ use std::fmt::format;
 use std::vec;
 use std::time::Instant;
 
-use derive::Serializable;
+use asn1::ParseError;
+use asn1::WriteError;
 use rasn::AsnType;
 use rasn::Decode;
 use rasn::Encode;
@@ -143,25 +144,216 @@ impl PrivateKey {
             PrivateKey::Frost(key) => PublicKey::Frost(key.get_public_key())
         }
     }
+}
 
-    pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
-        encode(self)
-    }
+impl Serializable for PrivateKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        match self {
+        Self::Sg02(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                    w.write_element(&ThresholdScheme::Sg02.get_id())?;
 
-    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
-        let key = decode::<Self>(bytes);
-        if key.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed)
+                    let bytes = key.serialize();
+                    if bytes.is_err() {
+                        return Err(WriteError::AllocationError);
+                    }
+                    w.write_element(&bytes.unwrap().as_slice())?;
+                    Ok(())
+                }))
+            });
+
+            if result.is_err() {
+                return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+         Self::Bz03(key) => {
+             let result = asn1::write(|w| {
+                 w.write_element(&asn1::SequenceWriter::new(&|w| {
+                    w.write_element(&ThresholdScheme::Bz03.get_id())?;
+
+                    let bytes = key.serialize();
+                    if bytes.is_err() {
+                        return Err(WriteError::AllocationError);
+                    }
+                    w.write_element(&bytes.unwrap().as_slice())?;
+                    Ok(())
+                 }))
+             });
+
+             if result.is_err() {
+                return Err(ThresholdCryptoError::SerializationFailed);
+             }
+
+             return Ok(result.unwrap());
+         },
+         Self::Cks05(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Cks05.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+         },
+         Self::Bls04(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Bls04.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+        Self::Frost(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Frost.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+        Self::Sh00(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Sh00.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+         _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+     }
+
+     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
+                let bytes = d.read_element::<&[u8]>()?.to_vec();
+                
+                if scheme.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                }
+
+                let key;
+                match scheme.unwrap() {
+                    ThresholdScheme::Sg02 => {
+                        let r = Sg02PrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Sg02(r.unwrap()));
+                    },
+                    ThresholdScheme::Bz03 => {
+                        let r = Bz03PrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Bz03(r.unwrap()));
+                    },
+                    ThresholdScheme::Cks05 => {
+                        let r = Cks05PrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Cks05(r.unwrap()));
+                    },
+                    ThresholdScheme::Bls04 => {
+                        let r = Bls04PrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Bls04(r.unwrap()));
+                    },
+                    ThresholdScheme::Frost => {
+                        let r = FrostPrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Frost(r.unwrap()));
+                    },
+                    ThresholdScheme::Sh00 => {
+                        let r = Sh00PrivateKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Sh00(r.unwrap()));
+                    },
+                    _ => {
+                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                    }
+                }
+
+                return key;
+            })
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
-        return Ok(key.unwrap());
+        return Ok(result.unwrap());
     }
 }
 
 impl serde::Serialize for PrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
-        match self.serialize(){
+        match Serializable::serialize(self){
             // Ok(key_bytes) => { serializer.serialize_bytes(&key_bytes) },
             Ok(key_bytes) => { 
                 let mut seq = serializer.serialize_seq(Some(key_bytes.len()))?;
@@ -219,100 +411,6 @@ impl<'de> serde::Deserialize<'de> for PrivateKey {
 }
 
 
-impl Decode for PrivateKey {
-    fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let scheme = ThresholdScheme::from_id(u8::decode(sequence)?);
-            let bytes = Vec::<u8>::decode(sequence)?;
-
-            match scheme {
-                ThresholdScheme::Bls04 => {
-                    let key: Bls04PrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Bls04(key))
-                },
-                ThresholdScheme::Sg02 => {
-                    let key: Sg02PrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Sg02(key))
-                }, 
-                ThresholdScheme::Bz03 => {
-                    let key: Bz03PrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Bz03(key))
-                }, 
-                ThresholdScheme::Cks05 => {
-                    let key: Cks05PrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Cks05(key))
-                },
-                ThresholdScheme::Sh00 => {
-                    let key: Sh00PrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Sh00(key))
-                },
-                ThresholdScheme::Frost => {
-                    let key: FrostPrivateKey = decode(&bytes).unwrap();
-                    Ok(PrivateKey::Frost(key))
-                },
-                _ => {
-                    panic!("unknown key encoding!");
-                }
-            }
-        })
-    }
-}
-
-impl Encode for PrivateKey {
-    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        match self  {
-            Self::Bls04(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Bls04)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Sg02(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Sg02)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Bz03(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Bz03)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Cks05(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Cks05)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Sh00(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Frost(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Frost)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-        }
-    }
-}
-
 #[derive(AsnType, Clone, PartialEq, Debug)]
 #[rasn(enumerated)]
 pub enum PublicKey {
@@ -324,101 +422,210 @@ pub enum PublicKey {
     Frost(FrostPublicKey)
 }
 
-impl Decode for PublicKey {
-    fn decode_with_tag<Dec: rasn::Decoder>(decoder: &mut Dec, tag: rasn::Tag) -> Result<Self, Dec::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let scheme = ThresholdScheme::from_id(u8::decode(sequence)?);
-            let bytes = Vec::<u8>::decode(sequence)?;
+impl Serializable for PublicKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        match self {
+        Self::Sg02(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                    w.write_element(&ThresholdScheme::Sg02.get_id())?;
 
-            match scheme {
-                ThresholdScheme::Bls04 => {
-                    let key: Bls04PublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Bls04(key))
-                },
-                ThresholdScheme::Sg02 => {
-                    let key: Sg02PublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Sg02(key))
-                }, 
-                ThresholdScheme::Bz03 => {
-                    let key: Bz03PublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Bz03(key))
-                }, 
-                ThresholdScheme::Cks05 => {
-                    let key: Cks05PublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Cks05(key))
-                },
-                ThresholdScheme::Sh00 => {
-                    let key: Sh00PublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Sh00(key))
-                },
-                ThresholdScheme::Frost => {
-                    let key: FrostPublicKey = decode(&bytes).unwrap();
-                    Ok(PublicKey::Frost(key))
-                },
-                _ => {
-                    panic!("unknown key encoding!");
-                }
+                    let bytes = key.serialize();
+                    if bytes.is_err() {
+                        return Err(WriteError::AllocationError);
+                    }
+                    w.write_element(&bytes.unwrap().as_slice())?;
+                    Ok(())
+                }))
+            });
+
+            if result.is_err() {
+                return Err(ThresholdCryptoError::SerializationFailed);
             }
-        })
-    }
-}
 
-impl Encode for PublicKey {
-    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        match self  {
-            Self::Bls04(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Bls04)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Sg02(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Sg02)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Bz03(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Bz03)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
-            Self::Cks05(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Cks05)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
+            return Ok(result.unwrap());
+        },
+         Self::Bz03(key) => {
+             let result = asn1::write(|w| {
+                 w.write_element(&asn1::SequenceWriter::new(&|w| {
+                    w.write_element(&ThresholdScheme::Bz03.get_id())?;
 
-            Self::Sh00(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Sh00)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
+                    let bytes = key.serialize();
+                    if bytes.is_err() {
+                        return Err(WriteError::AllocationError);
+                    }
+                    w.write_element(&bytes.unwrap().as_slice())?;
                     Ok(())
-                })?;
-                Ok(())
-            },
+                 }))
+             });
 
-            Self::Frost(key) => {
-                encoder.encode_sequence(tag, |sequence| {
-                    (ThresholdScheme::get_id(&ThresholdScheme::Frost)).encode(sequence)?;
-                    key.serialize().unwrap().encode(sequence)?;
-                    Ok(())
-                })?;
-                Ok(())
-            },
+             if result.is_err() {
+                return Err(ThresholdCryptoError::SerializationFailed);
+             }
+
+             return Ok(result.unwrap());
+         },
+         Self::Cks05(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Cks05.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+         },
+         Self::Bls04(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Bls04.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+        Self::Frost(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Frost.get_id())?;
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+        Self::Sh00(key) => {
+            let result = asn1::write(|w| {
+                w.write_element(&asn1::SequenceWriter::new(&|w| {
+                   w.write_element(&ThresholdScheme::Sh00.get_id());
+
+                   let bytes = key.serialize();
+                   if bytes.is_err() {
+                       return Err(WriteError::AllocationError);
+                   }
+                   w.write_element(&bytes.unwrap().as_slice())?;
+                   Ok(())
+                }))
+            });
+
+            if result.is_err() {
+               return Err(ThresholdCryptoError::SerializationFailed);
+            }
+
+            return Ok(result.unwrap());
+        },
+         _ => Err(ThresholdCryptoError::WrongScheme)
         }
+     }
+
+     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
+                let bytes = d.read_element::<&[u8]>()?.to_vec();
+                
+                if scheme.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                }
+
+                let key;
+                match scheme.unwrap() {
+                    ThresholdScheme::Sg02 => {
+                        let r = Sg02PublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Sg02(r.unwrap()));
+                    },
+                    ThresholdScheme::Bz03 => {
+                        let r = Bz03PublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Bz03(r.unwrap()));
+                    },
+                    ThresholdScheme::Cks05 => {
+                        let r = Cks05PublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Cks05(r.unwrap()));
+                    },
+                    ThresholdScheme::Bls04 => {
+                        let r = Bls04PublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Bls04(r.unwrap()));
+                    },
+                    ThresholdScheme::Frost => {
+                        let r = FrostPublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Frost(r.unwrap()));
+                    },
+                    ThresholdScheme::Sh00 => {
+                        let r = Sh00PublicKey::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        key = Ok(Self::Sh00(r.unwrap()));
+                    },
+                    _ => {
+                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                    }
+                }
+
+                return key;
+            })
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        return Ok(result.unwrap());
     }
 }
+
 
 impl PublicKey {
     pub fn get_scheme(&self) -> ThresholdScheme {
@@ -463,19 +670,6 @@ impl PublicKey {
             PublicKey::Sh00(key) => key.get_n(),
             PublicKey::Frost(key) => key.get_n(),
         }
-    }
-
-    pub fn serialize(&self) -> Result<Vec<u8>, rasn::ber::enc::Error> {
-        encode(self)
-    }
-
-    pub fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
-        let key = decode::<Self>(bytes);
-        if key.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed)
-        }
-
-        return Ok(key.unwrap());
     }
 }
 
@@ -531,7 +725,7 @@ impl IntKeyStore {
         }
     }
 
-    pub fn get_serialized_private_key(&self, index:u16) -> Result<Vec<u8>, rasn::ber::enc::Error> {
+    pub fn get_serialized_private_key(&self, index:u16) -> Result<Vec<u8>, ThresholdCryptoError> {
         if index < 1 || index > self.pk.get_n() {
             panic!("Private key index has to be between 1 and n");
         }

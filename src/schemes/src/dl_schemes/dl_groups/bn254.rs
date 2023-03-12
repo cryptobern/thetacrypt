@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use derive::{Serializable, EcPairingGroupImpl, BigIntegerImpl};
+use derive::{ EcPairingGroupImpl, BigIntegerImpl};
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}};
 use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{ rand::RNG, interface::ThresholdCryptoError};
@@ -28,7 +28,7 @@ pub struct Bn254 {
     value: ECPoint
 }
 
-#[derive(Debug, AsnType, Serializable, BigIntegerImpl)]
+#[derive(Debug, AsnType, BigIntegerImpl)]
 pub struct Bn254BIG {
     value: BIG
 }

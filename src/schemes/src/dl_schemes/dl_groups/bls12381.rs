@@ -1,12 +1,13 @@
 use std::mem::ManuallyDrop;
 
-use derive::{Serializable, EcPairingGroupImpl, BigIntegerImpl};
+use derive::{ EcPairingGroupImpl, BigIntegerImpl};
 use mcore::{bls12381::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}};
 use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{rand::RNG, interface::ThresholdCryptoError};
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
 use crate::group::{GroupElement};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use crate::interface::ThresholdScheme; 
+use crate::group::Group;
 
 #[repr(C)]
 union ECPoint {
@@ -27,7 +28,7 @@ pub struct Bls12381 {
     value: ECPoint
 }
 
-#[derive(Debug, AsnType, Serializable, BigIntegerImpl)]
+#[derive(Debug, BigIntegerImpl)]
 pub struct Bls12381BIG {
     value: BIG
 }

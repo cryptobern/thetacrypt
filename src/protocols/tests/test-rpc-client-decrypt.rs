@@ -9,7 +9,7 @@ use tonic::{Code, Response, Status};
 
 use mcore::hash256::HASH256;
 use protocols::keychain::KeyChain;
-use schemes::keys::PublicKey;
+use schemes::{keys::PublicKey, interface::Serializable};
 use schemes::{
     group::Group,
     interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams, ThresholdScheme},

@@ -18,8 +18,6 @@ pub fn public_key_derive(input:TokenStream) -> TokenStream {
                 self.t
             }
         }
-
-        impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
     };
 
     TokenStream::from(expanded)
@@ -50,22 +48,6 @@ pub fn private_key_derive(input:TokenStream) -> TokenStream {
                 self.pubkey.get_threshold()
             }
         }
-
-        impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
-    };
-
-    TokenStream::from(expanded)
-}
-
-#[proc_macro_derive(Serializable)]
-pub fn serializable_derive(input:TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    let generics = input.generics;
-    let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let expanded = quote! {
-        impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
     };
 
     TokenStream::from(expanded)
@@ -104,7 +86,6 @@ pub fn ciphertext_derive(input:TokenStream) -> TokenStream {
             fn get_label(&self) -> Vec<u8> { self.label.clone() }
         }
 
-        impl #impl_generics crate::interface::Serializable for #name #ty_generics #where_clause {}
     };
 
     TokenStream::from(expanded)
@@ -153,26 +134,6 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
     let group_name = syn::Ident::new(&gname, name.span());
 
     let expanded = quote! {
-        impl Encode for #name {
-            fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, _tag: rasn::Tag) -> Result<(), E::Error> {
-                self.to_bytes().encode(encoder)?;
-                Ok(())
-            }
-        }
-
-        impl Decode for #name {
-            fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, _tag: rasn::Tag) -> Result<Self, D::Error> {
-                let bytes:Vec<u8> = Vec::<u8>::decode(decoder)?.into();
-
-                let val = Self::from_bytes(&bytes);
-
-                match val {
-                    BigImpl::#group_name(x) => Ok(x),
-                    _ => panic!("Wrong type after deserializing big integer") // TODO: Change this
-                }
-            }
-        }
-
         impl PartialEq for #name {
             fn eq(&self, other: &Self) -> bool {
                 self.equals(&BigImpl::#group_name(other.clone()))

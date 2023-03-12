@@ -4,9 +4,10 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+use asn1::{WriteError, ParseError};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
-use derive::{PublicKey, PrivateKey, DlShare, Ciphertext, Serializable};
+use derive::{PublicKey, PrivateKey, DlShare, Ciphertext};
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
@@ -14,12 +15,12 @@ use rasn::{AsnType, Tag, Encode, Decode};
 use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::{common::*};
 use crate::group::{GroupElement};
-use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare};
+use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare, Serializable};
 use crate::interface::ThresholdScheme; use  crate::group::Group;
 use crate::rand::RNG;
 
 
-#[derive(Clone, Debug, AsnType, Serializable)]
+#[derive(Clone, Debug, AsnType)]
 pub struct Bz03PublicKey {
     n: u16,
     k: u16,
@@ -50,44 +51,56 @@ impl Bz03PublicKey {
     }
 }
 
-impl Encode for Bz03PublicKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.n.encode(sequence)?;
-            self.k.encode(sequence)?;
-            self.group.get_code().encode(sequence)?;
-            self.y.to_bytes().encode(sequence)?;
+impl Serializable for Bz03PublicKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&(self.n as u64))?;
+                w.write_element(&(self.k as u64))?;
+                w.write_element(&self.y.to_bytes().as_slice())?;
 
-            for i in 0..self.verification_key.len() {
-                self.verification_key[i].to_bytes().encode(sequence)?;
-            }
+                for i in 0..self.verification_key.len() {
+                    w.write_element(&self.verification_key[i].to_bytes().as_slice())?;
+                }
+                Ok(())
+            }))
+        });
 
-            Ok(())
-        })?;
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
 
-        Ok(())
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Bz03PublicKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let n = u16::decode(sequence)?;
-            let k = u16::decode(sequence)?;
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let n = d.read_element::<u64>()? as u16;
+                let k = d.read_element::<u64>()? as u16;
+                
+                let bytes = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
+                
+                let mut verification_key = Vec::new();
 
-            let code = u8::decode(sequence)?;
-            let group = Group::from_code(code);
-            let y_b = Vec::<u8>::decode(sequence)?;
-            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(1));
+                for _i in 0..n {
+                    let bytes = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                }
 
-            let mut verificationKey = Vec::<GroupElement>::new();
-            for _i in 0..n {
-                let bytes = Vec::<u8>::decode(sequence)?;
-                verificationKey.push(GroupElement::from_bytes(&bytes, &group, Option::None));
-            }
+                Ok(Self{n, k, group, y, verification_key})
+            })
+        });
 
-            Ok(Self{n, k, y, group, verification_key: verificationKey})
-        })
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
@@ -97,7 +110,7 @@ impl PartialEq for Bz03PublicKey {
     }
 }
 
-#[derive(Clone, Debug, AsnType, Serializable)]
+#[derive(Clone, Debug, AsnType)]
 pub struct Bz03PrivateKey {
     id: u16,
     xi: BigImpl,
@@ -134,32 +147,59 @@ impl Bz03PrivateKey {
     }
 }
 
+impl Serializable for Bz03PrivateKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&self.xi.to_bytes().as_slice())?;
 
-impl Encode for Bz03PrivateKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.id.encode(sequence)?;
-            self.xi.to_bytes().encode(sequence)?;
-            self.pubkey.encode(sequence)?;
-            Ok(())
-        })?;
+                let bytes = self.pubkey.serialize();
+                if bytes.is_err() {
+                    return Err(WriteError::AllocationError);
+                }
 
-        Ok(())
+                w.write_element(&bytes.unwrap().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let pubbytes = d.read_element::<&[u8]>()?;
+                let res = Bz03PublicKey::deserialize(&pubbytes.to_vec());
+                if res.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
+                }
+
+                let pubkey = res.unwrap();
+
+                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+
+                return Ok(Self {id, xi, pubkey});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for Bz03PrivateKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let id = u16::decode(sequence)?;
-            let xi_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Bz03PublicKey::decode(sequence)?;
-            let xi = BigImpl::from_bytes(&pubkey.group, &xi_bytes);
-
-            Ok(Self {id, xi, pubkey})
-        })
-    }
-}
 
 impl PartialEq for Bz03PrivateKey {
     fn eq(&self, other: &Self) -> bool {
@@ -167,7 +207,7 @@ impl PartialEq for Bz03PrivateKey {
     }
 }
 
-#[derive(Clone, AsnType, Serializable, DlShare)]
+#[derive(Clone, AsnType, DlShare)]
 pub struct Bz03DecryptionShare{
     group: Group,
     id: u16,
@@ -185,30 +225,45 @@ impl Bz03DecryptionShare {
     }
 }
 
-impl Encode for Bz03DecryptionShare {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.group.get_code().encode(sequence)?;
-            self.label.encode(sequence)?;
-            self.id.encode(sequence)?;
-            self.data.to_bytes().encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Bz03DecryptionShare {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&self.label.as_slice())?;
+                w.write_element(&self.data.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
 
-        Ok(())
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Bz03DecryptionShare {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let group = Group::from_code(u8::decode(sequence)?);
-            let label = Vec::<u8>::decode(sequence)?;
-            let id = u16::decode(sequence)?;
-            let bytes = Vec::<u8>::decode(sequence)?;
-            let data = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
-            Ok(Self {group, label, id, data})
-        })
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let label = d.read_element::<&[u8]>()?.to_vec();
+                
+                let bytes = d.read_element::<&[u8]>()?;
+                let data = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
+
+                return Ok(Self { id, group, label, data});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
@@ -218,7 +273,7 @@ impl PartialEq for Bz03DecryptionShare {
     }
 }
 
-#[derive(Clone, AsnType, Serializable)]
+#[derive(Clone, AsnType)]
 pub struct Bz03Ciphertext {
     label: Vec<u8>,
     msg: Vec<u8>,
@@ -234,38 +289,53 @@ impl Bz03Ciphertext {
     pub fn get_group(&self) -> &Group { self.u.get_group() }
 }
 
-impl Encode for Bz03Ciphertext {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.u.get_group().get_code().encode(sequence)?;
-            self.label.encode(sequence)?;
-            self.msg.encode(sequence)?;
-            self.c_k.encode(sequence)?;
-            self.u.to_bytes().encode(sequence)?;
-            self.hr.to_bytes().encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Bz03Ciphertext {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&self.label.as_slice())?;
+                w.write_element(&self.msg.as_slice())?;
+                w.write_element(&self.u.to_bytes().as_slice())?;
+                w.write_element(&self.hr.to_bytes().as_slice())?;
+                w.write_element(&self.c_k.as_slice())?;
+                
+                Ok(())
+            }))
+        });
 
-        Ok(())
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl  Decode for Bz03Ciphertext {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let group = Group::from_code(u8::decode(sequence)?);
-            let label:Vec<u8> = Vec::<u8>::decode(sequence)?;
-            let msg:Vec<u8> = Vec::<u8>::decode(sequence)?;
-            let c_k:Vec<u8> = Vec::<u8>::decode(sequence)?;
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let label = d.read_element::<&[u8]>()?.to_vec();
+                let msg = d.read_element::<&[u8]>()?.to_vec();
+                
+                let bytes = d.read_element::<&[u8]>()?;
+                let u = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
 
-            let u_b = Vec::<u8>::decode(sequence)?;
-            let u = GroupElement::from_bytes(&u_b, &group, Option::Some(1)); 
+                let bytes = d.read_element::<&[u8]>()?;
+                let hr = GroupElement::from_bytes(&bytes, &group, Option::Some(0));
 
-            let hr_b = Vec::<u8>::decode(sequence)?;
-            let hr = GroupElement::from_bytes(&hr_b, &group, Option::Some(0)); 
+                let c_k = d.read_element::<&[u8]>()?.to_vec();
 
-            Ok(Self {label, msg, u, c_k, hr})
-        })
+                return Ok(Self { label, msg, u, c_k, hr });
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 

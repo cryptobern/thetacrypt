@@ -1,11 +1,11 @@
 use std::borrow::BorrowMut;
 
-use derive::{PublicKey, PrivateKey, DlShare, Serializable};
+use asn1::{WriteError, ParseError};
+use derive::{PublicKey, PrivateKey, DlShare};
 use mcore::{hash256::HASH256};
-use rasn::{AsnType, Encode, Decode};
-use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError, ThresholdScheme}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, group::{GroupElement, Group}};
+use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError, ThresholdScheme, Serializable}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, group::{GroupElement, Group}, dl_schemes::{signatures::frost::FrostPublicKey, bigint::BigImpl}};
 
-#[derive(AsnType, Clone, Debug, Serializable)]
+#[derive(Clone, Debug)]
 pub struct Sh00PublicKey {
     t: u16,
     n: u16,
@@ -50,36 +50,67 @@ impl Sh00PublicKey {
     }
 }
 
-impl Encode for Sh00PublicKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.n.encode(sequence)?;
-            self.t.encode(sequence)?;
-            self.N.encode(sequence)?;
-            self.e.encode(sequence)?;
-            self.verification_key.encode(sequence)?;
-            self.delta.encode(sequence)?;
-            self.modbits.encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Sh00PublicKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.n as u64))?;
+                w.write_element(&(self.t as u64))?;
+                w.write_element(&self.N.to_bytes().as_slice())?;
+                w.write_element(&self.e.to_bytes().as_slice())?;
 
-        Ok(())
+                let bytes = self.verification_key.serialize();
+                if bytes.is_err() {
+                    return Err(WriteError::AllocationError);
+                }
+
+                w.write_element(&bytes.unwrap().as_slice())?;
+                w.write_element(&(self.delta as u64))?;
+                w.write_element(&(self.modbits as u64))?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Sh00PublicKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let n = u16::decode(sequence)?;
-            let t = u16::decode(sequence)?;
-            let N = RsaBigInt::decode(sequence)?;
-            let e = RsaBigInt::decode(sequence)?;
-            let verification_key = Sh00VerificationKey::decode(sequence)?;
-            let delta = usize::decode(sequence)?;
-            let modbits = usize::decode(sequence)?;
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let n = d.read_element::<u64>()? as u16;
+                let t = d.read_element::<u64>()? as u16;
 
-            Ok(Self{t, n, N, e, verification_key: verification_key, delta, modbits})
-        })
+                let mut bytes = d.read_element::<&[u8]>()?;
+                let N = RsaBigInt::from_bytes(&mut bytes);
+
+                let mut bytes = d.read_element::<&[u8]>()?;
+                let e = RsaBigInt::from_bytes(&mut bytes);
+
+                let verify_bytes = d.read_element::<&[u8]>()?;
+                let res = Sh00VerificationKey::deserialize(&verify_bytes.to_vec());
+                if res.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
+                }
+
+                let verification_key = res.unwrap();
+
+                let delta = d.read_element::<u64>()? as usize;
+                let modbits = d.read_element::<u64>()? as usize;
+
+                return Ok(Self {n, t, N, e, verification_key, delta, modbits});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
@@ -90,7 +121,7 @@ impl PartialEq for Sh00PublicKey {
     }
 }
 
-#[derive(AsnType, Clone, Debug, Serializable)]
+#[derive(Clone, Debug)]
 pub struct Sh00PrivateKey {
     id: u16,
     m: RsaBigInt,
@@ -123,34 +154,61 @@ impl Sh00PrivateKey {
     }
 }
 
-impl Encode for Sh00PrivateKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.id.encode(sequence)?;
-            self.m.to_bytes().encode(sequence)?;
-            self.si.to_bytes().encode(sequence)?;
-            self.pubkey.encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Sh00PrivateKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&self.m.to_bytes().as_slice())?;
+                w.write_element(&self.si.to_bytes().as_slice())?;
 
-        Ok(())
+                let bytes = self.pubkey.serialize();
+                if bytes.is_err() {
+                    return Err(WriteError::AllocationError);
+                }
+
+                w.write_element(&bytes.unwrap().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let mbytes = d.read_element::<&[u8]>()?;
+                let sibytes = d.read_element::<&[u8]>()?;
+                let pubbytes = d.read_element::<&[u8]>()?;
+                let res = Sh00PublicKey::deserialize(&pubbytes.to_vec());
+                if res.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
+                }
+
+                let pubkey = res.unwrap();
+
+                let m = RsaBigInt::from_bytes(mbytes);
+                let si = RsaBigInt::from_bytes(sibytes);
+
+                return Ok(Self {id, m, si, pubkey});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for Sh00PrivateKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let id = u16::decode(sequence)?;
-            let mut m_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let mut si_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = Sh00PublicKey::decode(sequence)?;
-
-            let m = RsaBigInt::from_bytes(&mut m_bytes);
-            let si = RsaBigInt::from_bytes(&mut si_bytes);
-            Ok(Self {id, m, si, pubkey})
-        })
-    }
-}
 
 impl PartialEq for Sh00PrivateKey {
     fn eq(&self, other: &Self) -> bool {
@@ -158,7 +216,7 @@ impl PartialEq for Sh00PrivateKey {
     }
 }
 
-#[derive(AsnType, Clone, Debug, Serializable)]
+#[derive(Clone, Debug)]
 pub struct Sh00SignatureShare {
     group:Group,
     id:u16,
@@ -190,34 +248,53 @@ impl Sh00SignatureShare {
     }
 }
 
-impl Encode for Sh00SignatureShare {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.id.encode(sequence)?;
-            self.group.get_code().encode(sequence)?;
-            self.label.encode(sequence)?;
-            self.xi.encode(sequence)?;
-            self.z.encode(sequence)?;
-            self.c.encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Sh00SignatureShare {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&(self.group.get_code() as u64))?;
+                w.write_element(&self.label.as_slice())?;
+                w.write_element(&self.xi.to_bytes().as_slice())?;
+                w.write_element(&self.z.to_bytes().as_slice())?;
+                w.write_element(&self.c.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
 
-        Ok(())
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Sh00SignatureShare {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let id = u16::decode(sequence)?;
-            let group = Group::from_code(u8::decode(sequence)?);
-            let label = Vec::<u8>::decode(sequence)?;
-            let xi = RsaBigInt::decode(sequence)?;
-            let z = RsaBigInt::decode(sequence)?;
-            let c = RsaBigInt::decode(sequence)?;
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let label = d.read_element::<&[u8]>()?;
 
-            Ok(Self {id, group, label, xi, z, c})
-        })
+                let bytes = d.read_element::<&[u8]>()?;
+                let xi = RsaBigInt::from_bytes(&bytes);
+               
+                let bytes = d.read_element::<&[u8]>()?;
+                let z = RsaBigInt::from_bytes(&bytes);
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let c = RsaBigInt::from_bytes(&bytes);
+
+                return Ok(Self {id, group, label:label.to_vec(), xi, z, c});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
@@ -227,7 +304,7 @@ impl PartialEq for Sh00SignatureShare {
     }
 }
 
-#[derive(Clone, AsnType, Serializable, Debug)]
+#[derive(Clone, Debug)]
 pub struct Sh00Signature {
     sig: RsaBigInt
 }
@@ -238,24 +315,39 @@ impl Sh00Signature {
     }
 }
 
-impl Encode for Sh00Signature {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.sig.encode(sequence)?;
-            Ok(())
-        })?;
 
-        Ok(())
+impl Serializable for Sh00Signature {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.sig.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Sh00Signature {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let sig = RsaBigInt::decode(sequence)?;
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let bytes = d.read_element::<&[u8]>()?;
+                let sig = RsaBigInt::from_bytes(&bytes);
 
-            Ok(Self { sig})
-        })
+                return Ok(Self {sig});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
@@ -265,7 +357,7 @@ impl PartialEq for Sh00Signature {
     }
 }
 
-#[derive(Clone, AsnType, Serializable, Debug)]
+#[derive(Clone, Debug)]
 pub struct Sh00VerificationKey {
     v: RsaBigInt,
     vi: Vec<RsaBigInt>,
@@ -280,27 +372,56 @@ impl Sh00VerificationKey {
         }
 }
 
-impl Encode for Sh00VerificationKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.v.encode(sequence)?;
-            self.vi.encode(sequence)?;
-            self.u.encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for Sh00VerificationKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.v.to_bytes().as_slice())?;
+                w.write_element(&(self.vi.len() as u64))?;
 
-        Ok(())
+                for i in 0..self.vi.len() {
+                    w.write_element(&self.vi[i].to_bytes().as_slice())?;
+                }
+               
+                w.write_element(&self.u.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
-}
 
-impl Decode for Sh00VerificationKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let v = RsaBigInt::decode(sequence)?;
-            let vi = Vec::<RsaBigInt>::decode(sequence)?;
-            let u = RsaBigInt::decode(sequence)?;
-            Ok(Self {v, vi, u})
-        })
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let mut bytes = d.read_element::<&[u8]>()?;
+                let v = RsaBigInt::from_bytes(&mut bytes);
+                let len = d.read_element::<u64>()? as u16;
+                
+                let mut vi = Vec::new();
+                for i in 0..len {
+                    let mut bytes = d.read_element::<&[u8]>()?;
+                    let el = RsaBigInt::from_bytes(&mut bytes);
+                    vi.push(el);
+                }
+
+                let mut bytes = d.read_element::<&[u8]>()?;
+                let u = RsaBigInt::from_bytes(&mut bytes);
+
+                return Ok(Self {v, vi, u });
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 

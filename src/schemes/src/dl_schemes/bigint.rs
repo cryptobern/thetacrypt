@@ -15,7 +15,6 @@ use crate::group::{GroupElement};
 /// Wrapper for the different BIG implementations in Miracl Core
 pub trait BigInt: 
     Sized 
-    + Serializable
     + Clone
     + 'static {
     type DataType;

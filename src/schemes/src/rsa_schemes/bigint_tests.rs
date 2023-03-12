@@ -5,8 +5,8 @@ use super::bigint::RsaBigInt;
 #[test]
 fn test_serialization() {
     let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::MarsagliaZaman), 256);
-    let x_bytes = x.serialize().unwrap();
-    let decoded = RsaBigInt::deserialize(&x_bytes).unwrap();
+    let mut x_bytes = x.to_bytes();
+    let decoded = RsaBigInt::from_bytes(&mut x_bytes);
 
     printbinary(&x_bytes, Some("x_bytes: "));
     assert!(x.equals(&decoded));
