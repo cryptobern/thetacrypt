@@ -9,19 +9,13 @@ use schemes::interface::{Ciphertext, Serializable};
 use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{
     ThresholdCryptoLibrary, ThresholdCryptoLibraryServer,
 };
-use thetacrypt_proto::protocol_types::{DecryptReponse, DecryptRequest};
+use thetacrypt_proto::protocol_types::{
+    DecryptReponse, DecryptRequest, GetPublicKeysForEncryptionRequest,
+};
 use thetacrypt_proto::protocol_types::{DecryptSyncReponse, DecryptSyncRequest};
 use thetacrypt_proto::protocol_types::{GetDecryptResultRequest, GetDecryptResultResponse};
-
-use schemes::interface::Ciphertext;
-
-use thetacrypt_proto::protocol_types::{
-    threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
-    DecryptReponse, DecryptRequest, DecryptSyncReponse, DecryptSyncRequest,
-    GetDecryptResultRequest, GetDecryptResultResponse, GetPublicKeysForEncryptionRequest,
-    GetPublicKeysForEncryptionResponse, PublicKeyEntry, PushDecryptionShareRequest,
-    PushDecryptionShareResponse,
-};
+use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest,PushDecryptionShareResponse};
+use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 
 use crate::{
     keychain::KeyChain,
