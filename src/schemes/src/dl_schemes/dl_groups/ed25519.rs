@@ -1,4 +1,4 @@
-use derive::{Serializable, EcGroupImpl, BigIntegerImpl};
+use derive::{EcGroupImpl, BigIntegerImpl};
 use mcore::{ed25519::{big::{BIG, MODBYTES}, ecp::ECP, rom}};
 use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{ rand::RNG};
@@ -11,7 +11,7 @@ pub struct Ed25519 {
     value: ECP
 }
 
-#[derive(AsnType, Debug, Serializable, BigIntegerImpl)]
+#[derive(AsnType, Debug, BigIntegerImpl)]
 pub struct Ed25519BIG {
     value: BIG
 }

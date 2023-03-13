@@ -4,7 +4,6 @@ use std::mem::{MaybeUninit, self};
 use std::ops::{Add, Sub, Mul, Div};
 use std::ptr::{null, null_mut};
 
-use derive::Serializable;
 use gmp_mpfr_sys::gmp::{mpz_t, self};
 use hex::FromHex;
 use mcore::rand::RAND;
@@ -37,33 +36,9 @@ use crate::rand::RNG;
     };
 }
 
-#[derive(Serializable, Debug)]
+#[derive(Debug)]
 pub struct RsaBigInt {
     value: Integer
-}
-
-impl AsnType for RsaBigInt {
-    const TAG: rasn::Tag = rasn::Tag::BIT_STRING;
-}
-
-impl Encode for RsaBigInt {
-    fn encode_with_tag<E: Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |encoder| {
-            self.to_bytes().encode(encoder)?;
-            Ok(())
-        })?;
-
-        Ok(())
-    }
-}
-
-impl Decode for RsaBigInt {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let mut bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            Ok(Self::from_bytes(&mut bytes))
-        })
-    }
 }
 
 impl PartialEq for RsaBigInt {
@@ -265,7 +240,7 @@ impl RsaBigInt {
         }
     }
 
-    pub fn from_bytes(bytes: &mut [u8]) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             let op: *const c_void = bytes.as_ptr() as *const c_void;

@@ -5,7 +5,7 @@ use tonic::{transport::Server, Request, Response, Status};
 
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
-use schemes::interface::Ciphertext;
+use schemes::interface::{Ciphertext, Serializable};
 use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{
     ThresholdCryptoLibrary, ThresholdCryptoLibraryServer,
 };

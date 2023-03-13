@@ -1,15 +1,14 @@
 use std::convert::TryInto;
 
+use asn1::{WriteError, ParseError};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
-use derive::Serializable;
-use rasn::{AsnType, Decode, Encode};
 
 use mcore::hash512::HASH512;
-use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement, Group}, interface::ThresholdCryptoError, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt};
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement, Group}, interface::{ThresholdCryptoError, Serializable}, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt};
 
 const CONTEXT_STRING:&[u8] = b"FROST-ED25519-SHA512-v8";
 
-#[derive(Clone, Debug, PartialEq, AsnType, Serializable)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {
     n: u16,
     k: u16,
@@ -46,47 +45,65 @@ impl FrostPublicKey {
     }
 }
 
+impl Serializable for FrostPublicKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&(self.n as u64))?;
+                w.write_element(&(self.k as u64))?;
+                w.write_element(&self.y.to_bytes().as_slice())?;
 
-impl Encode for FrostPublicKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.get_group().get_code().encode(sequence)?;
-            self.n.encode(sequence)?;
-            self.k.encode(sequence)?;
-            self.y.to_bytes().encode(sequence)?;
-            for i in 0..self.h.len() {
-                self.h[i].to_bytes().encode(sequence)?;
-            }
-            Ok(())
-        })?;
+                for i in 0..self.h.len() {
+                    w.write_element(&self.h[i].to_bytes().as_slice())?;
+                }
 
-        Ok(())
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let n = d.read_element::<u64>()? as u16;
+                let k = d.read_element::<u64>()? as u16;
+                let group = Group::from_code(d.read_element::<u8>()?);
+                
+                let bytes = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+                
+                let mut h = Vec::new();
+
+                for _i in 0..n {
+                    let bytes = d.read_element::<&[u8]>()?;
+                    h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                }
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let g_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+                Ok(Self{n, k, group, y, h})
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for FrostPublicKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let group = Group::from_code(u8::decode(sequence)?);
-            let n = u16::decode(sequence)?;
-            let k = u16::decode(sequence)?;
-            let y_b = Vec::<u8>::decode(sequence)?;
-            let mut h = Vec::new();
 
-            for _i in 0..n {
-                let bytes = Vec::<u8>::decode(sequence)?;
-                h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
-            }
-
-            let y = GroupElement::from_bytes(&y_b, &group, Option::Some(0));
-
-            Ok(Self{group, n, k, y, h})
-        })
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq, AsnType, Serializable)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FrostPrivateKey {
     id: u16,
     x: BigImpl,
@@ -119,33 +136,59 @@ impl FrostPrivateKey {
     }
 }
 
-impl Encode for FrostPrivateKey {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.id.encode(sequence)?;
-            self.x.to_bytes().encode(sequence)?;
-            self.pubkey.encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for FrostPrivateKey {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&self.x.to_bytes().as_slice())?;
 
-        Ok(())
+                let bytes = self.pubkey.serialize();
+                if bytes.is_err() {
+                    return Err(WriteError::AllocationError);
+                }
+
+                w.write_element(&bytes.unwrap().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let bytes = d.read_element::<&[u8]>()?;
+                let pubbytes = d.read_element::<&[u8]>()?;
+                let res = FrostPublicKey::deserialize(&pubbytes.to_vec());
+                if res.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
+                }
+
+                let pubkey = res.unwrap();
+
+                let x = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+
+                return Ok(Self {id, x, pubkey});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for FrostPrivateKey {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let id = u16::decode(sequence)?;
-            let x_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let pubkey = FrostPublicKey::decode(sequence)?;
-            let x = BigImpl::from_bytes(&pubkey.group, &x_bytes);
-
-            Ok(Self {id, x, pubkey})
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, AsnType)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PublicCommitment {
     id: u16,
     hiding_nonce_commitment: GroupElement,
@@ -158,7 +201,7 @@ impl PublicCommitment {
     }
 }
 
-#[derive(AsnType, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Nonce {
     hiding_nonce: BigImpl,
     binding_nonce: BigImpl
@@ -170,7 +213,7 @@ pub struct BindingFactor {
     factor: BigImpl
 }
 
-#[derive(AsnType, Debug, PartialEq, Clone, Serializable)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FrostSignatureShare {
     id: u16,
     data: BigImpl
@@ -182,64 +225,94 @@ impl FrostSignatureShare {
     }
 }
 
-impl Encode for FrostSignatureShare {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.id.encode(sequence)?;
-            self.data.get_group().get_code().encode(sequence)?;
-            self.data.to_bytes().encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for FrostSignatureShare {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&self.data.get_group().get_code())?;
+                w.write_element(&self.data.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
 
-        Ok(())
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let data = BigImpl::from_bytes(&group, &bytes);
+                
+                return Ok(Self { id, data});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for FrostSignatureShare {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let id = u16::decode(sequence)?;
-            let group = Group::from_code(u8::decode(sequence)?);
-            let data_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let data = BigImpl::from_bytes(&group, &data_bytes);
 
-            Ok(Self {id, data})
-        })
-    }
-}
-
-#[derive(AsnType, Debug, PartialEq, Clone, Serializable)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FrostSignature { /* TODO: encode according to standard */
     R: GroupElement,
     z: BigImpl
 }
 
-impl Encode for FrostSignature {
-    fn encode_with_tag<E: rasn::Encoder>(&self, encoder: &mut E, tag: rasn::Tag) -> Result<(), E::Error> {
-        encoder.encode_sequence(tag, |sequence| {
-            self.R.get_group().get_code().encode(sequence)?;
-            self.R.to_bytes().encode(sequence)?;
-            self.z.to_bytes().encode(sequence)?;
-            Ok(())
-        })?;
+impl Serializable for FrostSignature {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&self.R.get_group().get_code())?;
+                w.write_element(&self.R.to_bytes().as_slice())?;
+                w.write_element(&self.z.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
 
-        Ok(())
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let group = Group::from_code(d.read_element::<u8>()?);
+                let label = d.read_element::<&[u8]>()?.to_vec();
+                
+                let bytes = d.read_element::<&[u8]>()?;
+                let R = GroupElement::from_bytes(&bytes, &group, Option::None);
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let z = BigImpl::from_bytes(&group, &bytes);
+
+                return Ok(Self { R, z });
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
     }
 }
 
-impl Decode for FrostSignature {
-    fn decode_with_tag<D: rasn::Decoder>(decoder: &mut D, tag: rasn::Tag) -> Result<Self, D::Error> {
-        decoder.decode_sequence(tag, |sequence| {
-            let group = Group::from_code(u8::decode(sequence)?);
-            let R_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let z_bytes:Vec<u8> = Vec::<u8>::decode(sequence)?.into();
-            let R = GroupElement::from_bytes(&z_bytes, &group, None);
-            let z = BigImpl::from_bytes(&group, &z_bytes);
-
-            Ok(Self {R, z})
-        })
-    }
-}
 
 #[derive(PartialEq, Clone)]
 pub struct FrostThresholdSignature<'a> {
@@ -254,10 +327,6 @@ pub struct FrostThresholdSignature<'a> {
     shares: Vec<FrostSignatureShare>,
     signature: Option<FrostSignature>,
     finished: bool
-}
-
-impl AsnType for FrostThresholdSignature<'_> {
-    const TAG: rasn::Tag = rasn::Tag::SEQUENCE;
 }
 
 impl<'a> FrostThresholdSignature<'a> {
@@ -528,8 +597,7 @@ impl<'a> FrostThresholdSignature<'a> {
 }
 
 #[repr(C)]
-#[derive(AsnType, Debug, PartialEq, Clone)]
-#[rasn(enumerated)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FrostRoundResult {
     RoundOne(PublicCommitment),
     RoundTwo(FrostSignatureShare)
@@ -537,13 +605,13 @@ pub enum FrostRoundResult {
 
     
 
-    pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, ThresholdCryptoError> {
-        if instance.share.is_none() {
-            return Err(ThresholdCryptoError::WrongState);
-        }
-
-        Ok(instance.share.clone().unwrap())
+pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, ThresholdCryptoError> {
+    if instance.share.is_none() {
+        return Err(ThresholdCryptoError::WrongState);
     }
+
+    Ok(instance.share.clone().unwrap())
+}
 
 
 fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {

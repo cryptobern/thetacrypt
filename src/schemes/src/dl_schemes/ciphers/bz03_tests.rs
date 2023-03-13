@@ -1,4 +1,4 @@
-use crate::{interface::{ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext, ThresholdScheme}, keys::{KeyGenerator, PublicKey, PrivateKey}, rand::{RngAlgorithm, RNG}, dl_schemes::ciphers::sg02::Sg02Ciphertext, group::Group};
+use crate::{interface::{ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext, ThresholdScheme, Serializable}, keys::{KeyGenerator, PublicKey, PrivateKey}, rand::{RngAlgorithm, RNG}, dl_schemes::ciphers::sg02::Sg02Ciphertext, group::Group};
 
 
 #[test]

@@ -1,4 +1,4 @@
-use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature, ThresholdScheme}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}, group::Group};
+use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature, ThresholdScheme, Serializable}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}, group::Group};
 
 
 #[test]

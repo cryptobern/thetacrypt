@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use schemes::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher};
+use schemes::interface::{ThresholdCipherParams, Ciphertext, DecryptionShare, ThresholdCipher, Serializable};
 use schemes::keys::{PrivateKey, PublicKey};
 use network::types::message::P2pMessage;
 

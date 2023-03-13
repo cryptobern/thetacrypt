@@ -19,7 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 prost = "0.10"
 rand_chacha = "0.3.1"
 thetacrypt_proto = {path = "../proto", version = "0.1.0"}
-
+asn1 = "0.13.0"
 [lib]
 name = "schemes"
 path = "src/lib.rs"

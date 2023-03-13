@@ -2,7 +2,7 @@
 //     tonic::include_proto!("requests");
 // }
 use std::{error::Error, io::Read};
-use schemes::{keys::PublicKey, interface::{ThresholdCipherParams, Ciphertext, ThresholdCipher}};
+use schemes::{keys::PublicKey, interface::{ThresholdCipherParams, Ciphertext, ThresholdCipher, Serializable}};
 use structopt::StructOpt;
 use serde::{Deserialize, Deserializer, Serialize};
 use reqwest;

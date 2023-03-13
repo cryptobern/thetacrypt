@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::{io, vec};
 
 use protocols::keychain::KeyChain;
+use schemes::interface::Serializable;
 use schemes::keys::PublicKey;
 use schemes::{
     group::Group,
