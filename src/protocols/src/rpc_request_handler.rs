@@ -6,16 +6,13 @@ use tonic::{transport::Server, Request, Response, Status};
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
 use schemes::interface::{Ciphertext, Serializable};
-use thetacrypt_proto::protocol_types::threshold_crypto_library_server::{
-    ThresholdCryptoLibrary, ThresholdCryptoLibraryServer,
-};
 use thetacrypt_proto::protocol_types::{
-    DecryptReponse, DecryptRequest, GetPublicKeysForEncryptionRequest,
+    threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
+    DecryptReponse, DecryptRequest, DecryptSyncReponse, DecryptSyncRequest,
+    GetDecryptResultRequest, GetDecryptResultResponse, GetPublicKeysForEncryptionRequest,
+    GetPublicKeysForEncryptionResponse, PublicKeyEntry, PushDecryptionShareRequest,
+    PushDecryptionShareResponse,
 };
-use thetacrypt_proto::protocol_types::{DecryptSyncReponse, DecryptSyncRequest};
-use thetacrypt_proto::protocol_types::{GetDecryptResultRequest, GetDecryptResultResponse};
-use thetacrypt_proto::protocol_types::{PushDecryptionShareRequest,PushDecryptionShareResponse};
-use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionResponse, PublicKeyEntry};
 
 use crate::{
     keychain::KeyChain,
