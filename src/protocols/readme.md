@@ -165,7 +165,8 @@ There is one key for every possible combination of algorithm and domain. In the 
 be able to ask our library to create more keys.
 
 
-### Tests
+# Tests
 Tests are written in `\test` directory, using either the `#[test]` attribute for unit tests or the `tokio::test` for integration tests.
-
 Run the tests with `cargo test`.
+
+Remark: The tests in `test-rpc-client-*.rs` files require some server instances to be running, otherwise they will fail.
