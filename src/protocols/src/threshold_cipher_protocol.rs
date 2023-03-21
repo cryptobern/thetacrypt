@@ -142,9 +142,8 @@ impl ThresholdCipherProtocol {
                 ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
             println!(
-                ">> PROT: instance_id: {:?} has decrypted the ciphertext. Plaintext is: {:?}.",
-                &self.instance_id,
-                hex::encode(self.decrypted_plaintext.clone())
+                ">> PROT: instance_id: {:?} has decrypted the ciphertext.",
+                &self.instance_id
             );
             return Ok(());
         }
