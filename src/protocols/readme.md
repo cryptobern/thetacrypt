@@ -3,22 +3,57 @@ The `protocols` package implements threshold-cryptographic protocols and an RPC 
 # Exposing protocols over RPC
 All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
-The RPC types are defined in `src\proto\protocol_types.proto`. Currently, the following endpoints are implemented:
+The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following endpoints are implemented:
 - decrypt()
 - get_decrypt_result()
 - decrypt_sync()
 - get_public_keys_for_encryption()
 
-See the documentation for each of them in `src\proto\protocol_types.proto`
+See the documentation for each of them in `protocol_types.proto`.
 
 # How to use the RPC server and client
-The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
-From the root directory of the `protocols` project start 4 terminals and, for i = 1...4, run:
+
+### Generating server configuration
+You can use the `confgen` binary to generate the configuration files that are needed to start server instances.
+For help, run:
 ```
-cargo run --bin server <i> -l
+cargo run --bin confgen -- --help
+```
+or, if you have already installed the binary, simply:
+```
+confgen --help
+```
+
+The steps to generate the configuration files are the following (assuming `src\protocols` as cwd).
+1. Create a file with the IP addresses of the servers. For example, for a local deployment, you can use:
+```
+cat > conf/server_ips << EOF
+127.0.0.1
+127.0.0.1
+127.0.0.1
+127.0.0.1
+EOF
+```
+
+2. Generate configuration files:
+```
+cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
+```
+
+3. Generate the keys for each server. Currently, the library offers a `trusted_dealer.rs` binary for this. It writes the keys for each server in the `conf\` directory. For a deployment with 4 servers and a threshold of 3, run:
+```
+cargo run --bin trusted_dealer -- 3 4
+```
+
+### Starting the server binary
+The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+From the root directory of the `protocols` project start 4 terminals and, for i = 0...3, run:
+```
+cargo run --bin server -- --config-file conf/server_<i>.json --key-file conf/keys_<i>.json
 ```
 You should see each server process print that it is connected to the others and ready to receive client requests.
 
+### Starting a client binary
 An example RPC client can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
 cargo run --bin client
@@ -27,7 +62,7 @@ This client binary uses the `decrypt()` and `decrypt_sync()` RPC endpoints.
 
 
 # The RPC request handler
-The RPC request handler (defined in `src\proto\protocol_types.proto`) is implemented in `src\rpc_request_handler.rs` by the `RpcRequestHandler` struct. The logic is the following:
+The RPC request handler (defined in the `protocol_types.proto` of the `proto` crate) is implemented in `src\rpc_request_handler.rs` by the `RpcRequestHandler` struct. The logic is the following:
 - The request handler is constantly listening for requests. The corresponding handler method (e.g., `decrypt()`, `decrypt_sync()`, `get_decrypt_result()`, etc.) is run every time a request is received.
 - For every received request (e.g., `DecryptRequest` for the `decrypt()` endpoint) make all the required correctness checks and then start a new protocol (in our example a `ThresholdCipherProtocol`) instance in a new tokio thread.
 - Each instance is assigned and identified by a unique `instance_id`. For example, a threshold-decryption instance is identified by the concatenation of the `label` field (which is part of `DecryptRequest.ciphertext`) and the hash of the ciphertext.
@@ -35,8 +70,9 @@ The RPC request handler (defined in `src\proto\protocol_types.proto`) is impleme
 
 ### State and state manager
 We use the "share memory by communicating" paradigm.
-There exists a Tokio task, the `StateManager`, spawned in the `init()` function of `src\rpc_request_handler.rs`, that is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
-It only keeps the state, and does not implement any other logic (e.g., when to start a request, when to update the status of a request).
+The `StateManager`, defined in `src\state_manager.rs`, is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
+It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
+The `StateManager` only keeps the state, and does not implement any other logic (e.g., when to start a request, when to update the status of a request).
 
 Any state query or update _must_ happen through the `StateManager`. To this end, the `StateManager` listens for
 `StateUpdateCommand`s on the receiver end of a channel, named `state_command_receiver`. Any other thread, owing a clone
@@ -49,8 +85,10 @@ sends the sender end (`tokio::sync::oneshot::Sender`) as part of the `StateUpdat
 The `StateManager` will use this sender to respond, and the receiver awaits it on the corresponding receiver end.
 
 ### MessageForwarder
-The `MessageForwarder` is responsible for forwarding received messages (received from the network) to the appropriate
+The `MessageForwarder`, defined in `src\message_forwarder.rs`, is responsible for forwarding received messages
+(received from the network) to the appropriate
 protocol instance (e.g., decryption shares to the corresponding threshold-decryption protocol instance).
+It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
 The `MessageForwarder` maintains a channel with _every_ protocol instance, where the sender end is owned 
 by `MessageForwarder` (see `instance_senders` variable)
 and the receiver end by the protocol. An instance is identified by its instance_id.
@@ -100,13 +138,34 @@ See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.
 The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
 - chan_out:
 The sender end of a channel. Messages (e.g., decryption shares) to other nodes are to be sent trough this channel.
+- key:
+Of type `Arc<protocols::types::Key>`, defined in `protocol/types.rs`. 
+The secret key and public keys, of type `schemes::keys::PrivateKey` and `schemes::keys::PublicKey`, respectively, as accessible as
+`key.sk` and `key.sk.get_public_key`.
+The threshold is also accessible as `key.sk.get_threshold()`.
 
 
 
-# Key management:
-Right now keys are read from file "keys_<replica_id>" upon initialization (in the tokio::main function).
+# Key management
+Notice that by *key* we always refer to a private key. The `KeyChain` always returns private keys. The corresponding public key is accessible through the private.
+
+Keys are represented by `struct Key` in `common_types.rs`.
+It contains the public fields `id`, which uniquely represents a key entry, and `sk`, which contains the actual secret key
+of type `schemes::keys::PrivateKey` (through which we have access to the corresponding public key as `sk.get_public_key()`),
+and some private metadata used internally by `KeyChain`.
+
+The logic for handling keys is encapsulated in `struct KeyChain` in `keychain.rs`.
+If exposes methods for creating, (de)serializing, and retrieving keys, such as ` get_key_by_id()` and `get_key_by_scheme_and_group()`.
+There is a certain logic regarding which keys are returned each time and which are considered default.
+This is documented in comments in `keychain.rs`.
+
+### Reading from a file upon server initialization
+Right now keys are read from file "keys_<replica_id>" upon initialization in `server.rs`.
 There is one key for every possible combination of algorithm and domain. In the future, the user should
 be able to ask our library to create more keys.
-Each key is uniquely identified by a key-id and contains the secret key (through which we have access
-to the corresponding public key and the threshold) and the key metadata (for now, the algorithm and domain
-it can be used for).
+
+
+### Tests
+Tests are written in `\test` directory, using either the `#[test]` attribute for unit tests or the `tokio::test` for integration tests.
+
+Run the tests with `cargo test`.

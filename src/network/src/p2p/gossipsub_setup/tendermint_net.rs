@@ -69,7 +69,7 @@ async fn dial_tendermint_net(swarm: &mut Swarm<Gossipsub>, config: Config) {
 
     loop {
         let ip = &ips[index];
-        let dial_addr = get_dial_addr(config.p2p_port, ip.to_string());
+        let dial_addr = get_dial_addr(config.p2p_port, ip.to_string()); 
         match swarm.dial(dial_addr.clone()) {
             Ok(_) => {
                 // println!(">> NET: Dialed {:?}", dial_addr);

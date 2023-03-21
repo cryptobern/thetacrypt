@@ -2,11 +2,11 @@
 
 use std::collections::HashSet;
 
-use cosmos_crypto::interface::{Serializable, ThresholdCipherParams, Share, Ciphertext};
-use cosmos_crypto::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
+use schemes::interface::{Serializable, ThresholdCipherParams, Share, Ciphertext};
+use schemes::{interface::ThresholdCipher, dl_schemes::ciphers::sg02::{Sg02ThresholdCipher}, rand::RngAlgorithm};
 use network::types::message::P2pMessage;
 use tokio::sync::mpsc::error::TryRecvError;
-use {cosmos_crypto::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
+use {schemes::dl_schemes::{ciphers::sg02::{Sg02DecryptionShare}, dl_groups::{ bls12381::Bls12381}}};
 
 
 type InstanceId = String;
@@ -54,10 +54,10 @@ pub struct ThresholdCipherProtocol<C: ThresholdCipher> {
 }
 
 impl<C:ThresholdCipher> ThresholdCipherProtocol<C> 
-    where <C as cosmos_crypto::interface::ThresholdCipher>::TPrivKey: Send + 'static,
-          <C as cosmos_crypto::interface::ThresholdCipher>::TPubKey: Send + 'static,
-          <C as cosmos_crypto::interface::ThresholdCipher>::TShare: Send + 'static,
-          <C as cosmos_crypto::interface::ThresholdCipher>::CT: Send + 'static
+    where <C as schemes::interface::ThresholdCipher>::TPrivKey: Send + 'static,
+          <C as schemes::interface::ThresholdCipher>::TPubKey: Send + 'static,
+          <C as schemes::interface::ThresholdCipher>::TShare: Send + 'static,
+          <C as schemes::interface::ThresholdCipher>::CT: Send + 'static
     {
     pub fn new( 
             sk: C::TPrivKey,

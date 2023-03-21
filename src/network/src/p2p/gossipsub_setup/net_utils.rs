@@ -24,6 +24,22 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
+use libp2p_dns::DnsConfig;
+
+use std::net::*;
+use trust_dns_resolver::Resolver;
+use trust_dns_resolver::lookup_ip::LookupIp;
+use libp2p_dns::ResolverOpts;
+use trust_dns_resolver::config::ResolverConfig;
+
+use std::net::*;
+use trust_dns_resolver::{TokioAsyncResolver,AsyncResolver};
+use trust_dns_resolver::config::*;
+use trust_dns_resolver::system_conf::read_system_conf;
+use tokio::runtime::Handle;
+
+
+
 
 // use crate::config::localnet_config::{config_service::*, deserialize::Config};
 use crate::types::message::P2pMessage;
@@ -37,6 +53,7 @@ pub fn create_noise_keys(keypair: &Keypair) -> AuthenticKeypair<X25519Spec> {
 
 // Create a tokio-based TCP transport use noise for authenticated
 // encryption and Mplex for multiplexing of substreams on a TCP stream.
+
 pub fn create_tcp_transport(noise_keys: AuthenticKeypair<X25519Spec>) -> Boxed<(PeerId, StreamMuxerBox)> {
     TokioTcpConfig::new()
         .nodelay(true)
@@ -45,6 +62,45 @@ pub fn create_tcp_transport(noise_keys: AuthenticKeypair<X25519Spec>) -> Boxed<(
         .multiplex(mplex::MplexConfig::new())
         .boxed()
 }
+
+//Attempt to create a DNS transport layer (not in use)
+pub fn create_dns_transport() -> DnsConfig <TokioTcpConfig>{
+    let tcp = TokioTcpConfig::new().nodelay(true);
+    let mut runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+    let transport = runtime.block_on(DnsConfig::system(tcp));
+    let transport = match transport {
+    Ok(config) => config,
+    Err(error) => panic!("Problem opening dns: {:?}", error)
+    };
+    transport
+}
+
+
+//Attempt to define a DNS resolver fot the libp2p2 (not in use)
+pub async fn dns_lookup() {
+    let resolver = AsyncResolver::tokio_from_system_conf();
+    let resolver = match resolver {
+        Ok(resolver) => resolver,
+        Err(error) => panic!("Problem opening dns: {:?}", error)
+    };
+
+    let mut response = tokio::spawn(async move {
+        let lookup_future = resolver.ipv4_lookup("nameserver");
+        // Run the lookup until it resolves or errors
+        //rt.block_on(lookup_future).unwrap()
+    });
+    println!(">> STATIC_NET: .........");
+    let result = response.await.expect("The task being joined has panicked");//.unwrap();
+
+    //let address = result.iter().next().expect("no addresses returned!");
+    format!(">> STATIC_NET: coversion: {:#?}", result);
+    println!(">> STATIC_NET: ......... {:?}", result)
+    // let result = match result {
+    //     Ok(result) => result,
+    //     Err(error) => error
+    // };
+}
+
 
 // Create a Swarm to manage peers and events.
 pub fn create_gossipsub_swarm(

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tonic::transport::Channel;
 
-use crate::proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, self};
+use thetacrypt_proto::protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, self};
 
 type PeerId = u32;
 type IpAddres = String;
@@ -23,10 +23,10 @@ impl RpcNetwork{
                      prot_to_net_receiver: tokio::sync::mpsc::Receiver<(InstanceId, Vec<u8>)>,) -> Self
     {
         let peers = vec![
-                (0, String::from("::1"), 50050),
-                (1, String::from("::1"), 50051),
-                (2, String::from("::1"), 50052),
-                (3, String::from("::1"), 50053)
+                (0, String::from("localhost"), 50050),
+                (1, String::from("::1"), 50050),
+                (2, String::from("::1"), 50050),
+                (3, String::from("::1"), 50050)
         ];
         
         let mut handles = Vec::new();

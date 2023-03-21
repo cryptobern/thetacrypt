@@ -1,0 +1,97 @@
+syntax = "proto3";
+package protocol_types;
+
+import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
+
+// Convention: Use proto type 'bytes' (vec<u8> in Rust) for serialized data structures
+// amd string (String in Rust) for the rest
+
+service ThresholdCryptoLibrary {
+    // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
+    rpc decrypt (DecryptRequest) returns (DecryptReponse);
+    // Returns the result of a protocol instance
+    rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
+    // decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
+    rpc decrypt_sync (DecryptSyncRequest) returns (DecryptSyncReponse);
+
+    rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
+    
+    //this is an alternative way to send shares. used only for testing
+    rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
+}
+
+// ---------- Decrypt a ciphertext ----------
+message DecryptRequest {
+    bytes ciphertext = 1;
+    optional string key_id = 2;
+}
+
+message DecryptReponse {
+    string instance_id = 1;
+}
+
+message DecryptSyncRequest {
+    bytes ciphertext = 1;
+    optional string key_id = 2;
+}
+
+message DecryptSyncReponse {
+    string instance_id = 1;
+    optional bytes plaintext = 2;
+}
+
+message GetDecryptResultRequest {
+    string instance_id = 1;
+}
+
+message GetDecryptResultResponse {
+    string instance_id = 1;
+    bool is_started = 2;
+    bool is_finished = 3;
+    optional bytes plaintext = 4;
+}
+
+// ---------- Get available keys ----------
+message PublicKeyEntry {
+    string id = 1;
+    scheme_types.ThresholdSchemeCode scheme = 2;
+    scheme_types.GroupCode group = 3;
+    // bool is_default = 3;
+    bytes key = 4;
+}
+
+message GetPublicKeysForEncryptionRequest {
+}
+
+message GetPublicKeysForEncryptionResponse {
+    repeated PublicKeyEntry keys = 1;
+}
+
+message GetPublicKeysForSignatureRequest {
+}
+
+message GetPublicKeysForSignatureResponse {
+    repeated PublicKeyEntry keys = 1;
+}
+
+
+//---------- Push decryption share, test only ----------
+message PushDecryptionShareRequest {
+  string instance_id = 1;
+  bytes decryption_share = 2;
+
+}
+
+message PushDecryptionShareResponse {
+}
+
+// enum ThresholdCipher {
+//   Bz02 = 0;
+//   Sg02 = 1;
+// }
+
+// enum DlGroup {
+//   Bls12381 = 0;
+// }
+
+
