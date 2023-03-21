@@ -388,7 +388,6 @@ pub async fn init(
 
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
-    println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
     let service = RpcRequestHandler {
         state_command_sender,
         forwarder_command_sender,
@@ -401,4 +400,5 @@ pub async fn init(
         .serve(rpc_addr.parse().unwrap())
         .await
         .expect("");
+    println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
 }
