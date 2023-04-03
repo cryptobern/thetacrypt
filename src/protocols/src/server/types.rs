@@ -81,6 +81,22 @@ impl ServerProxyConfig {
         })
     }
 
+    pub fn my_p2p_port(&self) -> u16 {
+        return self.p2p_port
+    }
+
+    /// Get this server's RPC port. Returns an error if this server is not found in the list of peers.
+    pub fn my_rpc_port(&self) -> u16 {
+        return self.rpc_port
+    }
+
+    pub fn proxy_node_ip(&self) -> String{
+        return self.proxy_node.ip.clone()
+    }
+
+    pub fn get_listen_addr(&self) -> String{
+        return self.listen_address.clone()
+    }
 }
 
 /// Configuration of the server binary.
