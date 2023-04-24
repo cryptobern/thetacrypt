@@ -82,7 +82,11 @@ impl Serializable for Cks05PublicKey {
     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
                 
@@ -247,7 +251,11 @@ impl Serializable for Cks05CoinShare {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 
                 let bytes = d.read_element::<&[u8]>()?;
                 let data = GroupElement::from_bytes(&bytes, &group, Option::None);

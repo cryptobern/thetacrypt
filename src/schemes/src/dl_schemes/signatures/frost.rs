@@ -74,7 +74,11 @@ impl Serializable for FrostPublicKey {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 
                 let bytes = d.read_element::<&[u8]>()?;
                 let y = GroupElement::from_bytes(&bytes, &group, Option::None);
@@ -247,7 +251,11 @@ impl Serializable for FrostSignatureShare {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let data = BigImpl::from_bytes(&group, &bytes);
                 
                 return Ok(Self { id, data});
@@ -291,7 +299,11 @@ impl Serializable for FrostSignature {
     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let label = d.read_element::<&[u8]>()?.to_vec();
                 
                 let bytes = d.read_element::<&[u8]>()?;

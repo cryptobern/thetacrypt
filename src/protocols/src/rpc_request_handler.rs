@@ -1,14 +1,15 @@
 use std::sync::Arc;
+use schemes::group::Group;
 use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
-use schemes::interface::{Ciphertext, Serializable};
+use schemes::interface::{Ciphertext, Serializable, Signature, ThresholdScheme};
 use thetacrypt_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
-    DecryptReponse, DecryptRequest, DecryptSyncReponse, DecryptSyncRequest,
+    DecryptResponse, DecryptRequest, SignRequest, SignResponse, DecryptSyncResponse, DecryptSyncRequest,
     GetDecryptResultRequest, GetDecryptResultResponse, GetPublicKeysForEncryptionRequest,
     GetPublicKeysForEncryptionResponse, PublicKeyEntry, PushDecryptionShareRequest,
     PushDecryptionShareResponse,
@@ -18,7 +19,7 @@ use crate::{
     keychain::KeyChain,
     message_forwarder::{MessageForwarder, MessageForwarderCommand},
     state_manager::{InstanceStatus, StateManager, StateUpdateCommand},
-    threshold_cipher_protocol::ThresholdCipherProtocol,
+    threshold_cipher_protocol::ThresholdCipherProtocol, threshold_signature_protocol::ThresholdSignatureProtocol,
     types::{Key, ProtocolError},
 };
 
@@ -27,6 +28,13 @@ fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
     ctxt_digest.process_array(&ctxt.get_msg());
     let h: &[u8] = &ctxt_digest.hash()[..8];
     String::from_utf8(ctxt.get_label()).unwrap() + " " + hex::encode_upper(h).as_str()
+}
+
+fn assign_signature_instance_id(message: &[u8], label: &[u8]) -> String {
+    let mut ctxt_digest = HASH256::new();
+    ctxt_digest.process_array(message);
+    let h: &[u8] = &ctxt_digest.hash()[..8];
+    String::from_utf8(label.to_vec()).unwrap() + " " + hex::encode_upper(h).as_str()
 }
 
 pub struct RpcRequestHandler {
@@ -144,6 +152,108 @@ impl RpcRequestHandler {
         Ok((instance_id, prot))
     }
 
+
+    async fn get_signature_instance(
+        &self,
+        message: &Vec<u8>,
+        label: &Vec<u8>,
+        key_id: &Option<String>,
+        scheme_id: u8,
+        group_id: u8
+    ) -> Result<(String, ThresholdSignatureProtocol), Status> {
+        // Create a unique instance_id for this instance
+        let instance_id = assign_signature_instance_id(&message, &label);
+
+        // Check whether an instance with this instance_id already exists
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus {
+            instance_id: instance_id.clone(),
+            responder: response_sender,
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let status = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
+        if status.started {
+            println!(
+                ">> REQH: A request with the same id already exists. Instance_id: {:?}",
+                instance_id
+            );
+            return Err(Status::new(
+                Code::AlreadyExists,
+                format!("A similar request with request_id {instance_id} already exists."),
+            ));
+        }
+
+        // Retrieve private key for this instance
+        let key: Arc<Key>;
+        if let Some(_) = key_id {
+            unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
+        } else {
+            let (response_sender, response_receiver) =
+                oneshot::channel::<Result<Arc<Key>, String>>();
+            let cmd = StateUpdateCommand::GetPrivateKeyByType {
+                scheme: ThresholdScheme::from_id(scheme_id).unwrap(),
+                group: Group::from_code(group_id).unwrap(),
+                responder: response_sender,
+            };
+            self.state_command_sender
+                .send(cmd)
+                .await
+                .expect("Receiver for state_command_sender closed.");
+            let key_result = response_receiver
+                .await
+                .expect("response_receiver.await returned Err");
+            match key_result {
+                Ok(key_entry) => key = key_entry,
+                Err(err) => return Err(Status::new(Code::InvalidArgument, err)),
+            };
+        };
+        println!(
+            ">> REQH: Using key with id: {:?} for request {:?}",
+            key.id, &instance_id
+        );
+
+        // Initiate the state of the new instance.
+        let cmd = StateUpdateCommand::AddNewInstance {
+            instance_id: instance_id.clone(),
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+
+        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        let (response_sender, response_receiver) =
+            oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
+        let cmd = MessageForwarderCommand::InsertInstance {
+            instance_id: instance_id.clone(),
+            responder: response_sender,
+        };
+        self.forwarder_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for forwarder_command_sender closed.");
+        let receiver_for_new_instance = response_receiver
+            .await
+            .expect("The sender for response_receiver dropped before sending a response.");
+
+        // Create the new protocol instance
+        let prot = ThresholdSignatureProtocol::new(
+            key,
+            message,
+            label,
+            receiver_for_new_instance,
+            self.outgoing_message_sender.clone(),
+            instance_id.clone(),
+        );
+        Ok((instance_id, prot))
+    }
+
+
     async fn update_decryption_instance_result(
         instance_id: String,
         result: Result<Vec<u8>, ProtocolError>,
@@ -172,6 +282,43 @@ impl RpcRequestHandler {
             .await
             .expect("The receiver for forwarder_command_sender has been closed.");
     }
+
+    async fn update_signature_instance_result(
+        instance_id: String,
+        result: Result<Signature, ProtocolError>,
+        state_command_sender: Sender<StateUpdateCommand>,
+        forwarder_command_sender: Sender<MessageForwarderCommand>,
+    ) {
+
+        let r;
+        if result.is_err(){
+            r = Err(result.unwrap_err());
+        } else {
+            r = Ok(result.unwrap().serialize().unwrap());
+        }
+
+        // Update the StateManager with the result of the instance.
+        let new_status = InstanceStatus {
+            started: true,
+            finished: true,
+            result:r,
+        };
+        let cmd = StateUpdateCommand::UpdateInstanceStatus {
+            instance_id: instance_id.clone(),
+            new_status,
+        };
+        state_command_sender
+            .send(cmd)
+            .await
+            .expect("The receiver for state_command_sender has been closed.");
+
+        // Inform MessageForwarder that the instance was terminated.
+        let cmd = MessageForwarderCommand::RemoveInstance { instance_id };
+        forwarder_command_sender
+            .send(cmd)
+            .await
+            .expect("The receiver for forwarder_command_sender has been closed.");
+    }
 }
 
 #[tonic::async_trait]
@@ -179,7 +326,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     async fn decrypt(
         &self,
         request: Request<DecryptRequest>,
-    ) -> Result<Response<DecryptReponse>, Status> {
+    ) -> Result<Response<DecryptResponse>, Status> {
         println!(">> REQH: Received a decrypt request.");
         let req: &DecryptRequest = request.get_ref();
 
@@ -213,7 +360,49 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             .await;
         });
 
-        Ok(Response::new(DecryptReponse {
+        Ok(Response::new(DecryptResponse {
+            instance_id: instance_id.clone(),
+        }))
+    }
+
+    async fn sign(
+        &self,
+        request: Request<SignRequest>,
+    ) -> Result<Response<SignResponse>, Status> {
+        println!(">> REQH: Received a decrypt request.");
+        let req: &SignRequest = request.get_ref();
+
+        // Make all required checks and create the new protocol instance
+        let (instance_id, mut prot) = match self
+            .get_signature_instance(&req.message, &req.label, &req.key_id, req.scheme as u8, req.group as u8)
+            .await
+        {
+            Ok((instance_id, prot)) => (instance_id, prot),
+            Err(err) => return Err(err),
+        };
+
+        // Start it in a new thread, so that the client does not block until the protocol is finished.
+        let state_command_sender2 = self.state_command_sender.clone();
+        let forwarder_command_sender2 = self.forwarder_command_sender.clone();
+        let instance_id2 = instance_id.clone();
+        tokio::spawn(async move {
+            let result = prot.run().await;
+
+            // Protocol terminated, update state with the result.
+            println!(
+                ">> REQH: Received result from protocol with instance_id: {:?}",
+                instance_id2
+            );
+            RpcRequestHandler::update_signature_instance_result(
+                instance_id2.clone(),
+                result,
+                state_command_sender2,
+                forwarder_command_sender2,
+            )
+            .await;
+        });
+
+        Ok(Response::new(SignResponse {
             instance_id: instance_id.clone(),
         }))
     }
@@ -221,7 +410,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     async fn decrypt_sync(
         &self,
         request: Request<DecryptSyncRequest>,
-    ) -> Result<Response<DecryptSyncReponse>, Status> {
+    ) -> Result<Response<DecryptSyncResponse>, Status> {
         println!(">> REQH: Received a decrypt_sync request.");
         let req: &DecryptSyncRequest = request.get_ref();
 
@@ -256,7 +445,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             Ok(res) => Some(res),
             Err(_) => None,
         };
-        Ok(Response::new(DecryptSyncReponse {
+        Ok(Response::new(DecryptSyncResponse {
             instance_id: instance_id.clone(),
             plaintext: return_result,
         }))

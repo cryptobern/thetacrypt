@@ -51,16 +51,29 @@ impl Group {
         }
     }
 
-    pub fn from_code(code: u8) -> Self {
+    pub fn from_code(code: u8) -> Result<Self, ThresholdCryptoError> {
         match code {
-            0 => Self::Bls12381,
-            1 => Self::Bn254,
-            2 => Self::Ed25519,
-            3 => Self::Rsa512,
-            4 => Self::Rsa1024,
-            5 => Self::Rsa2048,
-            6 => Self::Rsa4096,
-            _ => panic!("invalid code")
+            0 => Ok(Self::Bls12381),
+            1 => Ok(Self::Bn254),
+            2 => Ok(Self::Ed25519),
+            3 => Ok(Self::Rsa512),
+            4 => Ok(Self::Rsa1024),
+            5 => Ok(Self::Rsa2048),
+            6 => Ok(Self::Rsa4096),
+            _ => Err(ThresholdCryptoError::UnknownGroup)
+        }
+    }
+
+    pub fn parse_string(name: &str) -> Result<Self, ThresholdCryptoError> {
+        match name {
+            "bls12381" => Ok(Self::Bls12381),
+            "bn254" => Ok(Self::Bn254),
+            "ed25519" => Ok(Self::Ed25519),
+            "rsa512" => Ok(Self::Rsa512),
+            "rsa1024" => Ok(Self::Rsa1024),
+            "rsa2048" => Ok(Self::Rsa2048),
+            "rsa4096" => Ok(Self::Rsa4096),
+            _ => Err(ThresholdCryptoError::UnknownGroupString)
         }
     }
 

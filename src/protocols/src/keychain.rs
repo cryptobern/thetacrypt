@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt::format;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -8,20 +10,20 @@ use crate::types::Key;
 use schemes::{group::Group, interface::ThresholdScheme, keys::PrivateKey};
 
 pub struct KeyChain {
-    key_entries: Vec<Arc<Key>>,
+    key_entries: HashMap<String, Arc<Key>>,
 }
 
 // KeyChainSerializable is the same as KeyChain without the shared references.
 // It is meant to be used only as an intermediate struct when serializing/deserializing a KeyChain struct.
 #[derive(Serialize, Deserialize)]
 struct KeyChainSerializable {
-    key_entries: Vec<Key>,
+    key_entries: HashMap<String, Key>,
 }
 
 impl KeyChainSerializable {
     fn new() -> Self {
         KeyChainSerializable {
-            key_entries: Vec::new(),
+            key_entries: HashMap::new(),
         }
     }
 }
@@ -30,7 +32,7 @@ impl From<&KeyChain> for KeyChainSerializable {
     fn from(k: &KeyChain) -> Self {
         let mut ks = KeyChainSerializable::new();
         for entry in k.key_entries.iter() {
-            ks.key_entries.push((**entry).clone());
+            ks.key_entries.insert((*entry.0).clone(), (**entry.1).clone());
         }
         ks
     }
@@ -40,7 +42,7 @@ impl Into<KeyChain> for KeyChainSerializable {
     fn into(self) -> KeyChain {
         let mut k = KeyChain::new();
         for entry in self.key_entries {
-            k.key_entries.push(Arc::new(entry));
+            k.key_entries.insert(entry.0, Arc::new(entry.1));
         }
         k
     }
@@ -68,7 +70,7 @@ fn get_operation_of_scheme(scheme: &ThresholdScheme) -> Operation {
 impl KeyChain {
     pub fn new() -> Self {
         KeyChain {
-            key_entries: Vec::new(),
+            key_entries: HashMap::new(),
         }
     }
 
@@ -81,9 +83,8 @@ impl KeyChain {
 
     pub fn to_file(&self, filename: &str) -> std::io::Result<()> {
         let ks = KeyChainSerializable::from(self);
-        let key_chain_str = serde_json::to_string(&ks)?;
-        let mut file = File::create(filename)?;
-        writeln!(&mut file, "{}", key_chain_str)?;
+        let file = File::create(filename)?;
+        serde_json::to_writer(file, &ks)?;
         Ok(())
     }
 
@@ -92,22 +93,23 @@ impl KeyChain {
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group.
     // A key is_default_for_operation if it is the first key created for its operation.
     pub fn insert_key(&mut self, key: PrivateKey, key_id: String) -> Result<(), String> {
-        if self.key_entries.iter().any(|e| e.id == key_id) {
+        if self.key_entries.iter().any(|e| e.0.eq(&key_id)) {
             return Err(String::from("KEYC: A key wit key_id: already exists."));
         }
+
         let scheme = key.get_scheme();
         let group = key.get_group();
         let is_default_for_scheme_and_group = !self
             .key_entries
             .iter()
-            .any(|e| e.sk.get_scheme() == scheme && e.sk.get_group() == group);
+            .any(|e| e.1.sk.get_scheme() == scheme && e.1.sk.get_group() == group);
         let operation = get_operation_of_scheme(&key.get_scheme());
         let is_default_for_operation = !self
             .key_entries
             .iter()
-            .any(|e| get_operation_of_scheme(&e.sk.get_scheme()) == operation);
+            .any(|e| get_operation_of_scheme(&e.1.sk.get_scheme()) == operation);
 
-        self.key_entries.push(Arc::new(Key {
+        self.key_entries.insert(key_id.clone(), Arc::new(Key {
             id: key_id,
             is_default_for_scheme_and_group,
             is_default_for_operation,
@@ -118,25 +120,11 @@ impl KeyChain {
 
     // Return the matching key with the given key_id, or an error if no key with key_id exists.
     pub fn get_key_by_id(&self, id: &String) -> Result<Arc<Key>, String> {
-        let key_entries_mathcing_id: Vec<&Arc<Key>> = self
-            .key_entries
-            .iter()
-            .filter(|&entry| entry.id == *id)
-            .collect();
-        match key_entries_mathcing_id.len() {
-            0 => Err(String::from(
-                "Could not find a key with the given key_id: {key_id}.",
-            )),
-            1 => Ok(Arc::clone(&key_entries_mathcing_id[0])),
-            _ => {
-                print!(
-                    ">> KEYC: ERROR: More than one keys with the same id were found. key_id: {id}."
-                );
-                Err(String::from(
-                    "More than one keys with key_id: {key_id} were found.",
-                ))
-            }
+        if self.key_entries.contains_key(id) == false {
+            return Err(format!("Could not find a key with the given key_id '{}'", id));
         }
+
+        return Ok(self.key_entries.get(id).unwrap().clone());
     }
 
     // First filter all keys and keep those that match the given scheme and group.
@@ -148,18 +136,18 @@ impl KeyChain {
         scheme: ThresholdScheme,
         group: Group,
     ) -> Result<Arc<Key>, String> {
-        let matching_key_entries: Vec<&Arc<Key>> = self
+        let matching_key_entries: Vec<(&String, &Arc<Key>)> = self
             .key_entries
             .iter()
-            .filter(|&entry| entry.sk.get_scheme() == scheme && entry.sk.get_group() == group)
+            .filter(|&entry| entry.1.sk.get_scheme() == scheme && entry.1.sk.get_group() == group)
             .collect();
         return match matching_key_entries.len() {
             0 => Err(String::from("No key matches the given scheme anf group.")),
-            1 => Ok(Arc::clone(&matching_key_entries[0])),
+            1 => Ok(Arc::clone(&matching_key_entries[0].1)),
             _ => {
-                let default_key_entries: Vec<&Arc<Key>> = matching_key_entries
+                let default_key_entries: Vec<(&String, &Arc<Key>)> = matching_key_entries
                     .iter()
-                    .filter(|&entry| entry.is_default_for_scheme_and_group)
+                    .filter(|&entry| entry.1.is_default_for_scheme_and_group)
                     .map(|e| *e)
                     .collect();
                 match default_key_entries.len() {
@@ -167,7 +155,7 @@ impl KeyChain {
                         print!(">> KEYC: ERROR: One key should always be specified as default.");
                         Err(String::from("Could not find a default key for this scheme. Please specify a key id."))
                     }
-                    1 => Ok(Arc::clone(&default_key_entries[0])),
+                    1 => Ok(Arc::clone(&default_key_entries[0].1)),
                     _ => {
                         print!(">> KEYC: ERROR: No more thatn one key should always be specified as default.");
                         Err(String::from("Could not select a default key for this scheme. Please specify a key id."))
@@ -182,8 +170,8 @@ impl KeyChain {
         let matching_key_entries: Vec<Arc<Key>> = self
             .key_entries
             .iter()
-            .filter(|&entry| get_operation_of_scheme(&entry.sk.get_scheme()) == operation)
-            .map(|e| Arc::clone(e))
+            .filter(|&entry| get_operation_of_scheme(&entry.1.sk.get_scheme()) == operation)
+            .map(|e| Arc::clone(e.1))
             .collect();
         matching_key_entries
     }

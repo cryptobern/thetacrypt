@@ -45,6 +45,18 @@ impl ThresholdScheme {
             _ => Err(ThresholdCryptoError::UnknownScheme)
         }
     }
+
+    pub fn parse_string(scheme: &str) -> Result<Self, ThresholdCryptoError> {
+        match scheme {
+            "bz03" => Ok(Self::Bz03),
+            "sg02" => Ok(Self::Sg02),
+            "bls04" => Ok(Self::Bls04),
+            "cks05" => Ok(Self::Cks05),
+            "frost" => Ok(Self::Frost),
+            "sh00" => Ok(Self::Sh00),
+            _ => Err(ThresholdCryptoError::UnknownScheme)
+        } 
+    }
 }
 
 
@@ -772,7 +784,7 @@ impl Serializable for SignatureShare {
     }
 }
 
-#[derive(AsnType, PartialEq, Clone)]
+#[derive(AsnType, PartialEq, Clone, Debug)]
 #[rasn(enumerated)]
 pub enum Signature {
     Bls04(Bls04Signature),
@@ -1121,6 +1133,8 @@ pub enum ThresholdCryptoError {
     MessageAlreadySpecified,
     SerializationError(String),
     UnknownScheme,
+    UnknownGroupString,
+    UnknownGroup,
 }
 
 impl Error for ThresholdCryptoError {}

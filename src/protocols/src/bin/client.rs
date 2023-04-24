@@ -10,7 +10,7 @@ use schemes::{
 };
 
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use thetacrypt_proto::protocol_types::DecryptRequest;
+use thetacrypt_proto::protocol_types::{DecryptRequest, SignRequest};
 
 // Send a single decrypt() request.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .sk
         .get_public_key();
     let (request, _) = create_decryption_request(1, &pk);
-
+    let sign_request = create_signing_request();
     let mut connections = connect_to_all_local().await;
 
     let mut input = String::new();
@@ -31,10 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut i = 0;
     for conn in connections.iter_mut() {
         io::stdin().read_line(&mut input)?;
-        println!(">> Sending decryption request 1 to server {i}.");
-        let _ = conn.decrypt(request.clone()).await.unwrap();
+        println!(">> Sending sign request 1 to server {i}.");
+        //let _ = conn.decrypt(request.clone()).await.unwrap();
         // let response2 = conn.decrypt(request2.clone()).await.unwrap();
         // println!("RESPONSE={:?}", response);
+
+        let _ = conn.sign(sign_request.clone()).await.unwrap();
         i += 1;
     }
     Ok(())
@@ -47,6 +49,20 @@ fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Cipher
         key_id: None,
     };
     (req, ciphertext)
+}
+
+fn create_signing_request() -> SignRequest {
+    let message = b"Hello World!".to_vec();
+    let label = b"Label".to_vec();
+    let req = SignRequest {
+        message,
+        label,
+        key_id: None,
+        scheme: ThresholdScheme::Bls04.get_id() as i32,
+        group: Group::Bls12381.get_code() as i32
+    };
+
+    req
 }
 
 async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {

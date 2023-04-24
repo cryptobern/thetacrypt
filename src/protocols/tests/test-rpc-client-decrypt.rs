@@ -18,7 +18,7 @@ use schemes::{
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use thetacrypt_proto::protocol_types::DecryptRequest;
 use thetacrypt_proto::protocol_types::GetDecryptResultRequest;
-use thetacrypt_proto::protocol_types::{DecryptSyncReponse, DecryptSyncRequest};
+use thetacrypt_proto::protocol_types::{DecryptSyncResponse, DecryptSyncRequest};
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, PublicKeyEntry};
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
@@ -161,7 +161,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending decrypt_sync request with sn=100 to server {i}.");
         let mut conn_clone = conn.clone();
         let request_clone = request.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn_clone.decrypt_sync(request_clone).await;
                 Ok(response)
@@ -190,7 +190,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending AGAIN decrypt_sync request with sn=100 to server {i}.");
         let mut conn2 = conn.clone();
         let request2 = request.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn2.decrypt_sync(request2).await;
                 Ok(response)
@@ -211,7 +211,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending decrypt_sync request with sn=101 to server {i}.");
         let mut conn_clone = conn.clone();
         let request_clone = request2.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn_clone.decrypt_sync(request_clone).await;
                 Ok(response)
