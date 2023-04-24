@@ -62,7 +62,6 @@ async fn main() {
 
 /// Start main event loop of server.
 pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
-    // Build local-net config required by provided static-network implementation.
     
     //Config for our proxy
     let net_config = ProxyConfig{
@@ -83,7 +82,6 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
     let my_id = config.id;
     info!("Starting server with ID {}", my_id);
 
-    let my_p2p_port = config.my_p2p_port();
     info!(
         "Starting connection to the local instance of Tendermit to forward messages to the P2P network on {}",
         config.proxy_node_ip()

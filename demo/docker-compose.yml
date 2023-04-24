@@ -7,7 +7,7 @@ services:
       context: ..
       network: host
       dockerfile: ./demo/Dockerfile
-    command: /target/release/server --config-file conf/server_0.json --key-file conf/keys_0.json
+    command: /target/release/proxy_server --config-file conf/server_0.json --key-file conf/keys_0.json
     env_file:
       - config.env
     volumes:
@@ -31,7 +31,7 @@ services:
       - config.env
     volumes:
       - ./config:/target/release/conf:Z      
-    command: /target/release/server --config-file conf/server_1.json --key-file conf/keys_1.json
+    command: /target/release/proxy_server --config-file conf/server_1.json --key-file conf/keys_1.json
     image: rust-threshold-library
     ports:
       - "27002:27000"
@@ -51,7 +51,7 @@ services:
       - config.env
     volumes:
       - ./config:/target/release/conf:Z
-    command: /target/release/server --config-file conf/server_2.json --key-file conf/keys_2.json
+    command: /target/release/proxy_server --config-file conf/server_2.json --key-file conf/keys_2.json
     image: rust-threshold-library
     ports:
       - "27003:27000"
@@ -71,7 +71,7 @@ services:
       - config.env
     volumes:
       - ./config:/target/release/conf:Z
-    command: /target/release/server --config-file conf/server_3.json --key-file conf/keys_3.json
+    command: /target/release/proxy_server --config-file conf/server_3.json --key-file conf/keys_3.json
     image: rust-threshold-library
     ports:
       - "27004:27000"
@@ -151,11 +151,12 @@ services:
 
   tendermint1:
       container_name: tendermint1
-      image: "tendermint/tendermint:v0.34.20"
+      image: "tendermint/localnode:latest"
       ports:
         - "26656-26657:26656-26657"
         - "6060:6060"
         - "27000:26660"
+        - "8080:8080"
       environment:
         - ID=0
         - LOG=${LOG:-tendermint.log}
@@ -170,7 +171,7 @@ services:
 
   tendermint2:
     container_name: tendermint2
-    image: "tendermint/tendermint:v0.34.20"
+    image: "tendermint/localnode:latest"
     ports:
       - "26659-26660:26656-26657"
     environment:
@@ -187,7 +188,7 @@ services:
 
   tendermint3:
     container_name: tendermint3 
-    image: "tendermint/tendermint:v0.34.20"
+    image: "tendermint/localnode:latest"
     environment:
       - ID=2
       - LOG=${LOG:-tendermint.log}
@@ -204,7 +205,7 @@ services:
 
   tendermint4:
     container_name: tendermint4
-    image: "tendermint/tendermint:v0.34.20"
+    image: "tendermint/localnode:latest"
     environment:
       - ID=3
       - LOG=${LOG:-tendermint.log}

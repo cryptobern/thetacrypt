@@ -40,6 +40,7 @@ RUN apt-get update && apt-get -y install libssl-dev && rm -rf /var/lib/apt/lists
 
 #Binaries
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/server /target/release/ 
+COPY --from=builder /rootLibrary/threasholdLibrary/target/release/proxy_server /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/confgen /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client_app /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/trusted_dealer /target/release/ 

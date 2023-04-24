@@ -24,18 +24,34 @@ set-up:
 .PHONY: set-up
 
 config-files: #set-up
-	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf; fi
+	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf -i --integration-file=conf/tendermint_ips.txt ; fi
 	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
-	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/tendermint:v0.34.20 testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
+	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/localnode:latest testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
 .PHONY: config-files
 
-demo-start: config-files
+demo-start: #config-files
 	docker-compose up
 .PHONY: demo-start
 
 demo-stop:
 	docker-compose down
 .PHONY: demo-stop
+
+# Test rules 
+
+clean-nodes: 
+	rm -r tmp/node0
+	rm -r tmp/node1
+	rm -r tmp/node2
+	rm -r tmp/node3
+.PHONY:  ckean-nodes
+
+copy-nodes: 
+	cp -R node0 tmp/
+	cp -R node1 tmp/
+	cp -R node2 tmp/
+	cp -R node3 tmp/
+.PHONY: copy-nodes
 
 clean-up:
 	@rm -r tmp
