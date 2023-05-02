@@ -9,3 +9,4 @@ pub mod confgen;
 pub mod message_forwarder;
 pub mod state_manager;
 pub mod threshold_signature_protocol;
+pub mod threshold_coin_protocol;

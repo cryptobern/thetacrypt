@@ -3,6 +3,7 @@ use std::{env, process::exit};
 use rand::rngs::OsRng;
 use schemes::{keys::{KeyGenerator, PrivateKey}, interface::ThresholdScheme, group::Group, rand::{RNG, RngAlgorithm}};
 use protocols::keychain::KeyChain;
+use std::fs;
 
 fn main(){
     let args: Vec<String> = env::args().collect();
@@ -57,14 +58,19 @@ fn main(){
 
         keys.insert(0, (name, key));
     }
-    
+
+    if fs::create_dir_all("config").is_err() {
+        println!("Error: could not create directory");
+        exit(-1);
+    }
+
     for node_id in 0..n {
         let mut key_chain = KeyChain::new();
         for k in &keys {
             key_chain.insert_key(k.1[node_id].clone(), k.0.clone()).expect("error generating key");
         }
 
-        let keyfile = format!("protocols/conf/keys_{:?}.json", node_id);
+        let keyfile = format!("config/keys_{:?}.json", node_id);
         key_chain.to_file(&keyfile).expect("error storing keys");
     }
 
@@ -83,7 +89,7 @@ fn generate_keys(k: usize, n: usize) -> Result<(), Box<dyn std::error::Error>>{
     for node_id in 0..n {
         let mut key_chain = KeyChain::new();
         key_chain.insert_key(sk_sg02_bls12381[node_id].clone(), String::from("sg02_bls12381"))?;
-        let keyfile = format!("conf/keys_{:?}.json", node_id);
+        let keyfile = format!("config/keys_{:?}.json", node_id);
         key_chain.to_file(&keyfile)?;
     }
     Ok(())

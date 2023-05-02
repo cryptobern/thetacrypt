@@ -25,7 +25,7 @@ set-up:
 
 config-files: #set-up
 	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf; fi
-	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
+	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4 sg02-bls12381,bz03-bls12381,bls04-bls12381; fi
 	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/tendermint:v0.34.20 testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
 .PHONY: config-files
 

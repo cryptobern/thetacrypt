@@ -8,16 +8,16 @@ import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 
 service ThresholdCryptoLibrary {
     // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
-    rpc decrypt (DecryptRequest) returns (DecryptReponse);
+    rpc decrypt (DecryptRequest) returns (DecryptResponse);
     // Returns the result of a protocol instance
     rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
-    // decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
-    rpc decrypt_sync (DecryptSyncRequest) returns (DecryptSyncReponse);
 
     rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
     
     //this is an alternative way to send shares. used only for testing
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
+    rpc sign (SignRequest) returns (SignResponse);
+    rpc flip_coin (CoinRequest) returns (CoinResponse);
 }
 
 // ---------- Decrypt a ciphertext ----------
@@ -26,18 +26,8 @@ message DecryptRequest {
     optional string key_id = 2;
 }
 
-message DecryptReponse {
+message DecryptResponse {
     string instance_id = 1;
-}
-
-message DecryptSyncRequest {
-    bytes ciphertext = 1;
-    optional string key_id = 2;
-}
-
-message DecryptSyncReponse {
-    string instance_id = 1;
-    optional bytes plaintext = 2;
 }
 
 message GetDecryptResultRequest {
@@ -95,3 +85,27 @@ message PushDecryptionShareResponse {
 // }
 
 
+//------------ Signatures ---------------
+message SignRequest {
+    bytes message = 1;
+    bytes label = 2;
+    optional string key_id = 3;
+    int32 scheme = 4;
+    int32 group = 5;
+}
+
+message SignResponse {
+    string instance_id = 1;
+}
+
+//------------ Coins ---------------
+message CoinRequest {
+    bytes name = 1;
+    optional string key_id = 2;
+    int32 scheme = 3;
+    int32 group = 4;
+}
+
+message CoinResponse {
+    string instance_id = 1;
+}
