@@ -261,8 +261,7 @@ impl FairOrderDriver {
                             match response.into_inner().instance_id{
                                 id => {
                                     println!(">> Decryption protocol for instance id: {:?} started", id);
-                                    //channel_send(&result_sender, Some(Vec::new(id)))?
-                                    channel_send(&result_sender, None)?
+                                    channel_send(&result_sender, Some(id.as_bytes().to_vec()))?
                                 }
                             }
                             

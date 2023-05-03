@@ -1,8 +1,8 @@
 version: '3'
 
 services:
-  cosmoscrypto1:
-    container_name: cosmoscrypto1
+  thetacrypt1:
+    container_name: thetacrypt1
     build: 
       context: ..
       network: host
@@ -21,8 +21,8 @@ services:
       localnet:
         ipv4_address: 192.167.20.2
 
-  cosmoscrypto2:
-    container_name: cosmoscrypto2
+  thetacrypt2:
+    container_name: thetacrypt2
     build:
       context: ..
       network: host
@@ -41,8 +41,8 @@ services:
       localnet:
         ipv4_address: 192.167.20.3
 
-  cosmoscrypto3:
-    container_name: cosmoscrypto3
+  thetacrypt3:
+    container_name: thetacrypt3
     build:
       context: ..
       network: host
@@ -61,8 +61,8 @@ services:
       localnet:
         ipv4_address: 192.167.20.4
 
-  cosmoscrypto4:
-    container_name: cosmoscrypto4
+  thetacrypt4:
+    container_name: thetacrypt4
     build: 
       context: ..
       network: host
@@ -93,7 +93,7 @@ services:
     restart: always
     command: ./fair_order_app --listen-ip 192.167.20.6 --tcl-ip 192.167.20.2
     depends_on:
-      - cosmoscrypto1
+      - thetacrypt1
     networks:
       localnet:
         ipv4_address: 192.167.20.6
@@ -110,7 +110,7 @@ services:
     restart: always
     command: ./fair_order_app --listen-ip 192.167.20.7 --tcl-ip 192.167.20.3
     depends_on:
-      - cosmoscrypto2
+      - thetacrypt2
     networks:
       localnet:
         ipv4_address: 192.167.20.7
@@ -127,7 +127,7 @@ services:
     restart: always
     command: ./fair_order_app --listen-ip 192.167.20.8 --tcl-ip 192.167.20.4
     depends_on:
-      - cosmoscrypto3
+      - thetacrypt3
     networks:
       localnet:
         ipv4_address: 192.167.20.8
@@ -144,7 +144,7 @@ services:
     restart: always
     command: ./fair_order_app --listen-ip 192.167.20.9 --tcl-ip 192.167.20.5
     depends_on:
-      - cosmoscrypto4
+      - thetacrypt4
     networks:
       localnet:
         ipv4_address: 192.167.20.9

@@ -10,7 +10,7 @@
 # 	# if you encounter this error
 # 	# -- Could not create directory /tendermint/config. mkdir /tendermint/config: permission denied
 # 	# you need to give docker the permission to write in that location 
-# 	# run -> chmod 777 tmp m
+# 	# run -> chmod 777 tmp
 
 
 set-up:
@@ -20,9 +20,27 @@ set-up:
 	@if ! [ -d config ]; then mkdir config; fi
 	@chmod -R 777 config
 	@cp server_ips.txt config/server_ips.txt
-	docker build -t rust-threshold-library -f Dockerfile .. 
 .PHONY: set-up
 
+build-docker:
+	docker build -t rust-threshold-library -f Dockerfile .. 
+	docker build -t abci-img -f Dokerfile.abci .
+.PHONY: build-docker
+
+build-binary-thetacrypt:
+	@cargo build --manifest-path ../src/Cargo.toml
+.PHONY: build-binary
+
+build-binary-abci:
+	@cargo build --manifest-path ./abci_app/Cargo.toml
+.PHONY: build-binary
+
+build-docker-test: build-binary-thetacrypt build-binary-abci
+	docker build -t rust-threshold-library-test -f Dockerfile.test .. 
+	docker build -t abci-img-test -f Dockerfile.abci.test .
+.PHONY: build-docker-test
+
+# Distinguish a setup between the demo with the custom network and the demo with tendermint p2p
 config-files: #set-up
 	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf -i --integration-file=conf/tendermint_ips.txt ; fi
 	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
@@ -36,6 +54,11 @@ demo-start: #config-files
 demo-stop:
 	docker-compose down
 .PHONY: demo-stop
+
+clean-up: demo-stop
+	@rm -r tmp
+	@rm -r config
+.PHONY: clean-up
 
 # Test rules 
 
@@ -53,8 +76,5 @@ copy-nodes:
 	cp -R node3 tmp/
 .PHONY: copy-nodes
 
-clean-up:
-	@rm -r tmp
-	@rm -r config
-.PHONY: clean-up
+
 

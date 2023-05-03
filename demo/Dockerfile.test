@@ -1,0 +1,18 @@
+FROM debian:bullseye
+
+RUN apt-get update && apt-get -y install libssl-dev && rm -rf /var/lib/apt/lists/*
+
+#Binaries
+COPY ./src/target/debug/server /target/debug/ 
+COPY ./src/target/debug/proxy_server /target/debug/ 
+COPY ./src/target/debug/confgen /target/debug/ 
+COPY ./src/target/debug/client_app /target/debug/ 
+COPY ./src/target/debug/trusted_dealer /target/debug/ 
+
+#Config files (TODO: to remove eventually)
+COPY ./src/network/src/config/tendermint_net/config.toml ./target/network/src/config/tendermint_net/
+WORKDIR /target/debug/
+
+#after docker run you can override CMD 
+
+CMD ["./server", "--", " --config-file conf/server_0.json", " --key-file conf/keys_0.json"] 

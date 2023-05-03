@@ -1,0 +1,12 @@
+FROM debian:buster-slim
+
+RUN apt-get update && apt-get -y install libssl-dev && rm -rf /var/lib/apt/lists/*
+
+#Binaries
+COPY ./abci_app/target/debug /target/debug 
+
+WORKDIR /target/debug
+
+#after docker runs you can override CMD 
+
+CMD ["./fair_order_app", "--tcl-port=50051"] 
