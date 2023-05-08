@@ -59,7 +59,7 @@ fn main(){
         keys.insert(0, (name, key));
     }
 
-    if fs::create_dir_all("config").is_err() {
+    if fs::create_dir_all("conf").is_err() {
         println!("Error: could not create directory");
         exit(-1);
     }
@@ -70,7 +70,7 @@ fn main(){
             key_chain.insert_key(k.1[node_id].clone(), k.0.clone()).expect("error generating key");
         }
 
-        let keyfile = format!("config/keys_{:?}.json", node_id);
+        let keyfile = format!("conf/keys_{:?}.json", node_id);
         key_chain.to_file(&keyfile).expect("error storing keys");
     }
 

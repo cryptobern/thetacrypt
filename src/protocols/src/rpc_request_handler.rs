@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use schemes::group::Group;
-use thetacrypt_proto::protocol_types::{CoinRequest, CoinResponse};
+use thetacrypt_proto::protocol_types::{CoinRequest, CoinResponse, GetSignatureResultRequest, GetSignatureResultResponse, GetCoinResultResponse, GetCoinResultRequest};
 use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
@@ -656,6 +656,87 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             is_started: status.started,
             is_finished: status.finished,
             plaintext: result,
+        };
+        Ok(Response::new(response))
+    }
+
+ 
+    async fn get_signature_result(
+        &self,
+        request: Request<GetSignatureResultRequest>,
+    ) -> Result<Response<GetSignatureResultResponse>, Status> {
+        println!(">> REQH: Received a get_decrypt_result request.");
+        let req: &GetSignatureResultRequest = request.get_ref();
+
+        // Get status of the instance by contacting the state manager
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus {
+            instance_id: req.instance_id.clone(),
+            responder: response_sender,
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let status = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
+
+        let mut result = None;
+        if status.finished {
+            if let Ok(res) = status.result {
+                result = Some(res)
+            };
+        };
+        let response = GetSignatureResultResponse {
+            instance_id: req.instance_id.clone(),
+            is_started: status.started,
+            is_finished: status.finished,
+            signature: result,
+        };
+        Ok(Response::new(response))
+    }
+
+    async fn get_coin_result(
+        &self,
+        request: Request<GetCoinResultRequest>,
+    ) -> Result<Response<GetCoinResultResponse>, Status> {
+        println!(">> REQH: Received a get_decrypt_result request.");
+        let req: &GetCoinResultRequest = request.get_ref();
+
+        // Get status of the instance by contacting the state manager
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus {
+            instance_id: req.instance_id.clone(),
+            responder: response_sender,
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let status = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
+
+        let mut result = None;
+        if status.finished {
+            if let Ok(res) = status.result {
+                result = Some(res)
+            };
+        };
+
+        let mut coin = Option::None;
+
+        if result.is_some() {
+            let r = result.unwrap()[0] as i32;
+            coin  = Option::Some(r);
+        }
+
+        let response = GetCoinResultResponse {
+            instance_id: req.instance_id.clone(),
+            is_started: status.started,
+            is_finished: status.finished,
+            coin: coin,
         };
         Ok(Response::new(response))
     }
