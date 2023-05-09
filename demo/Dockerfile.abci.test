@@ -3,9 +3,9 @@ FROM debian:buster-slim
 RUN apt-get update && apt-get -y install libssl-dev && rm -rf /var/lib/apt/lists/*
 
 #Binaries
-COPY ./abci_app/target/debug /target/debug 
+COPY ./abci_app/target/release /target/release 
 
-WORKDIR /target/debug
+WORKDIR /target/release
 
 #after docker runs you can override CMD 
 

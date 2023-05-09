@@ -20,6 +20,7 @@ set-up:
 	@if ! [ -d config ]; then mkdir config; fi
 	@chmod -R 777 config
 	@cp server_ips.txt config/server_ips.txt
+	@cp tendermint_ips.txt config/tendermint_ips.txt
 .PHONY: set-up
 
 build-docker:
@@ -27,12 +28,17 @@ build-docker:
 	docker build -t abci-img -f Dokerfile.abci .
 .PHONY: build-docker
 
+cross-compile-linux:
+	@rustup target add x86_64-unknown-linux-gnu
+	@brew install SergioBenitez/osxct/x86_64-unknown-linux-gnu
+.PHONY: build-linux
+
 build-binary-thetacrypt:
-	@cargo build --manifest-path ../src/Cargo.toml
+	@cargo build --release --target=x86_64-unknown-linux-gnu --manifest-path=../src/Cargo.toml
 .PHONY: build-binary
 
 build-binary-abci:
-	@cargo build --manifest-path ./abci_app/Cargo.toml
+	@x86_64-unknown-linux-gnu cargo build --release --target x86_64-unknown-linux-gnu --manifest-path ./abci_app/Cargo.toml
 .PHONY: build-binary
 
 build-docker-test: build-binary-thetacrypt build-binary-abci
@@ -42,10 +48,20 @@ build-docker-test: build-binary-thetacrypt build-binary-abci
 
 # Distinguish a setup between the demo with the custom network and the demo with tendermint p2p
 config-files: #set-up
-	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf -i --integration-file=conf/tendermint_ips.txt ; fi
-	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
+	@if ! [ -f ./config/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf -i --integration-file=conf/tendermint_ips.txt ; fi
+	@if ! [ -f ./config/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./trusted_dealer 3 4; fi
 	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/localnode:latest testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
 .PHONY: config-files
+
+config-files-test: #set-up
+	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library-test ./trusted_dealer 3 4; fi
+	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library-test ./confgen --ip-file=conf/server_ips.txt --outdir=conf -i --integration-file=conf/tendermint_ips.txt ; fi
+	@if ! [ -f ./tmp/node0/config/genesis.json ]; then docker run --rm -v $(CURDIR)/tmp:/tendermint:Z tendermint/localnode:latest testnet --config config-template.toml --o . --starting-ip-address 192.167.20.10; fi
+.PHONY: config-files-test
+
+demo-start-test: config-files-test copy-nodes
+	docker compose up -f docker-compose-test.yml
+.PHONY: demo-start-test
 
 demo-start: #config-files
 	docker-compose up
