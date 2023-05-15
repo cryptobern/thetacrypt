@@ -72,9 +72,10 @@ impl Serializable for FrostPublicKey {
     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let g = Group::from_code(d.read_element::<u8>()?);
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
-                let g = Group::from_code(d.read_element::<u8>()?);
+                
                 if g.is_err() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
@@ -89,9 +90,6 @@ impl Serializable for FrostPublicKey {
                     let bytes = d.read_element::<&[u8]>()?;
                     h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
                 }
-
-                let bytes = d.read_element::<&[u8]>()?;
-                let g_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
 
                 Ok(Self{n, k, group, y, h})
             })
@@ -172,6 +170,7 @@ impl Serializable for FrostPrivateKey {
                 let pubbytes = d.read_element::<&[u8]>()?;
                 let res = FrostPublicKey::deserialize(&pubbytes.to_vec());
                 if res.is_err() {
+                    println!("Error deserializing frost public key");
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
                 }
 
@@ -205,11 +204,104 @@ impl PublicCommitment {
     }
 }
 
+impl Serializable for PublicCommitment {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.id as u64))?;
+                w.write_element(&(self.hiding_nonce_commitment.get_group().get_code() as u64))?;
+                w.write_element(&self.hiding_nonce_commitment.to_bytes().as_slice())?;
+                w.write_element(&self.binding_nonce_commitment.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let id = d.read_element::<u64>()? as u16;
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let hiding_nonce_commitment = GroupElement::from_bytes(bytes, &group, Option::None);
+                let bytes = d.read_element::<&[u8]>()?;
+                let binding_nonce_commitment = GroupElement::from_bytes(bytes, &group, Option::None);
+
+                return Ok(Self {id, hiding_nonce_commitment, binding_nonce_commitment});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+}
+
 #[derive(PartialEq, Clone)]
 pub struct Nonce {
     hiding_nonce: BigImpl,
     binding_nonce: BigImpl
 }
+
+impl Serializable for Nonce {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                w.write_element(&(self.hiding_nonce.get_group().get_code() as u64))?;
+                w.write_element(&self.hiding_nonce.to_bytes().as_slice())?;
+                w.write_element(&self.binding_nonce.to_bytes().as_slice())?;
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
+
+                let bytes = d.read_element::<&[u8]>()?;
+                let hiding_nonce = BigImpl::from_bytes(&group, bytes);
+                let bytes = d.read_element::<&[u8]>()?;
+                let binding_nonce = BigImpl::from_bytes(&group, bytes);
+
+                return Ok(Self {hiding_nonce, binding_nonce});
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct BindingFactor {
@@ -327,9 +419,9 @@ impl Serializable for FrostSignature {
 
 
 #[derive(PartialEq, Clone)]
-pub struct FrostThresholdSignature<'a> {
+pub struct FrostThresholdSignature{
     round: u8,
-    key: &'a FrostPrivateKey,
+    key: FrostPrivateKey,
     msg: Option<Vec<u8>>,
     nonce: Option<Nonce>,
     commitment: Option<PublicCommitment>,
@@ -341,9 +433,9 @@ pub struct FrostThresholdSignature<'a> {
     finished: bool
 }
 
-impl<'a> FrostThresholdSignature<'a> {
-    pub fn new(key: &'a FrostPrivateKey) -> Self {
-        Self {round:0, msg:None, shares:Vec::new(), key, nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
+impl<'a> FrostThresholdSignature {
+    pub fn new(key: &FrostPrivateKey) -> Self {
+        Self {round:0, msg:None, shares:Vec::new(), key:key.clone(), nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
     }
 
     pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
@@ -613,6 +705,82 @@ impl<'a> FrostThresholdSignature<'a> {
 pub enum FrostRoundResult {
     RoundOne(PublicCommitment),
     RoundTwo(FrostSignatureShare)
+}
+
+impl Serializable for FrostRoundResult {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        let result = asn1::write(|w| {
+            w.write_element(&asn1::SequenceWriter::new(&|w| {
+                match self {
+                    Self::RoundOne(rr) => {
+                        w.write_element(&(1 as u64))?;
+
+                        let bytes = rr.serialize();
+                        if bytes.is_err() {
+                            return Err(WriteError::AllocationError);
+                        }
+
+                        w.write_element(&bytes.unwrap().as_slice())?;
+                    }, Self::RoundTwo(rr) => {
+                        w.write_element(&(2 as u64))?;
+
+                        let bytes = rr.serialize();
+                        if bytes.is_err() {
+                            return Err(WriteError::AllocationError);
+                        }
+
+                        w.write_element(&bytes.unwrap().as_slice())?;
+                    }
+                }
+                Ok(())
+            }))
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::SerializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
+
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let round = d.read_element::<u64>()? as u8;
+
+
+                match round {
+                    1 =>  {
+                        let bytes = d.read_element::<&[u8]>()?.to_vec();
+                        let a = PublicCommitment::deserialize(&bytes);
+                        if a.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy))
+                        }
+
+                        return Ok(Self::RoundOne(a.unwrap()));
+                    }, 2 => {
+                        let bytes = d.read_element::<&[u8]>()?.to_vec();
+                        let b = FrostSignatureShare::deserialize(&bytes);
+                        if b.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy))
+                        }
+
+                        return Ok(Self::RoundTwo(b.unwrap()));
+                    },
+                    _ => {
+                        return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
+                    }
+                }
+            })
+        });
+
+        if result.is_err() {
+            println!("{}", result.err().unwrap().to_string());
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        Ok(result.unwrap())
+    }
 }
 
     

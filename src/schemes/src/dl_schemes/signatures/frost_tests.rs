@@ -1,4 +1,4 @@
-use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::KeyGenerator, interface::{InteractiveThresholdSignature, ThresholdScheme}, group::Group};
+use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable}, group::Group};
 
 
 #[test]
@@ -19,7 +19,7 @@ fn test_interface() {
     let mut instances = Vec::new();
 
     for i in 0..k {
-        let mut I = InteractiveThresholdSignature::new(&keys[i], msg).unwrap();
+        let mut I = InteractiveThresholdSignature::new(&keys[i]).unwrap();
         assert!(I.set_msg(msg).is_ok());
         instances.push(I);
     }
@@ -45,4 +45,21 @@ fn test_interface() {
     let signature = instances[0].get_signature().unwrap();
 
     assert!(InteractiveThresholdSignature::verify(&signature, &pk, msg).unwrap());
+}
+
+
+#[test]
+fn test_serialization() {
+    let keys = KeyGenerator::generate_keys(3, 5, 
+        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+            &ThresholdScheme::Frost, 
+            &Group::Bls12381, 
+            &Option::None).unwrap();
+
+    let bytes = keys[0].serialize();
+    assert!(bytes.is_ok());
+    let bytes = bytes.unwrap();
+    let key = PrivateKey::deserialize(&bytes);
+    assert!(key.is_ok());
+    assert!(key.unwrap().eq(&keys[0]));
 }

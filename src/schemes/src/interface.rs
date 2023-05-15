@@ -57,6 +57,13 @@ impl ThresholdScheme {
             _ => Err(ThresholdCryptoError::UnknownScheme)
         } 
     }
+
+    pub fn is_interactive(&self) -> bool {
+        match self {
+            Self::Frost => true,
+            _ => false
+        }
+    }
 }
 
 
@@ -1002,12 +1009,94 @@ pub enum RoundResult {
     Frost(FrostRoundResult)
 }
 
-pub enum InteractiveThresholdSignature<'a> {
-    Frost(FrostThresholdSignature<'a>)
+impl RoundResult {
+    pub fn get_id(&self) -> u16 {
+        match self {
+            Self::Frost(f) => {
+                match f {
+                    FrostRoundResult::RoundOne(a) => {
+                        a.get_id()
+                    },
+                    FrostRoundResult::RoundTwo(a) => {
+                        a.get_id()
+                    }
+                }
+            },
+            _ => 0
+        }
+    }
 }
 
-impl<'a> InteractiveThresholdSignature<'a> {
-    pub fn new(key: &'a PrivateKey, msg: &'a[u8]) -> Result<Self, ThresholdCryptoError> {
+impl Serializable for RoundResult {
+    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+        match self {
+         Self::Frost(rr) => {
+             let result = asn1::write(|w| {
+                 w.write_element(&asn1::SequenceWriter::new(&|w| {
+                    w.write_element(&ThresholdScheme::Frost.get_id());
+
+                    let bytes = rr.serialize();
+                    if bytes.is_err() {
+                        return Err(WriteError::AllocationError);
+                    }
+                    w.write_element(&bytes.unwrap().as_slice())?;
+                    Ok(())
+                 }))
+             });
+
+             if result.is_err() {
+                return Err(ThresholdCryptoError::SerializationFailed);
+             }
+
+             return Ok(result.unwrap());
+         },
+         _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+     }
+
+     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
+            return d.read_element::<asn1::Sequence>()?.parse(|d| {
+                let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
+                let bytes = d.read_element::<&[u8]>()?.to_vec();
+                
+                if scheme.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                }
+
+                let sig;
+                match scheme.unwrap() {
+                    ThresholdScheme::Frost => {
+                        let r = FrostRoundResult::deserialize(&bytes);
+                        if r.is_err() {
+                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                        }
+
+                        sig = Ok(Self::Frost(r.unwrap()));
+                    },
+                    _ => {
+                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                    }
+                }
+
+                return sig;
+            })
+        });
+
+        if result.is_err() {
+            return Err(ThresholdCryptoError::DeserializationFailed);
+        }
+
+        return Ok(result.unwrap());
+    }
+}
+
+pub enum InteractiveThresholdSignature {
+    Frost(FrostThresholdSignature)
+}
+
+impl InteractiveThresholdSignature {
+    pub fn new(key: &PrivateKey) -> Result<Self, ThresholdCryptoError> {
         match key {
             PrivateKey::Frost(sk) => {
                 return Ok(Self::Frost(FrostThresholdSignature::new(&sk)));
@@ -1016,7 +1105,7 @@ impl<'a> InteractiveThresholdSignature<'a> {
         }
     }
 
-    pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
+    pub fn set_msg(&mut self, msg: &[u8]) -> Result<(), ThresholdCryptoError> {
         match self {
             Self::Frost(instance) => {
                 return instance.set_msg(msg);

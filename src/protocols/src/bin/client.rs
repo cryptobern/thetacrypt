@@ -136,7 +136,7 @@ async fn threshold_decryption() -> Result<(), Box<dyn std::error::Error>> {
 async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Bls04, Group::Bls12381)?
+        .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Bls12381)?
         .sk
         .get_public_key();
     
