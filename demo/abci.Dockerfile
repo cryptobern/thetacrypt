@@ -2,16 +2,17 @@
 FROM rust as builder
 
 RUN apt-get update && \ 
-    apt-get install libssl-dev && \
-    apt install -y protobuf-compiler && \
-    apt-get install m4
+    apt-get install -y libssl-dev && \
+    apt-get install -y protobuf-compiler && \
+    apt-get install -y m4
 
 ENV PROJECT_PATH=/img_root
 
 COPY ./src/proto $PROJECT_PATH/src/proto/
 COPY ./demo/abci_app $PROJECT_PATH/demo/abci_app/
 
-RUN cargo install --path $PROJECT_PATH/demo/abci_app
+RUN --mount=type=cache,mode=0777,target=/usr/local/cargo/registry \ 
+    cargo install --path $PROJECT_PATH/demo/abci_app
 
 
 FROM debian:buster-slim

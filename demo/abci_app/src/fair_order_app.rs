@@ -5,6 +5,8 @@ use tendermint_abci::{Application, Error};
 use tonic::transport::Channel;
 use base64;
 
+use std::{thread, time};
+
 #[derive(Debug, Clone)]
 pub struct FairOrderApp {
     command_sender: Sender<Command>,
@@ -67,6 +69,10 @@ impl Application for FairOrderApp {
         if let Some(decrypted_payload) = decrypt_result{
             response.data = decrypted_payload
         }
+
+        // let ten_millis = time::Duration::from_millis(10000);
+
+        // thread::sleep(ten_millis);
         
         response
     }
@@ -251,48 +257,45 @@ impl FairOrderDriver {
             match cmd {
                 Command::DecryptTx { encrypted_tx, result_sender } => {
                     println!(">> Initiating decryption of payload.");
-                    let request = DecryptRequest { ciphertext: encrypted_tx, key_id: None}; // todo: Remove this key_id
-                    //ROSE: move the decrypt in a thread
-                    // tokio::spawn(async move || {
-
-                    // });
-                    match self.tcl_client.decrypt(request).await {
-                        Ok(response) => {
-                            match response.into_inner().instance_id{
-                                id => {
-                                    println!(">> Decryption protocol for instance id: {:?} started", id);
-                                    channel_send(&result_sender, Some(id.as_bytes().to_vec()))?
-                                }
-                            }
-                            
-                        },
-                        Err(e) => {
-                            println!("Error in submitting the decrypt request");
-                            channel_send(&result_sender, None)?
-                        },
-                    }
-
-                    //DECRYPT-SYNC handling code
-                    //  { 
-                    //     Ok(response) => { // The RPC call returned successfully.
-                    //         match response.into_inner().plaintext {
-                    //         // todo: Explain what this call returns: The instance_id used and the optional plaintext
-                    //             Some(plaintext) => {
-                    //                 println!(">> Decryption protocol sucesfully terminated. Decrypted plaintext: {:?}", std::str::from_utf8(&plaintext));
-                    //                 channel_send(&result_sender, Some(plaintext))?
-                    //             },
-                    //             None => {
-                    //             println!(">> Decryption failed.");
-                    //                 channel_send(&result_sender, None)?
-                    //             },
+                    let request = DecryptSyncRequest { ciphertext: encrypted_tx, key_id: None}; // todo: Remove this key_id
+                    match self.tcl_client.decrypt_sync(request).await 
+                    // {
+                    //     Ok(response) => {
+                    //         match response.into_inner().instance_id{
+                    //             id => {
+                    //                 println!(">> Decryption protocol for instance id: {:?} started", id);
+                    //                 channel_send(&result_sender, Some(id.as_bytes().to_vec()))?
+                    //             }
                     //         }
+                            
                     //     },
-                    //     Err(err) => { // The RPC call failed, e.g., because the threshold library was not found, or the operation timed out.
-                    //         // return Err(Error::io(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, format!("Call to threshold library failed. Error: {:?}", err.to_string()))));
-                    //         println!(">> Call to threshold library failed. Error: {:?}", err.to_string());
+                    //     Err(e) => {
+                    //         println!("Error in submitting the decrypt request");
                     //         channel_send(&result_sender, None)?
                     //     },
                     // }
+
+                    //DECRYPT-SYNC handling code
+                    { 
+                        Ok(response) => { // The RPC call returned successfully.
+                            match response.into_inner().plaintext {
+                            // todo: Explain what this call returns: The instance_id used and the optional plaintext
+                                Some(plaintext) => {
+                                    println!(">> Decryption protocol sucesfully terminated. Decrypted plaintext: {:?}", std::str::from_utf8(&plaintext));
+                                    channel_send(&result_sender, Some(plaintext))?
+                                },
+                                None => {
+                                println!(">> Decryption failed.");
+                                    channel_send(&result_sender, None)?
+                                },
+                            }
+                        },
+                        Err(err) => { // The RPC call failed, e.g., because the threshold library was not found, or the operation timed out.
+                            // return Err(Error::io(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, format!("Call to threshold library failed. Error: {:?}", err.to_string()))));
+                            println!(">> Call to threshold library failed. Error: {:?}", err.to_string());
+                            channel_send(&result_sender, None)?
+                        },
+                    }
                 },
 
                 Command::GetEncryptionKeys { result_sender } => {

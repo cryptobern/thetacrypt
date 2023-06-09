@@ -10,7 +10,6 @@ use protocols::{
     rpc_request_handler,
 };
 
-
 #[tokio::main]
 async fn main() {
     env_logger::init();

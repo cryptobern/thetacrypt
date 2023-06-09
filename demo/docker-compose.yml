@@ -161,7 +161,7 @@ services:
         - ID=0
         - LOG=${LOG:-tendermint.log}
       volumes:
-        - ./tmp:/tendermint:Z
+        - ./tendermint:/tendermint:Z
       command: node --proxy_app=tcp://abci1:26658 --home ./node0
       depends_on:
         - abci1
@@ -178,7 +178,7 @@ services:
       - ID=1
       - LOG=${LOG:-tendermint.log}
     volumes:
-      - ./tmp:/tendermint:Z
+      - ./tendermint:/tendermint:Z
     command: node --proxy_app=tcp://abci2:26658 --home ./node1
     depends_on:
       - abci2
@@ -193,7 +193,7 @@ services:
       - ID=2
       - LOG=${LOG:-tendermint.log}
     volumes:
-      - ./tmp:/tendermint:Z
+      - ./tendermint:/tendermint:Z
     ports:
       - "26661-26662:26656-26657"
     command: node --proxy_app=tcp://abci3:26658 --home ./node2
@@ -210,7 +210,7 @@ services:
       - ID=3
       - LOG=${LOG:-tendermint.log}
     volumes:
-      - ./tmp:/tendermint:Z
+      - ./tendermint:/tendermint:Z
     ports:
       - "26663-26664:26656-26657"
     command: node --proxy_app=tcp://abci4:26658 --home ./node3

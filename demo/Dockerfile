@@ -11,9 +11,9 @@ FROM rust as builder
 #     apk add m4
 
 RUN apt-get update && \ 
-    apt-get install libssl-dev && \
-    apt install -y protobuf-compiler && \
-    apt-get install m4
+    apt-get install -y libssl-dev && \
+    apt-get install -y protobuf-compiler && \
+    apt-get install -y m4
 
 # ENV OPENSSL_STATIC=true
 
