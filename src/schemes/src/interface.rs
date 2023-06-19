@@ -921,6 +921,7 @@ impl Serializable for Signature {
 }
 
 
+#[derive(Debug)]
 pub struct ThresholdSignature {}
 
 impl ThresholdSignature {
@@ -1091,6 +1092,7 @@ impl Serializable for RoundResult {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum InteractiveThresholdSignature {
     Frost(FrostThresholdSignature)
 }

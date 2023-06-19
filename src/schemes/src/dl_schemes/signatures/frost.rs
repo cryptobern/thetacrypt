@@ -251,7 +251,7 @@ impl Serializable for PublicCommitment {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Nonce {
     hiding_nonce: BigImpl,
     binding_nonce: BigImpl
@@ -348,6 +348,7 @@ impl Serializable for FrostSignatureShare {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
+                let bytes = d.read_element::<&[u8]>()?;
                 let data = BigImpl::from_bytes(&group, &bytes);
                 
                 return Ok(Self { id, data});
@@ -418,7 +419,7 @@ impl Serializable for FrostSignature {
 }
 
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct FrostThresholdSignature{
     round: u8,
     key: FrostPrivateKey,
@@ -455,12 +456,8 @@ impl<'a> FrostThresholdSignature {
             FrostRoundResult::RoundTwo(share) => {
                 let result = self.verify_share(share);
                 if result.is_err() {
-                    return Err(result.unwrap_err());
-                }
-
-                if !result.unwrap() {
                     println!("invalid share");
-                    return Err(ThresholdCryptoError::InvalidShare);
+                    return Err(result.unwrap_err());
                 }
 
                 self.shares.push(share.clone());
@@ -468,7 +465,7 @@ impl<'a> FrostThresholdSignature {
                 println!("share added");
 
                 if self.shares.len() == self.key.get_threshold() as usize {
-                    println!("all shares received");
+                    println!("enough shares received");
                     let sig = self.assemble();
                     if sig.is_err() {
                         return Err(sig.unwrap_err());
@@ -518,18 +515,21 @@ impl<'a> FrostThresholdSignature {
             let res = self.commit(&mut RNG::new(RngAlgorithm::MarsagliaZaman));
             if res.is_ok() {
                 self.round += 1;
+                println!("round one successful");
                 return Ok(res.unwrap());
             }
+
+            println!("round one failed");
 
             return Err(res.unwrap_err());
         } else if self.round == 1 {
             let res = self.partial_sign();
             if res.is_ok() {
                 self.round += 1;
-
+                println!("round two successful");
                 return Ok(res.unwrap());
             }
-
+            println!("round two failed");
             return Err(res.unwrap_err());
         }
 
@@ -539,29 +539,35 @@ impl<'a> FrostThresholdSignature {
     fn partial_sign(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
         let group = self.key.get_group();
         let order = group.get_order();
-        let msg = self.msg.as_ref().unwrap();
 
         if self.get_nonce().is_none() {
+            println!("no nonce");
             return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
         }
 
         if self.msg.is_none() {
+            println!("msg not set");
             return Err(ThresholdCryptoError::MessageNotSpecified);
         }
 
+        let msg = self.msg.as_ref().unwrap();
+
         let nonce = self.get_nonce().as_ref().unwrap();
         let commitment_list = self.get_commitment_list();
+        println!("commitment list size: {}", commitment_list.len());
         
         let binding_factor_list = compute_binding_factors(commitment_list, msg, &self.key.get_group());
 
         let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
+            println!("binding factor error");
             return Err(binding_factor.expect_err(""));
         }
 
         let binding_factor = binding_factor.unwrap();
         let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
         if group_commitment.is_err() {
+            println!("group commitment error");
             return Err(group_commitment.expect_err(""));
         }
 
@@ -747,7 +753,6 @@ impl Serializable for FrostRoundResult {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let round = d.read_element::<u64>()? as u8;
-
 
                 match round {
                     1 =>  {

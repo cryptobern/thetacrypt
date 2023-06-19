@@ -1,4 +1,4 @@
-use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable}, group::Group};
+use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable, RoundResult}, group::Group};
 
 
 #[test]
@@ -62,4 +62,34 @@ fn test_serialization() {
     let key = PrivateKey::deserialize(&bytes);
     assert!(key.is_ok());
     assert!(key.unwrap().eq(&keys[0]));
+}
+
+#[test]
+fn test_round_result_serialization() {
+    let keys = KeyGenerator::generate_keys(2, 5, 
+        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+            &ThresholdScheme::Frost, 
+            &Group::Bls12381, 
+            &Option::None).unwrap();
+
+    let mut I = InteractiveThresholdSignature::new(&keys[0]).unwrap();
+    let mut I1 = InteractiveThresholdSignature::new(&keys[1]).unwrap();
+    I.set_msg("msg".as_bytes());
+    let rr = I.do_round().unwrap();
+    let rr1 = I1.do_round().unwrap();
+    let bytes = rr.serialize().unwrap();
+    let rr0 = RoundResult::deserialize(&bytes);
+    assert!(rr0.is_ok());
+    assert!(rr0.unwrap().eq(&rr));
+
+    I.update(&rr);
+    I.update(&rr1);
+    let rr2 = I.do_round();
+    assert!(rr2.is_ok());
+    let rr2 = rr2.unwrap();
+    let bytes = rr2.serialize().unwrap();
+    let rr0 = RoundResult::deserialize(&bytes);
+    assert!(rr0.is_ok());
+    assert!(rr0.unwrap().eq(&rr2));
+
 }
