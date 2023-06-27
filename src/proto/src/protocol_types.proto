@@ -4,7 +4,7 @@ package protocol_types;
 import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 
 // Convention: Use proto type 'bytes' (vec<u8> in Rust) for serialized data structures
-// amd string (String in Rust) for the rest
+// and string (String in Rust) for the rest
 
 service ThresholdCryptoLibrary {
     // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.

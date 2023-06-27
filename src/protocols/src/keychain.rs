@@ -7,10 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::types::Key;
-use schemes::{group::Group, interface::ThresholdScheme, keys::PrivateKey};
+use schemes::{group::Group, interface::ThresholdScheme, interface::InteractiveThresholdSignature, keys::PrivateKey};
 
 pub struct KeyChain {
     key_entries: HashMap<String, Arc<Key>>,
+    frost_precomputes: Vec<InteractiveThresholdSignature>
 }
 
 // KeyChainSerializable is the same as KeyChain without the shared references.
@@ -23,7 +24,7 @@ struct KeyChainSerializable {
 impl KeyChainSerializable {
     fn new() -> Self {
         KeyChainSerializable {
-            key_entries: HashMap::new(),
+            key_entries: HashMap::new()
         }
     }
 }
@@ -71,6 +72,7 @@ impl KeyChain {
     pub fn new() -> Self {
         KeyChain {
             key_entries: HashMap::new(),
+            frost_precomputes: Vec::new()
         }
     }
 
@@ -86,6 +88,10 @@ impl KeyChain {
         let file = File::create(filename)?;
         serde_json::to_writer(file, &ks)?;
         Ok(())
+    }
+
+    pub fn num_precomputations(&self) -> usize {
+        return self.frost_precomputes.len();
     }
 
     // Inserts a key to the key_chain. A key_id must be given and must be unique among all keys (regardless of the key scheme).
@@ -118,6 +124,18 @@ impl KeyChain {
         Ok(())
     }
 
+    pub fn append_precompute_results(&mut self, instances: &mut Vec<InteractiveThresholdSignature>) {
+        self.frost_precomputes.append(instances);
+    }
+
+    pub fn push_precompute_result(&mut self, instance: InteractiveThresholdSignature) {
+        self.frost_precomputes.push(instance);
+    }
+
+    pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
+        self.frost_precomputes.pop()
+    }
+
     // Return the matching key with the given key_id, or an error if no key with key_id exists.
     pub fn get_key_by_id(&self, id: &String) -> Result<Arc<Key>, String> {
         if self.key_entries.contains_key(id) == false {
@@ -142,7 +160,7 @@ impl KeyChain {
             .filter(|&entry| entry.1.sk.get_scheme() == scheme && entry.1.sk.get_group() == group)
             .collect();
         return match matching_key_entries.len() {
-            0 => Err(String::from("No key matches the given scheme anf group.")),
+            0 => Err(String::from("No key matches the given scheme and group.")),
             1 => Ok(Arc::clone(&matching_key_entries[0].1)),
             _ => {
                 let default_key_entries: Vec<(&String, &Arc<Key>)> = matching_key_entries
@@ -157,7 +175,7 @@ impl KeyChain {
                     }
                     1 => Ok(Arc::clone(&default_key_entries[0].1)),
                     _ => {
-                        print!(">> KEYC: ERROR: No more thatn one key should always be specified as default.");
+                        print!(">> KEYC: ERROR: No more than one key should always be specified as default.");
                         Err(String::from("Could not select a default key for this scheme. Please specify a key id."))
                     }
                 }

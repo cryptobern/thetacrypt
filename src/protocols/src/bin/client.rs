@@ -38,11 +38,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdout().flush().expect("error flushing stdout");
 
         let mut choice = String::new();
-
+        /*
         io::stdin()
             .read_line(&mut choice)
             .expect("Failed to read line");
-        let x: i32 = choice.trim().parse().expect("Input not an integer");
+        let x: i32 = choice.trim().parse().expect("Input not an integer");*/
+        let x = 2;
 
         match x {
             0 => {
@@ -51,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             1 => {
                 let result = threshold_decryption().await;
                 if result.is_err() {
-                    println!("Error while running signature protocol: {}", result.unwrap_err().to_string());
+                    println!("Error while running decryption protocol: {}", result.unwrap_err().to_string());
                 }
 
                 println!("---------------\n\n");
@@ -67,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             3 => {
                 let result = threshold_coin().await;
                 if result.is_err() {
-                    println!("Error while running signature protocol: {}", result.unwrap_err().to_string());
+                    println!("Error while running coin protocol: {}", result.unwrap_err().to_string());
                 }
 
                 println!("---------------\n\n");
@@ -142,11 +143,12 @@ async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut connections = connect_to_all_local().await;
 
-    print!(">> Enter message to sign: ");
+    /*print!(">> Enter message to sign: ");
     io::stdout().flush().expect("Error flushing stdout");
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    io::stdin().read_line(&mut input)?;*/
+    let input = String::from("TEST MESSAGE");
 
     let sign_request = create_signing_request(input.into_bytes());
 
@@ -260,7 +262,7 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
         message,
         label,
         key_id: None,
-        scheme: ThresholdScheme::Bls04.get_id() as i32,
+        scheme: ThresholdScheme::Frost.get_id() as i32,
         group: Group::Bls12381.get_code() as i32
     };
 

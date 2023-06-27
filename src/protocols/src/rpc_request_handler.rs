@@ -1,13 +1,17 @@
+use std::borrow::BorrowMut;
 use std::sync::Arc;
+use rand::Rng;
+use rand::distributions::Alphanumeric;
 use schemes::group::Group;
 use thetacrypt_proto::protocol_types::{CoinRequest, CoinResponse, GetSignatureResultRequest, GetSignatureResultResponse, GetCoinResultResponse, GetCoinResultRequest};
 use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
+use std::str;
 
 use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
-use schemes::interface::{Ciphertext, Serializable, Signature, ThresholdScheme, ThresholdCoin};
+use schemes::interface::{Ciphertext, Serializable, Signature, ThresholdScheme, ThresholdCoin, InteractiveThresholdSignature};
 use thetacrypt_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
     DecryptResponse, DecryptRequest, SignRequest, SignResponse,
@@ -17,6 +21,7 @@ use thetacrypt_proto::protocol_types::{
 };
 
 use crate::threshold_coin_protocol::ThresholdCoinProtocol;
+use crate::threshold_signature_protocol::ThresholdSignaturePrecomputation;
 use crate::{
     keychain::KeyChain,
     message_forwarder::{MessageForwarder, MessageForwarderCommand},
@@ -24,6 +29,9 @@ use crate::{
     threshold_cipher_protocol::ThresholdCipherProtocol, threshold_signature_protocol::ThresholdSignatureProtocol,
     types::{Key, ProtocolError},
 };
+
+const NUM_PRECOMPUTATIONS:i32 = 3;
+
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
     let mut ctxt_digest = HASH256::new();
@@ -48,6 +56,7 @@ pub struct RpcRequestHandler {
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
     incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
+    frost_precomputations: Vec<InteractiveThresholdSignature>
 }
 
 impl RpcRequestHandler {
@@ -158,17 +167,64 @@ impl RpcRequestHandler {
         Ok((instance_id, prot))
     }
 
+    async fn pop_frost_precomputation(
+        &self
+    ) -> Option<Arc<InteractiveThresholdSignature>> {
+        let precomputation: Arc<InteractiveThresholdSignature>;
+
+        let (response_sender, response_receiver) =
+            oneshot::channel::<Option<InteractiveThresholdSignature>>();
+        let cmd = StateUpdateCommand::PopFrostPrecomputation { responder: response_sender };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let result = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
+        match result {
+            Some(precomp) => precomputation = Arc::new(precomp),
+            None => return None,
+        };
+
+        return Some(precomputation);
+    }
+
+    async fn push_frost_precomputation(
+        state_command_sender: Sender<StateUpdateCommand>,
+        instance: InteractiveThresholdSignature
+    ) -> Result<(), ()> {
+        let precomputation: Arc<InteractiveThresholdSignature>;
+
+        let (response_sender, response_receiver) =
+            oneshot::channel::<Option<InteractiveThresholdSignature>>();
+        let cmd = StateUpdateCommand::PushFrostPrecomputation { instance: instance };
+        state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+
+        return Ok(());
+    }
 
     async fn get_signature_instance(
         &self,
-        message: &Vec<u8>,
+        message: Option<&Vec<u8>>,
         label: &Vec<u8>,
         key_id: &Option<String>,
         scheme_id: u8,
         group_id: u8
     ) -> Result<(String, ThresholdSignatureProtocol), Status> {
-        // Create a unique instance_id for this instance
-        let instance_id = assign_signature_instance_id(&message, &label);
+        let instance_id;
+        if message.is_none() {
+            let s = match str::from_utf8(label) {
+                Ok(v) => v,
+                Err(e) => return Err(Status::aborted("error decoding label")),
+            };
+            instance_id = String::from(s);
+        } else {
+            instance_id = assign_signature_instance_id(&message.unwrap(), &label);
+        }
 
         // Check whether an instance with this instance_id already exists
         let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
@@ -257,7 +313,109 @@ impl RpcRequestHandler {
             instance_id.clone(),
         );
 
+        Ok((instance_id, prot))
+    }
 
+    async fn get_precompute_instance(
+        &self,
+        label: &Vec<u8>,
+        key_id: &Option<String>,
+        scheme_id: u8,
+        group_id: u8
+    ) -> Result<(String, ThresholdSignaturePrecomputation), Status> {
+        let instance_id;
+      
+        let s = match str::from_utf8(label) {
+            Ok(v) => v,
+            Err(e) => return Err(Status::aborted("error decoding label")),
+        };
+        instance_id = String::from(s);
+    
+        // Check whether an instance with this instance_id already exists
+        let (response_sender, response_receiver) = oneshot::channel::<InstanceStatus>();
+        let cmd = StateUpdateCommand::GetInstanceStatus {
+            instance_id: instance_id.clone(),
+            responder: response_sender,
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let status = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
+        if status.started {
+            println!(
+                ">> REQH: A request with the same id already exists. Instance_id: {:?}",
+                instance_id
+            );
+            return Err(Status::new(
+                Code::AlreadyExists,
+                format!("A similar request with request_id {instance_id} already exists."),
+            ));
+        }
+
+        // Retrieve private key for this instance
+        let key: Arc<Key>;
+        if let Some(_) = key_id {
+            unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
+        } else {
+            let (response_sender, response_receiver) =
+                oneshot::channel::<Result<Arc<Key>, String>>();
+            let cmd = StateUpdateCommand::GetPrivateKeyByType {
+                scheme: ThresholdScheme::from_id(scheme_id).unwrap(),
+                group: Group::from_code(group_id).unwrap(),
+                responder: response_sender,
+            };
+            self.state_command_sender
+                .send(cmd)
+                .await
+                .expect("Receiver for state_command_sender closed.");
+            let key_result = response_receiver
+                .await
+                .expect("response_receiver.await returned Err");
+            match key_result {
+                Ok(key_entry) => key = key_entry,
+                Err(err) => return Err(Status::new(Code::InvalidArgument, err)),
+            };
+        };
+        println!(
+            ">> REQH: Using key with id: {:?} for request {:?}",
+            key.id, &instance_id
+        );
+
+        // Initiate the state of the new instance.
+        let cmd = StateUpdateCommand::AddNewInstance {
+            instance_id: instance_id.clone(),
+        };
+        self.state_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+
+        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        let (response_sender, response_receiver) =
+            oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
+        let cmd = MessageForwarderCommand::InsertInstance {
+            instance_id: instance_id.clone(),
+            responder: response_sender,
+        };
+        self.forwarder_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for forwarder_command_sender closed.");
+        let receiver_for_new_instance = response_receiver
+            .await
+            .expect("The sender for response_receiver dropped before sending a response.");
+
+        // Create the new protocol instance
+        let prot = ThresholdSignaturePrecomputation::new(
+            key,
+            label,
+            receiver_for_new_instance,
+            self.outgoing_message_sender.clone(),
+            instance_id.clone(),
+        );
 
         Ok((instance_id, prot))
     }
@@ -515,40 +673,86 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<SignResponse>, Status> {
         println!(">> REQH: Received a signing request.");
         let req: &SignRequest = request.get_ref();
+        let mut instance_id;
+        let mut prot;
+        let mut instance = Option::None;
 
-        // Make all required checks and create the new protocol instance
-        let (instance_id, mut prot) = match self
-            .get_signature_instance(&req.message, &req.label, &req.key_id, req.scheme as u8, req.group as u8)
-            .await
-        {
-            Ok((instance_id, prot)) => (instance_id, prot),
-            Err(err) => return Err(err),
-        };
+        // If scheme is Frost, we can make use of precomputation
+        if req.scheme == ThresholdScheme::Frost.get_id() as i32 {
+            println!(">> REQH: Scheme is FROST, fetching precomputations");
+            instance = self.pop_frost_precomputation().await;
 
-        // Start it in a new thread, so that the client does not block until the protocol is finished.
-        let state_command_sender2 = self.state_command_sender.clone();
-        let forwarder_command_sender2 = self.forwarder_command_sender.clone();
-        let instance_id2 = instance_id.clone();
-        tokio::spawn(async move {
-            let result = prot.run().await;
+            if instance.is_none() {
+                println!(">> REQH: No more precomputations left, create new precomputations");
+                // no more precomputations left, start another round of precomputation
+                for i in 0..NUM_PRECOMPUTATIONS {
+                    let mut s = String::from_utf8(req.label.clone()).unwrap();
+                    s.push_str(&(i as u32).to_string());
+                    (instance_id, prot) = match self
+                    .get_precompute_instance(&s.into_bytes(), &req.key_id, req.scheme as u8, req.group as u8)
+                    .await
+                    {
+                        Ok((instance_id, prot)) => (instance_id, prot),
+                        Err(err) => return Err(err),
+                    };
+            
+                    // Start it in a new thread, so that the client does not block until the protocol is finished.
+                    let state_command_sender2 = self.state_command_sender.clone();
+                    tokio::spawn(async move {
+                        let result = prot.run().await;
+            
+                        // Protocol terminated, update state with the result.
+                        println!(
+                            ">> REQH: Precomputed FROST round"
+                        );
+                        
+                        RpcRequestHandler::push_frost_precomputation(
+                            state_command_sender2,
+                            result.unwrap()
+                        )
+                        .await.expect("Error adding frost precomputation");
+                    });
+                }
+            }
+        } 
+         
+        if instance.is_none() {
+            // Make all required checks and create the new protocol instance
+            let (instance_id, mut prot) = match self
+                .get_signature_instance(Option::Some(&req.message), &req.label, &req.key_id, req.scheme as u8, req.group as u8)
+                .await
+            {
+                Ok((instance_id, prot)) => (instance_id, prot),
+                Err(err) => return Err(err),
+            };
+            
+            // Start it in a new thread, so that the client does not block until the protocol is finished.
+            let state_command_sender2 = self.state_command_sender.clone();
+            let forwarder_command_sender2 = self.forwarder_command_sender.clone();
+            let instance_id2 = instance_id.clone();
+            tokio::spawn(async move {
+                let result = prot.run().await;
+    
+                // Protocol terminated, update state with the result.
+                println!(
+                    ">> REQH: Received result from protocol with instance_id: {:?}",
+                    instance_id2
+                );
+                RpcRequestHandler::update_signature_instance_result(
+                    instance_id2.clone(),
+                    result,
+                    state_command_sender2,
+                    forwarder_command_sender2,
+                )
+                .await;
+            });
+    
+            return Ok(Response::new(SignResponse {
+                instance_id: instance_id.clone(),
+            }));
+        }
 
-            // Protocol terminated, update state with the result.
-            println!(
-                ">> REQH: Received result from protocol with instance_id: {:?}",
-                instance_id2
-            );
-            RpcRequestHandler::update_signature_instance_result(
-                instance_id2.clone(),
-                result,
-                state_command_sender2,
-                forwarder_command_sender2,
-            )
-            .await;
-        });
-
-        Ok(Response::new(SignResponse {
-            instance_id: instance_id.clone(),
-        }))
+        return Err(Status::aborted("not yet implemented"));
     }
 
     async fn flip_coin(
@@ -668,7 +872,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<GetSignatureResultRequest>,
     ) -> Result<Response<GetSignatureResultResponse>, Status> {
-        println!(">> REQH: Received a get_decrypt_result request.");
+        println!(">> REQH: Received a get_signature_result request.");
         let req: &GetSignatureResultRequest = request.get_ref();
 
         // Get status of the instance by contacting the state manager
@@ -704,7 +908,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<GetCoinResultRequest>,
     ) -> Result<Response<GetCoinResultResponse>, Status> {
-        println!(">> REQH: Received a get_decrypt_result request.");
+        println!(">> REQH: Received a get_coin_result request.");
         let req: &GetCoinResultRequest = request.get_ref();
 
         // Get status of the instance by contacting the state manager
@@ -805,6 +1009,7 @@ pub async fn init(
         forwarder_command_sender,
         outgoing_message_sender,
         incoming_message_sender,
+        frost_precomputations: Vec::new()
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

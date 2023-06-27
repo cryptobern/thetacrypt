@@ -1,5 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
-use schemes::{interface::ThresholdScheme, group::Group};
+use schemes::{interface::{ThresholdScheme, InteractiveThresholdSignature}, group::Group};
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
@@ -42,6 +42,12 @@ pub(crate) enum StateUpdateCommand {
     GetEncryptionKeys { 
         responder: tokio::sync::oneshot::Sender< Vec<Arc<Key>> >
     },
+    PopFrostPrecomputation {
+        responder: tokio::sync::oneshot::Sender<Option<InteractiveThresholdSignature>> 
+    },
+    PushFrostPrecomputation {
+        instance: InteractiveThresholdSignature
+    }
 }
 
 pub(crate) struct StateManager {
@@ -99,8 +105,16 @@ impl StateManager {
                         },
                         StateUpdateCommand::GetEncryptionKeys { responder } => {
                             let key_entries = self.keychain.get_encryption_keys();
-                            responder.send(key_entries).expect("The receiver for responder in StateUpdateCommand::GetPrivateKeyByType has been closed.");
+                            responder.send(key_entries).expect("The receiver for responder in StateUpdateCommand::GetEncryptionKeys has been closed.");
                         },
+                        StateUpdateCommand::PopFrostPrecomputation { responder } => {
+                            let result = self.keychain.pop_precompute_result();
+                            responder.send(result).expect("The receiver for responder in StateUpdateCommand::PopFrostPrecomputation has been closed.");
+                        },
+                        StateUpdateCommand::PushFrostPrecomputation { instance } => {
+                            let result = self.keychain.push_precompute_result(instance);
+                            println!(">> {} FROST precomputations", self.keychain.num_precomputations());
+                        }
                         _ => unimplemented!()
                     }
                 }
