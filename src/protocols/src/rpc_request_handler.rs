@@ -3,7 +3,6 @@ use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
-use mcore::hash256::HASH256;
 use network::types::message::P2pMessage;
 use schemes::interface::{Ciphertext, Serializable};
 use thetacrypt_proto::protocol_types::{
@@ -23,10 +22,7 @@ use crate::{
 };
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
-    let mut ctxt_digest = HASH256::new();
-    ctxt_digest.process_array(&ctxt.get_msg());
-    let h: &[u8] = &ctxt_digest.hash()[..8];
-    String::from_utf8(ctxt.get_label()).unwrap() + " " + hex::encode_upper(h).as_str()
+    String::from_utf8(ctxt.get_label()).unwrap()
 }
 
 pub struct RpcRequestHandler {
