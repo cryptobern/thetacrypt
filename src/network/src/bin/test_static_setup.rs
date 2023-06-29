@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             my_vec[0] = count; // to keep track of the messages
             my_vec[1] = rand::random(); // to prevent dublicate messages
             // test msg
-            let my_msg = NetMessage { instance_id: 1.to_string(), message_data: my_vec };
+            let my_msg = NetMessage {instance_id:1.to_string(), message_data:my_vec, is_total_order: false };
             
             // sends msg into the channel
             println!(">> TEST: SEND ->: {:?}", my_msg);

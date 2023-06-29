@@ -167,7 +167,9 @@ messages of type `NetMessage` (this type is defined in the `network` crate, see 
 - `try_from_bytes()`: Takes a `Vec<u8>` and returns an instance of the message type, if the
 bytes can be deserialized to that message type.
 It is called by the protocol whenever a message is received. The idea is that the protocol calls
-`try_from_bytes()` on each message type. The protocol then knows how to handle each message.
+`try_from_bytes()` on each message type. The protocol can then handle each message according to its specifications.
+Importantly, as the protocol knows the type of the incoming message, it knows whether it was delivered in total order
+or not.
 - `to_net_message()`: It returns a `NetMessage` and is called when a protocol wants to send a message.
 This function must set the `is_total_order` field of `NetMessage` to `true` if the protocol requires
 the corresponding message to be sent through the total-order channel.

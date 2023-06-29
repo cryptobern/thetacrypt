@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             my_vec[1] = rand::random(); // to prevent dublicate messages
             let peer_id = tendermint_net::config_service::get_tendermint_node_id().await;
             // test msg
-            let my_msg = NetMessage { instance_id: peer_id, message_data: my_vec };
+            let my_msg = NetMessage {instance_id:peer_id,message_data:my_vec, is_total_order: false };
             
             // sends msg into the channel
             println!(">> TEST: SEND ->: {:?}", my_msg);
