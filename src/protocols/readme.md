@@ -1,6 +1,5 @@
-The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
-
 # Exposing protocols over RPC
+The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
 All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
 The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following endpoints are implemented:
@@ -11,7 +10,8 @@ The RPC types are defined in `protocol_types.proto` of the `proto` crate. Curren
 
 See the documentation for each of them in `protocol_types.proto`.
 
-# How to use the RPC server and client
+
+# How to run the RPC server
 
 ### Generating server configuration
 You can use the `confgen` binary to generate the configuration files that are needed to start server instances.
@@ -47,18 +47,27 @@ cargo run --bin trusted_dealer -- 3 4
 
 ### Starting the server binary
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
-From the root directory of the `protocols` project start 4 terminals and, for i = 0...3, run:
+From the root directory of the `protocols` project start 4 terminals and run, respectively:
 ```
-cargo run --bin server -- --config-file conf/server_<i>.json --key-file conf/keys_<i>.json
+cargo run --bin server -- --config-file conf/server_0.json --key-file conf/keys_0.json
+cargo run --bin server -- --config-file conf/server_1.json --key-file conf/keys_1.json
+cargo run --bin server -- --config-file conf/server_2.json --key-file conf/keys_2.json
+cargo run --bin server -- --config-file conf/server_3.json --key-file conf/keys_3.json
 ```
+
+The server prints info messages, to see them set the following environment variable: `RUST_LOG=info`
+(or see here for more possibilities: https://docs.rs/env_logger/latest/env_logger/).
+
 You should see each server process print that it is connected to the others and ready to receive client requests.
 
-### Starting a client binary
-An example RPC client can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
+
+# Run an example client
+An RPC client, meant only to be used as an example, can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
 cargo run --bin client
 ```
-This client binary uses the `decrypt()` and `decrypt_sync()` RPC endpoints.
+This client first creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
+The code waits for the key **Enter** to be pressed before submitting each request.
 
 
 # The RPC request handler
@@ -167,6 +176,7 @@ be able to ask our library to create more keys.
 
 # Tests
 Tests are written in `\test` directory, using either the `#[test]` attribute for unit tests or the `tokio::test` for integration tests.
-Run the tests with `cargo test`.
+Always run the tests when making changes to the `protocols` code. You can do that using `cargo test`.
 
-Remark: The tests in `test-rpc-client-*.rs` files require some server instances to be running, otherwise they will fail.
+**Remark**: The tests in `test-rpc-client-*.rs` files require 4 server instances to be running, otherwise they will fail.
+Start these server instances exactly as described above and then run the tests.
