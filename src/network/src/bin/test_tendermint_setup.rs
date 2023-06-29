@@ -1,4 +1,4 @@
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use std::time::Duration;
 use tokio::time;
 
@@ -12,10 +12,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tendermint_config = tendermint_net::config_service::load_config(TENDERMINT_CONFIG_PATH.to_string());
 
     // Create channel for sending P2P messages received at the network module to the protocols
-    let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     // Create channel for sending P2P messages from a protocol to the network module
-    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     // // sends a Vec<u8> into the channel as spawned thread
     tokio::spawn(async move {
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             my_vec[1] = rand::random(); // to prevent dublicate messages
             let peer_id = tendermint_net::config_service::get_tendermint_node_id().await;
             // test msg
-            let my_msg = P2pMessage { instance_id: peer_id, message_data: my_vec };
+            let my_msg = NetMessage { instance_id: peer_id, message_data: my_vec };
             
             // sends msg into the channel
             println!(">> TEST: SEND ->: {:?}", my_msg);

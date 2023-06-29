@@ -2,7 +2,7 @@ use clap::Parser;
 use log::{error, info};
 use std::process::exit;
 
-use network::{config::static_net, types::message::P2pMessage};
+use network::{config::static_net, types::message::NetMessage};
 
 use protocols::{
     keychain::KeyChain,
@@ -72,12 +72,12 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     };
 
     // Network to protocol communication
-    let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
     // And a dedicated  copy for the RPC server
     let net_to_prot_sender_rpc = net_to_prot_sender.clone();
 
     // Protocol to network communication
-    let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     let my_id = config.id;
     info!("Starting server with ID {}", my_id);

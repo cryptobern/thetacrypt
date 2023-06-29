@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 
 use crate::types::InstanceId;
 
@@ -37,13 +37,13 @@ pub(crate) struct MessageForwarder {
     backlogged_instances: HashMap<InstanceId, BacklogData>,
     backlog_interval: tokio::time::Interval,
     forwarder_command_receiver: Receiver<MessageForwarderCommand>,
-    message_receiver: Receiver<P2pMessage>,
+    message_receiver: Receiver<NetMessage>,
 }
 
 impl MessageForwarder {
     pub(crate) fn new(
         command_receiver: Receiver<MessageForwarderCommand>,
-        message_receiver: Receiver<P2pMessage>,
+        message_receiver: Receiver<NetMessage>,
     ) -> Self {
         MessageForwarder {
             instance_senders: HashMap::new(),
@@ -85,7 +85,7 @@ impl MessageForwarder {
                 }
 
                 incoming_message = self.message_receiver.recv() => {
-                    let P2pMessage{instance_id, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
+                    let NetMessage{instance_id, is_total_order, message_data} = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
                     // Check whether a channel exists for the given instance_id.
                     if let Some(instance_sender) = self.instance_senders.get(&instance_id) {
                         // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has in the meanwhile finished.)

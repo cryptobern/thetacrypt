@@ -125,7 +125,7 @@ The logic for assigning instance ids is abstracted in functions such as `assign_
 
 # Protocols
 Threshold protocols are implemented in the `src\` directory, e.g.,
-`src\threshold_cipher_protocol.rs`.
+`src\threshold_cipher/protocol.rs`.
 
 ### Functions in a protocol
 A protocol exposes two functions, run() and terminate().
@@ -142,7 +142,7 @@ It is called by the instance to clean up any data.
 
 ### Fields in a protocol
 Protocol types contain the following fields.
-See for example the `ThresholdCipherProtocol` in `src\threshold_cipher_protocol.rs`. 
+See for example the `ThresholdCipherProtocol` in `src\threshold_cipher/protocol.rs`. 
 - chan_in:
 The receiver end of a channel. Messages (e.g., decryption shares) destined for this instance will be received here.
 - chan_out:
@@ -153,6 +153,24 @@ The secret key and public keys, of type `schemes::keys::PrivateKey` and `schemes
 `key.sk` and `key.sk.get_public_key`.
 The threshold is also accessible as `key.sk.get_threshold()`.
 
+
+# Protocol messages
+Each protocol implementation is responsible for defining its message types in `src\<protocol_name>\message_types.rs`,
+and for implementing two functions for each message type,
+`try_from_bytes()`and `to_net_message()`.
+For example, the `ThresholdCipherProtocol` uses a single message type, called `DecryptionShareMessage`,
+defined in `src\threshold_cipher\message_types.rs`.
+
+The interface between the network and a protocol is the following.
+A protocol instance receives on `chan_in` incoming messages as `Vec<u8>` and sends on `chan_out` outgoing
+messages of type `NetMessage` (this type is defined in the `network` crate, see the corresponding README).
+- `try_from_bytes()`: Takes a `Vec<u8>` and returns an instance of the message type, if the
+bytes can be deserialized to that message type.
+It is called by the protocol whenever a message is received. The idea is that the protocol calls
+`try_from_bytes()` on each message type. The protocol then knows how to handle each message.
+- `to_net_message()`: It returns a `NetMessage` and is called when a protocol wants to send a message.
+This function must set the `is_total_order` field of `NetMessage` to `true` if the protocol requires
+the corresponding message to be sent through the total-order channel.
 
 
 # Key management
