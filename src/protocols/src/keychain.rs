@@ -130,6 +130,7 @@ impl KeyChain {
 
     pub fn push_precompute_result(&mut self, instance: InteractiveThresholdSignature) {
         self.frost_precomputes.push(instance);
+        self.frost_precomputes.sort_by(|a, b| a.get_label().cmp(&b.get_label()))
     }
 
     pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {

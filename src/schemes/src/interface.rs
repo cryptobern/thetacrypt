@@ -1107,12 +1107,29 @@ impl InteractiveThresholdSignature {
         }
     }
 
+    pub fn set_label(&mut self, label: &[u8]) -> Result<(), ThresholdCryptoError> {
+        match self {
+            Self::Frost(instance) => {
+                instance.set_label(label);
+                Ok(())
+            }, 
+            _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+    }
+
     pub fn set_msg(&mut self, msg: &[u8]) -> Result<(), ThresholdCryptoError> {
         match self {
             Self::Frost(instance) => {
                 return instance.set_msg(msg);
             }, 
             _ => Err(ThresholdCryptoError::WrongScheme)
+        }
+    }
+
+    pub fn get_label(&self) -> Vec<u8> {
+        match self {
+            Self::Frost(instance) => {return instance.get_label();},
+            _ => {panic!("")}
         }
     }
 

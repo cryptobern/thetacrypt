@@ -21,7 +21,8 @@ pub struct ThresholdSignatureProtocol {
     signature: Option<Signature>,
     instance: Option<InteractiveThresholdSignature>,
     received_share_ids: HashSet<u16>,
-    round_results: Vec<RoundResult>
+    round_results: Vec<RoundResult>,
+    precomputed: bool
 }
 
 pub struct ThresholdSignaturePrecomputation {
@@ -45,7 +46,6 @@ impl<'a> ThresholdSignatureProtocol {
         chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
         instance_id: String,
     ) -> Self {
-
         let mut instance = Option::None;
         if key.sk.get_scheme().is_interactive() {
             println!(">> Creating interactive instance");
@@ -54,7 +54,10 @@ impl<'a> ThresholdSignatureProtocol {
                 panic!("Error creating signature instance");
             }
 
-            instance = Option::Some(i.unwrap());
+            let mut i = i.unwrap();
+            i.set_label(&label);
+
+            instance = Option::Some(i);
         } 
 
         ThresholdSignatureProtocol{
@@ -69,14 +72,46 @@ impl<'a> ThresholdSignatureProtocol {
             signature: Option::None,
             received_share_ids: HashSet::new(),
             instance,
-            round_results: Vec::new()
+            round_results: Vec::new(),
+            precomputed: false
+        }
+    }
+
+    pub fn from_instance(
+        instance: &InteractiveThresholdSignature,
+        key: Arc<Key>,
+        message: &Vec<u8>,
+        label: &Vec<u8>,
+        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
+        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        instance_id: String
+    ) -> Self {
+        return ThresholdSignatureProtocol{
+            key,
+            message:Option::Some(message.clone()),
+            label:label.clone(),
+            chan_in,
+            chan_out,
+            instance_id,
+            valid_shares: Vec::new(),
+            finished: false,
+            signature: Option::None,
+            received_share_ids: HashSet::new(),
+            instance:Option::Some(instance.clone()),
+            round_results: Vec::new(),
+            precomputed: true
         }
     }
 
     pub async fn run(&mut self) -> Result<Signature, ProtocolError> {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-        self.instance.as_mut().unwrap().set_msg(&(&self.message).clone().unwrap());
+
+        if(!self.precomputed) {
+            self.instance.as_mut().unwrap().set_msg(&(&self.message).clone().unwrap());
+        }
+        
         self.on_init().await?;
+        
         loop {
             match self.chan_in.recv().await {
                 Some(msg) => {

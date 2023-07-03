@@ -423,6 +423,7 @@ impl Serializable for FrostSignature {
 pub struct FrostThresholdSignature{
     round: u8,
     key: FrostPrivateKey,
+    label: Vec<u8>,
     msg: Option<Vec<u8>>,
     nonce: Option<Nonce>,
     commitment: Option<PublicCommitment>,
@@ -436,7 +437,15 @@ pub struct FrostThresholdSignature{
 
 impl<'a> FrostThresholdSignature {
     pub fn new(key: &FrostPrivateKey) -> Self {
-        Self {round:0, msg:None, shares:Vec::new(), key:key.clone(), nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
+        Self {round:0, msg:None, label:Vec::new(), shares:Vec::new(), key:key.clone(), nonce:Option::None, commitment:Option::None, commitment_list: Vec::new(), group_commitment:None, share:None, finished: false, signature:Option::None}
+    }
+
+    pub fn set_label(&mut self, label:&[u8]) {
+        self.label = label.to_vec();
+    }
+
+    pub fn get_label(&self) -> Vec<u8> {
+        return self.label.clone();
     }
 
     pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
