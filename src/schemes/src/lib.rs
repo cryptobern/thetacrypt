@@ -6,3 +6,4 @@ pub mod rand;
 pub mod keys;
 pub mod group;
 pub mod group_tests;
+pub mod group_generators;

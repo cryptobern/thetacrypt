@@ -1,19 +1,21 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use network::types::message::P2pMessage;
+use clap::parser::ValueSource;
+use network::types::message::NetMessage;
 use schemes::interface::{
     Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
 };
 use schemes::keys::{PrivateKey, PublicKey};
 
 use crate::types::{Key, ProtocolError};
+use crate::threshold_cipher::message_types::DecryptionShareMessage;
 
 pub struct ThresholdCipherProtocol {
     key: Arc<Key>,
     ciphertext: Ciphertext,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
     valid_shares: Vec<DecryptionShare>,
     decrypted: bool,
@@ -26,7 +28,7 @@ impl ThresholdCipherProtocol {
         key: Arc<Key>,
         ciphertext: Ciphertext,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self {
         ThresholdCipherProtocol {
@@ -57,22 +59,18 @@ impl ThresholdCipherProtocol {
         self.on_init().await?;
         loop {
             match self.chan_in.recv().await {
-                Some(share) => {
-                    match DecryptionShare::deserialize(&share) {
-                        Ok(deserialized_share) => {
-                            self.on_receive_decryption_share(deserialized_share)?;
-                            if self.decrypted {
-                                self.terminate().await?;
-                                return Ok(self.decrypted_plaintext.clone());
-                            }
+                Some(message_data) => {
+                    if let Some(decryption_share_message) =
+                        DecryptionShareMessage::try_from_bytes(&message_data)
+                    {
+                        self.on_receive_decryption_share(decryption_share_message.share)?;
+                        if self.decrypted {
+                            self.terminate().await?;
+                            return Ok(self.decrypted_plaintext.clone());
                         }
-                        Err(tcerror) => {
-                            println!(
-                                ">> PROT: Could not deserialize share. Share will be ignored."
-                            );
-                            continue;
-                        }
-                    };
+                    } else {
+                        println!(">> PROT: Received and ignored unknown message type. instance_id: {:?}", &self.instance_id);    
+                    }
                 }
                 None => {
                     println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
@@ -94,10 +92,7 @@ impl ThresholdCipherProtocol {
         );
         let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.key.sk, &mut params)?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-        let message = P2pMessage {
-            instance_id: self.instance_id.clone(),
-            message_data: share.serialize().unwrap(),
-        };
+        let message = DecryptionShareMessage::to_net_message(&share, &self.instance_id);
         self.chan_out.send(message).await.unwrap();
         self.received_share_ids.insert(share.get_id());
         self.valid_shares.push(share);

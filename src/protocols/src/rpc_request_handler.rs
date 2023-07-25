@@ -3,8 +3,7 @@ use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
-use mcore::hash256::HASH256;
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use schemes::interface::{Ciphertext, Serializable};
 use thetacrypt_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
@@ -18,22 +17,19 @@ use crate::{
     keychain::KeyChain,
     message_forwarder::{MessageForwarder, MessageForwarderCommand},
     state_manager::{InstanceStatus, StateManager, StateUpdateCommand},
-    threshold_cipher_protocol::ThresholdCipherProtocol,
+    threshold_cipher::protocol::ThresholdCipherProtocol,
     types::{Key, ProtocolError},
 };
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
-    let mut ctxt_digest = HASH256::new();
-    ctxt_digest.process_array(&ctxt.get_msg());
-    let h: &[u8] = &ctxt_digest.hash()[..8];
-    String::from_utf8(ctxt.get_label()).unwrap() + " " + hex::encode_upper(h).as_str()
+    String::from_utf8(ctxt.get_label()).unwrap()
 }
 
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
+    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
 impl RpcRequestHandler {
@@ -339,8 +335,9 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
         // println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
-        let p2p_message = P2pMessage {
+        let p2p_message = NetMessage {
             instance_id: req.instance_id.clone(),
+            is_total_order: false,
             message_data: req.decryption_share.clone(),
         };
         self.incoming_message_sender
@@ -355,9 +352,9 @@ pub async fn init(
     rpc_listen_address: String,
     rpc_listen_port: u32,
     keychain: KeyChain,
-    incoming_message_receiver: tokio::sync::mpsc::Receiver<P2pMessage>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
+    incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
+    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 ) {
     // Channel to send commands to the StateManager.
     // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
