@@ -133,6 +133,6 @@ If something fails in one of the methods described above, a `ThresholdCryptoErro
     }
 
 ## Big Integers / Groups
-When implementing schemes, one should always use the `BigImpl` and `GroupElement` structs, as they allow for the necessary abstract the implementation from the concrete groups such that any group can be used for a particular scheme. The underlying elliptic curve library "Miracl Core" uses different big integer implementations for each curve, which is why one needs to use the `BigImpl` wrapper to implement schemes in a curve-agnostic way.
+When implementing schemes, one should always use the `BigImpl`, `RsaBigInt` and `GroupElement` structs, as they allow for the necessary abstract the implementation from the concrete groups such that any group can be used for a particular scheme. The underlying elliptic curve library "Miracl Core" uses different big integer implementations for each curve (as they all have a fixed maximum size depending on the curve modulus), which is why one needs to use the `BigImpl` wrapper to implement schemes in a curve-agnostic way. For the RSA schemes, a different underlying big integer representation was used to allow for more flexibility in modulus size. Therefore, use `RsaBigInt` if you just need a flexible big integer representation and do not operate on an elliptic curve (as is the case for RSA).
 
 The `Group` struct holds information about a certain group, while `GroupElement` are the objects used in a scheme and which should be used for computation.
