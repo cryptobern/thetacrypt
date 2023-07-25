@@ -14,6 +14,8 @@ use crate::dl_schemes::bigint::BigImpl;
     TODO: change code to standard way of encoding EC groups */
 
 
+// Group represents the description of a group and contains information about its order, whether it
+// supports pairings etc. It is not used to store values or for computation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Group {
     Bls12381 = GroupCode::Bls12381 as isize,
@@ -27,6 +29,7 @@ pub enum Group {
 }
 
 impl Group {
+    /* returns whether the group is a discrete logarithm group */
     pub fn is_dl(&self) -> bool {
         match self {
             Self::Bls12381 => true,
@@ -39,6 +42,7 @@ impl Group {
         }
     }
 
+    /* returns group identifier */
     pub fn get_code(&self) -> u8 {
         match self {
             Self::Bls12381 => 0,
@@ -51,6 +55,7 @@ impl Group {
         }
     }
 
+    /* creates group object from identifier */
     pub fn from_code(code: u8) -> Self {
         match code {
             0 => Self::Bls12381,
@@ -64,6 +69,7 @@ impl Group {
         }
     }
 
+    /* returns the group order */
     pub fn get_order(&self) -> BigImpl {
         match self {
             Self::Bls12381 => Bls12381::get_order(),
@@ -73,6 +79,7 @@ impl Group {
         }
     }
 
+    /* returns whether the group supports pairings */
     pub fn supports_pairings(&self) -> bool {
         match self {
             Self::Bls12381 => true,
@@ -86,7 +93,7 @@ impl Group {
     }
 }
 
-/* GroupData holds the actual group element */
+/* GroupData holds the actual group element data, do not use this for computation */
 #[repr(C)]
 pub union GroupData {
     pub bls12381: ManuallyDrop<Bls12381>,
@@ -100,7 +107,7 @@ impl Debug for GroupData {
     }
 }
 
-/* GroupElement is the representation of a single group element */
+/* GroupElement is the representation of a single group element, use this for computation */
 #[derive(Debug, AsnType)]
 pub struct GroupElement {
     group: Group,
@@ -147,11 +154,14 @@ impl Clone for GroupElement {
 
 // TODO: create macro to simplify match clauses
 
+// GroupElement represents a particular element in a group
 impl GroupElement {
+    /* construct group element out of group object and data */
     pub fn create(group: Group, data: GroupData) -> Self {
         Self {group, data}
     }
 
+    /* return identity of given group */
     pub fn identity(group: &Group) -> GroupElement {
         let data;
         match group {
@@ -164,18 +174,22 @@ impl GroupElement {
         Self { group:group.clone(), data }
     }
 
+    /* check whether two group elements belong to the same group */
     pub fn cmp_group(&self, group: &Self) -> bool {
         self.group.eq(&group.group)
     } 
 
+    /* check whether group element belongs to certain group */
     pub fn is_type(&self, group: &Group) -> bool {
         self.group.eq(&group)
     }
 
+    /* get group from group element */
     pub fn get_group(&self) -> &Group {
         &self.group
     }
     
+    /* create new group element */
     pub fn new(group: &Group) -> Self {
         let data;
 
@@ -202,6 +216,7 @@ impl GroupElement {
         Self { group: group.clone(), data: data}
     }
 
+    /* calculate pairing between self and y */
     pub fn pair(&self, y: &GroupElement) -> GroupElement {
         if !self.get_group().supports_pairings() {
             panic!("group does not support pairings");
@@ -226,6 +241,7 @@ impl GroupElement {
         }
     }
 
+    /* returns true if  */
     pub fn ddh(x: &GroupElement, y: &GroupElement, z: &GroupElement, w: &GroupElement) -> Result<bool, ThresholdCryptoError> {
         if !x.get_group().supports_pairings() {
             panic!("group does not support pairings");
@@ -248,6 +264,7 @@ impl GroupElement {
         }
     }
 
+    /* returns g^y where g is the generator of selected group */
     pub fn new_pow_big(group: &Group, y: &BigImpl) -> Self {
         let data;
 
@@ -261,6 +278,7 @@ impl GroupElement {
         Self { group: group.clone(), data: data}
     }
 
+    /* returns g^y where g is the generator of the extension field of selected group */
     pub fn new_pow_big_ecp2(group: &Group, y: &BigImpl) -> Self {
         let data;
 
@@ -273,10 +291,12 @@ impl GroupElement {
         Self { group: group.clone(), data: data}
     }
 
+    /* initialize group element */
     pub fn init(group: &Group, data: GroupData) -> Self {
         Self {group:group.clone(), data}
     }
 
+    /* returns random element in group */
     pub fn new_rand(group: &Group, rng: &mut RNG) -> Self {
         let data;
 
@@ -291,7 +311,7 @@ impl GroupElement {
     }
 
 
-    /// self = self*y
+    /* returns self*y */
     pub fn mul(&self, y: &Self) -> Self{
         if self.group != y.group {
             panic!("incompatible groups!");
@@ -307,7 +327,7 @@ impl GroupElement {
         }
     }  
     
-    /// self = self/y
+    /* returns self/y */
     pub fn div(&self, y: &Self) -> Self {
         if self.group != y.group {
             panic!("incompatible groups!");
@@ -323,7 +343,7 @@ impl GroupElement {
         }
     }
 
-    ///self = self^y
+   /* returns self^y */
     pub fn pow(&self, y: &BigImpl) -> Self {       
         unsafe {
             match self.group {
@@ -335,6 +355,7 @@ impl GroupElement {
         }
     }
 
+    /* get order of group element */
     pub fn get_order(&self) -> BigImpl {
         match self.group {
             Group::Bls12381 => Bls12381::get_order(),
@@ -345,6 +366,7 @@ impl GroupElement {
         
     }
 
+    /* encode group element in bytes */
     pub fn to_bytes(&self) -> Vec<u8> {       
         unsafe {
             match self.group {
@@ -356,6 +378,7 @@ impl GroupElement {
         }
     }
 
+    /* convert group element to hex string */
     pub fn to_string(&self) -> String {       
         unsafe {
             match self.group {
@@ -367,6 +390,7 @@ impl GroupElement {
         }
     }
 
+    /* decode group element from bytes */
     pub fn from_bytes(bytes: &[u8], group: &Group, i: Option<u8>) -> Self {
         let mut j = 0;
         if i.is_some() {

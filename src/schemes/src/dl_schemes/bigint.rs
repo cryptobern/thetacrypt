@@ -19,23 +19,56 @@ pub trait BigInt:
     + 'static {
     type DataType;
 
+    // creates a new BigImpl initialized to 0
     fn new() -> BigImpl;
-    fn new_big(y: &BigImpl) -> BigImpl;
-    fn new_ints(a: &[Chunk]) -> BigImpl;
-    fn new_int(i: isize) -> BigImpl;
+
+    // returns a copy of y
     fn new_copy(y: &BigImpl) -> BigImpl;
+
+    // creates BigImpl from array of chunks
+    fn new_ints(a: &[Chunk]) -> BigImpl;
+
+    // creates BigImpl from isize
+    fn new_int(i: isize) -> BigImpl;
+
+    // generate random BigImpl in range [0, q]
     fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl;
+
+    // converts byte vector to BigImpl and returns it
     fn from_bytes(bytes: &[u8]) -> BigImpl;
+
+    // returns self % y
     fn rmod(&self, y: &BigImpl) -> BigImpl;
+
+    // returns self*y % m
     fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl;
+
+    // returns self^(-1) % m
     fn inv_mod(&self, m: &BigImpl) -> BigImpl;
+
+    // returns self + y
     fn add(&self, y: &BigImpl) -> BigImpl;
+
+    // returns self - y
     fn sub(&self, y: &BigImpl) -> BigImpl;
+
+    // returns self*i
     fn imul(&self, i: isize) -> BigImpl;
+
+    // returns x^y % m
     fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl;
+    
+    // converts self to byte vector
     fn to_bytes(&self) -> Vec<u8>;
+
+    // converts self to a printable hex string
     fn to_string(&self) -> String;
+
+    // compares y to self and returns true if equal
     fn equals(&self, y: &BigImpl) -> bool;
+
+    // compares y to self, return 0 if self==y, -1 if self < y, +1 if self > b
+    fn cmp(&self, y: &BigImpl) -> isize;
 }
 
 #[derive(Debug)]
@@ -220,6 +253,14 @@ impl BigImpl {
             BigImpl::Bls12381(_x) => &Group::Bls12381,
             BigImpl::Bn254(_x) => &Group::Bn254,
             BigImpl::Ed25519(_x) => &Group::Ed25519,
+       }
+    }
+
+    pub fn cmp(&self, y: &Self) -> isize {
+        match self {
+            BigImpl::Bls12381(_x) => _x.cmp(y),
+            BigImpl::Bn254(_x) => _x.cmp(y),
+            BigImpl::Ed25519(_x) => _x.cmp(y),
        }
     }
 }

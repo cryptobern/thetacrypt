@@ -147,14 +147,6 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
                 BigImpl::#group_name(Self { value: BIG::new() })
             }
 
-            fn new_big(y: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = y {
-                    BigImpl::#group_name(Self { value: BIG::new_big(&v.value)})
-                } else {
-                    panic!("Incompatible big integer implementation!");
-                }
-            }
-
             fn new_copy(y: &BigImpl) -> BigImpl {
                 if let BigImpl::#group_name(v) = y {
                     BigImpl::#group_name(Self { value:BIG::new_copy(&v.value) })
@@ -262,6 +254,14 @@ pub fn derive_big_impl(input:TokenStream) -> TokenStream {
                     BIG::comp(&self.value, &v.value) == 0
                 } else {
                     false
+                }  
+            }
+
+            fn cmp(&self, y: &BigImpl) -> isize {
+                if let BigImpl::#group_name(v) = y {
+                    BIG::comp(&self.value, &v.value)
+                } else {
+                    panic!("Incompatible big integer implementation!");
                 }  
             }
         }
