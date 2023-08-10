@@ -71,6 +71,14 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
     };
 
+    let local_cfg2 = static_net::deserialize::Config {
+        ids: config.peer_ids(),
+        ips: config.peer_ips(),
+        p2p_ports: config.peer_p2p_ports(),
+        rpc_ports: config.peer_rpc_ports(),
+        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
+    };
+
     // Network to protocol communication
     let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
     // And a dedicated  copy for the RPC server
@@ -107,11 +115,13 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
-            my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
+            my_rpc_port,
             keychain,
             n2p_receiver,
             p2n_sender,
             n2p_sender_rpc,
+            local_cfg2,
+            my_id
         )
         .await
     });
