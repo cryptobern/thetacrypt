@@ -297,7 +297,6 @@ impl<'a> ThresholdSignaturePrecomputation {
         }
 
         let instance = i.unwrap();
-        
 
         ThresholdSignaturePrecomputation{
             key,

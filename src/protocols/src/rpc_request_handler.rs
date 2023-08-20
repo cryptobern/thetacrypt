@@ -772,7 +772,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     }
 
     /* this method is called at the non-leader nodes if no atomic broadcast is involved */
-    async fn leader_sign(
+    async fn forward_sign_request(
         &self,
         request: Request<LeaderSignRequest>
     ) -> Result<Response<SignResponse>, Status> {
@@ -789,7 +789,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     }
 
     /* this method is called in the case of atomic broadcast */
-    async fn atomic_sign(
+    async fn sign(
         &self,
         request: Request<AtomicSignRequest>,
     ) -> Result<Response<SignResponse>, Status> {
@@ -806,7 +806,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     }
 
     /* this method is called to start the signing process for a leader-based signature protocol */
-    async fn sign(
+    async fn leader_sign(
         &self,
         request: Request<SignRequest>,
     ) -> Result<Response<SignResponse>, Status> {
@@ -836,7 +836,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                     node_id:self.my_id }
                 );
 
-            connection.leader_sign(req).await;
+            connection.forward_sign_request(req).await;
         }
 
         return self.do_sign(request, None).await;

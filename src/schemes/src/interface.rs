@@ -1243,6 +1243,7 @@ pub enum ThresholdCryptoError {
     UnknownScheme,
     UnknownGroupString,
     UnknownGroup,
+    IOError,
 }
 
 impl Error for ThresholdCryptoError {}

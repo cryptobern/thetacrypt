@@ -6,8 +6,6 @@ use chacha20poly1305::aead::generic_array::typenum::Gr;
 use mcore::hash512::HASH512;
 use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement, Group}, interface::{ThresholdCryptoError, Serializable}, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt};
 
-const CONTEXT_STRING:&[u8] = b"FROST-ED25519-SHA512-v8";
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {
     n: u16,
@@ -397,7 +395,7 @@ impl Serializable for FrostSignature {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
-                let label = d.read_element::<&[u8]>()?.to_vec();
+                //let label = d.read_element::<&[u8]>()?.to_vec()
                 
                 let bytes = d.read_element::<&[u8]>()?;
                 let R = GroupElement::from_bytes(&bytes, &group, Option::None);
@@ -465,16 +463,12 @@ impl<'a> FrostThresholdSignature {
             FrostRoundResult::RoundTwo(share) => {
                 let result = self.verify_share(share);
                 if result.is_err() {
-                    println!("invalid share");
                     return Err(result.unwrap_err());
                 }
 
                 self.shares.push(share.clone());
 
-                println!("share added");
-
                 if self.shares.len() == self.key.get_threshold() as usize {
-                    println!("enough shares received");
                     let sig = self.assemble();
                     if sig.is_err() {
                         return Err(sig.unwrap_err());
@@ -563,9 +557,8 @@ impl<'a> FrostThresholdSignature {
 
         let nonce = self.get_nonce().as_ref().unwrap();
         let commitment_list = self.get_commitment_list();
-        println!("commitment list size: {}", commitment_list.len());
         
-        let binding_factor_list = compute_binding_factors(commitment_list, msg, &self.key.get_group());
+        let binding_factor_list = compute_binding_factors(&self.key.pubkey, commitment_list, msg, &self.key.get_group());
 
         let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
@@ -585,15 +578,6 @@ impl<'a> FrostThresholdSignature {
         let participant_list = participants_from_commitment_list(commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_id() as i32);
         let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), msg);
-
-        print!("sign part. list({}): ", self.key.get_id());
-
-        for i in 0..participant_list.len() {
-            print!("{}", participant_list[i]);
-        }
-        print!("\n");
-
-        println!("sign lambda: {} chall: {} binding_factor: {}", lambda_i.to_string(), challenge.to_string(), binding_factor.factor.to_string());
 
         let share = 
             nonce.hiding_nonce
@@ -664,7 +648,7 @@ impl<'a> FrostThresholdSignature {
         }
         let commitment = commitment.unwrap();
 
-        let binding_factor_list = compute_binding_factors(&commitment_list, msg, &self.key.get_group());
+        let binding_factor_list = compute_binding_factors(&self.key.pubkey, &commitment_list, msg, &self.key.get_group());
         let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
         if binding_factor.is_err() {
             return Err(binding_factor.expect_err(""));
@@ -814,10 +798,11 @@ fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {
     return h3(&[k_enc, secret_enc].concat(), &secret.get_group());
 }
 
-fn compute_binding_factors(commitment_list: &[PublicCommitment], msg: &[u8], group: &Group) -> Vec<BindingFactor> {
+fn compute_binding_factors(pubkey: &FrostPublicKey, commitment_list: &[PublicCommitment], msg: &[u8], group: &Group) -> Vec<BindingFactor> {
+    let pubkey_enc = &*pubkey.y.to_bytes();
     let msg_hash = h4(msg, group);
     let encoded_commitment_hash = h5(&encode_group_commitment_list(commitment_list), group);
-    let rho_input_prefix = [msg_hash, encoded_commitment_hash].concat();
+    let rho_input_prefix = [pubkey_enc, &msg_hash, &encoded_commitment_hash].concat();
 
     let mut binding_factor_list:Vec<BindingFactor> = Vec::new();
     for i in 0..commitment_list.len() {
@@ -839,7 +824,8 @@ fn compute_group_commitment(commitment_list: &[PublicCommitment], binding_factor
             return Err(ThresholdCryptoError::IdNotFound);
         }
 
-        group_commitment = group_commitment.mul(&commitment_list[i].hiding_nonce_commitment).mul(&commitment_list[i].binding_nonce_commitment.pow(&binding_factor));
+        let binding_nonce = commitment_list[i].binding_nonce_commitment.pow(&binding_factor);
+        group_commitment = group_commitment.mul(&commitment_list[i].hiding_nonce_commitment).mul(&binding_nonce);
     }
 
     Ok(group_commitment)
@@ -901,7 +887,7 @@ fn encode_uint16(val: u16) -> Vec<u8> {
 }
 
 fn h1(bytes: &[u8], group: &Group) -> BigImpl { // TODO: implement for other ciphersuites
-    let msg = [CONTEXT_STRING, b"rho", bytes].concat(); 
+    let msg = [get_context_string(group), b"rho", bytes].concat(); 
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     let h = hash.hash();
@@ -920,7 +906,7 @@ fn h2(bytes: &[u8], group: &Group) -> BigImpl { // TODO: implement for other cip
 }
 
 fn h3(bytes: &[u8], group: &Group) -> BigImpl { // TODO: implement for other ciphersuites
-    let msg = [CONTEXT_STRING, b"nonce", bytes].concat(); 
+    let msg = [get_context_string(group), b"nonce", bytes].concat(); 
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     let h = hash.hash();
@@ -930,15 +916,22 @@ fn h3(bytes: &[u8], group: &Group) -> BigImpl { // TODO: implement for other cip
 }
 
 fn h4(bytes: &[u8], group: &Group) -> [u8;64] { // TODO: implement for other ciphersuites
-    let msg = [CONTEXT_STRING, b"msg", bytes].concat(); 
+    let msg = [get_context_string(group), b"msg", bytes].concat(); 
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     hash.hash()
 }
 
 fn h5(bytes: &[u8], group: &Group) -> [u8;64] { // TODO: implement for other ciphersuites
-    let msg = [CONTEXT_STRING, b"com", bytes].concat(); 
+    let msg = [get_context_string(group), b"com", bytes].concat(); 
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     hash.hash()
+}
+
+fn get_context_string(group: &Group) -> &[u8] {
+    match group {
+        Group::Ed25519 => return b"FROST-ED25519-SHA512-v1",
+        _ => panic!("invalid group")
+    }
 }

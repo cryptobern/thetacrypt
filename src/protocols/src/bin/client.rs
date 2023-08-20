@@ -38,12 +38,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdout().flush().expect("error flushing stdout");
 
         let mut choice = String::new();
-        /*
+        
         io::stdin()
             .read_line(&mut choice)
             .expect("Failed to read line");
-        let x: i32 = choice.trim().parse().expect("Input not an integer");*/
-        let x = 2;
+        let x: i32 = choice.trim().parse().expect("Input not an integer");
 
         match x {
             0 => {
@@ -137,18 +136,17 @@ async fn threshold_decryption() -> Result<(), Box<dyn std::error::Error>> {
 async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Bls12381)?
+        .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
         .sk
         .get_public_key();
     
     let mut connections = connect_to_all_local().await;
 
-    /*print!(">> Enter message to sign: ");
+    print!(">> Enter message to sign: ");
     io::stdout().flush().expect("Error flushing stdout");
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;*/
-    let input = String::from("TEST MESSAGE");
+    io::stdin().read_line(&mut input)?;
 
     let sign_request = create_signing_request(input.into_bytes());
 
@@ -162,7 +160,7 @@ async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     }*/
 
     println!(">> Sending sign request to server 0.");
-    let r = connections[0].sign(sign_request.clone()).await.unwrap();
+    let r = connections[0].leader_sign(sign_request.clone()).await.unwrap();
     instance_id = r.get_ref().instance_id.clone();
 
     let req = GetSignatureResultRequest { instance_id };
@@ -174,7 +172,7 @@ async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if result.get_ref().signature.is_some() {
-        printbinary(result.get_ref().signature(), Option::Some(">> Received signature: "));
+        println!(">> Received signature: {}", hex::encode(result.get_ref().signature()));
     } else {
         println!("! Signature computation failed");
     }
@@ -267,7 +265,7 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
         label,
         key_id: None,
         scheme: ThresholdScheme::Frost.get_id() as i32,
-        group: Group::Bls12381.get_code() as i32
+        group: Group::Ed25519.get_code() as i32
     };
 
     req

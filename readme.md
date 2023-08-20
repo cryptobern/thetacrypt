@@ -1,4 +1,4 @@
-# Threshold Cryptography Library in Rust
+# ThetaCrypt - Threshold Cryptography Library in Rust
 
 This is a WIP library for threshold cryptography implementing various threshold cipher, signatures and coin schemes. The library relies on Tendermint Core for atomic broadcast and runs as a service next to Tendermint on a node.
 

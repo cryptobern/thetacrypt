@@ -22,13 +22,13 @@ service ThresholdCryptoLibrary {
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
     
     // sign is the endpoint a light client calls to start a signing protocol
-    rpc sign (SignRequest) returns (SignResponse);
+    rpc leader_sign (SignRequest) returns (SignResponse);
     
     // leader sign is the endpoint the leader calls to start the signing protocol on the other nodes
-    rpc leader_sign(LeaderSignRequest) returns (SignResponse);
+    rpc forward_sign_request(LeaderSignRequest) returns (SignResponse);
 
     // atomic sign is the endpoint which should be called to start a signing protocol after atomic broadcast
-    rpc atomic_sign(AtomicSignRequest) returns (SignResponse);
+    rpc sign(AtomicSignRequest) returns (SignResponse);
 
     // starts a coin flip protocol
     rpc flip_coin (CoinRequest) returns (CoinResponse);
