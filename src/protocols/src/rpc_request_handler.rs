@@ -12,7 +12,7 @@ use tonic::{transport::Server, Request, Response, Status};
 use std::str;
 
 use mcore::hash256::HASH256;
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use schemes::interface::{Ciphertext, Serializable, Signature, ThresholdScheme, ThresholdCoin, InteractiveThresholdSignature};
 use thetacrypt_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
@@ -22,13 +22,13 @@ use thetacrypt_proto::protocol_types::{
     PushDecryptionShareResponse,
 };
 
-use crate::threshold_coin_protocol::ThresholdCoinProtocol;
-use crate::threshold_signature_protocol::ThresholdSignaturePrecomputation;
+use crate::threshold_cipher::protocol::ThresholdCipherProtocol;
+use crate::threshold_signature::protocol::{ThresholdSignatureProtocol, ThresholdSignaturePrecomputation};
+use crate::threshold_coin::protocol::ThresholdCoinProtocol;
 use crate::{
     keychain::KeyChain,
     message_forwarder::{MessageForwarder, MessageForwarderCommand},
     state_manager::{InstanceStatus, StateManager, StateUpdateCommand},
-    threshold_cipher_protocol::ThresholdCipherProtocol, threshold_signature_protocol::ThresholdSignatureProtocol,
     types::{Key, ProtocolError},
 };
 
@@ -36,10 +36,7 @@ const NUM_PRECOMPUTATIONS:i32 = 3;
 
 
 fn assign_decryption_instance_id(ctxt: &Ciphertext) -> String {
-    let mut ctxt_digest = HASH256::new();
-    ctxt_digest.process_array(&ctxt.get_msg());
-    let h: &[u8] = &ctxt_digest.hash()[..8];
-    String::from_utf8(ctxt.get_label()).unwrap() + " " + hex::encode_upper(h).as_str()
+    String::from_utf8(ctxt.get_label()).unwrap()
 }
 
 fn assign_signature_instance_id(message: &[u8], label: &[u8]) -> String {
@@ -56,8 +53,8 @@ fn assign_coin_instance_id(name: &[u8]) -> String {
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
+    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
     frost_precomputations: Vec<InteractiveThresholdSignature>,
     my_id: u32,
     config: static_net::deserialize::Config
@@ -737,7 +734,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let req: &DecryptRequest = request.get_ref();
 
         // Make all required checks and create the new protocol instance
-        let (instance_id, mut prot) = match self
+        let (instance_id, mut prot): (String, ThresholdCipherProtocol) = match self
             .get_decryption_instance(&req.ciphertext, &req.key_id)
             .await
         {
@@ -1042,8 +1039,9 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<PushDecryptionShareResponse>, Status> {
         let req = request.get_ref();
         // println!(">> NET: Received a decryption share. Instance_id: {:?}. Pushing to net_to_demult channel,", req.instance_id);
-        let p2p_message = P2pMessage {
+        let p2p_message = NetMessage {
             instance_id: req.instance_id.clone(),
+            is_total_order: false,
             message_data: req.decryption_share.clone(),
         };
         self.incoming_message_sender
@@ -1058,9 +1056,9 @@ pub async fn init(
     rpc_listen_address: String,
     rpc_listen_port: u16,
     keychain: KeyChain,
-    incoming_message_receiver: tokio::sync::mpsc::Receiver<P2pMessage>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<P2pMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<P2pMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
+    incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
+    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
     config: static_net::deserialize::Config,
     my_id: u32 
 ) {

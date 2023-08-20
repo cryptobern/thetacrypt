@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use schemes::interface::{
     Ciphertext, Signature, SignatureShare, Serializable, ThresholdSignature, ThresholdSignatureParams, InteractiveThresholdSignature, RoundResult, ThresholdScheme, ThresholdCryptoError,
 };
@@ -14,7 +14,7 @@ pub struct ThresholdSignatureProtocol {
     message: Option<Vec<u8>>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
     valid_shares: Vec<SignatureShare>,
     finished: bool,
@@ -29,7 +29,7 @@ pub struct ThresholdSignaturePrecomputation {
     key: Arc<Key>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
     finished: bool,
     instance: InteractiveThresholdSignature,
@@ -43,7 +43,7 @@ impl<'a> ThresholdSignatureProtocol {
         message: Option<&Vec<u8>>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self {
         let mut instance = Option::None;
@@ -83,7 +83,7 @@ impl<'a> ThresholdSignatureProtocol {
         message: &Vec<u8>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String
     ) -> Self {
         return ThresholdSignatureProtocol{
@@ -149,9 +149,10 @@ impl<'a> ThresholdSignatureProtocol {
                                         let rr = rr.unwrap();
                                         self.instance.as_mut().unwrap().update(&rr); 
                                         
-                                        let message = P2pMessage {
+                                        let message = NetMessage {
                                             instance_id: self.instance_id.clone(),
                                             message_data: rr.serialize().unwrap(),
+                                            is_total_order: false
                                         };
                                         self.chan_out.send(message).await.unwrap();
                                     }
@@ -197,9 +198,10 @@ impl<'a> ThresholdSignatureProtocol {
         if self.key.sk.get_scheme().is_interactive() {
             let rr = self.instance.as_mut().unwrap().do_round()?;
             self.instance.as_mut().unwrap().update(&rr);
-            let message = P2pMessage {
+            let message = NetMessage {
                 instance_id: self.instance_id.clone(),
                 message_data: rr.serialize().unwrap(),
+                is_total_order: false
             };
             self.chan_out.send(message).await.unwrap();
             Ok(())
@@ -213,9 +215,10 @@ impl<'a> ThresholdSignatureProtocol {
             );
             let share = ThresholdSignature::partial_sign(&(&self.message).clone().unwrap(), &self.label, &self.key.sk, &mut params)?;
             // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-            let message = P2pMessage {
+            let message = NetMessage {
                 instance_id: self.instance_id.clone(),
                 message_data: share.serialize().unwrap(),
+                is_total_order: false
             };
             self.chan_out.send(message).await.unwrap();
             self.received_share_ids.insert(share.get_id());
@@ -287,7 +290,7 @@ impl<'a> ThresholdSignaturePrecomputation {
         key: Arc<Key>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self { 
         println!(">> Creating precomputation instance");
@@ -320,9 +323,10 @@ impl<'a> ThresholdSignaturePrecomputation {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
 
         let rr = self.instance.do_round()?;
-        let message = P2pMessage {
+        let message = NetMessage {
             instance_id: self.instance_id.clone(),
             message_data: rr.serialize().unwrap(),
+            is_total_order: false
         };
 
         self.instance.update(&rr).expect("Error processing round result");

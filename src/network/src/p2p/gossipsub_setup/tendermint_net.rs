@@ -9,13 +9,13 @@ use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::config::tendermint_net::{config_service::*, deserialize::Config};
-use crate::types::message::P2pMessage;
+use crate::types::message::NetMessage;
 
 use super::net_utils::*;
 
 pub async fn init(
-    outgoing_msg_receiver: Receiver<P2pMessage>,
-    incoming_msg_sender: Sender<P2pMessage>,
+    outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
     tendermint_config: Config,
 ) {
     let tendermint_node_id = get_tendermint_node_id().await;

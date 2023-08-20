@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use schemes::interface::{
     Serializable, ThresholdSignature, ThresholdCoin, CoinShare,
 };
@@ -14,7 +14,7 @@ pub struct ThresholdCoinProtocol {
     key: Arc<Key>,
     name: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
     valid_shares: Vec<CoinShare>,
     finished: bool,
@@ -27,7 +27,7 @@ impl ThresholdCoinProtocol {
         key: Arc<Key>,
         name: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self {
         ThresholdCoinProtocol {
@@ -85,9 +85,10 @@ impl ThresholdCoinProtocol {
         );
         let share = ThresholdCoin::create_share(&self.name, &self.key.sk, &mut RNG::new(schemes::rand::RngAlgorithm::OsRng))?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-        let message = P2pMessage {
+        let message = NetMessage {
             instance_id: self.instance_id.clone(),
             message_data: share.serialize().unwrap(),
+            is_total_order: false
         };
         self.chan_out.send(message).await.unwrap();
         self.received_share_ids.insert(share.get_id());

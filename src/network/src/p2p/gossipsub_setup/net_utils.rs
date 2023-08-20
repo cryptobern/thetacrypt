@@ -37,7 +37,7 @@ use tokio::runtime::Handle;
 use tokio::time;
 
 // use crate::config::localnet_config::{config_service::*, deserialize::Config};
-use crate::types::message::P2pMessage;
+use crate::types::message::NetMessage;
 
 // Create a keypair for authenticated encryption of the transport.
 pub fn create_noise_keys(keypair: &Keypair) -> AuthenticKeypair<X25519Spec> {
@@ -143,8 +143,8 @@ pub fn create_gossipsub_swarm(
 pub async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
-    mut outgoing_msg_receiver: Receiver<P2pMessage>,
-    incoming_msg_sender: Sender<P2pMessage>,
+    mut outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
 ) -> ! {
     let mut list_peers_timer = time::interval(Duration::from_secs(60));
     loop {
