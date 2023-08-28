@@ -1,69 +1,61 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use network::types::message::P2pMessage;
+use network::types::message::NetMessage;
 use schemes::interface::{
-    Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
+    Serializable, ThresholdSignature, ThresholdCoin, CoinShare,
 };
 use schemes::keys::{PrivateKey, PublicKey};
+use schemes::rand::RNG;
 
 use crate::types::{Key, ProtocolError};
 
-pub struct ThresholdCipherProtocol {
+pub struct ThresholdCoinProtocol {
     key: Arc<Key>,
-    ciphertext: Ciphertext,
+    name: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
-    valid_shares: Vec<DecryptionShare>,
-    decrypted: bool,
-    decrypted_plaintext: Vec<u8>,
+    valid_shares: Vec<CoinShare>,
+    finished: bool,
+    coin: Option<u8>,
     received_share_ids: HashSet<u16>,
 }
 
-impl ThresholdCipherProtocol {
+impl ThresholdCoinProtocol {
     pub fn new(
         key: Arc<Key>,
-        ciphertext: Ciphertext,
+        name: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<P2pMessage>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self {
-        ThresholdCipherProtocol {
+        ThresholdCoinProtocol {
             key,
-            ciphertext,
+            name:name.clone(),
             chan_in,
             chan_out,
             instance_id,
             valid_shares: Vec::new(),
-            decrypted: false,
-            decrypted_plaintext: Vec::new(),
+            finished: false,
+            coin: Option::None,
             received_share_ids: HashSet::new(),
         }
     }
 
-    pub async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
+    pub async fn run(&mut self) -> Result<u8, ProtocolError> {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-        let valid_ctxt =
-            ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.key.sk.get_public_key())?;
-        if !valid_ctxt {
-            println!(
-                ">> PROT: instance_id: {:?} found INVALID ciphertext. Protocol instance will quit.",
-                &self.instance_id
-            );
-            self.terminate().await?;
-            return Err(ProtocolError::InvalidCiphertext);
-        }
+
         self.on_init().await?;
         loop {
             match self.chan_in.recv().await {
                 Some(share) => {
-                    match DecryptionShare::deserialize(&share) {
+                    match CoinShare::deserialize(&share) {
                         Ok(deserialized_share) => {
-                            self.on_receive_decryption_share(deserialized_share)?;
-                            if self.decrypted {
+                            self.on_receive_coin_share(deserialized_share)?;
+                            if self.finished {
                                 self.terminate().await?;
-                                return Ok(self.decrypted_plaintext.clone());
+                                return Ok(self.coin.as_ref().unwrap().clone());
                             }
                         }
                         Err(tcerror) => {
@@ -85,18 +77,18 @@ impl ThresholdCipherProtocol {
     }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
-        // compute and send decryption share
-        let mut params = ThresholdCipherParams::new();
+        // compute and send coin share
         println!(
-            ">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.",
+            ">> PROT: instance_id: {:?} computing coin share for key id:{:?}.",
             &self.instance_id,
             self.key.sk.get_id()
         );
-        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.key.sk, &mut params)?;
+        let share = ThresholdCoin::create_share(&self.name, &self.key.sk, &mut RNG::new(schemes::rand::RngAlgorithm::OsRng))?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
-        let message = P2pMessage {
+        let message = NetMessage {
             instance_id: self.instance_id.clone(),
             message_data: share.serialize().unwrap(),
+            is_total_order: false
         };
         self.chan_out.send(message).await.unwrap();
         self.received_share_ids.insert(share.get_id());
@@ -104,13 +96,13 @@ impl ThresholdCipherProtocol {
         Ok(())
     }
 
-    fn on_receive_decryption_share(&mut self, share: DecryptionShare) -> Result<(), ProtocolError> {
+    fn on_receive_coin_share(&mut self, share: CoinShare) -> Result<(), ProtocolError> {
         println!(
             ">> PROT: instance_id: {:?} received share with share_id: {:?}.",
             &self.instance_id,
             share.get_id()
         );
-        if self.decrypted {
+        if self.finished {
             return Ok(());
         }
 
@@ -121,7 +113,7 @@ impl ThresholdCipherProtocol {
         self.received_share_ids.insert(share.get_id());
 
         let verification_result =
-            ThresholdCipher::verify_share(&share, &self.ciphertext, &self.key.sk.get_public_key());
+            ThresholdCoin::verify_share(&share, &self.name, &self.key.sk.get_public_key());
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
@@ -137,15 +129,13 @@ impl ThresholdCipherProtocol {
 
         self.valid_shares.push(share);
 
-        println!(">> PROT: Current valid shares: {:?}", self.valid_shares.len());
-        println!(">> PROT: We need still shares: {:?}", self.key.sk.get_threshold() - (self.valid_shares.len() as u16));
-
         if self.valid_shares.len() >= self.key.sk.get_threshold() as usize {
-            self.decrypted_plaintext =
-                ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
-            self.decrypted = true;
+            let coin =
+                ThresholdCoin::assemble(&self.valid_shares)?;
+            self.coin = Option::Some(coin);
+            self.finished = true;
             println!(
-                ">> PROT: instance_id: {:?} has decrypted the ciphertext.",
+                ">> PROT: instance_id: {:?} has issued a random coin.",
                 &self.instance_id
             );
             return Ok(());
@@ -154,7 +144,7 @@ impl ThresholdCipherProtocol {
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.instance_id);
+        println!(">> PROT: instance_id: {:?} finished.", &self.key.sk.get_public_key());
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());

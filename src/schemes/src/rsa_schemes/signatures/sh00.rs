@@ -273,7 +273,11 @@ impl Serializable for Sh00SignatureShare {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let label = d.read_element::<&[u8]>()?;
 
                 let bytes = d.read_element::<&[u8]>()?;

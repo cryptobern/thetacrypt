@@ -18,7 +18,6 @@ use schemes::{
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use thetacrypt_proto::protocol_types::DecryptRequest;
 use thetacrypt_proto::protocol_types::GetDecryptResultRequest;
-use thetacrypt_proto::protocol_types::{DecryptSyncReponse, DecryptSyncRequest};
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, PublicKeyEntry};
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
@@ -142,7 +141,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 // It is meant to test the decrypt_sync endpoint.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
 // They should be able to connecto to each other.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+/*#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
@@ -161,7 +160,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending decrypt_sync request with sn=100 to server {i}.");
         let mut conn_clone = conn.clone();
         let request_clone = request.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn_clone.decrypt_sync(request_clone).await;
                 Ok(response)
@@ -190,7 +189,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending AGAIN decrypt_sync request with sn=100 to server {i}.");
         let mut conn2 = conn.clone();
         let request2 = request.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn2.decrypt_sync(request2).await;
                 Ok(response)
@@ -211,7 +210,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
         println!(">> Sending decrypt_sync request with sn=101 to server {i}.");
         let mut conn_clone = conn.clone();
         let request_clone = request2.clone();
-        let handle: JoinHandle<Result<Result<Response<DecryptSyncReponse>, Status>, io::Error>> =
+        let handle: JoinHandle<Result<Result<Response<DecryptSyncResponse>, Status>, io::Error>> =
             tokio::spawn(async move {
                 let response = conn_clone.decrypt_sync(request_clone).await;
                 Ok(response)
@@ -235,6 +234,7 @@ async fn test_local_sync() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+*/
 
 // test_local_servers_backlog() tests the backlog functionality on nodes that run on localhost.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003. They should be able to connect to each other.
@@ -482,7 +482,7 @@ fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Cipher
     };
     (req, ciphertext)
 }
-
+/* 
 fn create_decrypt_sync_request(sn: u32, pk: &PublicKey) -> (DecryptSyncRequest, Ciphertext) {
     let ciphertext = create_ciphertext(sn, pk);
     let req = DecryptSyncRequest {
@@ -490,7 +490,7 @@ fn create_decrypt_sync_request(sn: u32, pk: &PublicKey) -> (DecryptSyncRequest, 
         key_id: None,
     };
     (req, ciphertext)
-}
+}*/
 
 fn create_ciphertext(sn: u32, pk: &PublicKey) -> Ciphertext {
     let mut params = ThresholdCipherParams::new();

@@ -74,4 +74,19 @@ impl RpcNetwork{
             // println!("RESPONSE={:?}", response);
         }
     }
+
+    pub async fn forward_sign_request(&mut self, instance_id: String, request: &LeaderSignRequest) {
+        for connection in self.connections.iter_mut(){
+            let req = requests::PushDecryptionShareRequest{
+                instance_id :instance_id.clone(),
+                decryption_share: message.clone(),
+            };
+            let response = connection.leader_sign(req).await;
+            // println!("RESPONSE={:?}", response);
+        }
+    }
+
+    pub fn get_id(&self) -> u32 {
+        return self.my_id.clone();
+    }
 }

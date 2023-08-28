@@ -1,5 +1,8 @@
 .vscode/*
 Cargo.lock
 */target/*
-*.DS_Store
+.DS_Store
 src/proto/src/*.rs
+src/protocols/conf/*
+*/debug/*
+*/.rustc_info.json

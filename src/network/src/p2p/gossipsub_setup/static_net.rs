@@ -10,13 +10,13 @@ use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::config::static_net::{config_service::*, deserialize::Config};
-use crate::types::message::P2pMessage;
+use crate::types::message::NetMessage;
 
 use super::net_utils::*;
 
 pub async fn init(
-    outgoing_msg_receiver: Receiver<P2pMessage>,
-    incoming_msg_sender: Sender<P2pMessage>,
+    outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
     localnet_config: Config,
     my_id: u32,
 ) {

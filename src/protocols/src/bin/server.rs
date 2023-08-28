@@ -1,15 +1,14 @@
-use std::{process::exit};
-use log::{error, info};
 use clap::Parser;
+use log::{error, info};
+use std::process::exit;
 
-use network::{config::static_net, types::message::P2pMessage};
+use network::{config::static_net, types::message::NetMessage};
 
 use protocols::{
     keychain::KeyChain,
-    server::{types::ServerConfig, cli::ServerCli},
     rpc_request_handler,
+    server::{cli::ServerCli, types::ServerConfig},
 };
-
 
 #[tokio::main]
 async fn main() {
@@ -22,7 +21,8 @@ async fn main() {
 
     info!(
         "Loading configuration from file: {}",
-        server_cli.config_file
+        server_cli
+            .config_file
             .to_str()
             .unwrap_or("Unable to print path, was not valid UTF-8"),
     );
@@ -36,7 +36,8 @@ async fn main() {
 
     info!(
         "Loading keychain from file: {}",
-        server_cli.key_file
+        server_cli
+            .key_file
             .to_str()
             .unwrap_or("Unable to print path, was not valid UTF-8")
     );
@@ -59,7 +60,6 @@ async fn main() {
     }
 }
 
-
 /// Start main event loop of server.
 pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     // Build local-net config required by provided static-network implementation.
@@ -71,13 +71,21 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
     };
 
+    let local_cfg2 = static_net::deserialize::Config {
+        ids: config.peer_ids(),
+        ips: config.peer_ips(),
+        p2p_ports: config.peer_p2p_ports(),
+        rpc_ports: config.peer_rpc_ports(),
+        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
+    };
+
     // Network to protocol communication
-    let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
     // And a dedicated  copy for the RPC server
-    let n2p_sender_rpc = n2p_sender.clone();
+    let net_to_prot_sender_rpc = net_to_prot_sender.clone();
 
     // Protocol to network communication
-    let (p2n_sender, p2n_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     let my_id = config.id;
     info!("Starting server with ID {}", my_id);
@@ -91,7 +99,7 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         config.listen_address, my_p2p_port
     );
     tokio::spawn(async move {
-        network::p2p::gossipsub_setup::static_net::init(p2n_receiver, n2p_sender, local_cfg, my_id)
+        network::p2p::gossipsub_setup::static_net::init(prot_to_net_receiver, net_to_prot_sender, local_cfg, my_id)
             .await;
     });
 
@@ -107,11 +115,13 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
-            my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
+            my_rpc_port,
             keychain,
-            n2p_receiver,
-            p2n_sender,
-            n2p_sender_rpc,
+            net_to_prot_receiver,
+            prot_to_net_sender,
+            net_to_prot_sender_rpc,
+            local_cfg2,
+            my_id
         )
         .await
     });

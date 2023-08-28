@@ -74,7 +74,11 @@ impl Serializable for Sg02PublicKey {
     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
                 
@@ -227,7 +231,11 @@ impl Serializable for Sg02Ciphertext {
     fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let label = d.read_element::<&[u8]>()?.to_vec();
                 let msg = d.read_element::<&[u8]>()?.to_vec();
                 
@@ -313,7 +321,11 @@ impl Serializable for Sg02DecryptionShare {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let group = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_code(d.read_element::<u8>()?);
+                if g.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
+                }
+                let group = g.unwrap();
                 let label = d.read_element::<&[u8]>()?.to_vec();
                 
                 let bytes = d.read_element::<&[u8]>()?;

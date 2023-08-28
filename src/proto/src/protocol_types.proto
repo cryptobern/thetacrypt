@@ -4,20 +4,34 @@ package protocol_types;
 import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 
 // Convention: Use proto type 'bytes' (vec<u8> in Rust) for serialized data structures
-// amd string (String in Rust) for the rest
+// and string (String in Rust) for the rest
 
 service ThresholdCryptoLibrary {
     // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
-    rpc decrypt (DecryptRequest) returns (DecryptReponse);
+    rpc decrypt (DecryptRequest) returns (DecryptResponse);
     // Returns the result of a protocol instance
     rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
-    // decrypt_sync waits for the decryption instance to finish and returns the decrypted plaintext
-    rpc decrypt_sync (DecryptSyncRequest) returns (DecryptSyncReponse);
+    // Returns the result of a signature instance
+    rpc get_signature_result (GetSignatureResultRequest) returns (GetSignatureResultResponse);
+    // Returns the result of a coin flip instance
+    rpc get_coin_result (GetCoinResultRequest) returns (GetCoinResultResponse);
 
     rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
     
-    //this is an alternative way to send shares. used only for testing
+    // this is an alternative way to send shares. used only for testing
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
+    
+    // sign is the endpoint a light client calls to start a signing protocol
+    rpc leader_sign (SignRequest) returns (SignResponse);
+    
+    // leader sign is the endpoint the leader calls to start the signing protocol on the other nodes
+    rpc forward_sign_request(LeaderSignRequest) returns (SignResponse);
+
+    // atomic sign is the endpoint which should be called to start a signing protocol after atomic broadcast
+    rpc sign(AtomicSignRequest) returns (SignResponse);
+
+    // starts a coin flip protocol
+    rpc flip_coin (CoinRequest) returns (CoinResponse);
 }
 
 // ---------- Decrypt a ciphertext ----------
@@ -26,18 +40,8 @@ message DecryptRequest {
     optional string key_id = 2;
 }
 
-message DecryptReponse {
+message DecryptResponse {
     string instance_id = 1;
-}
-
-message DecryptSyncRequest {
-    bytes ciphertext = 1;
-    optional string key_id = 2;
-}
-
-message DecryptSyncReponse {
-    string instance_id = 1;
-    optional bytes plaintext = 2;
 }
 
 message GetDecryptResultRequest {
@@ -95,3 +99,66 @@ message PushDecryptionShareResponse {
 // }
 
 
+//------------ Signatures ---------------
+message SignRequest {
+    bytes message = 1;
+    bytes label = 2;
+    optional string key_id = 3;
+    int32 scheme = 4;
+    int32 group = 5;
+}
+
+message AtomicSignRequest {
+    bytes message = 1;
+    bytes label = 2;
+    optional string key_id = 3;
+    int32 scheme = 4;
+    int32 group = 5;
+}
+
+message LeaderSignRequest {
+    bytes message = 1;
+    bytes label = 2;
+    optional string key_id = 3;
+    int32 scheme = 4;
+    int32 group = 5;
+    uint32 node_id = 6;
+}
+
+message SignResponse {
+    string instance_id = 1;
+}
+
+message GetSignatureResultRequest {
+    string instance_id = 1;
+}
+
+message GetSignatureResultResponse {
+    string instance_id = 1;
+    bool is_started = 2;
+    bool is_finished = 3;
+    optional bytes signature = 4;
+}
+
+//------------ Coins ---------------
+message CoinRequest {
+    bytes name = 1;
+    optional string key_id = 2;
+    int32 scheme = 3;
+    int32 group = 4;
+}
+
+message CoinResponse {
+    string instance_id = 1;
+}
+
+message GetCoinResultRequest {
+    string instance_id = 1;
+}
+
+message GetCoinResultResponse {
+    string instance_id = 1;
+    bool is_started = 2;
+    bool is_finished = 3;
+    optional int32 coin = 4;
+}
