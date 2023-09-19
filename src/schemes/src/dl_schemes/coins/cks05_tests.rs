@@ -1,5 +1,5 @@
 use crate::{dl_schemes::{dl_groups::{bls12381::Bls12381}}, rand::{RNG, RngAlgorithm}, interface::{Serializable, ThresholdCoin, CoinShare}, util::printbinary, keys::{KeyGenerator, PublicKey}};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use super::cks05::*;
 
 

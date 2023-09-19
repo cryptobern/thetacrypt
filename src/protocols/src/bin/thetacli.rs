@@ -2,8 +2,9 @@ use std::{env, process::exit, fs::File, io::Write};
 
 use hex::FromHex;
 use rand::rngs::OsRng;
-use schemes::{keys::{KeyGenerator, PrivateKey, PublicKey}, interface::{ThresholdScheme, Serializable, ThresholdCipher, ThresholdCipherParams, Ciphertext, ThresholdCryptoError, ThresholdSignature, Signature}, group::Group, rand::{RNG, RngAlgorithm}};
+use schemes::{keys::{KeyGenerator, PrivateKey, PublicKey}, interface::{Serializable, ThresholdCipher, ThresholdCipherParams, Ciphertext, ThresholdCryptoError, ThresholdSignature, Signature}, rand::{RNG, RngAlgorithm}, scheme_types_impl::SchemeDetails};
 use protocols::keychain::KeyChain;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use std::fs;
 
 fn main() -> Result<(), ()> {
@@ -125,8 +126,8 @@ fn keygen(k: usize, n: usize, a: &str, dir: &str) {
             exit(-1);
         }
 
-        let group = Group::parse_string(group_str.unwrap());
-        if group.is_err() {
+        let group = Group::from_str_name(group_str.unwrap());
+        if group.is_none() {
             println!("Invalid group '{}' selected", group_str.unwrap());
             exit(-1);
         }

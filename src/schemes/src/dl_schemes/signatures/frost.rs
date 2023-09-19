@@ -4,7 +4,8 @@ use asn1::{WriteError, ParseError};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
 
 use mcore::hash512::HASH512;
-use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement, Group}, interface::{ThresholdCryptoError, Serializable}, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt};
+use thetacrypt_proto::scheme_types::Group;
+use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement}, interface::{ThresholdCryptoError, Serializable}, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt, scheme_types_impl::GroupDetails};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {

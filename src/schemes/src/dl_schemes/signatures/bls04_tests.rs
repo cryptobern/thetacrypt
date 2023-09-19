@@ -1,4 +1,6 @@
-use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature, ThresholdScheme, Serializable}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}, group::Group};
+use thetacrypt_proto::scheme_types::Group;
+
+use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature, ThresholdScheme, Serializable}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}};
 
 
 #[test]

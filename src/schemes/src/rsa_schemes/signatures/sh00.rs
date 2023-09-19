@@ -3,7 +3,8 @@ use std::borrow::BorrowMut;
 use asn1::{WriteError, ParseError};
 use derive::{PublicKey, PrivateKey, DlShare};
 use mcore::{hash256::HASH256};
-use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError, ThresholdScheme, Serializable}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, group::{GroupElement, Group}, dl_schemes::{signatures::frost::FrostPublicKey, bigint::BigImpl}};
+use thetacrypt_proto::scheme_types::Group;
+use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError, ThresholdScheme, Serializable}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, group::{GroupElement}, dl_schemes::{signatures::frost::FrostPublicKey, bigint::BigImpl}, scheme_types_impl::GroupDetails};
 
 #[derive(Clone, Debug)]
 pub struct Sh00PublicKey {

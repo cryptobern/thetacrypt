@@ -1,5 +1,5 @@
 use crate::dl_schemes::bigint::BigImpl;
-use crate::group::Group;
+use thetacrypt_proto::scheme_types::Group;
 use super::{group::GroupElement};
 use crate::dl_schemes::dl_groups::bls12381::Bls12381;
 

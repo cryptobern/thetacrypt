@@ -1,5 +1,6 @@
 use mcore::{hash256::HASH256};
-use schemes::{group::{Group, GroupElement}};
+use schemes::{group::{GroupElement}, scheme_types_impl::GroupDetails};
+use thetacrypt_proto::scheme_types::Group;
 
 // This binary can be used to generate a second generator for the given cyclic EC-based groups.
 // The generator is choosen by mapping the SHA256 hash of the string
@@ -23,8 +24,8 @@ fn main(){
     for group in groups {
         let computed_generator = GroupElement::new_hash(&group, &hash);
         let predefined_generator = group.get_alternate_generator();
-        println!("computed generator for group {}: {}", &group, computed_generator.to_string());
-        println!("predefined generator for group {}: {}", &group, predefined_generator.to_string());
+        println!("computed generator for group {}: {}", group.as_str_name(), computed_generator.to_string());
+        println!("predefined generator for group {}: {}", group.as_str_name(), predefined_generator.to_string());
 
         // Output:
         // computed generator for group Bls12381: (15923CA30404617E50806EC015F2597157B75D0BD342EF2A5FC1CB4041E89AC356806FD04CCC0B118C803F0006CD9413,1511F2A6BBF3F63561A41D3A49CCFF50DF35B9AD116AC539D1AEBDFC3873AEB5F6EAACADB00C4B36EFD000904BC12833)

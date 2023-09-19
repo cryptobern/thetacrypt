@@ -16,7 +16,8 @@ use crate::dl_schemes::bigint::BigImpl;
 use crate::dl_schemes::{common::*};
 use crate::group::{GroupElement};
 use crate::interface::{ThresholdCipherParams, ThresholdCryptoError, DlShare, Serializable};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use crate::scheme_types_impl::GroupDetails;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use crate::rand::RNG;
 
 

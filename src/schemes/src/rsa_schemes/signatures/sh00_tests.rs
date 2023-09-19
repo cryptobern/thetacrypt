@@ -1,5 +1,5 @@
 use crate::{rsa_schemes::signatures::sh00::*, rand::{RNG, RngAlgorithm}, keys::{PrivateKey, PublicKey}, keys::{KeyGenerator, KeyParams}, BIGINT};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use thetacrypt_proto::scheme_types::ThresholdScheme;
 use crate::interface::*;
 use crate::rsa_schemes::bigint::RsaBigInt;
 

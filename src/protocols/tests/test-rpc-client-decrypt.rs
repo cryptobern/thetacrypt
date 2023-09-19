@@ -11,11 +11,10 @@ use mcore::hash256::HASH256;
 use protocols::keychain::KeyChain;
 use schemes::{keys::PublicKey, interface::Serializable};
 use schemes::{
-    group::Group,
-    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams, ThresholdScheme},
+    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
 };
 
-use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
+use thetacrypt_proto::{protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient, scheme_types::{ThresholdScheme, Group}};
 use thetacrypt_proto::protocol_types::DecryptRequest;
 use thetacrypt_proto::protocol_types::GetDecryptResultRequest;
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, PublicKeyEntry};

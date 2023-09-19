@@ -1,4 +1,6 @@
-use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable, RoundResult, Signature}, group::Group};
+use thetacrypt_proto::scheme_types::Group;
+
+use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable, RoundResult, Signature}};
 
 
 #[test]
@@ -53,7 +55,7 @@ fn test_serialization() {
     let keys = KeyGenerator::generate_keys(3, 5, 
         &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
             &ThresholdScheme::Frost, 
-            &Group::Bls12381, 
+            &Group::Ed25519, 
             &Option::None).unwrap();
 
     let bytes = keys[0].serialize();
@@ -69,7 +71,7 @@ fn test_round_result_serialization() {
     let keys = KeyGenerator::generate_keys(2, 5, 
         &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
             &ThresholdScheme::Frost, 
-            &Group::Bls12381, 
+            &Group::Ed25519, 
             &Option::None).unwrap();
 
     let mut I = InteractiveThresholdSignature::new(&keys[0]).unwrap();

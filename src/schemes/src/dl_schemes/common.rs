@@ -1,9 +1,9 @@
 
 use mcore::{hmac::{MC_SHA2, hkdf_expand, hkdf_extract}, rand::RAND};
 
-use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}};
+use crate::{dl_schemes::dl_groups::*, rand::RNG, interface::{DecryptionShare, DlShare}, scheme_types_impl::GroupDetails};
 
-use crate::group::Group;
+use thetacrypt_proto::scheme_types::Group;
 use super::bigint::BigImpl;
 
 use crate::group::{GroupElement};

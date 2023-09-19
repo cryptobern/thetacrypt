@@ -7,8 +7,8 @@ use asn1::{WriteError, ParseError};
 use derive::{PublicKey, PrivateKey, DlShare};
 use mcore::hash256::HASH256;
 
-use crate::{group::{GroupElement}, dl_schemes::{common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use crate::{group::{GroupElement}, dl_schemes::{common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}, scheme_types_impl::GroupDetails};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use crate::dl_schemes::bigint::BigImpl;
 pub struct Bls04ThresholdSignature {
     g: GroupElement

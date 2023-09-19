@@ -29,10 +29,12 @@ use crate::dl_schemes::signatures::bls04::Bls04PublicKey;
 use crate::dl_schemes::signatures::frost::FrostPrivateKey;
 use crate::dl_schemes::signatures::frost::FrostPublicKey;
 use crate::group::GroupElement;
-use crate::group::Group;
+use crate::scheme_types_impl::GroupDetails;
+use crate::scheme_types_impl::SchemeDetails;
+use thetacrypt_proto::scheme_types::Group;
 use crate::interface::Serializable;
 use crate::interface::ThresholdCryptoError;
-use crate::interface::ThresholdScheme;
+use thetacrypt_proto::scheme_types::ThresholdScheme;
 use crate::rand::RNG;
 use crate::rsa_schemes::bigint::RsaBigInt;
 use crate::rsa_schemes::common::fac;
@@ -279,7 +281,7 @@ impl Serializable for PrivateKey {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -555,7 +557,7 @@ impl Serializable for PublicKey {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -735,6 +737,10 @@ impl IntKeyStore {
 
 impl KeyGenerator {
     pub fn generate_keys(k: usize, n: usize, rng: &mut RNG, scheme: &ThresholdScheme, group: &Group, params: &Option<KeyParams>) -> Result<Vec<PrivateKey>, ThresholdCryptoError> {
+        if k > n || n < 1 {
+            return Err(ThresholdCryptoError::InvalidParams);
+        }
+        
         match scheme {
             ThresholdScheme::Bz03 => {
                 if !group.supports_pairings() {

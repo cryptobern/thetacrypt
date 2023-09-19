@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fs::remove_file, path::PathBuf};
 
 use schemes::{
-    group::Group,
-    interface::{ThresholdScheme, Serializable},
+    interface::{Serializable},
     keys::{KeyGenerator, PrivateKey},
     rand::{RngAlgorithm, RNG},
 };
 
 use protocols::keychain::KeyChain;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 
 #[test]
 fn test_insert_and_get_key() {

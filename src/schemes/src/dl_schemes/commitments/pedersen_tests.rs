@@ -1,4 +1,6 @@
-use crate::{group::Group, rand::{RNG, RngAlgorithm}, dl_schemes::{bigint::BigImpl, commitments::{interface::{CommitmentParams, Commitment}, pedersen::PedersenCommitmentParams}}};
+use thetacrypt_proto::scheme_types::Group;
+
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{bigint::BigImpl, commitments::{interface::{CommitmentParams, Commitment}, pedersen::PedersenCommitmentParams}}, scheme_types_impl::GroupDetails};
 
 
 #[test]
