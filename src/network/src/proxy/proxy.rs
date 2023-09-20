@@ -11,7 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // Thetacrypt
 use crate::config::static_net::config_service::*;
-use crate::types::message::P2pMessage;
+use crate::types::message::NetMessage;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,8 +23,8 @@ pub struct ProxyConfig{
 }
 
 pub async fn init(
-    outgoing_msg_receiver: Receiver<P2pMessage>,
-    incoming_msg_sender: Sender<P2pMessage>,
+    outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
     config: ProxyConfig, //create a config for this 
     my_id: u32,
 ) {
@@ -51,7 +51,7 @@ pub async fn init(
     
 }
 
-pub async fn outgoing_message_forwarder(mut receiver: Receiver<P2pMessage>, config: ProxyConfig) -> io::Result<()> {
+pub async fn outgoing_message_forwarder(mut receiver: Receiver<NetMessage>, config: ProxyConfig) -> io::Result<()> {
     loop{
         let addr = config.proxy_addr.clone();
         let msg = receiver.recv().await;
@@ -77,7 +77,7 @@ pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<
 }
 
 //Methods to handle the receving from thetacrypt 
-pub async fn proxy_handler(listener: TcpListener, sender: Sender<P2pMessage>) -> io::Result<()> {
+pub async fn proxy_handler(listener: TcpListener, sender: Sender<NetMessage>) -> io::Result<()> {
     loop {
         let (socket, remote_addr) = listener.accept().await.unwrap();
         let sender_cloned = sender.clone();
@@ -88,7 +88,7 @@ pub async fn proxy_handler(listener: TcpListener, sender: Sender<P2pMessage>) ->
 }
 
 //This should work because every time tendermint needs to send a share it opens a different connection
-async fn receive_share(mut connection: TcpStream, sender: Sender<P2pMessage>) -> io::Result<()> {
+async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) -> io::Result<()> {
     let mut buf = vec![0; 1]; //See how big we need the buffer and if we can read until is empty and concatenate evrything togeher
     let mut data:Vec<u8> = Vec::new();
     loop {
@@ -115,8 +115,8 @@ async fn receive_share(mut connection: TcpStream, sender: Sender<P2pMessage>) ->
         //Send on the channel
     }
     let data_cloned = data.clone();
-    let msg_received = P2pMessage::from(data_cloned);
-    let msg = P2pMessage::from(data);
+    let msg_received = NetMessage::from(data_cloned);
+    let msg = NetMessage::from(data);
     match sender.send(msg).await {
         Ok(_) => println!(">> [Sender on the incoming channel] Message sent to the protocol layer: {:?}", msg_received), 
         Err(e) => println!(">> TEST: error send to network {e}"),

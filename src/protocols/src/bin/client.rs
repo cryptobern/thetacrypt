@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match x {
             0 => {
-                running = false;
+                running = false; //return 
             },
             1 => {
                 let result = threshold_decryption().await;

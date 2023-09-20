@@ -2,7 +2,7 @@ use std::{process::exit};
 use log::{error, info};
 use clap::Parser;
 
-use network::{proxy::proxy::ProxyConfig, types::message::P2pMessage};
+use network::{proxy::proxy::ProxyConfig, types::message::NetMessage};
 
 use protocols::{
     keychain::KeyChain,
@@ -71,12 +71,12 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
 
 
     // Network to protocol communication
-    let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
     // And a dedicated  copy for the RPC server
     let n2p_sender_rpc = n2p_sender.clone();
 
     // Protocol to network communication
-    let (p2n_sender, p2n_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (p2n_sender, p2n_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     let my_id = config.id;
     info!("Starting server with ID {}", my_id);
@@ -96,15 +96,15 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
-    tokio::spawn(async move {
-        rpc_request_handler::init(
-            my_listen_address,
-            my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
-            keychain,
-            n2p_receiver,
-            p2n_sender,
-            n2p_sender_rpc,
-        )
-        .await
-    });
+    // tokio::spawn(async move {
+    //     rpc_request_handler::init(
+    //         my_listen_address,
+    //         my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
+    //         keychain,
+    //         n2p_receiver,
+    //         p2n_sender,
+    //         n2p_sender_rpc,
+    //     )
+    //     .await
+    // });
 }
