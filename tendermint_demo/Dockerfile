@@ -43,11 +43,11 @@ COPY --from=builder /rootLibrary/threasholdLibrary/target/release/server /target
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/proxy_server /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/confgen /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client_app /target/release/ 
-COPY --from=builder /rootLibrary/threasholdLibrary/target/release/thetacli /target/release/ 
+COPY --from=builder /rootLibrary/threasholdLibrary/target/release/trusted_dealer /target/release/ 
 
-# #Config files (to remove eventually)
-# COPY --from=builder /rootLibrary/threasholdLibrary/network/src/config/tendermint_net/config.toml ./target/network/src/config/tendermint_net/
-# WORKDIR /target/release/
+#Config files (to remove eventually)
+COPY --from=builder /rootLibrary/threasholdLibrary/network/src/config/tendermint_net/config.toml ./target/network/src/config/tendermint_net/
+WORKDIR /target/release/
 
 #after docker run you can override CMD 
 
