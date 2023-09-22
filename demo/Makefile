@@ -13,12 +13,12 @@ config-files:
 	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/config:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf; fi # the outdir here is created under protocols
 .PHONY: config-files
 
-demo-start: #config-files
+demo-start: config-files
 	docker-compose up
 .PHONY: demo-start
 
 client-start: 
-	docker run -it -v $(CURDIR)/config:/target/release/conf:Z --net threshold-net rust-threshold-library ./client
+	docker run -it -v $(CURDIR)/config:/target/release/conf:Z --net threshold-net rust-threshold-library ./client --config-file=conf/client.json
 .PHONY: client-start
 
 demo-stop:
