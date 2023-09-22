@@ -1,0 +1,84 @@
+version: '3'
+
+services:
+  thetacrypt1:
+    container_name: thetacrypt1
+    build: 
+      context: ..
+      network: host
+      dockerfile: Dockerfile
+    command: ./server --config-file conf/server_0.json --key-file conf/keys_0.json
+    volumes:
+      - ./config:/target/release/conf:Z
+    image: rust-threshold-library
+    ports:
+      - "27001:27000"
+      - "51000:51000"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.2
+
+  thetacrypt2:
+    container_name: thetacrypt2
+    build:
+      context: ..
+      network: host
+      dockerfile: Dockerfile
+    volumes:
+      - ./config:/target/release/conf:Z      
+    command: ./server --config-file conf/server_1.json --key-file conf/keys_1.json
+    image: rust-threshold-library
+    ports:
+      - "27002:27000"
+      - "51001:51000"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.3
+
+  thetacrypt3:
+    container_name: thetacrypt3
+    build:
+      context: ..
+      network: host
+      dockerfile: Dockerfile
+    volumes:
+      - ./config:/target/release/conf:Z
+    command: ./server --config-file conf/server_2.json --key-file conf/keys_2.json
+    image: rust-threshold-library
+    ports:
+      - "27003:27000"
+      - "51002:51000"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.4
+
+  thetacrypt4:
+    container_name: thetacrypt4
+    build: 
+      context: ..
+      network: host
+      dockerfile: Dockerfile
+    volumes:
+      - ./config:/target/release/conf:Z
+    command: ./server --config-file conf/server_3.json --key-file conf/keys_3.json
+    image: rust-threshold-library
+    ports:
+      - "27004:27000"
+      - "51003:51000"
+    restart: always
+    networks:
+      localnet:
+        ipv4_address: 192.167.20.5
+
+networks:
+  localnet:
+    driver: bridge
+    name: threshold-net
+    ipam:
+      driver: default
+      config:
+        -
+          subnet: 192.167.20.0/16
