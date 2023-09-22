@@ -1,6 +1,5 @@
 use clap::Parser;
 use log::{error, info};
-use network::config;
 use std::process::exit;
 
 use std::io::Write;
