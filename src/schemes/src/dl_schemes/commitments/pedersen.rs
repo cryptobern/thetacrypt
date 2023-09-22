@@ -1,5 +1,6 @@
 use crate::dl_schemes::bigint::BigImpl;
 use crate::group::GroupElement;
+use crate::scheme_types_impl::GroupDetails;
 
 pub struct PedersenCommitmentParams {
     pub x: BigImpl,

@@ -4,7 +4,7 @@ use derive::{ EcPairingGroupImpl, BigIntegerImpl};
 use mcore::{bn254::{big::{BIG, MODBYTES}, ecp::{ECP}, ecp2::ECP2, fp12::FP12, pair, rom}};
 use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{ rand::RNG, interface::ThresholdCryptoError};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
 
 use crate::group::{GroupElement};

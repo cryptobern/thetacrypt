@@ -6,6 +6,7 @@ use schemes::interface::{
     Ciphertext, Signature, SignatureShare, Serializable, ThresholdSignature, ThresholdSignatureParams, InteractiveThresholdSignature, RoundResult, ThresholdScheme, ThresholdCryptoError,
 };
 use schemes::keys::{PrivateKey, PublicKey};
+use schemes::scheme_types_impl::SchemeDetails;
 
 use crate::types::{Key, ProtocolError};
 

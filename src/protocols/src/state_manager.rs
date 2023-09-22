@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
-use schemes::{interface::{ThresholdScheme, InteractiveThresholdSignature}, group::Group};
+use schemes::{interface::{ThresholdScheme, InteractiveThresholdSignature}};
+use thetacrypt_proto::scheme_types::Group;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{

@@ -6,8 +6,8 @@ use rasn::{AsnType, Decode, Encode, Encoder};
 use crate::{rand::RNG, interface::ThresholdCryptoError};
 use crate::dl_schemes::bigint::{BigInt, BigImpl};
 use crate::group::{GroupElement};
-use crate::interface::ThresholdScheme; 
-use crate::group::Group;
+use thetacrypt_proto::scheme_types::ThresholdScheme; 
+use thetacrypt_proto::scheme_types::Group;
 
 #[repr(C)]
 union ECPoint {

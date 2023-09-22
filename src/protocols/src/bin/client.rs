@@ -21,14 +21,15 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use schemes::interface::Serializable;
 use schemes::keys::PublicKey;
+use schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
 use schemes::util::printbinary;
 use schemes::{
-    group::Group,
-    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams, ThresholdScheme},
+    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
 };
 
 use thetacrypt_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use thetacrypt_proto::protocol_types::{DecryptRequest, SignRequest, GetSignatureResultRequest, CoinRequest, GetDecryptResultRequest, GetCoinResultRequest};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 
 // Send a single decrypt() request.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.

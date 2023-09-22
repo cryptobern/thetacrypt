@@ -1,6 +1,7 @@
 use asn1::{WriteError, ParseError};
 use chacha20poly1305::{Key, ChaCha20Poly1305, aead::{NewAead, Aead}, Nonce};
-use crate::interface::{ThresholdScheme, ThresholdCryptoError}; use  crate::group::Group;
+use thetacrypt_proto::scheme_types::Group;
+use crate::{interface::{ThresholdScheme, ThresholdCryptoError}, scheme_types_impl::GroupDetails};
 use derive::{DlShare};
 use crate::interface::Serializable;
 use mcore::hash256::HASH256;

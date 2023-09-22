@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
 use std::collections::HashMap;
 use std::fmt::format;
 use std::fs::{self, File};
@@ -7,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::types::Key;
-use schemes::{group::Group, interface::ThresholdScheme, interface::InteractiveThresholdSignature, keys::PrivateKey};
+use schemes::{interface::InteractiveThresholdSignature, keys::PrivateKey};
 
 pub struct KeyChain {
     key_entries: HashMap<String, Arc<Key>>,

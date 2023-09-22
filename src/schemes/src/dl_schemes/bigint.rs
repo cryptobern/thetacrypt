@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use crate::group::Group;
+use thetacrypt_proto::scheme_types::Group;
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
 use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;

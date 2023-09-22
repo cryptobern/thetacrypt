@@ -2,132 +2,16 @@ use core::{panic, fmt};
 use std::{fmt::Debug, mem::ManuallyDrop};
 use rasn::AsnType;
 
-use thetacrypt_proto::scheme_types::GroupCode;
+use thetacrypt_proto::scheme_types::Group;
 
-use crate::{dl_schemes::dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519}, rand::RNG, interface::ThresholdCryptoError, group_generators};
+use crate::{dl_schemes::dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519}, rand::RNG, interface::ThresholdCryptoError, group_generators, scheme_types_impl::GroupDetails};
 use crate::dl_schemes::bigint::BigImpl;
 
-/*  Enum representing the implemented groups (incl. order and whether they support pairings). Each
-    group has a code (8-bit unsigned integer) that's used to encode the group when serializing
-    group elements.
+/*  Enum representing the implemented groups (incl. order and whether they support pairings) stored 
+    in proto folder. Each group has a code (8-bit unsigned integer) that's used to encode the 
+    group when serializing group elements.
 
     TODO: change code to standard way of encoding EC groups */
-
-
-// Group represents the description of a group and contains information about its order, whether it
-// supports pairings etc. It is not used to store values or for computation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Group {
-    Bls12381 = GroupCode::Bls12381 as isize,
-    Bn254  = GroupCode::Bn254 as isize,
-    Ed25519 = GroupCode::Ed25519 as isize,
-    Rsa512  = GroupCode::Rsa512  as isize,
-    Rsa1024 = GroupCode::Rsa1024 as isize,
-    Rsa2048 = GroupCode::Rsa2048 as isize,
-    Rsa4096 = GroupCode::Rsa4096 as isize,
-
-}
-
-impl fmt::Display for Group {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bls12381 => write!(f, "Bls12381"),
-            Self::Bn254 => write!(f, "Bn254"),
-            Self::Ed25519 => write!(f, "Ed25519"),
-            Self::Rsa512 => write!(f, "Rsa512"),
-            Self::Rsa1024 => write!(f, "Rsa1024"),
-            Self::Rsa2048 => write!(f, "Rsa2048"),
-            Self::Rsa4096 => write!(f, "Rsa4096"),
-        }
-    }
-}
-
-impl Group {
-    /* returns whether the group is a discrete logarithm group */
-    pub fn is_dl(&self) -> bool {
-        match self {
-            Self::Bls12381 => true,
-            Self::Bn254 => true,
-            Self::Ed25519 => true,
-            Self::Rsa512 => false,
-            Self::Rsa1024 => false,
-            Self::Rsa2048 => false,
-            Self::Rsa4096 => false,
-        }
-    }
-
-    /* returns group identifier */
-    pub fn get_code(&self) -> u8 {
-        match self {
-            Self::Bls12381 => 0,
-            Self::Bn254 => 1,
-            Self::Ed25519 => 2,
-            Self::Rsa512 => 3,
-            Self::Rsa1024 => 3,
-            Self::Rsa2048 => 4,
-            Self::Rsa4096 => 5,
-        }
-    }
-
-    pub fn from_code(code: u8) -> Result<Self, ThresholdCryptoError> {
-        match code {
-            0 => Ok(Self::Bls12381),
-            1 => Ok(Self::Bn254),
-            2 => Ok(Self::Ed25519),
-            3 => Ok(Self::Rsa512),
-            4 => Ok(Self::Rsa1024),
-            5 => Ok(Self::Rsa2048),
-            6 => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroup)
-        }
-    }
-
-    pub fn parse_string(name: &str) -> Result<Self, ThresholdCryptoError> {
-        match name {
-            "bls12381" => Ok(Self::Bls12381),
-            "bn254" => Ok(Self::Bn254),
-            "ed25519" => Ok(Self::Ed25519),
-            "rsa512" => Ok(Self::Rsa512),
-            "rsa1024" => Ok(Self::Rsa1024),
-            "rsa2048" => Ok(Self::Rsa2048),
-            "rsa4096" => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroupString)
-        }
-    }
-
-    /* returns the group order */
-    pub fn get_order(&self) -> BigImpl {
-        match self {
-            Self::Bls12381 => Bls12381::get_order(),
-            Self::Bn254 => Bn254::get_order(),
-            Self::Ed25519 => Ed25519::get_order(),
-            _ => panic!("not applicable")
-        }
-    }
-
-    /* returns whether the group supports pairings */
-    pub fn supports_pairings(&self) -> bool {
-        match self {
-            Self::Bls12381 => true,
-            Self::Bn254 => true,
-            Self::Ed25519 => false,
-            Self::Rsa512 => false,
-            Self::Rsa1024 => false,
-            Self::Rsa2048 => false,
-            Self::Rsa4096 => false,
-        }
-    }
-
-    // Get a group element that can serve as alternate group generator
-    // for the this cyclic group.
-    pub fn get_alternate_generator(&self) -> GroupElement {
-        match self {
-            Self::Bls12381 => GroupElement::from_bytes(&group_generators::BLS12381_ALTERNATE_GENERATOR_BYTES, &self, None),
-            Self::Bn254 => GroupElement::from_bytes(&group_generators::BN254_ALTERNATE_GENERATOR_BYTES, &self, None),
-            _ => panic!("no alternate generator available")
-        }
-    }
-}
 
 /* GroupData holds the actual group element data, do not use this for computation */
 #[repr(C)]

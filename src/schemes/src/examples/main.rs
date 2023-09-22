@@ -9,9 +9,9 @@ use std::fmt::Write;
 use schemes::interface::{ThresholdCipherParams, ThresholdCipher};
 use schemes::keys::{KeyGenerator};
 use schemes::interface::ThresholdScheme;
-use schemes::group::Group;
 use schemes::rand::{RNG, RngAlgorithm};
 use schemes::util::{printbinary, hex2string};
+use thetacrypt_proto::scheme_types::Group;
 
 fn main() {
     const K: usize = 30; // threshold

@@ -2,8 +2,9 @@ use std::{error::Error, fmt::{Display, Write}};
 
 use asn1::{WriteError, ParseError};
 use rasn::{der::{encode, decode}, Encode, Decode, Encoder, AsnType};
-use thetacrypt_proto::scheme_types::ThresholdSchemeCode;
-use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04ThresholdSignature, Bls04Signature}, frost::{FrostSignatureShare, FrostThresholdSignature, FrostSignature, FrostRoundResult}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement, Group}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignatureShare, Sh00Signature}};
+pub use thetacrypt_proto::scheme_types::{ThresholdScheme, Group};
+use crate::scheme_types_impl::{SchemeDetails, GroupDetails};
+use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{ciphers::{sg02::*, bz03::{Bz03ThresholdCipher, Bz03Ciphertext, Bz03DecryptionShare}, sg02::Sg02Ciphertext}, signatures::{bls04::{Bls04SignatureShare, Bls04ThresholdSignature, Bls04Signature}, frost::{FrostSignatureShare, FrostThresholdSignature, FrostSignature, FrostRoundResult}}, coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin}}, keys::{PrivateKey, PublicKey}, unwrap_enum_vec, group::{GroupElement}, rsa_schemes::signatures::sh00::{Sh00ThresholdSignature, Sh00SignatureShare, Sh00Signature}};
 
 pub trait Serializable:
     Sized
@@ -18,54 +19,6 @@ pub trait DlShare {
     fn get_data(&self) -> &GroupElement;
     fn get_group(&self) -> &Group;
 }
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ThresholdScheme {
-    Bz03 = ThresholdSchemeCode::Bz03 as isize,
-    Sg02 = ThresholdSchemeCode::Sg02  as isize,
-    Bls04 = ThresholdSchemeCode::Bls04 as isize,
-    Cks05 = ThresholdSchemeCode::Cks05 as isize,
-    Frost = ThresholdSchemeCode::Frost as isize,
-    Sh00 = ThresholdSchemeCode::Sh00  as isize,
-}
-
-impl ThresholdScheme {
-    pub fn get_id(&self) -> u8 {
-        *self as u8
-    }
-
-    pub fn from_id(id: u8) -> Result<ThresholdScheme, ThresholdCryptoError> {
-        match id {
-            0 => Ok(Self::Bz03),
-            1 => Ok(Self::Sg02),
-            2 => Ok(Self::Bls04),
-            3 => Ok(Self::Cks05),
-            4 => Ok(Self::Frost),
-            5 => Ok(Self::Sh00),
-            _ => Err(ThresholdCryptoError::UnknownScheme)
-        }
-    }
-
-    pub fn parse_string(scheme: &str) -> Result<Self, ThresholdCryptoError> {
-        match scheme {
-            "bz03" => Ok(Self::Bz03),
-            "sg02" => Ok(Self::Sg02),
-            "bls04" => Ok(Self::Bls04),
-            "cks05" => Ok(Self::Cks05),
-            "frost" => Ok(Self::Frost),
-            "sh00" => Ok(Self::Sh00),
-            _ => Err(ThresholdCryptoError::UnknownScheme)
-        } 
-    }
-
-    pub fn is_interactive(&self) -> bool {
-        match self {
-            Self::Frost => true,
-            _ => false
-        }
-    }
-}
-
 
 /* Threshold Coin */
 
@@ -135,10 +88,10 @@ impl Serializable for CoinShare {
      fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
+                let scheme = ThresholdScheme::from_i32(d.read_element::<u8>()? as i32);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -302,7 +255,7 @@ impl Serializable for Ciphertext {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -579,7 +532,7 @@ impl Serializable for DecryptionShare {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -742,7 +695,7 @@ impl Serializable for SignatureShare {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -871,7 +824,7 @@ impl Serializable for Signature {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -1061,7 +1014,7 @@ impl Serializable for RoundResult {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
                 let bytes = d.read_element::<&[u8]>()?.to_vec();
                 
-                if scheme.is_err() {
+                if scheme.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                 }
 
@@ -1244,6 +1197,7 @@ pub enum ThresholdCryptoError {
     UnknownGroupString,
     UnknownGroup,
     IOError,
+    InvalidParams,
 }
 
 impl Error for ThresholdCryptoError {}

@@ -1,7 +1,7 @@
 use std::{mem::ManuallyDrop, time::Instant};
 
 use crate::{dl_schemes::{common::shamir_share, ciphers::sg02::{Sg02PublicKey, Sg02Ciphertext}}, rand::{RNG, RngAlgorithm}, interface::{Serializable, ThresholdCipherParams, ThresholdCipher, DecryptionShare, Ciphertext}, keys::{KeyGenerator, PublicKey, PrivateKey}};
-use crate::interface::ThresholdScheme; use  crate::group::Group;
+use thetacrypt_proto::scheme_types::{ThresholdScheme, Group}; 
 use crate::util::{printbinary, hex2string};
 use crate::dl_schemes::bigint::BigImpl;
 use crate::group::{GroupElement};
