@@ -75,9 +75,16 @@ The RPC request handler (defined in the `protocol_types.proto` of the `proto` cr
 - The request handler is constantly listening for requests. The corresponding handler method (e.g., `decrypt()`, `decrypt_sync()`, `get_decrypt_result()`, etc.) is run every time a request is received.
 - For every received request (e.g., `DecryptRequest` for the `decrypt()` endpoint) make all the required correctness checks and then start a new protocol (in our example a `ThresholdCipherProtocol`) instance in a new tokio thread.
 - Each instance is assigned and identified by a unique `instance_id`. For example, a threshold-decryption instance is identified by the concatenation of the `label` field (which is part of `DecryptRequest.ciphertext`) and the hash of the ciphertext.
-- There exist separate tokio threads for handling the state and for forwarding incoming messages to the appropriate instance, as described in the following.
+- There exist separate tokio threads for handling the state (`StateManager`) and for dispatching incoming messages to the appropriate instance (`MessageDispatcher`), as described below.
 
-### State and state manager
+### Assigning instance-id
+Each protocol instance must be assigned an 'instance_id'.
+This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
+The logic for assigning instance ids is abstracted in functions such as `assign_decryption_instance_id()`.
+
+
+
+# State and state manager
 We use the "share memory by communicating" paradigm.
 The `StateManager`, defined in `src\state_manager.rs`, is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
 It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
@@ -93,33 +100,31 @@ then this value is also returned via a channel. The caller creates a `oneshot::c
 sends the sender end (`tokio::sync::oneshot::Sender`) as part of the `StateUpdateCommand`.
 The `StateManager` will use this sender to respond, and the receiver awaits it on the corresponding receiver end.
 
-### MessageForwarder
-The `MessageForwarder`, defined in `src\message_forwarder.rs`, is responsible for forwarding received messages
+# MessageDispatcher
+The `MessageDispatcher`, defined in `src\message_dispatcher.rs`, is responsible for dispatching received messages
 (received from the network) to the appropriate
 protocol instance (e.g., decryption shares to the corresponding threshold-decryption protocol instance).
 It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
-The `MessageForwarder` maintains a channel with _every_ protocol instance, where the sender end is owned 
-by `MessageForwarder` (see `instance_senders` variable)
+The `MessageDispatcher` maintains a channel with _every_ protocol instance, where the sender end is owned 
+by `MessageDispatcher` (see `instance_senders` variable)
 and the receiver end by the protocol. An instance is identified by its instance_id.
-The `MessageForwarder` constantly listens on `incoming_message_receiver` (the network layer owns the sender end
+The `MessageDispatcher` constantly listens on `incoming_message_receiver` (the network layer owns the sender end
 of this channel) and forwards received messages to the appropriate instance, using the appropriate `instance_sender`.
 
-*Note:* The channels for communication between the `MessageForwarder` and protocol instances is an exception to the rule
+*Note:* The channels for communication between the `MessageDispatcher` and protocol instances is an exception to the rule
 that all state is handled by the `StateManager`.
-This is because only the `MessageForwarder` needs to know how to reach each instance, i.e.,
-the `MessageForwarder` is the only responsible for maintaining these channels.
-When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageForwarder` about the
-existence of the new instance. This is done using a `MessageForwarderCommand`.
+This is because only the `MessageDispatcher` needs to know how to reach each instance, i.e.,
+the `MessageDispatcher` is the only responsible for maintaining these channels.
+When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageDispatcher`. This is done using a `MessageDispatcherCommand`.
+Specifically, when a new protocol instance is created, the `RpcRequestHandler` informs the `MessageDispatcher` by sending a `MessageDispatcherCommand::InsertInstance`. This includes the id of the new instance and a response channel.
+The `MessageDispatcher` creates a channel (which will be used to reach the new instance), keeps the sender end of this
+channel and sends the receiver end back to the `RpcRequestHandler` (who in turn passes it to the newly created instance).
+When a protocol instance is created, the `RpcRequestHandler` informs the `MessageDispatcher` by sending a `MessageDispatcherCommand::RemoveInstance`.
 
 ### Backlog
-A logic for backlogging messages is implemented in the `MessageForwarder`. 
+A logic for backlogging messages is implemented in the `MessageDispatcher`. 
 This is necessary for the case when (due to asynchrony) a message (such as a decryption share) for an instance is received before
 the instance is started (because the actual request was delayed).
-
-### Assigning instance-id
-Each protocol instance must be assigned an 'instance_id'.
-This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
-The logic for assigning instance ids is abstracted in functions such as `assign_decryption_instance_id()`.
 
 
 
