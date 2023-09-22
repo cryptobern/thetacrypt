@@ -15,6 +15,17 @@ pub struct Peer {
     pub rpc_port: u16,
 }
 
+/// Configuration of the server binary.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ServerConfig {
+    /// ID of this server.
+    pub id: u32,
+    /// Address which the server will attempt to bind to.
+    pub listen_address: String,
+    /// Vector of peers this server will connect to. Must also contain itself as a peer.
+    pub peers: Vec<Peer>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProxyNode {
     pub ip: String,
@@ -97,17 +108,6 @@ impl ServerProxyConfig {
     pub fn get_listen_addr(&self) -> String{
         return self.listen_address.clone()
     }
-}
-
-/// Configuration of the server binary.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ServerConfig {
-    /// ID of this server.
-    pub id: u32,
-    /// Address which the server will attempt to bind to.
-    pub listen_address: String,
-    /// Vector of peers this server will connect to. Must also contain itself as a peer.
-    pub peers: Vec<Peer>,
 }
 
 impl ServerConfig {

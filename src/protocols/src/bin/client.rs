@@ -1,8 +1,23 @@
+use clap::Parser;
+use log::{error, info};
+use network::config;
+use std::process::exit;
+
 use std::io::Write;
 use std::path::PathBuf;
 use std::{io, vec, thread, time};
 
-use protocols::keychain::KeyChain;
+use protocols::{
+    client::{
+        types::{
+            PeerPublicInfo,
+            ClientConfig
+        },    
+        cli::ClientCli
+    },
+    keychain::KeyChain,
+};
+
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use schemes::interface::Serializable;
@@ -21,6 +36,29 @@ use thetacrypt_proto::protocol_types::{DecryptRequest, SignRequest, GetSignature
 // They should be able to connect to each other.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    env_logger::init();
+
+    let version = env!("CARGO_PKG_VERSION");
+    info!("Starting server, version: {}", version);
+
+    let client_cli = ClientCli::parse();
+
+    info!(
+        "Loading configuration from file: {}",
+        client_cli
+            .config_file
+            .to_str()
+            .unwrap_or("Unable to print path, was not valid UTF-8"),
+    );
+    let config = match ClientConfig::from_file(&client_cli.config_file) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("{}", e);
+            exit(1);
+        }
+    };
+
     let mut running = true;
     while running {
         _ = std::process::Command::new("clear").status().unwrap().success();
@@ -49,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 running = false; //return 
             },
             1 => {
-                let result = threshold_decryption().await;
+                let result = threshold_decryption(config.clone()).await;
                 if result.is_err() {
                     println!("Error while running decryption protocol: {}", result.unwrap_err().to_string());
                 }
@@ -57,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("---------------\n\n");
             }, 
             2 => {
-                let result = threshold_signature().await;
+                let result = threshold_signature(config.clone()).await;
                 if result.is_err() {
                     println!("Error while running signature protocol: {}", result.unwrap_err().to_string());
                 }
@@ -65,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("---------------\n\n");
             },
             3 => {
-                let result = threshold_coin().await;
+                let result = threshold_coin(config.clone()).await;
                 if result.is_err() {
                     println!("Error while running coin protocol: {}", result.unwrap_err().to_string());
                 }
@@ -85,14 +123,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn threshold_decryption() -> Result<(), Box<dyn std::error::Error>> {
+async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .sk
         .get_public_key();
 
-    let mut connections = connect_to_all_local().await;
+    let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter message to encrypt: ");
     io::stdout().flush().expect("Error flushing stdout");
@@ -133,14 +171,14 @@ async fn threshold_decryption() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
+async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
         .sk
         .get_public_key();
     
-    let mut connections = connect_to_all_local().await;
+    let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter message to sign: ");
     io::stdout().flush().expect("Error flushing stdout");
@@ -180,13 +218,13 @@ async fn threshold_signature() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn threshold_coin() -> Result<(), Box<dyn std::error::Error>> {
+async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bls12381)?
         .sk
         .get_public_key();
-    let mut connections = connect_to_all_local().await;
+    let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter name of coin: ");
     io::stdout().flush().expect("Error flushing stdout");
@@ -271,16 +309,19 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
     req
 }
 
-async fn connect_to_all_local() -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
-    let peers = vec![
-        (0, String::from("127.0.0.1"), 51000),
-        (1, String::from("127.0.0.1"), 51001),
-        (2, String::from("127.0.0.1"), 51002),
-        (3, String::from("127.0.0.1"), 51003),
-    ];
+async fn connect_to_all_local(config: ClientConfig) -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
+
+    // let peers = vec![
+    //     (0, String::from("127.0.0.1"), 51000),
+    //     (1, String::from("127.0.0.1"), 51001),
+    //     (2, String::from("127.0.0.1"), 51002),
+    //     (3, String::from("127.0.0.1"), 51003),
+    // ];
+
     let mut connections = Vec::new();
-    for peer in peers.iter() {
-        let (_, ip, port) = peer.clone();
+    for peer in config.peers.iter() {
+        let ip = peer.ip.clone();
+        let port = peer.rpc_port;
         let addr = format!("http://[{ip}]:{port}");
         connections.push(
             ThresholdCryptoLibraryClient::connect(addr.clone())

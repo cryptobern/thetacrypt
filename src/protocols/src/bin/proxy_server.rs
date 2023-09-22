@@ -2,7 +2,10 @@ use std::{process::exit};
 use log::{error, info};
 use clap::Parser;
 
-use network::{proxy::proxy::ProxyConfig, types::message::NetMessage};
+use network::{
+    proxy::proxyp2p::ProxyConfig, 
+    types::message::NetMessage
+};
 
 use protocols::{
     keychain::KeyChain,
@@ -86,7 +89,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         config.proxy_node_ip()
     );
     tokio::spawn(async move {
-        network::proxy::proxy::init(p2n_receiver, n2p_sender, net_config, my_id)
+        network::proxy::proxyp2p::init(p2n_receiver, n2p_sender, net_config, my_id)
             .await;
     });
 

@@ -5,7 +5,23 @@ use rand::seq::SliceRandom;
 
 use log::{error, info};
 
-use protocols::{server::{types::{Peer, ServerConfig, ProxyNode, ServerProxyConfig}, dirutil}, confgen::cli::{ConfgenCli, PortStrategy}};
+use protocols::{
+    server::{
+        types::{
+            Peer, 
+            ServerConfig, 
+            ProxyNode, 
+            ServerProxyConfig
+        }, 
+        dirutil
+        }, 
+    confgen::cli::{
+            ConfgenCli, 
+            PortStrategy
+    },
+    client::types::{PeerPublicInfo, ClientConfig}
+};
+
 
 
 
@@ -155,6 +171,13 @@ fn run(
         })
         .collect();
 
+    let public_peers: Vec<PeerPublicInfo> = peers.iter().enumerate().map(|(i, peer_ref)|{
+        let peer = peer_ref.clone();
+        PeerPublicInfo { id: peer.id, ip: peer.ip, rpc_port: peer.rpc_port }
+    }).collect();
+
+    let client_config = ClientConfig::new(public_peers).unwrap();
+
     info!("Writing configurations to disk");
     for cfg in configs {
         let mut outfile = outdir.clone();
@@ -172,6 +195,23 @@ fn run(
             }
         }
     }
+
+    info!("Writing client configuration to disk");
+    let mut outfile = outdir.clone();
+    outfile.push("client.json");
+
+    let data = match serde_json::to_string(&client_config) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("JSON serialization failed: {}", e)),
+    };
+
+    match fs::write(outfile, data) {
+        Ok(_) => {}
+        Err(e) => {
+            return Err(format!("Failed to write to file: {}", e));
+        }
+    }
+
 
     Ok(())
 }
