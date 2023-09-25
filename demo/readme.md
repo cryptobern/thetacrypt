@@ -31,7 +31,7 @@ The Makefile presents the following rules:
 
 - *clean-up*: removes the `tmp` directory.
 
-## How to run the demo 
+### How to run the demo 
 
 1) Clone the directory <br> 
 ```
