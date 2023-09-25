@@ -8,6 +8,19 @@ This library is split into three main parts:
 ## Client Development
 One can import the `schemes` layer in a Rust application to for example use the primitives required to encrypt data to submit for threshold decryption or verify signatures created using a threshold signature scheme. 
 
+## Installation
+
+You can download and install Rust on Linux using 
+
+    curl https://sh.rustup.rs -sSf | sh
+
+To run the schemes test application, use 
+
+    cd src
+    cargo run --release
+
+//TODO: move the documentation on ThetaCLI
+
 ## ThetaCLI
 Alternatively, there exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
 Usage: `./thetacli [action] [params]`
