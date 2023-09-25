@@ -2,19 +2,24 @@
 The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
 All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
-The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following endpoints are implemented:
+The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following methods are implemented:
+- get_public_keys_for_encryption()
 - decrypt()
 - get_decrypt_result()
-- decrypt_sync()
-- get_public_keys_for_encryption()
+- sign()
+- get_signature_result()
+- flip_coin()
+- get_coin_result()
 
 See the documentation for each of them in `protocol_types.proto`.
+
+//TODO: clarify the polling strategy to get the results.
 
 
 # How to run the RPC server
 
 ### Generating server configuration
-You can use the `confgen` binary to generate the configuration files that are needed to start server instances.
+You can use the `confgen` binary to generate the configuration files that are needed to start server and client instances.
 For help, run:
 ```
 cargo run --bin confgen -- --help
@@ -24,8 +29,8 @@ or, if you have already installed the binary, simply:
 confgen --help
 ```
 
-The steps to generate the configuration files are the following (assuming `src\protocols` as cwd).
-1. Create a file with the IP addresses of the servers. For example, for a local deployment, you can use:
+The steps to generate the configuration files are the following, assuming `src\protocols` as cwd, and that one wants a local deployment.
+1. Create a file with the IP addresses of the servers. For example you can use:
 ```
 cat > conf/server_ips << EOF
 127.0.0.1
@@ -40,10 +45,20 @@ EOF
 cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
 ```
 
-3. Generate the keys for each server. Currently, the library offers a `trusted_dealer.rs` binary for this. It writes the keys for each server in the `conf\` directory. For a deployment with 4 servers and a threshold of 3, run:
+The option `--port-strategy` can be `static` or `consecutive`. The first uses the same port for each IP (suited for a distributed deployment), and the latter assigns incremental values of the port to the IPs (suited for a local deployment).
+
+The binary `confgen` generates an extra config file, `client.json`, that has a list of the servers' public information: ID, IP, and rpc_port. This information can be used by a client script to call Thetacrypt's services on each node.
+
+
+3. Generate the keys for each server. 
+
+The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
+It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
 ```
-cargo run --bin trusted_dealer -- 3 4
+cargo run --bin thetacli -- keygen 3 4 sg02-bls12381 ./conf
 ```
+
+To generate the keys, information on the scheme and group is needed. For more information check the binary's CLI documentation.
 
 ### Starting the server binary
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
@@ -64,9 +79,9 @@ You should see each server process print that it is connected to the others and 
 # Run an example client
 An RPC client, meant only to be used as an example, can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
-cargo run --bin client
+cargo run --bin client -- --config-file=conf/client.json
 ```
-This client first creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
+The client presents a menu of options for experimenting with the different schemes provided by the service. For example, in the case of a decryption operation, it creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
 The code waits for the key **Enter** to be pressed before submitting each request.
 
 
@@ -138,7 +153,7 @@ The caller should only have to call run() to start the protocol instance.
 
 - About run():
 The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
-In the beginning it must make the necessary validity checks (e.g., validity of ciphertext).
+In the beginning, it must make the necessary validity checks (e.g., the validity of ciphertext).
 There is a loop(), which handles incoming shares. The loop exits when the instance is finished.
 This function is also responsible for returning the result to the caller.
 
