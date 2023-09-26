@@ -1,20 +1,26 @@
 # Schemes layer 
+The schemes layer provides the bare cryptographic primitives which will be used in the protocols layer. The schemes layer can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature. 
 
+## Dependencies
+This crate uses [Miracl Core](https://github.com/miracl/core) for the underlying elliptic curve implementations and [GMP](https://gmplib.org/) for big integer handling in the RSA signature scheme using the [gmp-mpfr-sys](https://crates.io/crates/gmp-mpfr-sys) Rust FFI bindings. 
+
+## Overview
+![Schemes Overview](img/schemes_reverse.png)
 There are 3 kinds of threshold schemes available: `ThresholdCipher`, `ThresholdSignature` and `ThresholdCoin`. For each of the three categories, the following schemes are implemented:
 
 Threshold Ciphers:
-- Sg02 (ZK-based)
-- Bz03 (Pairing-based)
+- [Sg02](https://link.springer.com/content/pdf/10.1007/s00145-001-0020-9.pdf) (ZK-based)
+- [Bz03](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.119.1717&rep=rep1&type=pdf) (Pairing-based)
 
 Threshold Signatures:
-- Bls04 (Pairing-based)
-- FROST (ZK-based)
-- Sh00 (Threshold RSA)
+- [Bls04](https://link.springer.com/article/10.1007/s00145-004-0314-9) (Pairing-based)
+- [KG20/FROST](https://eprint.iacr.org/2020/852.pdf) (ZK-based)
+- [Sh00](https://www.iacr.org/archive/eurocrypt2000/1807/18070209-new.pdf) (Threshold RSA)
 
 Threshold Coins:
-- Cks05 (ZK-based)
+- [Cks05](https://link.springer.com/content/pdf/10.1007/s00145-005-0318-0.pdf) (ZK-based)
 
-All of those schemes use keys of the type `PublicKey` or `PrivateKey` respectively. Keys can be generated using the `KeyGenerator`. To generate keys, the concrete scheme and the underlying group need to be specified. For the schemes that are pairing-based, a group that supports pairings needs to be specified. So far the following groups are implemented:
+All of those schemes use keys of the type `PublicKey` or `PrivateKey` respectively. The special thing about the `PrivateKey` struct is that there are multiple private keys related to a single public key and they each only represent a share of the actual private key (which should remain inaccessible). Each party will hold a `PrivateKey` object, which contains a `PublicKey` object. Keys can be generated using the `KeyGenerator`, which returns a vector uf private keys. To generate these keys, the concrete scheme and the underlying group need to be specified. For the schemes that are pairing-based, the group needs to support pairings. So far, the following elliptic curves are supported:
 
 - Bls12381 (supports pairings)
 - Bn254 (supports pairings)
@@ -22,7 +28,7 @@ All of those schemes use keys of the type `PublicKey` or `PrivateKey` respective
 <br>
 
 ## Demo
-You can find an example program in the folder `src/examples/main.rs` that shows how to use the schemes layer.
+You can find an example program in the folder `src/examples/main.rs` that shows how the primitives of the schemes layer can be used.
 
 ## Key Generation
 To generate a vector of private keys, use
@@ -41,6 +47,19 @@ where
 - `RNG` = random number generator to be used, here a MarsagliaZaman algorithm is used
 - `ThresholdScheme` = the scheme that should be used
 - `Group` = the underlying group
+
+**PrivateKey**<br>
+- **`get_scheme(&self) -> ThresholdScheme `** 
+- **`get_id(&self) -> u16`**
+- **`get_group(&self) -> Group`**
+- **`get_threshold(&self) -> u16`**
+- **`get_public_key(&self) -> PublicKey`** 
+
+**PublicKey**<br>
+- **`get_scheme(&self) -> ThresholdScheme `**
+- **`get_group(&self) -> Group`**
+- **`get_threshold(&self) -> u16`** 
+- **`get_n(&self) -> PublicKey`** 
 
 Once the keys are generated, the API for all schemes/groups stays the same. One can put the keys into use using the structs below:
 
@@ -130,6 +149,10 @@ If something fails in one of the methods described above, a `ThresholdCryptoErro
         MessageAlreadySpecified,
         SerializationError(String),
         UnknownScheme,
+        UnknownGroupString,
+        UnknownGroup,
+        IOError,
+        InvalidParams,
     }
 
 ## Big Integers / Groups
