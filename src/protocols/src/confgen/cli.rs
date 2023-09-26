@@ -45,6 +45,13 @@ pub struct ConfgenCli {
         help = "Directory in which to place generated config files. Required. Path up to output directory must exist."
     )]
     pub outdir: PathBuf,
+    #[arg(short,
+        long, 
+        help = "Integration with a target blockchain platform.")]
+    pub integration: bool,
+    #[arg(long,
+        help = "Path to file containing IPs of nodes of blockchain target platform, one per line.")]
+    pub integration_file: Option<PathBuf>,
 }
 
 /// Enum representing how ports are assigned to servers. Static uses the same port for all servers,

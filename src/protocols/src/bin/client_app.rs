@@ -71,9 +71,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(">> RESPONSE: {:?}", res.result);
                 match res.result.deliver_tx.data {
                     Some(msg) => {
-                        let msg_dec =  base64::decode(&msg)?;
-                        let msg_str = std::str::from_utf8(&msg_dec)?;
-                        println!(">> Returned data: {:?}.", msg_str);
+                        println!("The message with instance_id: {:?} is being processed", msg);
+
+                        //Decrypt sync handling code 
+                        // let msg_dec =  base64::decode(&msg)?;
+                        // let msg_str = std::str::from_utf8(&msg_dec)?;
+                        // println!(">> Returned data: {:?}.", msg_str);
                     },
                     None => {
                         println!(">>The decryption of the message failed.");

@@ -20,7 +20,7 @@ use thetacrypt_proto::protocol_types::GetDecryptResultRequest;
 use thetacrypt_proto::protocol_types::{GetPublicKeysForEncryptionRequest, PublicKeyEntry};
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
-// It is meant to test the basic network logic RpcRequestHandler, MessageForwarder, etc.
+// It is meant to test the basic network logic RpcRequestHandler, MessageDispatcher, etc.
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
 // They should be able to connect to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

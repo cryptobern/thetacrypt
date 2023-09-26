@@ -5,7 +5,23 @@ use rand::seq::SliceRandom;
 
 use log::{error, info};
 
-use protocols::{server::{types::{Peer, ServerConfig}, dirutil}, confgen::cli::{ConfgenCli, PortStrategy}};
+use protocols::{
+    server::{
+        types::{
+            Peer, 
+            ServerConfig, 
+            ProxyNode, 
+            ServerProxyConfig
+        }, 
+        dirutil
+        }, 
+    confgen::cli::{
+            ConfgenCli, 
+            PortStrategy
+    },
+    client::types::{PeerPublicInfo, ClientConfig}
+};
+
 
 
 
@@ -20,6 +36,19 @@ fn main() {
             exit(1);
         }
     };
+    
+    let mut ips_proxy_nodes = Vec::new();
+
+    if let Some(path) = confgen_cli.integration_file {
+        ips_proxy_nodes = match ips_from_file(&path) {
+                Ok(ips) => ips,
+                Err(e) => {
+                    error!("{}", e);
+                    exit(1);
+                }
+        };
+    }
+    
 
     match dirutil::ensure_sane_output_directory(&confgen_cli.outdir, false) {
         Ok(_) => info!("Using output directory: {}", &confgen_cli.outdir.display()),
@@ -29,23 +58,45 @@ fn main() {
         }
     }
 
-    match run(
-        ips,
-        confgen_cli.rpc_port,
-        confgen_cli.p2p_port,
-        confgen_cli.port_strategy,
-        confgen_cli.shuffle_peers,
-        confgen_cli.listen_address,
-        confgen_cli.outdir,
-    ) {
-        Ok(_) => {
-            info!("Config generation successful, all config files saved to disk");
+    if confgen_cli.integration {
+        match run_integration(
+            ips,
+            ips_proxy_nodes,
+            confgen_cli.rpc_port,
+            confgen_cli.p2p_port,
+            confgen_cli.port_strategy,
+            confgen_cli.listen_address,
+            confgen_cli.outdir,
+        ) {
+            Ok(_) => {
+                info!("Config generation successful, all config files saved to disk");
+            }
+            Err(e) => {
+                error!("Config generation failed: {}", e);
+                exit(1);
+            }
         }
-        Err(e) => {
-            error!("Config generation failed: {}", e);
-            exit(1);
+    } else {
+        match run(
+            ips,
+            confgen_cli.rpc_port,
+            confgen_cli.p2p_port,
+            confgen_cli.port_strategy,
+            confgen_cli.shuffle_peers,
+            confgen_cli.listen_address,
+            confgen_cli.outdir,
+        ) {
+            Ok(_) => {
+                info!("Config generation successful, all config files saved to disk");
+            }
+            Err(e) => {
+                error!("Config generation failed: {}", e);
+                exit(1);
+            }
         }
     }
+
+   
 }
 
 fn ips_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
@@ -117,6 +168,104 @@ fn run(
             }
 
             ServerConfig::new(u32::try_from(i).unwrap(), listen_address.clone(), my_peers).unwrap()
+        })
+        .collect();
+
+    let public_peers: Vec<PeerPublicInfo> = peers.iter().enumerate().map(|(i, peer_ref)|{
+        let peer = peer_ref.clone();
+        PeerPublicInfo { id: peer.id, ip: peer.ip, rpc_port: peer.rpc_port }
+    }).collect();
+
+    let client_config = ClientConfig::new(public_peers).unwrap();
+
+    info!("Writing configurations to disk");
+    for cfg in configs {
+        let mut outfile = outdir.clone();
+        outfile.push(format!("server_{:?}.json", cfg.id));
+
+        let data = match serde_json::to_string(&cfg) {
+            Ok(s) => s,
+            Err(e) => return Err(format!("JSON serialization failed: {}", e)),
+        };
+
+        match fs::write(outfile, data) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(format!("Failed to write to file: {}", e));
+            }
+        }
+    }
+
+    info!("Writing client configuration to disk");
+    let mut outfile = outdir.clone();
+    outfile.push("client.json");
+
+    let data = match serde_json::to_string(&client_config) {
+        Ok(s) => s,
+        Err(e) => return Err(format!("JSON serialization failed: {}", e)),
+    };
+
+    match fs::write(outfile, data) {
+        Ok(_) => {}
+        Err(e) => {
+            return Err(format!("Failed to write to file: {}", e));
+        }
+    }
+
+
+    Ok(())
+}
+
+fn run_integration(
+    ips: Vec<String>,
+    ips_proxy_nodes: Vec<String>,
+    rpc_port: u16,
+    p2p_port: u16,
+    port_strategy: PortStrategy,
+    listen_address: String,
+    outdir: PathBuf,
+) -> Result<(), String> {
+    info!("Generating configuration structs");
+    let peers: Vec<Peer> = ips
+        .iter()
+        .enumerate()
+        .map(|(i, ip)| {
+            let (rpc_port, p2p_port) = match port_strategy {
+                PortStrategy::Consecutive => (
+                    // More than 2^16 peers? What are we, an ISP?
+                    rpc_port + u16::try_from(i).unwrap(),
+                    p2p_port + u16::try_from(i).unwrap(),
+                ),
+                PortStrategy::Static => (rpc_port, p2p_port),
+            };
+
+            Peer {
+                // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
+                id: u32::try_from(i).unwrap(),
+                ip: String::from(ip),
+                rpc_port,
+                p2p_port,
+            }
+        })
+        .collect();
+    
+    // TODO:
+    // check that the two vectors of ips are of equal lenght
+    // check if we need the local ip 
+
+    let configs: Vec<ServerProxyConfig> = ips_proxy_nodes
+        .iter()
+        .enumerate()
+        .map(|(i,ip)| {
+            let (rpc_port, p2p_port) = match port_strategy {
+                PortStrategy::Consecutive => (
+                    // More than 2^16 peers? What are we, an ISP?
+                    rpc_port + u16::try_from(i).unwrap(),
+                    p2p_port + u16::try_from(i).unwrap(),
+                ),
+                PortStrategy::Static => (rpc_port, p2p_port),
+            };
+            ServerProxyConfig::new(u32::try_from(i).unwrap(), listen_address.clone(), p2p_port, rpc_port, ProxyNode{ip: ip.to_string()}).unwrap()
         })
         .collect();
 

@@ -2,19 +2,24 @@
 The `protocols` package implements threshold-cryptographic protocols and an RPC server that instantiates them.
 All implemented protocols can be started by sending the corresponding RPC request to the provided RPC server.
 
-The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following endpoints are implemented:
+The RPC types are defined in `protocol_types.proto` of the `proto` crate. Currently, the following methods are implemented:
+- get_public_keys_for_encryption()
 - decrypt()
 - get_decrypt_result()
-- decrypt_sync()
-- get_public_keys_for_encryption()
+- sign()
+- get_signature_result()
+- flip_coin()
+- get_coin_result()
 
 See the documentation for each of them in `protocol_types.proto`.
+
+//TODO: clarify the polling strategy to get the results.
 
 
 # How to run the RPC server
 
 ### Generating server configuration
-You can use the `confgen` binary to generate the configuration files that are needed to start server instances.
+You can use the `confgen` binary to generate the configuration files that are needed to start server and client instances.
 For help, run:
 ```
 cargo run --bin confgen -- --help
@@ -24,8 +29,8 @@ or, if you have already installed the binary, simply:
 confgen --help
 ```
 
-The steps to generate the configuration files are the following (assuming `src\protocols` as cwd).
-1. Create a file with the IP addresses of the servers. For example, for a local deployment, you can use:
+The steps to generate the configuration files are the following, assuming `src\protocols` as cwd, and that one wants a local deployment.
+1. Create a file with the IP addresses of the servers. For example you can use:
 ```
 cat > conf/server_ips << EOF
 127.0.0.1
@@ -40,10 +45,20 @@ EOF
 cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
 ```
 
-3. Generate the keys for each server. Currently, the library offers a `trusted_dealer.rs` binary for this. It writes the keys for each server in the `conf\` directory. For a deployment with 4 servers and a threshold of 3, run:
+The option `--port-strategy` can be `static` or `consecutive`. The first uses the same port for each IP (suited for a distributed deployment), and the latter assigns incremental values of the port to the IPs (suited for a local deployment).
+
+The binary `confgen` generates an extra config file, `client.json`, that has a list of the servers' public information: ID, IP, and rpc_port. This information can be used by a client script to call Thetacrypt's services on each node.
+
+
+3. Generate the keys for each server. 
+
+The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
+It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
 ```
-cargo run --bin trusted_dealer -- 3 4
+cargo run --bin thetacli -- keygen 3 4 sg02-bls12381 ./conf
 ```
+
+To generate the keys, information on the scheme and group is needed. For more information check the binary's CLI documentation.
 
 ### Starting the server binary
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
@@ -64,9 +79,9 @@ You should see each server process print that it is connected to the others and 
 # Run an example client
 An RPC client, meant only to be used as an example, can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
-cargo run --bin client
+cargo run --bin client -- --config-file=conf/client.json
 ```
-This client first creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
+The client presents a menu of options for experimenting with the different schemes provided by the service. For example, in the case of a decryption operation, it creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
 The code waits for the key **Enter** to be pressed before submitting each request.
 
 
@@ -75,9 +90,16 @@ The RPC request handler (defined in the `protocol_types.proto` of the `proto` cr
 - The request handler is constantly listening for requests. The corresponding handler method (e.g., `decrypt()`, `decrypt_sync()`, `get_decrypt_result()`, etc.) is run every time a request is received.
 - For every received request (e.g., `DecryptRequest` for the `decrypt()` endpoint) make all the required correctness checks and then start a new protocol (in our example a `ThresholdCipherProtocol`) instance in a new tokio thread.
 - Each instance is assigned and identified by a unique `instance_id`. For example, a threshold-decryption instance is identified by the concatenation of the `label` field (which is part of `DecryptRequest.ciphertext`) and the hash of the ciphertext.
-- There exist separate tokio threads for handling the state and for forwarding incoming messages to the appropriate instance, as described in the following.
+- There exist separate tokio threads for handling the state (`StateManager`) and for dispatching incoming messages to the appropriate instance (`MessageDispatcher`), as described below.
 
-### State and state manager
+### Assigning instance-id
+Each protocol instance must be assigned an 'instance_id'.
+This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
+The logic for assigning instance ids is abstracted in functions such as `assign_decryption_instance_id()`.
+
+
+
+# State and state manager
 We use the "share memory by communicating" paradigm.
 The `StateManager`, defined in `src\state_manager.rs`, is responsible for keeping _any_ type of state related to request handler and requests (status of a request, such as started or terminated, results of terminated requests, etc).
 It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
@@ -93,33 +115,31 @@ then this value is also returned via a channel. The caller creates a `oneshot::c
 sends the sender end (`tokio::sync::oneshot::Sender`) as part of the `StateUpdateCommand`.
 The `StateManager` will use this sender to respond, and the receiver awaits it on the corresponding receiver end.
 
-### MessageForwarder
-The `MessageForwarder`, defined in `src\message_forwarder.rs`, is responsible for forwarding received messages
+# MessageDispatcher
+The `MessageDispatcher`, defined in `src\message_dispatcher.rs`, is responsible for dispatching received messages
 (received from the network) to the appropriate
 protocol instance (e.g., decryption shares to the corresponding threshold-decryption protocol instance).
 It is spawned as a separate Tokio task in the `init()` function of `src\rpc_request_handler.rs`.
-The `MessageForwarder` maintains a channel with _every_ protocol instance, where the sender end is owned 
-by `MessageForwarder` (see `instance_senders` variable)
+The `MessageDispatcher` maintains a channel with _every_ protocol instance, where the sender end is owned 
+by `MessageDispatcher` (see `instance_senders` variable)
 and the receiver end by the protocol. An instance is identified by its instance_id.
-The `MessageForwarder` constantly listens on `incoming_message_receiver` (the network layer owns the sender end
+The `MessageDispatcher` constantly listens on `incoming_message_receiver` (the network layer owns the sender end
 of this channel) and forwards received messages to the appropriate instance, using the appropriate `instance_sender`.
 
-*Note:* The channels for communication between the `MessageForwarder` and protocol instances is an exception to the rule
+*Note:* The channels for communication between the `MessageDispatcher` and protocol instances is an exception to the rule
 that all state is handled by the `StateManager`.
-This is because only the `MessageForwarder` needs to know how to reach each instance, i.e.,
-the `MessageForwarder` is the only responsible for maintaining these channels.
-When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageForwarder` about the
-existence of the new instance. This is done using a `MessageForwarderCommand`.
+This is because only the `MessageDispatcher` needs to know how to reach each instance, i.e.,
+the `MessageDispatcher` is the only responsible for maintaining these channels.
+When a new protocol instance is started, and when a protocol instance terminates, the `RpcRequestHandler` must inform the `MessageDispatcher`. This is done using a `MessageDispatcherCommand`.
+Specifically, when a new protocol instance is created, the `RpcRequestHandler` informs the `MessageDispatcher` by sending a `MessageDispatcherCommand::InsertInstance`. This includes the id of the new instance and a response channel.
+The `MessageDispatcher` creates a channel (which will be used to reach the new instance), keeps the sender end of this
+channel and sends the receiver end back to the `RpcRequestHandler` (who in turn passes it to the newly created instance).
+When a protocol instance is created, the `RpcRequestHandler` informs the `MessageDispatcher` by sending a `MessageDispatcherCommand::RemoveInstance`.
 
 ### Backlog
-A logic for backlogging messages is implemented in the `MessageForwarder`. 
+A logic for backlogging messages is implemented in the `MessageDispatcher`. 
 This is necessary for the case when (due to asynchrony) a message (such as a decryption share) for an instance is received before
 the instance is started (because the actual request was delayed).
-
-### Assigning instance-id
-Each protocol instance must be assigned an 'instance_id'.
-This identifies the instance and will be used to forward messages (e.g., decryption shares for a threshold-decryption instance) to the corresponding instance.
-The logic for assigning instance ids is abstracted in functions such as `assign_decryption_instance_id()`.
 
 
 
@@ -133,7 +153,7 @@ The caller should only have to call run() to start the protocol instance.
 
 - About run():
 The idea is that it runs for the whole lifetime of the instance and implements the protocol logic.
-In the beginning it must make the necessary validity checks (e.g., validity of ciphertext).
+In the beginning, it must make the necessary validity checks (e.g., the validity of ciphertext).
 There is a loop(), which handles incoming shares. The loop exits when the instance is finished.
 This function is also responsible for returning the result to the caller.
 

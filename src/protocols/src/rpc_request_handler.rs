@@ -28,7 +28,7 @@ use crate::threshold_signature::protocol::{ThresholdSignatureProtocol, Threshold
 use crate::threshold_coin::protocol::ThresholdCoinProtocol;
 use crate::{
     keychain::KeyChain,
-    message_forwarder::{MessageForwarder, MessageForwarderCommand},
+    message_dispatcher::{MessageDispatcher, MessageDispatcherCommand},
     state_manager::{InstanceStatus, StateManager, StateUpdateCommand},
     types::{Key, ProtocolError},
 };
@@ -53,7 +53,7 @@ fn assign_coin_instance_id(name: &[u8]) -> String {
 
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
-    forwarder_command_sender: tokio::sync::mpsc::Sender<MessageForwarderCommand>,
+    dispatcher_command_sender: tokio::sync::mpsc::Sender<MessageDispatcherCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
     incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
     frost_precomputations: Vec<InteractiveThresholdSignature>,
@@ -143,17 +143,21 @@ impl RpcRequestHandler {
             .await
             .expect("Receiver for state_command_sender closed.");
 
-        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        // Inform the MessageDispatcher that a new instance is starting.
+        // The MessageDispatcher (responsible for maintaining a channel to each protocol instance)
+        // creates a channel to forward messages to the new instance, keeps the sender end of that channel,
+        // and returns the receiver end to the RPC handler.
+        // This receiver end is then given to the instance, so it can poll it and receive incoming messages.
         let (response_sender, response_receiver) =
             oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
-        let cmd = MessageForwarderCommand::InsertInstance {
+        let cmd = MessageDispatcherCommand::InsertInstance {
             instance_id: instance_id.clone(),
             responder: response_sender,
         };
-        self.forwarder_command_sender
+        self.dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("Receiver for forwarder_command_sender closed.");
+            .expect("Receiver for dispatcher_command_sender closed.");
         let receiver_for_new_instance = response_receiver
             .await
             .expect("The sender for response_receiver dropped before sending a response.");
@@ -290,17 +294,17 @@ impl RpcRequestHandler {
             .await
             .expect("Receiver for state_command_sender closed.");
 
-        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        // Inform the MessageDispatcher that a new instance is starting. The MessageDispatcher will return a receiver end that the instnace can use to recieve messages.
         let (response_sender, response_receiver) =
             oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
-        let cmd = MessageForwarderCommand::InsertInstance {
+        let cmd = MessageDispatcherCommand::InsertInstance {
             instance_id: instance_id.clone(),
             responder: response_sender,
         };
-        self.forwarder_command_sender
+        self.dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("Receiver for forwarder_command_sender closed.");
+            .expect("Receiver for dispatcher_command_sender closed.");
         let receiver_for_new_instance = response_receiver
             .await
             .expect("The sender for response_receiver dropped before sending a response.");
@@ -410,17 +414,17 @@ impl RpcRequestHandler {
             .await
             .expect("Receiver for state_command_sender closed.");
 
-        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        // Inform the MessageDispatcher that a new instance is starting. The MessageDispatcher will return a receiver end that the instnace can use to recieve messages.
         let (response_sender, response_receiver) =
             oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
-        let cmd = MessageForwarderCommand::InsertInstance {
+        let cmd = MessageDispatcherCommand::InsertInstance {
             instance_id: instance_id.clone(),
             responder: response_sender,
         };
-        self.forwarder_command_sender
+        self.dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("Receiver for forwarder_command_sender closed.");
+            .expect("Receiver for dispatcher_command_sender closed.");
         let receiver_for_new_instance = response_receiver
             .await
             .expect("The sender for response_receiver dropped before sending a response.");
@@ -509,17 +513,17 @@ impl RpcRequestHandler {
             .await
             .expect("Receiver for state_command_sender closed.");
 
-        // Inform the MessageForwarder that a new instance is starting. The MessageForwarder will return a receiver end that the instnace can use to recieve messages.
+        // Inform the MessageDispatcher that a new instance is starting. The MessageDispatcher will return a receiver end that the instnace can use to recieve messages.
         let (response_sender, response_receiver) =
             oneshot::channel::<tokio::sync::mpsc::Receiver<Vec<u8>>>();
-        let cmd = MessageForwarderCommand::InsertInstance {
+        let cmd = MessageDispatcherCommand::InsertInstance {
             instance_id: instance_id.clone(),
             responder: response_sender,
         };
-        self.forwarder_command_sender
+        self.dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("Receiver for forwarder_command_sender closed.");
+            .expect("Receiver for dispatcher_command_sender closed.");
         let receiver_for_new_instance = response_receiver
             .await
             .expect("The sender for response_receiver dropped before sending a response.");
@@ -540,7 +544,7 @@ impl RpcRequestHandler {
         instance_id: String,
         result: Result<Vec<u8>, ProtocolError>,
         state_command_sender: Sender<StateUpdateCommand>,
-        forwarder_command_sender: Sender<MessageForwarderCommand>,
+        dispatcher_command_sender: Sender<MessageDispatcherCommand>,
     ) {
         // Update the StateManager with the result of the instance.
         let new_status = InstanceStatus {
@@ -557,19 +561,19 @@ impl RpcRequestHandler {
             .await
             .expect("The receiver for state_command_sender has been closed.");
 
-        // Inform MessageForwarder that the instance was terminated.
-        let cmd = MessageForwarderCommand::RemoveInstance { instance_id };
-        forwarder_command_sender
+        // Inform MessageDispatcher that the instance was terminated.
+        let cmd = MessageDispatcherCommand::RemoveInstance { instance_id };
+        dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("The receiver for forwarder_command_sender has been closed.");
+            .expect("The receiver for dispatcher_command_sender has been closed.");
     }
 
     async fn update_signature_instance_result(
         instance_id: String,
         result: Result<Signature, ProtocolError>,
         state_command_sender: Sender<StateUpdateCommand>,
-        forwarder_command_sender: Sender<MessageForwarderCommand>,
+        dispatcher_command_sender: Sender<MessageDispatcherCommand>,
     ) {
 
         let r;
@@ -594,19 +598,19 @@ impl RpcRequestHandler {
             .await
             .expect("The receiver for state_command_sender has been closed.");
 
-        // Inform MessageForwarder that the instance was terminated.
-        let cmd = MessageForwarderCommand::RemoveInstance { instance_id };
-        forwarder_command_sender
+        // Inform MessageDispatcher that the instance was terminated.
+        let cmd = MessageDispatcherCommand::RemoveInstance { instance_id };
+        dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("The receiver for forwarder_command_sender has been closed.");
+            .expect("The receiver for dispatcher_command_sender has been closed.");
     }
 
     async fn update_coin_instance_result(
         instance_id: String,
         result: Result<u8, ProtocolError>,
         state_command_sender: Sender<StateUpdateCommand>,
-        forwarder_command_sender: Sender<MessageForwarderCommand>,
+        dispatcher_command_sender: Sender<MessageDispatcherCommand>,
     ) {
 
         let r;
@@ -631,12 +635,12 @@ impl RpcRequestHandler {
             .await
             .expect("The receiver for state_command_sender has been closed.");
 
-        // Inform MessageForwarder that the instance was terminated.
-        let cmd = MessageForwarderCommand::RemoveInstance { instance_id };
-        forwarder_command_sender
+        // Inform MessageDispatcher that the instance was terminated.
+        let cmd = MessageDispatcherCommand::RemoveInstance { instance_id };
+        dispatcher_command_sender
             .send(cmd)
             .await
-            .expect("The receiver for forwarder_command_sender has been closed.");
+            .expect("The receiver for dispatcher_command_sender has been closed.");
     }
 
     pub async fn do_sign(&self, 
@@ -700,7 +704,7 @@ impl RpcRequestHandler {
         
         // Start it in a new thread, so that the client does not block until the protocol is finished.
         let state_command_sender2 = self.state_command_sender.clone();
-        let forwarder_command_sender2 = self.forwarder_command_sender.clone();
+        let dispatcher_command_sender2 = self.dispatcher_command_sender.clone();
         let instance_id2 = instance_id.clone();
         tokio::spawn(async move {
             let result = prot.run().await;
@@ -714,7 +718,7 @@ impl RpcRequestHandler {
                 instance_id2.clone(),
                 result,
                 state_command_sender2,
-                forwarder_command_sender2,
+                dispatcher_command_sender2,
             )
             .await;
         });
@@ -745,7 +749,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
         // Start it in a new thread, so that the client does not block until the protocol is finished.
         let state_command_sender2 = self.state_command_sender.clone();
-        let forwarder_command_sender2 = self.forwarder_command_sender.clone();
+        let dispatcher_command_sender2 = self.dispatcher_command_sender.clone();
         let instance_id2 = instance_id.clone();
         tokio::spawn(async move {
             let result = prot.run().await;
@@ -759,7 +763,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 instance_id2.clone(),
                 result,
                 state_command_sender2,
-                forwarder_command_sender2,
+                dispatcher_command_sender2,
             )
             .await;
         });
@@ -858,7 +862,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
         // Start it in a new thread, so that the client does not block until the protocol is finished.
         let state_command_sender2 = self.state_command_sender.clone();
-        let forwarder_command_sender2 = self.forwarder_command_sender.clone();
+        let dispatcher_command_sender2 = self.dispatcher_command_sender.clone();
         let instance_id2 = instance_id.clone();
         tokio::spawn(async move {
             let result = prot.run().await;
@@ -872,7 +876,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 instance_id2.clone(),
                 result,
                 state_command_sender2,
-                forwarder_command_sender2,
+                dispatcher_command_sender2,
             )
             .await;
         });
@@ -1069,10 +1073,10 @@ pub async fn init(
     let (state_command_sender, state_command_receiver) =
         tokio::sync::mpsc::channel::<StateUpdateCommand>(32);
 
-    // Channel to send commands to the MessageForwarder.
+    // Channel to send commands to the MessageDispatcher.
     // The sender end is owned by the RpcRequestHandler and must never be closed.
-    let (forwarder_command_sender, forwarder_command_receiver) =
-        tokio::sync::mpsc::channel::<MessageForwarderCommand>(32);
+    let (dispatcher_command_sender, dispatcher_command_receiver) =
+        tokio::sync::mpsc::channel::<MessageDispatcherCommand>(32);
 
     // Spawn StateManager.
     // Takes ownerhsip of keychain and state_command_receiver
@@ -1082,11 +1086,11 @@ pub async fn init(
         sm.run().await;
     });
 
-    // Spawn MessageForwarder
-    // Takes ownershiip of forwarder_command_receiver, incoming_message_receiver, state_command_sender
-    println!(">> REQH: Initiating MessageForwarder.");
+    // Spawn MessageDispatcher
+    // Takes ownershiip of dispatcher_command_receiver, incoming_message_receiver, state_command_sender
+    println!(">> REQH: Initiating MessageDispatcher.");
     tokio::spawn(async move {
-        let mut mfw = MessageForwarder::new(forwarder_command_receiver, incoming_message_receiver);
+        let mut mfw = MessageDispatcher::new(dispatcher_command_receiver, incoming_message_receiver);
         mfw.run().await;
     });
 
@@ -1094,7 +1098,7 @@ pub async fn init(
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     let service = RpcRequestHandler {
         state_command_sender,
-        forwarder_command_sender,
+        dispatcher_command_sender,
         outgoing_message_sender,
         incoming_message_sender,
         frost_precomputations: Vec::new(),

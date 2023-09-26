@@ -8,15 +8,15 @@ use crate::types::InstanceId;
 const BACKLOG_CHECK_INTERVAL: u32 = 600; //seconds.
 
 #[derive(Debug)]
-pub(crate) enum MessageForwarderCommand {
-    // Inform the MessageForwarder that a new protocol instance has been created.
-    // Upon receiving this command, the MessageForwarder creates a new channel to communicate with the new instance
+pub(crate) enum MessageDispatcherCommand {
+    // Inform the MessageDispatcher that a new protocol instance has been created.
+    // Upon receiving this command, the MessageDispatcher creates a new channel to communicate with the new instance
     // and returns (by sending it through the responder) the receiver end of that channel.
     InsertInstance {
         instance_id: String,
         responder: tokio::sync::oneshot::Sender<tokio::sync::mpsc::Receiver<Vec<u8>>>,
     },
-    // Inform the MessageForwarder that a protocol instance has terminated.
+    // Inform the MessageDispatcher that a protocol instance has terminated.
     RemoveInstance {
         instance_id: String,
     },
@@ -29,29 +29,29 @@ struct BacklogData {
     checked: bool,
 }
 
-// MessageForwarder is responsible for forwarding messages to the appropriate instance
+// MessageDispatcher is responsible for forwarding messages to the appropriate instance
 // and backlogging messages when instance has not yet started.
 // For every new protocol instance, it creates a channel and stores the sender end in instance_senders.
-pub(crate) struct MessageForwarder {
+pub(crate) struct MessageDispatcher {
     instance_senders: HashMap<InstanceId, tokio::sync::mpsc::Sender<Vec<u8>>>,
     backlogged_instances: HashMap<InstanceId, BacklogData>,
     backlog_interval: tokio::time::Interval,
-    forwarder_command_receiver: Receiver<MessageForwarderCommand>,
+    dispatcher_command_receiver: Receiver<MessageDispatcherCommand>,
     message_receiver: Receiver<NetMessage>,
 }
 
-impl MessageForwarder {
+impl MessageDispatcher {
     pub(crate) fn new(
-        command_receiver: Receiver<MessageForwarderCommand>,
+        command_receiver: Receiver<MessageDispatcherCommand>,
         message_receiver: Receiver<NetMessage>,
     ) -> Self {
-        MessageForwarder {
+        MessageDispatcher {
             instance_senders: HashMap::new(),
             backlogged_instances: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
             )),
-            forwarder_command_receiver: command_receiver,
+            dispatcher_command_receiver: command_receiver,
             message_receiver,
         }
     }
@@ -60,25 +60,25 @@ impl MessageForwarder {
         loop {
             tokio::select! {
 
-                forwarder_command = self.forwarder_command_receiver.recv() => {
-                    let command = forwarder_command.expect("Sender for forwarder_command_receiver closed.");
+                dispatcher_command = self.dispatcher_command_receiver.recv() => {
+                    let command = dispatcher_command.expect("Sender for dispatcher_command_receiver closed.");
                     match command {
-                        MessageForwarderCommand::InsertInstance { instance_id , responder} => {
+                        MessageDispatcherCommand::InsertInstance { instance_id , responder} => {
                             if ! self.instance_senders.contains_key(&instance_id) {
                                 // Create channel for new instance and send the receiver end back to the caller
-                                let (forwarder_to_instance_sender, forwarder_to_instance_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-                                responder.send(forwarder_to_instance_receiver).expect("The receiver end of the responder in MessageForwarderCommand::GetReceiverForNewInstance has been closed.");
+                                let (dispatcher_to_instance_sender, dispatcher_to_instance_receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+                                responder.send(dispatcher_to_instance_receiver).expect("The receiver end of the responder in MessageDispatcherCommand::GetReceiverForNewInstance has been closed.");
                                 // Check if we have any backlogged messages for the new instance. If yes, remove them from backlogged_data and forward all messages..
                                 if let Some(backlog_data) =  self.backlogged_instances.remove(&instance_id) {
                                     for message_data in backlog_data.messages {
-                                        MessageForwarder::forward(&forwarder_to_instance_sender, message_data, &instance_id).await;
+                                        MessageDispatcher::forward(&dispatcher_to_instance_sender, message_data, &instance_id).await;
                                     }
                                 }
                                 // Keep sender end of channel in instance_senders.
-                                self.instance_senders.insert(instance_id, forwarder_to_instance_sender);
+                                self.instance_senders.insert(instance_id, dispatcher_to_instance_sender);
                             }
                         },
-                        MessageForwarderCommand::RemoveInstance { instance_id} => {
+                        MessageDispatcherCommand::RemoveInstance { instance_id} => {
                             self.instance_senders.remove(&instance_id);
                         }
                     }
@@ -89,7 +89,7 @@ impl MessageForwarder {
                     // Check whether a channel exists for the given instance_id.
                     if let Some(instance_sender) = self.instance_senders.get(&instance_id) {
                         // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has in the meanwhile finished.)
-                        MessageForwarder::forward(&instance_sender, message_data, &instance_id).await;
+                        MessageDispatcher::forward(&instance_sender, message_data, &instance_id).await;
                     } else {
                         // Otherwise, backlog the message. This can happen for two reasons:
                         // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
