@@ -310,6 +310,11 @@ impl Serializable for Bls04Signature {
 
 impl Bls04ThresholdSignature {
     pub fn verify(sig: &Bls04Signature, pk: &Bls04PublicKey, msg:&[u8]) -> Result<bool, ThresholdCryptoError> {
+        // R = signature_to_point(signature)
+        // if R is invalid, return invalid
+        // if signature_subgroup_check(R) is invalid, return invalid
+        // if keyvalidate(pk) is invalid, return invalid
+        
         GroupElement::ddh(&H(&msg, &pk.get_group()), &pk.y ,&sig.sig, &GroupElement::new(&sig.get_group()))
     }
 

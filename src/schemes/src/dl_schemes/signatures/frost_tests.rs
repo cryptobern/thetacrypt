@@ -1,7 +1,10 @@
+use hex::FromHex;
 use thetacrypt_proto::scheme_types::Group;
 
-use crate::{dl_schemes::signatures::frost::{FrostThresholdSignature}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable, RoundResult, Signature}};
+use crate::{dl_schemes::{signatures::frost::{FrostThresholdSignature, FrostRoundResult}, bigint::BigImpl, common::shamir_share}, rand::{RNG, RngAlgorithm}, keys::{KeyGenerator, PrivateKey}, interface::{InteractiveThresholdSignature, ThresholdScheme, Serializable, RoundResult, Signature}, group::GroupElement};
 
+use super::frost::{FrostPrivateKey, FrostPublicKey, PublicCommitment};
+use hex::ToHex;
 
 #[test]
 fn test_interface() {
@@ -145,4 +148,86 @@ fn test_signature_serialization() {
     let re = Signature::deserialize(&serialized).unwrap();
 
     assert!(signature.eq(&re));
+}
+
+#[test]
+fn test_vector() {
+    let group = Group::Ed25519;
+    let x = BigImpl::from_hex(&group, "7b1c33d3f5291d85de664833beb1ad469f7fb6025a0ec78b3a790c6e13a98304");
+    let y = GroupElement::new_pow_big(&group, &x);
+
+    println!("y: {}", hex::encode(y.to_bytes()));
+
+    let msg = Vec::from_hex("74657374").expect("invalid hex");
+    let coeff = BigImpl::from_hex(&group, "178199860edd8c62f5212ee91eff1295d0d670ab4ed4506866bae57e7030b204");
+
+    let k = 2;
+    let n = 3;
+    let rng = RNG::new(RngAlgorithm::OsRng);
+
+    let share1 = BigImpl::from_hex(&group, "929dcc590407aae7d388761cddb0c0db6f5627aea8e217f4a033f2ec83d93509");
+    let share2 = BigImpl::from_hex(&group, "a91e66e012e4364ac9aaa405fcafd370402d9859f7b6685c07eed76bf409e80d");
+    let share3 = BigImpl::from_hex(&group, "d3cb090a075eb154e82fdb4b3cb507f110040905468bb9c46da8bdea643a9a02");
+
+    let c1 = GroupElement::new_pow_big(&group, &share1);
+    let c2 = GroupElement::new_pow_big(&group, &share2);
+    let c3 = GroupElement::new_pow_big(&group, &share3);
+
+    let h = vec![c1, c2, c3];
+
+    let pk = FrostPublicKey::new(n, k, &group, &y, &h);
+    let sk1 = FrostPrivateKey::new(1, &share1, &pk);
+    let sk2 = FrostPrivateKey::new(2, &share2, &pk);
+    let sk3 = FrostPrivateKey::new(3, &share3, &pk);
+
+    let mut i1 = FrostThresholdSignature::new(&sk1);
+    let mut i3 = FrostThresholdSignature::new(&sk3);
+
+    i1.set_msg(&msg);
+    i3.set_msg(&msg);
+
+    let hiding_nonce_1 = BigImpl::from_hex(&group,"812d6104142944d5a55924de6d49940956206909f2acaeedecda2b726e630407");
+    let hiding_nonce_3 = BigImpl::from_hex(&group,"c256de65476204095ebdc01bd11dc10e57b36bc96284595b8215222374f99c0e");
+
+    let binding_nonce_1 = BigImpl::from_hex(&group,"b1110165fc2334149750b28dd813a39244f315cff14d4e89e6142f262ed83301");
+    let binding_nonce_3 = BigImpl::from_hex(&group,"243d71944d929063bc51205714ae3c2218bd3451d0214dfb5aeec2a90c35180d");
+
+    let comm1 = PublicCommitment::new(1, 
+            GroupElement::new_pow_big(&group, &hiding_nonce_1),
+            GroupElement::new_pow_big(&group, &binding_nonce_1));
+
+    let comm3 = PublicCommitment::new(3, 
+        GroupElement::new_pow_big(&group, &hiding_nonce_3),
+        GroupElement::new_pow_big(&group, &binding_nonce_3));
+
+    let _ = i1.do_round().unwrap();
+    let _ = i3.do_round().unwrap();
+
+    i1.set_commitment(&comm1);
+    i3.set_commitment(&comm3);
+
+    let r1 = super::frost::FrostRoundResult::RoundOne(comm1);
+    let r3 = super::frost::FrostRoundResult::RoundOne(comm3);
+
+    i1.update(&r1).expect("error updating rr with r1");
+    i1.update(&r3).expect("error updating rr with r3");
+    i3.update(&r1).expect("error updating rr with r1");
+    i3.update(&r3).expect("error updating rr with r3");
+
+    assert!(i1.is_ready_for_next_round());
+    assert!(i3.is_ready_for_next_round());
+
+    let r1 = i1.do_round().unwrap();
+    let r3 = i3.do_round().unwrap();
+    let e1 = BigImpl::from_hex(&group, "001719ab5a53ee1a12095cd088fd149702c0720ce5fd2f29dbecf24b7281b603");
+    let e3 = BigImpl::from_hex(&group, "bd86125de990acc5e1f13781d8e32c03a9bbd4c53539bbc106058bfd14326007");
+
+    /*if let FrostRoundResult::RoundTwo(r) = r1 {
+        println!("{}", hex::encode(r.get_share().to_bytes()));
+        assert!(e1.equals(&r.get_share()));
+    }
+
+    if let FrostRoundResult::RoundTwo(r) = r3 {
+        assert!(e3.equals(&r.get_share()));
+    }*/
 }

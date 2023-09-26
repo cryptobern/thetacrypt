@@ -1,5 +1,6 @@
 use std::mem::ManuallyDrop;
 
+use hex::FromHex;
 use thetacrypt_proto::scheme_types::Group;
 use mcore::{arch::Chunk};
 use mcore::bls12381::big::MODBYTES as BLS12381MODBYTES;
@@ -154,6 +155,12 @@ impl BigImpl {
             },
             _ => todo!()
         }
+    }
+
+    pub fn from_hex(group: &Group, hex: &str) -> BigImpl {
+        let bytes: Vec<u8> = Vec::from_hex(hex).expect("Invalid Hex String");
+
+        BigImpl::from_bytes(group, &bytes)
     }
 
     pub fn rmul(x: &BigImpl, y: &BigImpl, q: &BigImpl) -> BigImpl {

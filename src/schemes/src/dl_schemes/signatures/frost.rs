@@ -201,6 +201,10 @@ impl PublicCommitment {
     pub fn get_id(&self) -> u16 {
         self.id
     }
+
+    pub fn new(id: u16, hiding_nonce_commitment: GroupElement, binding_nonce_commitment: GroupElement) -> Self {
+        Self { id, hiding_nonce_commitment, binding_nonce_commitment}
+    }
 }
 
 impl Serializable for PublicCommitment {
@@ -317,6 +321,10 @@ pub struct FrostSignatureShare {
 impl FrostSignatureShare {
     pub fn get_id(&self) -> u16 {
         self.id
+    }
+
+    pub fn get_share(&self) -> BigImpl {
+        self.data.clone()
     }
 }
 
@@ -447,6 +455,10 @@ impl<'a> FrostThresholdSignature {
         return self.label.clone();
     }
 
+    pub fn set_commitment(&mut self, comm: &PublicCommitment) {
+        self.commitment = Some(comm.clone());
+    }
+
     pub fn set_msg(&mut self, msg: &'a[u8]) -> Result<(), ThresholdCryptoError> {
         if self.msg.is_some() {
             return Err(ThresholdCryptoError::MessageAlreadySpecified);
@@ -519,21 +531,17 @@ impl<'a> FrostThresholdSignature {
             let res = self.commit(&mut RNG::new(RngAlgorithm::MarsagliaZaman));
             if res.is_ok() {
                 self.round += 1;
-                println!("round one successful");
                 return Ok(res.unwrap());
             }
-
-            println!("round one failed");
 
             return Err(res.unwrap_err());
         } else if self.round == 1 {
             let res = self.partial_sign();
             if res.is_ok() {
                 self.round += 1;
-                println!("round two successful");
                 return Ok(res.unwrap());
             }
-            println!("round two failed");
+
             return Err(res.unwrap_err());
         }
 
@@ -805,6 +813,7 @@ fn compute_binding_factors(pubkey: &FrostPublicKey, commitment_list: &[PublicCom
     let encoded_commitment_hash = h5(&encode_group_commitment_list(commitment_list), group);
     let rho_input_prefix = [pubkey_enc, &msg_hash, &encoded_commitment_hash].concat();
 
+    println!("prefix: {}", hex::encode(&rho_input_prefix));
     let mut binding_factor_list:Vec<BindingFactor> = Vec::new();
     for i in 0..commitment_list.len() {
         let rho_input = [rho_input_prefix.clone(), encode_uint16(commitment_list[i].id)].concat();
@@ -820,6 +829,7 @@ fn compute_group_commitment(commitment_list: &[PublicCommitment], binding_factor
     for i in 0..commitment_list.len() {
         let binding_factor;
         if let Ok(factor) = binding_factor_for_participant(&binding_factor_list, commitment_list[i].id) {
+            println!("id: {} factor: {}", commitment_list[i].id, hex::encode(factor.factor.to_bytes()));
             binding_factor = factor.factor;
         } else {
             return Err(ThresholdCryptoError::IdNotFound);

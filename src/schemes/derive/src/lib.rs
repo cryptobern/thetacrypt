@@ -294,7 +294,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
 
         impl #name {
             pub fn pair(g1: &Self, g2: &Self) -> Result<Self, ThresholdCryptoError> {
-                if g1.i != 1 && g2.i != 0 {
+                if g1.i != 1 || g2.i != 0 {
                     return Err(ThresholdCryptoError::WrongGroup);
                 }
 
