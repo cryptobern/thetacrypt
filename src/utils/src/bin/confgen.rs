@@ -1,28 +1,12 @@
 use std::{path::PathBuf, convert::TryFrom, fs, net::IpAddr, process::exit, str::FromStr};
 
+use utils::{confgen::cli::{ConfgenCli, PortStrategy}};
 use clap::Parser;
 use rand::seq::SliceRandom;
 
 use log::{error, info};
-
-use protocols::{
-    server::{
-        types::{
-            Peer, 
-            ServerConfig, 
-            ProxyNode, 
-            ServerProxyConfig
-        }, 
-        dirutil
-        }, 
-    confgen::cli::{
-            ConfgenCli, 
-            PortStrategy
-    },
-    client::types::{PeerPublicInfo, ClientConfig}
-};
-
-
+use theta_service::server::{types::{Peer, ServerConfig, ServerProxyConfig, ProxyNode}, dirutil};
+use utils::client::types::{PeerPublicInfo, ClientConfig};
 
 
 fn main() {

@@ -4,5 +4,6 @@ members = [
     "service",
     "core/schemes",
     "core/protocols",
-    "core/orchestration"
+    "core/orchestration",
+    "utils"
     ]

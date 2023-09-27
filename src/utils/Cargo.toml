@@ -1,20 +1,22 @@
 [package]
-name = "bin"
+name = "utils"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-theta_schemes = {path = "../schemes", version = "0.1.0"}
-theta_protocols = {path = "../protocols", version = "0.1.0"}
+theta_schemes = {path = "../core/schemes", version = "0.1.0"}
+theta_protocols = {path = "../core/protocols", version = "0.1.0"}
+theta_service = {path = "../service", version = "0.1.0"}
+theta_orchestration = {path = "../core/orchestration", version = "0.1.0"}
 theta_proto = {path = "../proto", version = "0.1.0"}
 theta_network = {path="../network"}
 
 tonic = "0.8"
 prost = "0.11"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-mcore = {path="../schemes/mcore", version="0.1.0", features=["std"]}
+mcore = {path="../core/schemes/mcore", version="0.1.0", features=["std"]}
 rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -35,3 +37,4 @@ clap = { version = "4.0.14", features = ["derive"] }
 [build-dependencies]
 tonic-build = "0.8"
 prost-build = "0.11.1"
+

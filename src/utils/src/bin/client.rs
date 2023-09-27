@@ -1,29 +1,21 @@
 use clap::Parser;
 use log::{error, info};
+use theta_orchestration::keychain::KeyChain;
+use utils::client::cli::ClientCli;
+use utils::client::types::ClientConfig;
 use std::process::exit;
 
 use std::io::Write;
 use std::path::PathBuf;
 use std::{io, vec, thread, time};
 
-use protocols::{
-    client::{
-        types::{
-            PeerPublicInfo,
-            ClientConfig
-        },    
-        cli::ClientCli
-    },
-    keychain::KeyChain,
-};
-
 use rand::Rng;
 use rand::distributions::Alphanumeric;
-use schemes::interface::Serializable;
-use schemes::keys::PublicKey;
-use schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
-use schemes::util::printbinary;
-use schemes::{
+use theta_schemes::interface::Serializable;
+use theta_schemes::keys::PublicKey;
+use theta_schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
+use theta_schemes::util::printbinary;
+use theta_schemes::{
     interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
 };
 
