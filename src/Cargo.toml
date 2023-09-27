@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "proto", 
-    "protocols", 
     "network",
-    "schemes"
+    "service",
+    "core/schemes",
+    "core/protocols",
+    "core/orchestration"
     ]

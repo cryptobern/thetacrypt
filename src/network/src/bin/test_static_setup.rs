@@ -1,6 +1,6 @@
 use std::env;
-use network::types::message::NetMessage;
-use network::config::static_net;
+use theta_network::types::message::NetMessage;
+use theta_network::config::static_net;
 use std::time::Duration;
 use tokio::time;
 use std::str::FromStr;
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub_setup::static_net::init(
+        theta_network::p2p::gossipsub_setup::static_net::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
             localnet_config,
