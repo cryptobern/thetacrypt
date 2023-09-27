@@ -1,5 +1,5 @@
 # ThetaCrypt - Schemes 
-The schemes layer provides the bare cryptographic primitives which will be used in the protocols layer. The schemes layer can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature. 
+The schemes module provides the library of the bare cryptographic primitives which the protocols layer will uses layer. It can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature. 
 
 ## Dependencies
 This crate uses [Miracl Core](https://github.com/miracl/core) for the underlying elliptic curve implementations and [GMP](https://gmplib.org/) for big integer handling in the RSA signature scheme using the [gmp-mpfr-sys](https://crates.io/crates/gmp-mpfr-sys) Rust FFI bindings. 
