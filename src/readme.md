@@ -1,12 +1,21 @@
 # ThetaCrypt - Threshold Cryptography in Rust
 
-This library is split into three main parts:
-- The **schemes** layer: Implements the various threshold cryptography schemes
-- The **protocols** layer: Uses the primitives from the schemes layer to create threshold cryptography protocols.
-- The **network** layer: Used to exchange peer-to-peer messages between the participating parties.
+Thetacrypt architecture encompasses three layers:
 
-## Client Development
-One can import the `schemes` layer in a Rust application to for example use the primitives required to encrypt data to submit for threshold decryption or verify signatures created using a threshold signature scheme. 
+- The **service** layer: Implements the management code for the service and the handlers of the API.
+- The **core** layer: Implements the logic, the primitives and the orchestration code to run the threshold cryptographic operations.
+- The **network** layer: Implements the modules to exchange peer-to-peer messages between the participating parties.
+
+The heart of the Thetacrypt lies in the **schemes** module. In the contest of the service architecture, the schemes module is part of the core layer, providing the implementation of different threshold cryptographic schemes. This module is self-contained and can be used as a *standalone library* in any Rust project.
+
+One can import the `schemes` module in a Rust application to for example use the primitives required to encrypt data to submit for threshold decryption or verify signatures created using a threshold signature scheme.
+
+
+![Architectural Overview](img/thetacrypt-stack.png)
+
+## Repo organization
+
+
 
 ## Installation
 
