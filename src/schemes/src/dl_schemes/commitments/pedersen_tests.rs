@@ -6,7 +6,7 @@ use crate::{rand::{RNG, RngAlgorithm}, dl_schemes::{bigint::BigImpl, commitments
 #[test]
 fn test_scheme() {
     let group = Group::Bls12381;
-    let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
+    let mut rng = RNG::new(RngAlgorithm::OsRng);
 
     let x = BigImpl::new_rand(&group, &group.get_order(), &mut rng);
     let r = BigImpl::new_rand(&group, &group.get_order(), &mut rng);
@@ -22,7 +22,7 @@ fn test_scheme() {
 #[test]
 fn test_other_committed_value() {
     let group = Group::Bls12381;
-    let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
+    let mut rng = RNG::new(RngAlgorithm::OsRng);
 
     let x = BigImpl::new_rand(&group, &group.get_order(), &mut rng);
     let r = BigImpl::new_rand(&group, &group.get_order(), &mut rng);

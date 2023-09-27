@@ -1,4 +1,4 @@
-# Schemes layer 
+# ThetaCrypt - Schemes 
 The schemes layer provides the bare cryptographic primitives which will be used in the protocols layer. The schemes layer can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature. 
 
 ## Dependencies
@@ -36,7 +36,7 @@ To generate a vector of private keys, use
     let private_keys = KeyGenerator::generate_keys(
         K, 
         N, 
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sg02, 
         &Group::Bls12381)
         .unwrap();

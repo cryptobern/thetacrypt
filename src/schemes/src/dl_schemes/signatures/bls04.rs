@@ -4,7 +4,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 
 use asn1::{WriteError, ParseError};
-use derive::{PublicKey, PrivateKey, DlShare};
+use derive::{DlShare};
 use mcore::hash256::HASH256;
 
 use crate::{group::{GroupElement}, dl_schemes::{common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}, scheme_types_impl::GroupDetails};

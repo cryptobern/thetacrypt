@@ -12,7 +12,7 @@ fn test_interface() {
     let n = 5;
 
     let keys = KeyGenerator::generate_keys(k, n, 
-                        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+                        &mut RNG::new(RngAlgorithm::OsRng), 
                             &ThresholdScheme::Frost, 
                             &Group::Ed25519, 
                             &Option::None).unwrap();
@@ -56,7 +56,7 @@ fn test_interface() {
 #[test]
 fn test_serialization() {
     let keys = KeyGenerator::generate_keys(3, 5, 
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
             &ThresholdScheme::Frost, 
             &Group::Ed25519, 
             &Option::None).unwrap();
@@ -72,7 +72,7 @@ fn test_serialization() {
 #[test]
 fn test_round_result_serialization() {
     let keys = KeyGenerator::generate_keys(2, 5, 
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
             &ThresholdScheme::Frost, 
             &Group::Ed25519, 
             &Option::None).unwrap();
@@ -106,7 +106,7 @@ fn test_signature_serialization() {
     let n = 5;
 
     let keys = KeyGenerator::generate_keys(k, n, 
-                        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+                        &mut RNG::new(RngAlgorithm::OsRng), 
                             &ThresholdScheme::Frost, 
                             &Group::Ed25519, 
                             &Option::None).unwrap();

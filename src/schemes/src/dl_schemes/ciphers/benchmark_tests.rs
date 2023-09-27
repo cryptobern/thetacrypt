@@ -6,7 +6,7 @@ use crate::{keys::KeyGenerator, rand::{RNG, RngAlgorithm}, interface::{Threshold
 
 #[test]
 fn serialization() {
-    let mut keygen_rng = RNG::new(RngAlgorithm::MarsagliaZaman);
+    let mut keygen_rng = RNG::new(RngAlgorithm::OsRng);
     let private_keys = KeyGenerator::generate_keys(
         7,
         22,

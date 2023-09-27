@@ -4,7 +4,7 @@ use super::bigint::RsaBigInt;
 
 #[test]
 fn test_serialization() {
-    let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::MarsagliaZaman), 256);
+    let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::OsRng), 256);
     let mut x_bytes = x.to_bytes();
     let decoded = RsaBigInt::from_bytes(&mut x_bytes);
 
@@ -36,6 +36,6 @@ fn test_equals() {
 
 #[test]
 fn test_rand() {
-    let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::MarsagliaZaman), 32);
+    let x = RsaBigInt::new_rand(&mut RNG::new(RngAlgorithm::OsRng), 32);
     println!("{}", x.to_string());
 }

@@ -4,8 +4,8 @@ use mcore::rand::{RAND_impl, RAND};
 use rand::{rngs::OsRng, RngCore};
 
 pub enum RngAlgorithm {
-    MarsagliaZaman,
-    OsRng
+    MarsagliaZaman, // should only be used for testing
+    OsRng           // use this for production
 }
 
 pub enum RNG {

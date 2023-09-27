@@ -30,7 +30,7 @@ fn main() {
 
     // generate secret shares for Sg02 scheme over Bls12381 curve
     let now = Instant::now();
-    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::MarsagliaZaman), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
+    let sk = KeyGenerator::generate_keys(K, N, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Sg02, &Group::Bls12381, &Option::None).unwrap();
     let elapsed_time = now.elapsed().as_millis();
     println!("[{}ms]\t{} Keys generated", K, elapsed_time);
 

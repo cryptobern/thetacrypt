@@ -10,7 +10,7 @@ const GROUP:Group = Group::Bls12381;
 fn test_shamir_share() {
     let x = BigImpl::new_int(&GROUP, 5);
 
-    let mut rng = RNG::new(RngAlgorithm::MarsagliaZaman);
+    let mut rng = RNG::new(RngAlgorithm::OsRng);
     let (c, d) = shamir_share(&x, 2, 3, &mut rng);
 }
 

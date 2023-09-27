@@ -7,7 +7,7 @@
 use asn1::{WriteError, ParseError};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
-use derive::{PublicKey, PrivateKey, DlShare, Ciphertext};
+use derive::{DlShare, Ciphertext};
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};

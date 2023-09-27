@@ -1164,7 +1164,7 @@ pub struct ThresholdSignatureParams {
 
 impl ThresholdSignatureParams {
     pub fn new() -> Self { 
-        let rng = RNG::new(crate::rand::RngAlgorithm::MarsagliaZaman);
+        let rng = RNG::new(crate::rand::RngAlgorithm::OsRng);
         Self { rng }
     }
 
@@ -1217,7 +1217,7 @@ pub struct ThresholdCipherParams {
 
 impl ThresholdCipherParams {
     pub fn new() -> Self { 
-        let rng = RNG::new(crate::rand::RngAlgorithm::MarsagliaZaman);
+        let rng = RNG::new(crate::rand::RngAlgorithm::OsRng);
         Self { rng }
     }
 

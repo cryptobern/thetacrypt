@@ -528,7 +528,7 @@ impl<'a> FrostThresholdSignature {
 
     pub fn do_round(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
         if self.round == 0 {
-            let res = self.commit(&mut RNG::new(RngAlgorithm::MarsagliaZaman));
+            let res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
             if res.is_ok() {
                 self.round += 1;
                 return Ok(res.unwrap());

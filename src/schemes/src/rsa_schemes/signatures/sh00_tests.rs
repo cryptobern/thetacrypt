@@ -9,7 +9,7 @@ fn test_key_generation() {
     params.set_e(&BIGINT!(13));
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::Some(params))
@@ -24,7 +24,7 @@ fn test_public_key_serialization() {
     params.set_e(&BIGINT!(13));
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::Some(params))
@@ -42,7 +42,7 @@ fn test_secret_key_serialization() {
     params.set_e(&BIGINT!(13));
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::Some(params))
@@ -57,7 +57,7 @@ fn test_secret_key_serialization() {
 fn test_full_scheme() {
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -82,7 +82,7 @@ fn test_full_scheme() {
 fn test_share_serialization() {
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -100,7 +100,7 @@ fn test_share_serialization() {
 fn test_signature_serialization() {
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -126,7 +126,7 @@ fn test_signature_serialization() {
 fn test_invalid_share() {
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -138,7 +138,7 @@ fn test_invalid_share() {
 
     let keys2 = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -155,7 +155,7 @@ fn test_invalid_share() {
 fn test_invalid_sig() {
     let keys = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
@@ -167,7 +167,7 @@ fn test_invalid_sig() {
 
     let keys2 = KeyGenerator::generate_keys(3, 
         5,  
-        &mut RNG::new(RngAlgorithm::MarsagliaZaman), 
+        &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
         &Group::Rsa512, 
         &Option::None)
