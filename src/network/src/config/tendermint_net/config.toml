@@ -1,4 +1,0 @@
-p2p_port = 27000
-rpc_port = 50050
-p2p_base_listen_address = "/ip4/0.0.0.0/tcp/"
-rpc_base_listen_address = "0.0.0.0"

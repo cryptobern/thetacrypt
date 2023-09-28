@@ -1,0 +1,33 @@
+[package]
+name = "theta_schemes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+theta_proto = {path = "../../proto", version = "0.1.0"}
+
+time = "0.2.27"
+byteorder = "1"
+modular = "1.0.0"
+rug = "1.17.0"
+mcore = {path="mcore", version="0.1.0", features=["std"]}
+hex = "=0.3.0"
+rand = "0.8.5"
+chacha20poly1305 = "=0.9.0"
+rasn = "=0.6.1"
+gmp-mpfr-sys = "1.4"
+derive = { path="derive", version = "0.1.0" }
+serde = { version = "1.0", features = ["derive"] }
+prost = "0.10"
+rand_chacha = "0.3.1"
+asn1 = "0.13.0"
+
+[lib]
+name = "theta_schemes"
+path = "src/lib.rs"
+
+[features]
+std = []
+
+[build-dependencies]
+tonic-build = "0.7"

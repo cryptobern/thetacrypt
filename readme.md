@@ -1,15 +1,25 @@
-# Threshold Cryptography Library in Rust
+# ThetaCrypt - Threshold Cryptography Library in Rust
 
-This is a WIP library for threshold cryptography implementing various threshold cipher, signatures and coin schemes. Thetacrypt relies on Tendermint Core for atomic broadcast and runs as a service next to Tendermint on a node. It exposes an RPC server where users can submit threshold cryptography requests.
+Thetacrypt is a WIP codebase that aims at providing **threshold cryptography** as a service.
 
-![](./design/img/thetacrypt_stack.png)
+- To dive into the details of the architecture of our service explore the `src` directory.
+- To try a quick start and immediately explore the functionalities offered by thetacrypt, check the `demo` directory.
+- To learn more about threshold cryptography and its theoretical background, remain on this page.
 
-Thetacrypt is divided into three main layers: 
-- Network Layer - handles transport of messages and atomic broadcast
-- Protocol Layer - defines how the nodes communicate while executing a scheme
-- Schemes Layer - implements the primitives of the actual threshold schemes
+## Theoretical background 
 
-A client can use the primitives of the schemes layer directly without having to run Thetacrypt as a service. 
-A simple example would look as follows: We are starting with a Tendermint network consisting of 5 nodes which all run Thetacrypt alongside Tendermint. A client (which imports the schemes layer of Thetacrypt as a library) sends an RPC request to Thetacrypt on one of the nodes requesting a public key used for encryption. Upon receiving the desired public key, it then encrypts the message using the key. To decrypt the message, the client sends an RPC request to one of the nodes containing the ciphertext. The nodes now participate in a threshold decryption protocol and jointly decrypt the ciphertext.
+### What is threshold cryptography?
 
-Alternatively, a client could request a signature public key using an RPC call to Thetacrypt and submit a message to be signed by the network via another RPC request. The nodes then jointly compute a threshold signature on the requested message, which can be verified using the single public key.
+Threshold cryptography defines protocols to enhance the security of a cryptosystem by distributing the trust among a group of parties. 
+Typically, it is used for sharing a secret across a predefined number of nodes so as to obtain fault-tolerance for a subset, 
+or *threshold*, of them. 
+More formally, a threshold cryptosystem is defined by a fixed number of parties $P = \{P_1, \dots, P_n\}$, who need to collaborate to perform a cryptographic operation such that at least a threshold of them, $(t+1)$-out-of-$n$, are able to successfully terminate, but $t$ will learn anything about the shared secret. 
+This is achieved by using *Shamir's secret sharing*, i.e. a technique based on *polynomial interpolation* that enables the reconstruction 
+of a polynomial of degree $t$ with at least $t+1$ points.
+
+
+The generation and distribution of the secret $s$ are performed, in the easiest setting, by a trusted dealer $D$  $\notin P$. The dealer chooses at random the coefficients
+$\{a_1, \dots, a_t\}$  and defines the polynomial: $p\(x\) = s + a_1 x + \dots + a_t x^t$. The polynomial has a degree at most $t$ and its evaluation 
+in $p(0)$ is the secret. The polynomial will be uniquely determined by $t+1$ point. 
+
+Threshold cryptosystems are known for public-key schemes only, where applying secret sharing is possible thanks to the algebraic assumption used in such schemes. 
