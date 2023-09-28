@@ -26,10 +26,6 @@ asn1 = "0.13.0"
 name = "theta_schemes"
 path = "src/lib.rs"
 
-[[bin]]
-name = "example"
-path = "src/examples/main.rs"
-
 [features]
 std = []
 

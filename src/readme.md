@@ -28,9 +28,75 @@ To run the schemes test application, use
     cd src
     cargo run --release
 
-//TODO: move the documentation on ThetaCLI
+## How to run the server
 
-## ThetaCLI
+### Generating server configuration
+You can use the `confgen` binary to generate the configuration files that are needed to start server and client instances.
+For help, run:
+```
+cargo run --bin confgen -- --help
+```
+or, if you have already installed the binary, simply:
+```
+confgen --help
+```
+
+The steps to generate the configuration files are the following, assuming `src\protocols` as cwd, and that one wants a local deployment.
+1. Create a file with the IP addresses of the servers. For example you can use:
+```
+cat > conf/server_ips << EOF
+127.0.0.1
+127.0.0.1
+127.0.0.1
+127.0.0.1
+EOF
+```
+
+2. Generate configuration files:
+```
+cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
+```
+
+The option `--port-strategy` can be `static` or `consecutive`. The first uses the same port for each IP (suited for a distributed deployment), and the latter assigns incremental values of the port to the IPs (suited for a local deployment).
+
+The binary `confgen` generates an extra config file, `client.json`, that has a list of the servers' public information: ID, IP, and rpc_port. This information can be used by a client script to call Thetacrypt's services on each node.
+
+
+3. Generate the keys for each server. 
+
+The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
+It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
+```
+cargo run --bin thetacli -- keygen 3 4 sg02-bls12381 ./conf
+```
+
+To generate the keys, information on the scheme and group is needed. For more information check the binary's CLI documentation.
+
+### Starting the server binary
+The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+From the root directory of the `protocols` project start 4 terminals and run, respectively:
+```
+cargo run --bin server -- --config-file conf/server_0.json --key-file conf/keys_0.json
+cargo run --bin server -- --config-file conf/server_1.json --key-file conf/keys_1.json
+cargo run --bin server -- --config-file conf/server_2.json --key-file conf/keys_2.json
+cargo run --bin server -- --config-file conf/server_3.json --key-file conf/keys_3.json
+```
+
+The server prints info messages, to see them set the following environment variable: `RUST_LOG=info`
+(or see here for more possibilities: https://docs.rs/env_logger/latest/env_logger/).
+
+You should see each server process print that it is connected to the others and ready to receive client requests.
+
+
+## Run an example client
+An RPC client, meant only to be used as an example, can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
+```
+cargo run --bin client -- --config-file=conf/client.json
+```
+The client presents a menu of options for experimenting with the different schemes provided by the service. For example, in the case of a decryption operation, it creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
+The code waits for the key **Enter** to be pressed before submitting each request.
+
+## Run the binary ThetaCLI
 Alternatively, there exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
 Usage: `./thetacli [action] [params]`
 available actions:

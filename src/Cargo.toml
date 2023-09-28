@@ -7,3 +7,41 @@ members = [
     "core/orchestration",
     "utils"
     ]
+
+[package]
+name = "thetacrypt"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+utils = {path = "utils", version = "0.1.0"}
+theta_schemes = {path = "core/schemes", version = "0.1.0"}
+theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
+theta_proto = {path = "proto", version = "0.1.0"}
+theta_service = {path = "service", version = "0.1.0"}
+
+tonic = "0.8"
+
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+
+rand = "0.8.5"
+hex = "0.4.3"
+log = "0.4.17"
+env_logger = "0.9.1"
+clap = { version = "4.0.14", features = ["derive"] }
+serde_json = "1.0"
+
+[build-dependencies]
+tonic-build = "0.8"
+
+[[bin]]
+name = "client"
+path = "bin/client.rs"
+
+[[bin]]
+name = "confgen"
+path = "bin/confgen.rs"
+
+[[bin]]
+name = "thetacli"
+path = "bin/thetacli.rs"

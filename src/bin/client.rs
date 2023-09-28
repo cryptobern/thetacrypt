@@ -1,35 +1,35 @@
-use clap::Parser;
-use log::{error, info};
-use theta_orchestration::keychain::KeyChain;
-use utils::client::cli::ClientCli;
-use utils::client::types::ClientConfig;
 use std::process::exit;
-
 use std::io::Write;
 use std::path::PathBuf;
-use std::{io, vec, thread, time};
+use std::{io, thread, time};
 
+use clap::Parser;
+use log::{error, info};
 use rand::Rng;
 use rand::distributions::Alphanumeric;
+use hex::encode;
+use env_logger::init;
+
 use theta_schemes::interface::Serializable;
 use theta_schemes::keys::PublicKey;
 use theta_schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
 use theta_schemes::util::printbinary;
-use theta_schemes::{
-    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
-};
+use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
 
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use theta_proto::protocol_types::{DecryptRequest, SignRequest, GetSignatureResultRequest, CoinRequest, GetDecryptResultRequest, GetCoinResultRequest};
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 
-// Send a single decrypt() request.
-// To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003.
-// They should be able to connect to each other.
+use theta_orchestration::keychain::KeyChain;
+
+use utils::client::cli::ClientCli;
+use utils::client::types::ClientConfig;
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    env_logger::init();
+    init();
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
@@ -202,7 +202,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
     }
 
     if result.get_ref().signature.is_some() {
-        println!(">> Received signature: {}", hex::encode(result.get_ref().signature()));
+        println!(">> Received signature: {}", encode(result.get_ref().signature()));
     } else {
         println!("! Signature computation failed");
     }
