@@ -15,6 +15,11 @@ One can import the `schemes` module in a Rust application to for example use the
 
 ## Repo organization
 
+The current directory contains all the code devoleped for the codebase of Thetacrypt. The modularity is reflected in the `Cargo.toml` file in the root directory. The root package `thetacrypt` provides all the binary necessary to configure, start and execute the service. Then aggregates in the same workspace the packages `service`, `core` (with its inner structure), and `network` to provide an exact mapping to the architecture presented. The directory `proto` contains the specification of the protobuf types used to implement the API of the service with gRPC. The `conf` directory acts as a staging area for configuraton files, created by the binaries for the setup of the service, and used by instances of the servers. 
+
+To learn more about the binaries needed to setup and use the service continue reading on this page. To learn more about the internal structure of the different packages, go to the readmes in specific directories. 
+
+To try immediately Thetacrypt go back to the repo's root folder and checkout the demo in docker. 
 
 
 ## Installation
@@ -67,10 +72,10 @@ The binary `confgen` generates an extra config file, `client.json`, that has a l
 The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
 It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
 ```
-cargo run --bin thetacli -- keygen 3 4 sg02-bls12381 ./conf
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects sg02-Bls12381 --dir ./conf
 ```
 
-To generate the keys, information on the scheme and group is needed. For more information check the binary's CLI documentation.
+To generate the keys, information on the scheme and group is needed. For more information run the binary with `--help` option.
 
 ### Starting the server binary
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
@@ -96,8 +101,11 @@ cargo run --bin client -- --config-file=conf/client.json
 The client presents a menu of options for experimenting with the different schemes provided by the service. For example, in the case of a decryption operation, it creates a ciphertext and then submits a decryption request to each server using the `decrypt()` RPC endpoints.
 The code waits for the key **Enter** to be pressed before submitting each request.
 
-## Run the binary ThetaCLI
-Alternatively, there exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
+## Run the binary ThetaCLI for complementary tasks
+There exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
+
+We already used this application for **generating the keys**, but it has other two functions. It can be used to **encrypt** a piece of data that later might be decrypted by the servers in the Thetacrypt network, and to **verify** a signature issued by the network. 
+
 Usage: `./thetacli [action] [params]`
 available actions:
 - `keygen [k] [n] [algorithms] [directory]` \
