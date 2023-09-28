@@ -16,9 +16,10 @@ or *threshold*, of them.
 More formally, a threshold cryptosystem is defined by a fixed number of parties $P = \{P_1, \dots, P_n\}$, who need to collaborate to perform a cryptographic operation such that at least a threshold of them, $(t+1)$-out-of-$n$, are able to successfully terminate, but $t$ will learn anything about the shared secret. 
 This is achieved by using *Shamir's secret sharing*, i.e. a technique based on *polynomial interpolation* that enables the reconstruction 
 of a polynomial of degree $t$ with at least $t+1$ points.
-% Secret sharing 
+
+
 The generation and distribution of the secret $s$ are performed, in the easiest setting, by a trusted dealer $D$  $\notin P$. The dealer chooses at random the coefficients
-$\{a_1, \dots, a_t\}$  and defines the polynomial: $p(x) = s + a_1 x + \dots + a_t x^t $. The polynomial has a degree at most $t$ and its evaluation 
+$\{a_1, \dots, a_t\}$  and defines the polynomial: $p\(x\) = s + a_1 x + \dots + a_t x^t$. The polynomial has a degree at most $t$ and its evaluation 
 in $p(0)$ is the secret. The polynomial will be uniquely determined by $t+1$ point. 
 
 Threshold cryptosystems are known for public-key schemes only, where applying secret sharing is possible thanks to the algebraic assumption used in such schemes. 
