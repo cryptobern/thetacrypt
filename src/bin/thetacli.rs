@@ -58,6 +58,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str) -> Result<(), ThresholdCryptoError
             return Err(ThresholdCryptoError::InvalidParams);
         }
 
+        // TODO: use the same method for parsing the string. For ThresholdScheme::parse_string (schemes_types_impl.rs), Group::from_str_name (schemes_types.rs)
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
             println!("Invalid group '{}' selected", group_str.unwrap());
