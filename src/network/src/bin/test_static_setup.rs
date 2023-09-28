@@ -1,6 +1,6 @@
 use std::env;
-use network::types::message::P2pMessage;
-use network::config::static_net;
+use theta_network::types::message::NetMessage;
+use theta_network::config::static_net;
 use std::time::Duration;
 use tokio::time;
 use std::str::FromStr;
@@ -23,10 +23,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let localnet_config = static_net::config_service::load_config();
 
     // Create channel for sending P2P messages received at the network module to the protocols
-    let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (net_to_protocols_sender, mut net_to_protocols_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     // Create channel for sending P2P messages from a protocol to the network module
-    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<P2pMessage>(32);
+    let (protocols_to_net_sender, protocols_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
     // // sends a Vec<u8> into the channel as spawned thread
     tokio::spawn(async move {
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             my_vec[0] = count; // to keep track of the messages
             my_vec[1] = rand::random(); // to prevent dublicate messages
             // test msg
-            let my_msg = P2pMessage { instance_id: 1.to_string(), message_data: my_vec };
+            let my_msg = NetMessage {instance_id:1.to_string(), message_data:my_vec, is_total_order: false };
             
             // sends msg into the channel
             println!(">> TEST: SEND ->: {:?}", my_msg);
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the network
     println!(">> TEST: Initiating lib_P2P-based network instance.");
     tokio::spawn(async move {
-        network::p2p::gossipsub_setup::static_net::init(
+        theta_network::p2p::gossipsub_setup::static_net::init(
             protocols_to_net_receiver,
             net_to_protocols_sender,
             localnet_config,

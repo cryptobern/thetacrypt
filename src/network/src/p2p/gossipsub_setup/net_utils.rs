@@ -3,21 +3,17 @@ use libp2p::{
     core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
     gossipsub,
     gossipsub::{
-        MessageId,
-        Gossipsub,
-        GossipsubEvent,
-        GossipsubMessage,
-        IdentTopic as GossibsubTopic,
-        MessageAuthenticity,
-        ValidationMode},
+        Gossipsub, GossipsubEvent, GossipsubMessage, IdentTopic as GossibsubTopic,
+        MessageAuthenticity, MessageId, ValidationMode,
+    },
     identity::Keypair,
     mplex,
-    noise::{AuthenticKeypair, X25519Spec, self},
-    Swarm,
+    noise::{self, AuthenticKeypair, X25519Spec},
     swarm::{SwarmBuilder, SwarmEvent},
     tcp::TokioTcpConfig,
-    Transport,
-    PeerId};
+    PeerId, Swarm, Transport,
+};
+use log::debug;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -38,11 +34,10 @@ use trust_dns_resolver::config::*;
 use trust_dns_resolver::system_conf::read_system_conf;
 use tokio::runtime::Handle;
 
-
-
+use tokio::time;
 
 // use crate::config::localnet_config::{config_service::*, deserialize::Config};
-use crate::types::message::P2pMessage;
+use crate::types::message::NetMessage;
 
 // Create a keypair for authenticated encryption of the transport.
 pub fn create_noise_keys(keypair: &Keypair) -> AuthenticKeypair<X25519Spec> {
@@ -53,8 +48,9 @@ pub fn create_noise_keys(keypair: &Keypair) -> AuthenticKeypair<X25519Spec> {
 
 // Create a tokio-based TCP transport use noise for authenticated
 // encryption and Mplex for multiplexing of substreams on a TCP stream.
-
-pub fn create_tcp_transport(noise_keys: AuthenticKeypair<X25519Spec>) -> Boxed<(PeerId, StreamMuxerBox)> {
+pub fn create_tcp_transport(
+    noise_keys: AuthenticKeypair<X25519Spec>,
+) -> Boxed<(PeerId, StreamMuxerBox)> {
     TokioTcpConfig::new()
         .nodelay(true)
         .upgrade(upgrade::Version::V1)
@@ -107,10 +103,9 @@ pub fn create_gossipsub_swarm(
     topic: &GossibsubTopic,
     id_keys: Keypair,
     transport: Boxed<(PeerId, StreamMuxerBox)>,
-    local_peer_id: PeerId
+    local_peer_id: PeerId,
 ) -> Swarm<Gossipsub> {
-    
-        // To content-address message, we can take the hash of message and use it as an ID.
+    // To content-address message, we can take the hash of message and use it as an ID.
     let message_id_fn = |message: &GossipsubMessage| {
         let mut s = DefaultHasher::new();
         message.data.hash(&mut s);
@@ -119,7 +114,9 @@ pub fn create_gossipsub_swarm(
 
     // Set a custom gossipsub
     let gossipsub_config = gossipsub::GossipsubConfigBuilder::default()
-        .heartbeat_interval(Duration::from_secs(10)) // This is set to aid debugging by not cluttering the log space
+        // Meta data seems to be pusehd to to peers on every heartbeat, so they must be frequent
+        // enough to ensure reliable delivery of messages.
+        .heartbeat_interval(Duration::from_secs(1))
         .validation_mode(ValidationMode::Strict) // This sets the kind of message validation. The default is Strict (enforce message signing)
         .message_id_fn(message_id_fn) // content-address messages. No two messages of the same content will be propagated.
         .build()
@@ -129,7 +126,7 @@ pub fn create_gossipsub_swarm(
     let mut gossipsub: gossipsub::Gossipsub =
         gossipsub::Gossipsub::new(MessageAuthenticity::Signed(id_keys), gossipsub_config)
             .expect("Correct configuration");
-            
+
     // subscribes to our topic
     gossipsub.subscribe(&topic).unwrap();
 
@@ -146,42 +143,54 @@ pub fn create_gossipsub_swarm(
 pub async fn run_event_loop(
     swarm: &mut Swarm<Gossipsub>,
     topic: GossibsubTopic,
-    mut outgoing_msg_receiver: Receiver<P2pMessage>,
-    incoming_msg_sender: Sender<P2pMessage>) -> ! {
-        loop {
-            tokio::select! {
-                // reads msg from the channel and publish it to the network
-                msg = outgoing_msg_receiver.recv() => {
-                    if let Some(data) = msg {
-                        println!(">> NET: Sending a message");
-                        swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
-                    }
-                    // todo: Terminate the loop 
-                    // if msg is None (i.e., chn_out has been closed and no new message will ever be received)?
+    mut outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
+) -> ! {
+    let mut list_peers_timer = time::interval(Duration::from_secs(60));
+    loop {
+        tokio::select! {
+            // Periodically list all our known peers.
+            _tick = list_peers_timer.tick() => {
+                debug!("NET: My currently known peers: ");
+                for (peer, _) in swarm.behaviour().all_peers() {
+                    debug!("- {}", peer);
                 }
-                // polls swarm events
-                event = swarm.select_next_some() => match event {
-                    // handles (incoming) Gossipsub-Message
-                    SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
-                        println!(">> NET: Received a message");
-                        // add incoming message to internal channel
-                        incoming_msg_sender.send(message.data.into()).await.unwrap();
-                    }
-                    // handles NewListenAddr event
-                    SwarmEvent::NewListenAddr { address, .. } => {
-                        println!(">> NET: Listening on {:?}", address);
-                    }
-                    
-                    // tells us with which endpoints we are actually connected with
-                    // not so nice to display since multiple events are produced
-                    // SwarmEvent::ConnectionEstablished { endpoint, .. } => {
-                    //     if endpoint.is_dialer() {
-                    //         println!(">> NET: Connected with {:?}", endpoint.get_remote_address());
-                    //     }
-                    // }
-                    
-                    _ => {}
+
+                debug!("NET: My currently connected mesh peers: ");
+                for peer in swarm.behaviour().all_mesh_peers() {
+                    debug!("- {}", peer);
                 }
             }
+            // reads msg from the channel and publish it to the network
+            msg = outgoing_msg_receiver.recv() => {
+                if let Some(data) = msg {
+                    debug!("NET: Sending a message");
+                    swarm.behaviour_mut().publish(topic.clone(), data).expect("Publish error");
+                }
+                // todo: Terminate the loop
+                // if msg is None (i.e., chn_out has been closed and no new message will ever be received)?
+            }
+            // polls swarm events
+            event = swarm.select_next_some() => match event {
+                // Handles (incoming) Gossipsub-Message
+                SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
+                    debug!("NET: Received a message");
+                    incoming_msg_sender.send(message.data.into()).await.unwrap();
+                }
+                SwarmEvent::NewListenAddr { address, .. } => {
+                    debug!("NET: Listening on {:?}", address);
+                }
+                SwarmEvent::Dialing(peer_id) => {
+                    debug!("NET: Attempting to dial peer {peer_id}");
+                }
+                SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
+                    debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
+                },
+                SwarmEvent::ConnectionClosed { peer_id, endpoint, num_established: _, cause } => {
+                    debug!("NET: Closed connection to peer {peer_id} on {} due to {:?}", endpoint.get_remote_address(), cause);
+                }
+                _ => {}
+            }
         }
+    }
 }
