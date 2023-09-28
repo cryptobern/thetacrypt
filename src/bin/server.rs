@@ -1,7 +1,8 @@
-use clap::Parser;
 use log::{error, info};
+use clap::Parser;
 use theta_orchestration::keychain::KeyChain;
-use theta_service::{server::{types::ServerConfig, cli::ServerCli}, rpc_request_handler};
+use theta_service::rpc_request_handler;
+use utils::server::{types::ServerConfig, cli::ServerCli};
 use std::process::exit;
 
 use theta_network::{config::static_net, types::message::NetMessage};

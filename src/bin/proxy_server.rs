@@ -1,13 +1,12 @@
 use std::{process::exit};
 use log::{error, info};
 use clap::Parser;
-
 use theta_network::{
     proxy::proxyp2p::ProxyConfig, 
     types::message::NetMessage
 };
 use theta_orchestration::keychain::KeyChain;
-use theta_service::server::{cli::ServerCli, types::ServerProxyConfig};
+use utils::server::{cli::ServerCli, types::ServerProxyConfig};
 
 #[tokio::main]
 async fn main() {

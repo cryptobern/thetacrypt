@@ -10,7 +10,7 @@ ENV PROJECT_PATH=/rootLibrary
 
 COPY ./src $PROJECT_PATH/threasholdLibrary
 
-WORKDIR $PROJECT_PATH/threasholdLibrary/protocols
+WORKDIR $PROJECT_PATH/threasholdLibrary
 
 RUN cargo build --release 
 
@@ -24,7 +24,6 @@ RUN apt-get -y install libc6
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/server /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/proxy_server /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/confgen /target/release/ 
-COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client_app /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/thetacli /target/release/
 

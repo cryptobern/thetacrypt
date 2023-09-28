@@ -3,7 +3,7 @@ use std::{env, process::exit, fs::File, io::Write};
 use clap::Parser;
 use hex::FromHex;
 use rand::rngs::OsRng;
-use theta_schemes::{keys::{KeyGenerator, PrivateKey, PublicKey}, interface::{Serializable, ThresholdCipher, ThresholdCipherParams, Ciphertext, ThresholdCryptoError, ThresholdSignature, Signature}, rand::{RNG, RngAlgorithm}, scheme_types_impl::SchemeDetails};
+use theta_schemes::{keys::{KeyGenerator, PrivateKey, PublicKey}, interface::{Serializable, ThresholdCipher, ThresholdCipherParams, Ciphertext, ThresholdCryptoError, ThresholdSignature, Signature}, rand::{RNG, RngAlgorithm}, scheme_types_impl::{SchemeDetails, GroupDetails}};
 use theta_orchestration::keychain::KeyChain;
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 use utils::thetacli::cli::*;

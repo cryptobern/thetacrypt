@@ -19,6 +19,7 @@ theta_schemes = {path = "core/schemes", version = "0.1.0"}
 theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
 theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
+theta_network = {path = "network", version = "0.1.0"}
 
 tonic = "0.8"
 
@@ -45,3 +46,11 @@ path = "bin/confgen.rs"
 [[bin]]
 name = "thetacli"
 path = "bin/thetacli.rs"
+
+[[bin]]
+name = "proxy_server"
+path = "bin/proxy_server.rs"
+
+[[bin]]
+name = "server"
+path = "bin/server.rs"
