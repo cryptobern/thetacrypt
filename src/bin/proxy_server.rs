@@ -1,11 +1,13 @@
-use std::{process::exit};
+use std::{process::exit, vec};
 use log::{error, info};
 use clap::Parser;
 use theta_network::{
     proxy::proxyp2p::ProxyConfig, 
-    types::message::NetMessage
+    types::message::NetMessage,
+    config::static_net
 };
 use theta_orchestration::keychain::KeyChain;
+use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerProxyConfig};
 
 #[tokio::main]
@@ -67,6 +69,14 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         proxy_addr: config.proxy_node_ip(),
     };
 
+    let local_cfg2 = static_net::deserialize::Config {
+        ids: vec![],
+        ips: vec![],
+        p2p_ports: vec![],
+        rpc_ports: vec![config.my_rpc_port()],
+        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
+    };
+
 
     // Network to protocol communication
     let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
@@ -94,15 +104,17 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
-    // tokio::spawn(async move {
-    //     rpc_request_handler::init(
-    //         my_listen_address,
-    //         my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
-    //         keychain,
-    //         n2p_receiver,
-    //         p2n_sender,
-    //         n2p_sender_rpc,
-    //     )
-    //     .await
-    // });
+    tokio::spawn(async move {
+        rpc_request_handler::init(
+            my_listen_address,
+            my_rpc_port,
+            keychain,
+            n2p_receiver,
+            p2n_sender,
+            n2p_sender_rpc,
+            local_cfg2,
+            my_id
+        )
+        .await
+    });
 }
