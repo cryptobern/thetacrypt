@@ -15,7 +15,7 @@ One can import the `schemes` module in a Rust application to for example use the
 
 ## Repo organization
 
-The current directory contains all the code devoleped for the codebase of Thetacrypt. The modularity is reflected in the `Cargo.toml` file in the root directory. The root package `thetacrypt` provides all the binary necessary to configure, start and execute the service. Then aggregates in the same workspace the packages `service`, `core` (with its inner structure), and `network` to provide an exact mapping to the architecture presented. The directory `proto` contains the specification of the protobuf types used to implement the API of the service with gRPC. The `conf` directory acts as a staging area for configuraton files, created by the binaries for the setup of the service, and used by instances of the servers. 
+The current directory contains all the code developed for the codebase of Thetacrypt. The modularity is reflected in the `Cargo.toml` file in the root directory. The root package `thetacrypt` provides all the binary necessary to configure, start and execute the service. Then aggregates in the same workspace the packages `service`, `core` (with its inner structure), and `network` to provide an exact mapping to the architecture presented. The directory `proto` contains the specification of the protobuf types used to implement the API of the service with gRPC. The `conf` directory acts as a staging area for configuraton files, created by the binaries for the setup of the service, and used by instances of the servers. 
 
 To learn more about the binaries needed to setup and use the service continue reading on this page. To learn more about the internal structure of the different packages, go to the readmes in specific directories. 
 
@@ -36,6 +36,7 @@ To run the schemes test application, use
 ## How to run the server
 
 ### Generating server configuration
+
 You can use the `confgen` binary to generate the configuration files that are needed to start server and client instances.
 For help, run:
 ```
@@ -47,7 +48,9 @@ confgen --help
 ```
 
 The steps to generate the configuration files are the following, assuming `src\protocols` as cwd, and that one wants a local deployment.
+
 1. Create a file with the IP addresses of the servers. For example you can use:
+
 ```
 cat > conf/server_ips << EOF
 127.0.0.1
@@ -58,6 +61,7 @@ EOF
 ```
 
 2. Generate configuration files:
+
 ```
 cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
 ```
@@ -78,6 +82,7 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects sg02-Bls12381 --dir ./co
 To generate the keys, information on the scheme and group is needed. For more information run the binary with `--help` option.
 
 ### Starting the server binary
+
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
 From the root directory of the `protocols` project start 4 terminals and run, respectively:
 ```
@@ -102,12 +107,14 @@ The client presents a menu of options for experimenting with the different schem
 The code waits for the key **Enter** to be pressed before submitting each request.
 
 ## Run the binary ThetaCLI for complementary tasks
+
 There exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
 
 We already used this application for **generating the keys**, but it has other two functions. It can be used to **encrypt** a piece of data that later might be decrypted by the servers in the Thetacrypt network, and to **verify** a signature issued by the network. 
 
 Usage: `./thetacli [action] [params]`
 available actions:
+
 - `keygen [k] [n] [algorithms] [directory]` \
   generates the public/private keys for the specified schemes and groups \
   `k` = threshold \
@@ -134,3 +141,15 @@ available actions:
     `pubkey` = public key of a threshold encryption scheme \
     `msg` = path to message file (bytes) \
     `signature` = path to signature to verify (hex encoded)
+
+## About **Tokio** and **async_std**
+
+Both are asynchronous runtimes for Rust that don't seem to differ much from each other. Since **Tokio** has a larger ecosystem than **async_std** we decided to use **Tokio** as asynchronous runtime.
+
+Tokio:
+- https://tokio.rs/
+- https://tokio.rs/tokio/tutorial
+
+async_std:
+- https://crates.io/crates/async_std
+- https://book.async.rs/
