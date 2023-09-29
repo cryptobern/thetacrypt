@@ -1,5 +1,6 @@
-# ThetaCrypt - Schemes 
-The schemes module provides the library of the bare cryptographic primitives which the protocols layer will uses layer. It can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature. 
+# ThetaCrypt - Schemes
+
+The schemes module provides the library of the bare cryptographic primitives which the protocols layer will uses layer. It can also be used in isolation, for example to encrypt data using a specific public key of a threshold cipher, or to verify a threshold signature.
 
 ## Dependencies
 This crate uses [Miracl Core](https://github.com/miracl/core) for the underlying elliptic curve implementations and [GMP](https://gmplib.org/) for big integer handling in the RSA signature scheme using the [gmp-mpfr-sys](https://crates.io/crates/gmp-mpfr-sys) Rust FFI bindings. 
@@ -28,7 +29,7 @@ All of those schemes use keys of the type `PublicKey` or `PrivateKey` respective
 <br>
 
 ## Demo
-You can find an example program in the folder `src/examples/main.rs` that shows how the primitives of the schemes layer can be used.
+You can find an example program in the folder `src/bin/schemes_examples.rs` that shows how the primitives of the schemes layer can be used.
 
 ## Key Generation
 To generate a vector of private keys, use
@@ -42,6 +43,7 @@ To generate a vector of private keys, use
         .unwrap();
 
 where 
+
 - `K` = threshold
 - `N` = total private keys
 - `RNG` = random number generator to be used, here a MarsagliaZaman algorithm is used
@@ -67,6 +69,7 @@ Any `K` in the range `[1, N]` can be used (depending on the tolerated failures o
 Once the keys are generated, the API for all schemes/groups stays the same. One can put the keys into use using the structs below:
 
 ## Threshold Cipher
+
 In threshold encryption one participant encrypts a message using the public key. To retrieve the original plaintext from a ciphertext, `K` out of `N` participants holding a private key need to create a decryption share (using `partial_decrypt`) which then are combined resulting in a decrypted ciphertext. Decryption shares as well as the ciphertext should be verified before assembling the shares resp. before creating a decryption share to prevent CCA attacks.
 
 The interface of `ThresholdCipher` is as follows:
@@ -83,6 +86,7 @@ The interface of `ThresholdCipher` is as follows:
 - **`set_rng(&mut self, alg: RngAlgorithm) -> Self`**
 
 ## Threshold Signature
+
 `K` out of `N` participants partially sign a message and those partial signatures are then assembled to a single full signature which can be verified alone without knowing the partial signatures. The signature shares should be verified before assembling to prevent attacks.
 
 The interface of `ThresholdSignature` is as follows:
@@ -109,6 +113,7 @@ Additionally the library supports threshold signature schemes that need interact
 - **`get_label(&self) -> Vec<u8>`**
 
 ## Threshold Coin
+
 Threshold Coin schemes are used to collaboratively generate randomness (one random bit). Each random coin has a name that all participants need to know. `K` out of `N` participants create coin shares using the name of the coin and those shares can then be verified and assembled to retrieve the random coin.
 
 The interface of `ThresholdCoin` is as follows:
@@ -119,6 +124,7 @@ The interface of `ThresholdCoin` is as follows:
 - **`assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError> `**
 
 ## Serialization
+
 The keys, decryption/signature/coin shares and signatures all implement the `Serializable` trait which implements methods for converting to/from a byte stream: 
 
     pub trait Serializable:
@@ -130,6 +136,7 @@ The keys, decryption/signature/coin shares and signatures all implement the `Ser
     }
 
 ## Error handling
+
 If something fails in one of the methods described above, a `ThresholdCryptoError` is returned, indicating what went wrong:
 
     pub enum ThresholdCryptoError {
@@ -159,6 +166,7 @@ If something fails in one of the methods described above, a `ThresholdCryptoErro
     }
 
 ## Big Integers / Groups
+
 When implementing schemes, one should always use the `BigImpl`, `RsaBigInt` and `GroupElement` structs, as they allow for the necessary abstraction between the implementation and the concrete groups that can be used for a particular scheme. The underlying elliptic curve library "Miracl Core" uses different big integer implementations for each curve (as they all have a fixed maximum size depending on the curve modulus), which is why one needs to use the `BigImpl` wrapper to implement schemes in a curve-agnostic way. For the RSA schemes, a different underlying big integer representation was used to allow for more flexibility in modulus size. Therefore, use `RsaBigInt` if you just need a flexible big integer representation and do not operate on an elliptic curve (as is the case for RSA).
 
 The `Group` struct holds information about a certain group, while `GroupElement` are the objects used in a scheme and which should be used for computation.
