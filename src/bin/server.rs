@@ -2,6 +2,7 @@ use log::{error, info};
 use clap::Parser;
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
+use tonic::server;
 use utils::server::{types::ServerConfig, cli::ServerCli};
 use std::process::exit;
 
@@ -39,11 +40,19 @@ async fn main() {
             .to_str()
             .unwrap_or("Unable to print path, was not valid UTF-8")
     );
-    let keychain = match KeyChain::from_file(&server_cli.key_file) {
-        Ok(key_chain) => key_chain,
-        Err(e) => {
-            error!("{}", e);
-            exit(1);
+
+    match server_cli.key_file {
+        Some(file) => {
+            let keychain = match KeyChain::from_file(&file) {
+                Ok(key_chain) => key_chain,
+                Err(e) => {
+                    error!("{}", e);
+                    exit(1);
+                }
+            };
+        }
+        None => {
+            let keychain = KeyChain::new();
         }
     };
 
