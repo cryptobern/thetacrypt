@@ -12,8 +12,7 @@ use theta_schemes::{interface::InteractiveThresholdSignature, keys::PrivateKey};
 
 pub struct KeyChain {
     key_entries: HashMap<String, Arc<Key>>,
-    frost_precomputes: Vec<InteractiveThresholdSignature>,
-    frost_node_precomputes: HashMap<usize, Vec<InteractiveThresholdSignature>>
+    frost_precomputes: Vec<InteractiveThresholdSignature>
 }
 
 // KeyChainSerializable is the same as KeyChain without the shared references.
@@ -74,8 +73,7 @@ impl KeyChain {
     pub fn new() -> Self {
         KeyChain {
             key_entries: HashMap::new(),
-            frost_precomputes: Vec::new(),
-            frost_node_precomputes: HashMap::new()
+            frost_precomputes: Vec::new()
         }
     }
 
@@ -95,15 +93,6 @@ impl KeyChain {
 
     pub fn num_precomputations(&self) -> usize {
         return self.frost_precomputes.len();
-    }
-
-    pub fn num_node_precomputations(&self, node_id:usize) -> usize {
-        let vec = self.frost_node_precomputes.get(&node_id);
-        if let Option::Some(x) = vec {
-            return x.len();
-        }
-        
-        return 0;
     }
 
     // Inserts a key to the key_chain. A key_id must be given and must be unique among all keys (regardless of the key scheme).
@@ -147,38 +136,6 @@ impl KeyChain {
 
     pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
         self.frost_precomputes.pop()
-    }
-
-    pub fn append_node_precompute_results(&mut self, node_id:usize, instances: &mut Vec<InteractiveThresholdSignature>) {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            x.append(instances);
-        } else {
-            let mut vec: Vec<InteractiveThresholdSignature> = Vec::new();
-            vec.append(instances);
-            self.frost_node_precomputes.insert(node_id, vec);
-        }
-    }
-
-    pub fn push_node_precompute_result(&mut self, node_id:usize, instance: InteractiveThresholdSignature) {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            x.push(instance);
-            x.sort_by(|a, b| a.get_label().cmp(&b.get_label()));
-        } else {
-            let mut vec: Vec<InteractiveThresholdSignature> = Vec::new();
-            vec.push(instance);
-            self.frost_node_precomputes.insert(node_id, vec);
-        }
-    }
-
-    pub fn pop_node_precompute_result(&mut self, node_id:&usize,) -> Option<InteractiveThresholdSignature> {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            return x.pop();
-        }
-
-        return Option::None;
     }
 
     // Return the matching key with the given key_id, or an error if no key with key_id exists.

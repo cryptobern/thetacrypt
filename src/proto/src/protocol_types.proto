@@ -20,15 +20,9 @@ service ThresholdCryptoLibrary {
     
     // this is an alternative way to send shares. used only for testing
     rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
-    
-    // sign is the endpoint a light client calls to start a signing protocol
-    rpc leader_sign (SignRequest) returns (SignResponse);
-    
-    // leader sign is the endpoint the leader calls to start the signing protocol on the other nodes
-    rpc forward_sign_request(LeaderSignRequest) returns (SignResponse);
 
-    // atomic sign is the endpoint which should be called to start a signing protocol after atomic broadcast
-    rpc sign(AtomicSignRequest) returns (SignResponse);
+    // starts a signature protocol
+    rpc sign(SignRequest) returns (SignResponse);
 
     // starts a coin flip protocol
     rpc flip_coin (CoinRequest) returns (CoinResponse);
@@ -96,23 +90,6 @@ message SignRequest {
     optional string key_id = 3;
     int32 scheme = 4;
     int32 group = 5;
-}
-
-message AtomicSignRequest {
-    bytes message = 1;
-    bytes label = 2;
-    optional string key_id = 3;
-    int32 scheme = 4;
-    int32 group = 5;
-}
-
-message LeaderSignRequest {
-    bytes message = 1;
-    bytes label = 2;
-    optional string key_id = 3;
-    int32 scheme = 4;
-    int32 group = 5;
-    uint32 node_id = 6;
 }
 
 message SignResponse {
