@@ -55,10 +55,7 @@ pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     dispatcher_command_sender: tokio::sync::mpsc::Sender<MessageDispatcherCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
-    frost_precomputations: Vec<InteractiveThresholdSignature>,
-    my_id: u32,
-    config: static_net::deserialize::Config
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage> // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
 impl RpcRequestHandler {
@@ -994,9 +991,7 @@ pub async fn init(
     keychain: KeyChain,
     incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
-    config: static_net::deserialize::Config,
-    my_id: u32 
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage> // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 ) {
     // Channel to send commands to the StateManager.
     // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
@@ -1031,10 +1026,7 @@ pub async fn init(
         state_command_sender,
         dispatcher_command_sender,
         outgoing_message_sender,
-        incoming_message_sender,
-        frost_precomputations: Vec::new(),
-        my_id,
-        config
+        incoming_message_sender
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
