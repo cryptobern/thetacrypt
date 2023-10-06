@@ -2,7 +2,6 @@ use log::{error, info};
 use clap::Parser;
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
-use tonic::server;
 use utils::server::{types::ServerConfig, cli::ServerCli};
 use std::process::exit;
 
@@ -33,28 +32,22 @@ async fn main() {
         }
     };
 
-    info!(
-        "Loading keychain from file: {}",
-        server_cli
-            .key_file
-            .to_str()
-            .unwrap_or("Unable to print path, was not valid UTF-8")
-    );
 
-    match server_cli.key_file {
-        Some(file) => {
-            let keychain = match KeyChain::from_file(&file) {
-                Ok(key_chain) => key_chain,
-                Err(e) => {
-                    error!("{}", e);
-                    exit(1);
-                }
-            };
-        }
-        None => {
-            let keychain = KeyChain::new();
-        }
-    };
+// Here we create an empty keychain and initialize it only if a key file has been provided
+    let mut keychain = KeyChain::new();
+    if server_cli.key_file.is_some() {
+        keychain = match KeyChain::from_file(&server_cli.key_file.clone().unwrap()) {
+                    Ok(key_chain) => key_chain,
+                    Err(e) => {
+                        error!("{}", e);
+                        exit(1);
+                    }
+        };
+
+        info!(
+            "Loading keychain from file: {}", server_cli.key_file.unwrap().to_str().unwrap_or("Unable to print path, was not valid UTF-8")
+        );
+    }
 
     start_server(&cfg, keychain).await;
 
@@ -70,7 +63,7 @@ async fn main() {
 /// Start main event loop of server.
 pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     // Build local-net config required by provided static-network implementation.
-    let local_cfg = static_net::deserialize::Config {
+    let net_cfg = static_net::deserialize::Config {
         ids: config.peer_ids(),
         ips: config.peer_ips(),
         p2p_ports: config.peer_p2p_ports(),
@@ -78,13 +71,8 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
     };
 
-    let local_cfg2 = static_net::deserialize::Config {
-        ids: config.peer_ids(),
-        ips: config.peer_ips(),
-        p2p_ports: config.peer_p2p_ports(),
-        rpc_ports: config.peer_rpc_ports(),
-        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
-    };
+    //To remove when the RPC doesn't have config as input parameter anymore
+    let handler_cfg = net_cfg.clone();
 
     // Network to protocol communication
     let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
@@ -106,7 +94,7 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         config.listen_address, my_p2p_port
     );
     tokio::spawn(async move {
-        theta_network::p2p::gossipsub_setup::static_net::init(prot_to_net_receiver, net_to_prot_sender, local_cfg, my_id)
+        theta_network::p2p::gossipsub_setup::static_net::init(prot_to_net_receiver, net_to_prot_sender, net_cfg, my_id)
             .await;
     });
 
@@ -127,7 +115,7 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
             net_to_prot_receiver,
             prot_to_net_sender,
             net_to_prot_sender_rpc,
-            local_cfg2,
+            handler_cfg,
             my_id
         )
         .await

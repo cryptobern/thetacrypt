@@ -31,19 +31,21 @@ async fn main() {
         }
     };
 
-    info!(
-        "Loading keychain from file: {}",
-        server_cli.key_file
-            .to_str()
-            .unwrap_or("Unable to print path, was not valid UTF-8")
-    );
-    let keychain = match KeyChain::from_file(&server_cli.key_file) {
-        Ok(key_chain) => key_chain,
-        Err(e) => {
-            error!("{}", e);
-            exit(1);
-        }
+// Here we create an empty keychain and initialize it only if a key file has been provided
+let mut keychain = KeyChain::new();
+if server_cli.key_file.is_some() {
+    keychain = match KeyChain::from_file(&server_cli.key_file.clone().unwrap()) {
+                Ok(key_chain) => key_chain,
+                Err(e) => {
+                    error!("{}", e);
+                    exit(1);
+                }
     };
+
+    info!(
+        "Loading keychain from file: {}", server_cli.key_file.unwrap().to_str().unwrap_or("Unable to print path, was not valid UTF-8")
+    );
+}
 
     start_server(&cfg, keychain).await;
 
