@@ -38,6 +38,12 @@ pub struct KeyGenArgs {
         help = "Directory to store the generated keys in",
     )]
     pub dir: String,
+    #[arg(short,
+        long, 
+        help = "Append a new key to existing ones",
+        default_value_t = false
+    )]
+    pub append: bool,
 }
 #[derive(Args, Debug)]
 pub struct EncArgs {

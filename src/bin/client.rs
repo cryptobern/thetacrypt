@@ -116,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .sk
@@ -164,7 +164,7 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
 }
 
 async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
         .sk
@@ -211,7 +211,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 }
 
 async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bls12381)?
         .sk

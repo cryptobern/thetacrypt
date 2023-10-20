@@ -24,7 +24,7 @@ fn main() -> Result<(), Error> {
     let args = ThetaCliArgs::parse();
 
     if let Commands::keygen(keyGenArgs) = args.command {
-        return keygen(keyGenArgs.k, keyGenArgs.n, &keyGenArgs.subjects, &keyGenArgs.dir);
+        return keygen(keyGenArgs.k, keyGenArgs.n, &keyGenArgs.subjects, &keyGenArgs.dir, keyGenArgs.append);
     }
 
     if let Commands::enc(encArgs) = args.command {
@@ -38,7 +38,7 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn keygen(k: u16, n: u16, a: &str, dir: &str) -> Result<(), Error> {
+fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error> {
     let parts = a.split(',');
     let mut keys = HashMap::new();
     let mut rng = RNG::new(RngAlgorithm::OsRng);
@@ -97,27 +97,32 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str) -> Result<(), Error> {
 
     for node_id in 0..n {
 
-        let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
-        // let file = File::open(keyfile); //? throw the error to the caller
-
-        let mut file = File::options().write(true).read(true).create(true).open(keyfile.clone())?;
-
-
-        // Read if there are already key in it
-        let mut data = String::new();
-        file.read_to_string(&mut data)?;
-
+        // Define the expected internal structure of the dictionary of keys 
+        // TODO: this can be a defined struct
         let mut node_keys: HashMap<String, PrivateKey> = HashMap::new();
-        if !data.is_empty(){
-            println!("Data not empty");
-            node_keys = serde_json::from_str(&mut data)?
+
+        // Define the name of the key file based on the node 
+        let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
+
+        if append {
+
+            // Open the file, or create it before opening
+            let mut file = File::options().write(true).read(true).create(true).open(keyfile.clone())?;
+
+            // Read if there are already key in it. If the file has just been created the file will simply be empty
+            let mut data = String::new();
+            file.read_to_string(&mut data)?;
+
+            // Check if there was something already written, read in order to append, and write again.
+            // Not optimal, but this is just a set up phase. 
+            if !data.is_empty(){
+                node_keys = serde_json::from_str(&mut data)?
+            }
         }
         
-        println!("After read");
-        
-        //each value is a vector of secret key share (related to the same pk) that needs to be distributed among the right key file
+        // each value in keys is a vector of secret key share (related to the same pk) that needs to be distributed among the right key file (parties)
         for k in keys.clone() {
-            // the node_id that refers to the index of a specific party it is used to index the right share for the party
+            // the node_id refers to the index of a specific party and it is used to index the right share for the party
             node_keys.insert(k.0.clone(), k.1[node_id as usize].clone());
         }
 

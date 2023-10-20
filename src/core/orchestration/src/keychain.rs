@@ -79,7 +79,7 @@ impl KeyChain {
         }
     }
 
-    pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
+    pub fn from_config_file(filename: &PathBuf) -> std::io::Result<Self> {
         let key_chain_str = fs::read_to_string(filename)?;
         let node_keys: HashMap<String, PrivateKey> = serde_json::from_str(&key_chain_str)?;
         let mut keychain = KeyChain::new();
@@ -87,6 +87,13 @@ impl KeyChain {
            keychain.insert_key(key.1, key.0).expect("error generating key"); 
         }
         Ok(keychain)
+    }
+
+    pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
+        let key_chain_str = fs::read_to_string(filename)?;
+        let ks: KeyChainSerializable = serde_json::from_str(&key_chain_str)?;
+        let k: KeyChain = ks.into();
+        Ok(k)
     }
 
     pub fn to_file(&self, filename: &str) -> std::io::Result<()> {
