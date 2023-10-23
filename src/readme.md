@@ -79,6 +79,25 @@ It writes the keys for each server in a chosen directory. For a deployment with 
 cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects sg02-Bls12381 --dir ./conf
 ```
 
+Available groups are: 
+
+Bls12381 (pairings)
+Bn254     (pairings)
+Ed25519 
+Rsa512 (no DL)
+Rsa1024 (no DL)
+Rsa2048 (no DL)
+Rsa4096 (no DL)
+
+And available schemes are: 
+
+Bz03 (pairings, DL)
+Sg02 (DL)
+Bls04 (pairings, DL)
+Cks05 (DL)
+Frost (DL)
+Sh00 (RSA)
+
 To generate the keys, information on the scheme and group is needed. For more information run the binary with `--help` option.
 
 ### Starting the server binary

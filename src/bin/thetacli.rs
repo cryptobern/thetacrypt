@@ -39,13 +39,28 @@ fn main() -> Result<(), Error> {
 }
 
 fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error> {
-    let parts = a.split(',');
+
+
+    let mut parts = a.split(',');
     let mut keys = HashMap::new();
     let mut rng = RNG::new(RngAlgorithm::OsRng);
 
     if fs::create_dir_all(dir).is_err() {
         println!("Error: could not create directory");
         return Err(Error::Threshold(ThresholdCryptoError::IOError));
+    }
+
+    let mut default_key_set = generate_valid_scheme_group_pairs();
+    for string in default_key_set.clone(){
+        println!("{}", string)
+    }
+   
+
+    if a == "default" {
+        default_key_set = vec![default_key_set.join(",")];
+        let str_list = default_key_set[0].as_str();
+        println!("{}", str_list);
+        parts = str_list.split(',');
     }
 
     for part in parts {
@@ -250,4 +265,41 @@ fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<()
     println!("Invalid signature");
 
     Err(Error::Threshold(ThresholdCryptoError::InvalidRound))
+}
+
+
+fn generate_valid_scheme_group_pairs() -> Vec<String> {
+    let mut scheme_group_vec: Vec<String> = Vec::new();
+    let mut i: i32 = 0;
+    loop {
+        
+        let scheme = match ThresholdScheme::from_i32(i) {
+            Some(scheme) => scheme,
+            None => break,
+        };
+
+        let mut j:i32 = 0;
+        loop {
+            let group = match Group::from_i32(j) {
+                Some(group) => group,
+                None => break,
+            };
+
+            //check conditions for a specific scheme
+            if scheme.check_valid_group(group) {
+                let mut new_scheme_group = String::from(group.as_str_name());
+                new_scheme_group.insert_str(0, "-");
+                new_scheme_group.insert_str(0, scheme.as_str_name());
+
+                //update the list
+                scheme_group_vec.push(new_scheme_group);                
+            }
+
+            j += 1;
+        }
+
+        i +=1;
+
+    }
+    return scheme_group_vec
 }
