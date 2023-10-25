@@ -2,6 +2,7 @@ use core::fmt;
 
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 use theta_protocols::interface::ProtocolError;
+use tokio::sync::mpsc::error::SendError;
 
 pub struct Instance {
     id: String,
@@ -51,6 +52,7 @@ impl Instance {
 
     pub fn set_result(&mut self, result: Result<Vec<u8>, ProtocolError>) {
         self.result = Some(result);
+        self.finished = true;
     }
 
     pub fn get_scheme(&self) -> ThresholdScheme {
@@ -59,5 +61,9 @@ impl Instance {
 
     pub fn get_group(&self) -> Group {
         self.group.clone()
+    }
+
+    pub async fn send_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+        self.message_channel_sender.send(message).await
     }
 }
