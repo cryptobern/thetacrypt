@@ -162,7 +162,7 @@ impl ThresholdCoin {
 
 /* ---- NEW API ---- */
 
-#[derive(PartialEq, AsnType, Clone)]
+#[derive(PartialEq, AsnType, Clone, Debug)]
 #[rasn(enumerated)]
 pub enum Ciphertext {
     Sg02(Sg02Ciphertext),
@@ -170,10 +170,18 @@ pub enum Ciphertext {
 }
 
 impl Ciphertext {
-    pub fn get_msg(&self) -> Vec<u8> {
+    pub fn get_ctxt(&self) -> &[u8] {
         match self {
-            Ciphertext::Sg02(ct) => ct.get_msg(),
-            Ciphertext::Bz03(ct) => ct.get_msg(),
+            Ciphertext::Sg02(ct) => ct.get_ctxt(),
+            Ciphertext::Bz03(ct) => ct.get_ctxt(),
+            _ => todo!()
+        }
+    }
+
+    pub fn get_ck(&self) -> &[u8] {
+        match self {
+            Ciphertext::Sg02(ct) => ct.get_ck(),
+            Ciphertext::Bz03(ct) => ct.get_ck(),
             _ => todo!()
         }
     }
@@ -194,7 +202,7 @@ impl Ciphertext {
         }
     }
 
-    pub fn get_label(&self) -> Vec<u8> {
+    pub fn get_label(&self) -> &[u8] {
         match self {
             Ciphertext::Sg02(ct) => ct.get_label(),
             Ciphertext::Bz03(ct) => ct.get_label(),
@@ -1198,6 +1206,7 @@ pub enum ThresholdCryptoError {
     UnknownGroup,
     IOError,
     InvalidParams,
+    Aborted,
 }
 
 impl Error for ThresholdCryptoError {}

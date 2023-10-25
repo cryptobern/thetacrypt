@@ -45,7 +45,7 @@ fn main() {
 
     let mut s = String::with_capacity(25);
     write!(&mut s, "[{}ms]\tCiphertext: ", encrypt_time).expect("error");
-    printbinary(&ciphertext.get_msg(), Some(s.as_str()));
+    printbinary(&ciphertext.get_ctxt(), Some(s.as_str()));
 
     // check whether ciphertext is valid 
     let now = Instant::now();

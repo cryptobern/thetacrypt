@@ -7,12 +7,13 @@ use theta_schemes::interface::{
     Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
 };
 use theta_schemes::keys::{PrivateKey, PublicKey};
+use tonic::async_trait;
 
-use theta_orchestration::types::{Key, ProtocolError};
+use crate::interface::{ProtocolError, ThresholdProtocol};
 use crate::threshold_cipher::message_types::DecryptionShareMessage;
 
 pub struct ThresholdCipherProtocol {
-    key: Arc<Key>,
+    private_key: Arc<PrivateKey>,
     ciphertext: Ciphertext,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -23,31 +24,12 @@ pub struct ThresholdCipherProtocol {
     received_share_ids: HashSet<u16>,
 }
 
-impl ThresholdCipherProtocol {
-    pub fn new(
-        key: Arc<Key>,
-        ciphertext: Ciphertext,
-        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
-        instance_id: String,
-    ) -> Self {
-        ThresholdCipherProtocol {
-            key,
-            ciphertext,
-            chan_in,
-            chan_out,
-            instance_id,
-            valid_shares: Vec::new(),
-            decrypted: false,
-            decrypted_plaintext: Vec::new(),
-            received_share_ids: HashSet::new(),
-        }
-    }
-
-    pub async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
+#[async_trait]
+impl ThresholdProtocol for ThresholdCipherProtocol {
+    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
         let valid_ctxt =
-            ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.key.sk.get_public_key())?;
+            ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.private_key.get_public_key())?;
         if !valid_ctxt {
             println!(
                 ">> PROT: instance_id: {:?} found INVALID ciphertext. Protocol instance will quit.",
@@ -81,6 +63,28 @@ impl ThresholdCipherProtocol {
         }
         // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
     }
+}
+
+impl ThresholdCipherProtocol {
+    pub fn new(
+        private_key: Arc<PrivateKey>,
+        ciphertext: Ciphertext,
+        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        instance_id: String,
+    ) -> Self {
+        ThresholdCipherProtocol {
+            private_key,
+            ciphertext,
+            chan_in,
+            chan_out,
+            instance_id,
+            valid_shares: Vec::new(),
+            decrypted: false,
+            decrypted_plaintext: Vec::new(),
+            received_share_ids: HashSet::new(),
+        }
+    }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send decryption share
@@ -88,9 +92,9 @@ impl ThresholdCipherProtocol {
         println!(
             ">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.",
             &self.instance_id,
-            self.key.sk.get_id()
+            self.private_key.get_id()
         );
-        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.key.sk, &mut params)?;
+        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
         let message = DecryptionShareMessage::to_net_message(&share, &self.instance_id);
         self.chan_out.send(message).await.unwrap();
@@ -116,7 +120,7 @@ impl ThresholdCipherProtocol {
         self.received_share_ids.insert(share.get_id());
 
         let verification_result =
-            ThresholdCipher::verify_share(&share, &self.ciphertext, &self.key.sk.get_public_key());
+            ThresholdCipher::verify_share(&share, &self.ciphertext, &self.private_key.get_public_key());
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
@@ -133,9 +137,9 @@ impl ThresholdCipherProtocol {
         self.valid_shares.push(share);
 
         println!(">> PROT: Current valid shares: {:?}", self.valid_shares.len());
-        println!(">> PROT: We need still shares: {:?}", self.key.sk.get_threshold() - (self.valid_shares.len() as u16));
+        println!(">> PROT: We need still shares: {:?}", self.private_key.get_threshold() - (self.valid_shares.len() as u16));
 
-        if self.valid_shares.len() >= self.key.sk.get_threshold() as usize {
+        if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
             self.decrypted_plaintext =
                 ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
