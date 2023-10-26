@@ -5,7 +5,7 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use theta_schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use theta_proto::protocol_types::{CoinRequest, CoinResponse, GetSignatureResultRequest, GetSignatureResultResponse, GetCoinResultResponse, GetCoinResultRequest, LeaderSignRequest, AtomicSignRequest};
+use theta_proto::protocol_types::{CoinRequest, CoinResponse, GetSignatureResultRequest, GetSignatureResultResponse, GetCoinResultResponse, GetCoinResultRequest};
 use theta_proto::scheme_types::Group;
 use tokio::sync::{mpsc::Sender, oneshot};
 use tonic::Code;
@@ -55,10 +55,7 @@ pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateUpdateCommand>,
     dispatcher_command_sender: tokio::sync::mpsc::Sender<MessageDispatcherCommand>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
-    frost_precomputations: Vec<InteractiveThresholdSignature>,
-    my_id: u32,
-    config: static_net::deserialize::Config
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage> // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 }
 
 impl RpcRequestHandler {
@@ -173,14 +170,12 @@ impl RpcRequestHandler {
         Ok((instance_id, prot))
     }
 
-    async fn pop_frost_precomputation(
-        &self, node_id: Option<usize>
-    ) -> Option<InteractiveThresholdSignature> {
+    async fn pop_frost_precomputation(&self) -> Option<InteractiveThresholdSignature> {
         let precomputation: InteractiveThresholdSignature;
 
         let (response_sender, response_receiver) =
             oneshot::channel::<Option<InteractiveThresholdSignature>>();
-        let cmd = StateUpdateCommand::PopFrostPrecomputation { responder: response_sender, node_id };
+        let cmd = StateUpdateCommand::PopFrostPrecomputation { responder: response_sender };
         self.state_command_sender
             .send(cmd)
             .await
@@ -196,14 +191,12 @@ impl RpcRequestHandler {
 
     async fn push_frost_precomputation(
         state_command_sender: Sender<StateUpdateCommand>,
-        instance: InteractiveThresholdSignature, 
-        node_id: Option<usize>
-    ) -> Result<(), ()> {
+        instance: InteractiveThresholdSignature) -> Result<(), ()> {
         let precomputation: Arc<InteractiveThresholdSignature>;
 
         let (response_sender, response_receiver) =
             oneshot::channel::<Option<InteractiveThresholdSignature>>();
-        let cmd = StateUpdateCommand::PushFrostPrecomputation { instance: instance, node_id };
+        let cmd = StateUpdateCommand::PushFrostPrecomputation { instance: instance };
         state_command_sender
             .send(cmd)
             .await
@@ -644,8 +637,7 @@ impl RpcRequestHandler {
     }
 
     pub async fn do_sign(&self, 
-        request: Request<SignRequest>,
-        node_id: Option<usize>) -> Result<Response<SignResponse>, Status> {
+        request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         println!(">> REQH: Received a signing request.");
         let req: &SignRequest = request.get_ref();
         let mut instance_id;
@@ -655,7 +647,7 @@ impl RpcRequestHandler {
         // If scheme is Frost, we can make use of precomputation
         if req.scheme == ThresholdScheme::Frost.get_id() as i32 {
             println!(">> REQH: Scheme is FROST, fetching precomputations");
-            instance = self.pop_frost_precomputation(node_id).await;
+            instance = self.pop_frost_precomputation().await;
 
             if instance.is_none() {
                 println!(">> REQH: No more precomputations left, create new precomputations");
@@ -683,15 +675,14 @@ impl RpcRequestHandler {
                         
                         RpcRequestHandler::push_frost_precomputation(
                             state_command_sender2,
-                            result.unwrap(),
-                            Option::None
+                            result.unwrap()
                         )
                         .await.expect("Error adding frost precomputation");
                     });
                 }
             }
 
-            instance = self.pop_frost_precomputation(Option::None).await;
+            instance = self.pop_frost_precomputation().await;
         } 
          
         // Make all required checks and create the new protocol instance
@@ -773,75 +764,12 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }))
     }
 
-    /* this method is called at the non-leader nodes if no atomic broadcast is involved */
-    async fn forward_sign_request(
-        &self,
-        request: Request<LeaderSignRequest>
-    ) -> Result<Response<SignResponse>, Status> {
-        let r = request.get_ref();
-        let req: Request<SignRequest> = Request::new(
-            SignRequest { 
-                message: r.message.clone(), 
-                label: r.label.clone(), 
-                key_id: r.key_id.clone(), 
-                scheme: r.scheme.clone(), 
-                group: r.group.clone() }
-            );
-        return self.do_sign(req, Some(r.node_id as usize)).await;
-    }
-
     /* this method is called in the case of atomic broadcast */
     async fn sign(
         &self,
-        request: Request<AtomicSignRequest>,
-    ) -> Result<Response<SignResponse>, Status> {
-        let r = request.get_ref();
-        let req: Request<SignRequest> = Request::new(
-            SignRequest { 
-                message: r.message.clone(), 
-                label: r.label.clone(), 
-                key_id: r.key_id.clone(), 
-                scheme: r.scheme.clone(), 
-                group: r.group.clone() }
-            );
-        return self.do_sign(req, None).await;
-    }
-
-    /* this method is called to start the signing process for a leader-based signature protocol */
-    async fn leader_sign(
-        &self,
         request: Request<SignRequest>,
     ) -> Result<Response<SignResponse>, Status> {
-        let r = request.get_ref();
-
-        for i in 0..self.config.ips.len() {
-            let ip = self.config.ips[i].clone();
-            let port = self.config.rpc_ports[i];
-
-            if self.config.ids[i] == self.my_id {
-                continue;
-            }
-
-            let addr = format!("http://[{ip}]:{port}");
-            let mut connection = 
-                ThresholdCryptoLibraryClient::connect(addr.clone())
-                    .await
-                    .unwrap();
-
-            let req: Request<LeaderSignRequest> = Request::new(
-                LeaderSignRequest { 
-                    message: r.message.clone(), 
-                    label: r.label.clone(), 
-                    key_id: r.key_id.clone(), 
-                    scheme: r.scheme.clone(), 
-                    group: r.group.clone(),
-                    node_id:self.my_id }
-                );
-
-            connection.forward_sign_request(req).await;
-        }
-
-        return self.do_sign(request, None).await;
+        return self.do_sign(request).await;
     }
 
     async fn flip_coin(
@@ -1063,9 +991,7 @@ pub async fn init(
     keychain: KeyChain,
     incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
-    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage>, // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
-    config: static_net::deserialize::Config,
-    my_id: u32 
+    incoming_message_sender: tokio::sync::mpsc::Sender<NetMessage> // needed only for testing, to "patch" messages received over the RPC Endpoint PushDecryptionShare
 ) {
     // Channel to send commands to the StateManager.
     // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
@@ -1100,10 +1026,7 @@ pub async fn init(
         state_command_sender,
         dispatcher_command_sender,
         outgoing_message_sender,
-        incoming_message_sender,
-        frost_precomputations: Vec::new(),
-        my_id,
-        config
+        incoming_message_sender
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

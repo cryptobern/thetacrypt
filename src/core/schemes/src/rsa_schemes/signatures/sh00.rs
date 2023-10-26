@@ -44,7 +44,7 @@ impl Sh00PublicKey {
         match self.modbits {
             512 => Group::Rsa512,
             1024 => Group::Rsa1024,
-            2046 => Group::Rsa2048,
+            2048 => Group::Rsa2048,
             4096 => Group::Rsa4096,
             _ => panic!("invalid modbits value")
         }
