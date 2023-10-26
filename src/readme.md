@@ -76,29 +76,39 @@ The binary `confgen` generates an extra config file, `client.json`, that has a l
 The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
 It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects sg02-Bls12381 --dir ./conf
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./conf
 ```
 
-Available groups are: 
+By default, the newly generated key gets appended to the list of keys in the output file specified through `--dir`. To a completely new file and overwrite the previous key is possible to add the `--new` flag at the end. 
+```
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./conf --new
+```
 
-Bls12381 (pairings)
-Bn254     (pairings)
-Ed25519 
-Rsa512 (no DL)
-Rsa1024 (no DL)
-Rsa2048 (no DL)
-Rsa4096 (no DL)
+To generate the keys, information on the scheme and group is needed. Available schemes are:
 
-And available schemes are: 
+- Bz03 (pairings, DL)
+- Sg02 (DL)
+- Bls04 (pairings, DL)
+- Cks05 (DL)
+- Frost (DL)
+- Sh00 (RSA)
 
-Bz03 (pairings, DL)
-Sg02 (DL)
-Bls04 (pairings, DL)
-Cks05 (DL)
-Frost (DL)
-Sh00 (RSA)
+Available groups are:
 
-To generate the keys, information on the scheme and group is needed. For more information run the binary with `--help` option.
+- Bls12381 (pairings)
+- Bn254     (pairings)
+- Ed25519 
+- Rsa512 (no DL)
+- Rsa1024 (no DL)
+- Rsa2048 (no DL)
+- Rsa4096 (no DL)
+
+For more information run the binary with `--help` option.
+
+To setup the network of servers with all possible available schemes you can run `thetacli` script with the `--subjects` flag set to "*default*":
+```
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects default --dir ./conf
+```
 
 ### Starting the server binary
 
@@ -116,8 +126,10 @@ The server prints info messages, to see them set the following environment varia
 
 You should see each server process print that it is connected to the others and ready to receive client requests.
 
+**The server can also be run without specifying the `--key-file` flag, this is optional.** In the future, the service will support algorithms to generate the key(DKG) or compute randomness in a distributed manner without any previous setup.
 
 ## Run an example client
+
 An RPC client, meant only to be used as an example, can be found in `\src\bin\client.rs`. To run this client, open a new terminal and run:
 ```
 cargo run --bin client -- --config-file=conf/client.json
