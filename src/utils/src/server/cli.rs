@@ -10,5 +10,5 @@ pub struct ServerCli {
     pub config_file: PathBuf,
 
     #[arg(long, help = "Path to JSON-encoded keychain.")]
-    pub key_file: PathBuf,
+    pub key_file: Option<PathBuf>,
 }

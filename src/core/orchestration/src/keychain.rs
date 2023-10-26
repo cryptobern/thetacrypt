@@ -12,8 +12,7 @@ use theta_schemes::{interface::InteractiveThresholdSignature, keys::PrivateKey};
 
 pub struct KeyChain {
     key_entries: HashMap<String, Arc<Key>>,
-    frost_precomputes: Vec<InteractiveThresholdSignature>,
-    frost_node_precomputes: HashMap<usize, Vec<InteractiveThresholdSignature>>
+    frost_precomputes: Vec<InteractiveThresholdSignature>
 }
 
 // KeyChainSerializable is the same as KeyChain without the shared references.
@@ -74,9 +73,18 @@ impl KeyChain {
     pub fn new() -> Self {
         KeyChain {
             key_entries: HashMap::new(),
-            frost_precomputes: Vec::new(),
-            frost_node_precomputes: HashMap::new()
+            frost_precomputes: Vec::new()
         }
+    }
+
+    pub fn from_config_file(filename: &PathBuf) -> std::io::Result<Self> {
+        let key_chain_str = fs::read_to_string(filename)?;
+        let node_keys: HashMap<String, PrivateKey> = serde_json::from_str(&key_chain_str)?;
+        let mut keychain = KeyChain::new();
+        for key in node_keys{
+           keychain.insert_key(key.1, key.0).expect("error generating key"); 
+        }
+        Ok(keychain)
     }
 
     pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
@@ -97,17 +105,8 @@ impl KeyChain {
         return self.frost_precomputes.len();
     }
 
-    pub fn num_node_precomputations(&self, node_id:usize) -> usize {
-        let vec = self.frost_node_precomputes.get(&node_id);
-        if let Option::Some(x) = vec {
-            return x.len();
-        }
-        
-        return 0;
-    }
-
     // Inserts a key to the key_chain. A key_id must be given and must be unique among all keys (regardless of the key scheme).
-    // The funcion, and eventually the KeyChain, gets ownership of the key.
+    // The function, and eventually the KeyChain, gets ownership of the key.
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group.
     // A key is_default_for_operation if it is the first key created for its operation.
     pub fn insert_key(&mut self, key: PrivateKey, key_id: String) -> Result<(), String> {
@@ -147,38 +146,6 @@ impl KeyChain {
 
     pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
         self.frost_precomputes.pop()
-    }
-
-    pub fn append_node_precompute_results(&mut self, node_id:usize, instances: &mut Vec<InteractiveThresholdSignature>) {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            x.append(instances);
-        } else {
-            let mut vec: Vec<InteractiveThresholdSignature> = Vec::new();
-            vec.append(instances);
-            self.frost_node_precomputes.insert(node_id, vec);
-        }
-    }
-
-    pub fn push_node_precompute_result(&mut self, node_id:usize, instance: InteractiveThresholdSignature) {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            x.push(instance);
-            x.sort_by(|a, b| a.get_label().cmp(&b.get_label()));
-        } else {
-            let mut vec: Vec<InteractiveThresholdSignature> = Vec::new();
-            vec.push(instance);
-            self.frost_node_precomputes.insert(node_id, vec);
-        }
-    }
-
-    pub fn pop_node_precompute_result(&mut self, node_id:&usize,) -> Option<InteractiveThresholdSignature> {
-        let vec = self.frost_node_precomputes.get_mut(&node_id);
-        if let Option::Some(x) = vec {
-            return x.pop();
-        }
-
-        return Option::None;
     }
 
     // Return the matching key with the given key_id, or an error if no key with key_id exists.

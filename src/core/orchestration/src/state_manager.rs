@@ -44,12 +44,10 @@ pub enum StateUpdateCommand {
         responder: tokio::sync::oneshot::Sender< Vec<Arc<Key>> >
     },
     PopFrostPrecomputation {
-        responder: tokio::sync::oneshot::Sender<Option<InteractiveThresholdSignature>>,
-        node_id: Option<usize> 
+        responder: tokio::sync::oneshot::Sender<Option<InteractiveThresholdSignature>>
     },
     PushFrostPrecomputation {
-        instance: InteractiveThresholdSignature,
-        node_id: Option<usize>
+        instance: InteractiveThresholdSignature
     }
 }
 
@@ -110,26 +108,13 @@ impl StateManager {
                             let key_entries = self.keychain.get_encryption_keys();
                             responder.send(key_entries).expect("The receiver for responder in StateUpdateCommand::GetEncryptionKeys has been closed.");
                         },
-                        StateUpdateCommand::PopFrostPrecomputation { responder, node_id } => {
-                            let result;
-                            if let Option::Some(id) = node_id {
-                                result = self.keychain.pop_node_precompute_result(&id);
-                                
-                            } else {
-                                result = self.keychain.pop_precompute_result();
-                            }
-                            
+                        StateUpdateCommand::PopFrostPrecomputation { responder } => {
+                            let result = self.keychain.pop_precompute_result();
                             responder.send(result).expect("The receiver for responder in StateUpdateCommand::PopFrostPrecomputation has been closed.");
                         },
-                        StateUpdateCommand::PushFrostPrecomputation { instance, node_id } => {
-                            let result;
-                            if let Option::Some(id) = node_id {
-                                result = self.keychain.push_node_precompute_result(id, instance);
-                                
-                            } else {
-                                result = self.keychain.push_precompute_result(instance);
-                            }
-
+                        StateUpdateCommand::PushFrostPrecomputation { instance } => {
+                            let result = self.keychain.push_precompute_result(instance);
+                            
                             println!(">> {} FROST precomputations", self.keychain.num_precomputations());
                         }
                         _ => unimplemented!()
