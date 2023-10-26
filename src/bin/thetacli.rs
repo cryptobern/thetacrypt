@@ -1,10 +1,11 @@
 use std::{env, process::exit, fs::{File, OpenOptions}, io::{Write, Read}, collections::HashMap};
 
+
+use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
 use clap::Parser;
 use hex::FromHex;
 use rand::rngs::OsRng;
 use theta_schemes::{keys::{KeyGenerator, PrivateKey, PublicKey}, interface::{Serializable, ThresholdCipher, ThresholdCipherParams, Ciphertext, ThresholdCryptoError, ThresholdSignature, Signature}, rand::{RNG, RngAlgorithm}, scheme_types_impl::{SchemeDetails, GroupDetails}, group::GroupData};
-use theta_orchestration::keychain::KeyChain;
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 use utils::{thetacli::cli::*, server::types::ProxyNode};
 use std::fs;
@@ -24,7 +25,7 @@ fn main() -> Result<(), Error> {
     let args = ThetaCliArgs::parse();
 
     if let Commands::keygen(keyGenArgs) = args.command {
-        return keygen(keyGenArgs.k, keyGenArgs.n, &keyGenArgs.subjects, &keyGenArgs.dir, keyGenArgs.append);
+        return keygen(keyGenArgs.k, keyGenArgs.n, &keyGenArgs.subjects, &keyGenArgs.dir, keyGenArgs.new);
     }
 
     if let Commands::enc(encArgs) = args.command {
@@ -38,7 +39,7 @@ fn main() -> Result<(), Error> {
     return Ok(());
 }
 
-fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error> {
+fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
 
     let mut parts = a.split(',');
@@ -50,13 +51,14 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
         return Err(Error::Threshold(ThresholdCryptoError::IOError));
     }
 
-    let mut default_key_set = generate_valid_scheme_group_pairs();
-    for string in default_key_set.clone(){
-        println!("{}", string)
-    }
-   
+
+    let mut default_key_set:Vec<String>;
 
     if a == "default" {
+        default_key_set = generate_valid_scheme_group_pairs();
+        for string in default_key_set.clone(){
+            println!("{}", string)
+        }
         default_key_set = vec![default_key_set.join(",")];
         let str_list = default_key_set[0].as_str();
         println!("{}", str_list);
@@ -72,8 +74,8 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
             return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
         }
 
-        let scheme = ThresholdScheme::parse_string(scheme_str.unwrap());
-        if scheme.is_err() {
+        let scheme = ThresholdScheme::from_str_name(scheme_str.unwrap());
+        if scheme.is_none() {
             println!("Invalid scheme '{}' selected", scheme_str.unwrap());
             return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
         }
@@ -84,7 +86,6 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
             return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
         }
 
-        // TODO: use the same method for parsing the string. For ThresholdScheme::parse_string (schemes_types_impl.rs), Group::from_str_name (schemes_types.rs)
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
             println!("Invalid group '{}' selected", group_str.unwrap());
@@ -94,7 +95,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
         // Creation of the id (name) given to a certain key. For now the name is based on scheme_group info.
         // TODO: decide a way to create unique identifiers to have multiple keys of the same type. 
         let mut name = String::from(group_str.unwrap());
-        name.insert_str(0, "_");
+        name.insert_str(0, "-");
         name.insert_str(0, scheme_str.unwrap());
 
         let key = KeyGenerator::generate_keys(k as usize, n as usize, &mut rng, &scheme.unwrap(), &group.unwrap(), &Option::None).expect("Failed to generate keys");
@@ -119,7 +120,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
         // Define the name of the key file based on the node 
         let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
 
-        if append {
+        if !new {
 
             // Open the file, or create it before opening
             let mut file = File::options().write(true).read(true).create(true).open(keyfile.clone())?;
@@ -137,6 +138,9 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, append: bool) -> Result<(), Error>
         
         // each value in keys is a vector of secret key share (related to the same pk) that needs to be distributed among the right key file (parties)
         for k in keys.clone() {
+            //create the base64 key encoding for writing on file
+            // let key_b64 = general_purpose::STANDARD.encode(k.1[node_id as usize].clone());
+            // println!("{}", key_b64);
             // the node_id refers to the index of a specific party and it is used to index the right share for the party
             node_keys.insert(k.0.clone(), k.1[node_id as usize].clone());
         }
