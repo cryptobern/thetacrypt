@@ -14,10 +14,8 @@ use theta_schemes::{
     interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
 };
 
-use theta_proto::{protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient, scheme_types::{ThresholdScheme, Group}};
+use theta_proto::{protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, StatusRequest, KeyRequest, PublicKeyEntry}, scheme_types::{ThresholdScheme, Group}};
 use theta_proto::protocol_types::DecryptRequest;
-use theta_proto::protocol_types::GetDecryptResultRequest;
-use theta_proto::protocol_types::{GetPublicKeysForEncryptionRequest, PublicKeyEntry};
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
 // It is meant to test the basic network logic RpcRequestHandler, MessageDispatcher, etc.
@@ -37,19 +35,18 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 
     // Ask for decrypt result before sending decrypt request
     let mut i = 0;
-    let get_result_request = GetDecryptResultRequest {
+    let get_result_request = StatusRequest {
         instance_id: String::from("Some instance that does not exist yet."),
     };
     for conn in connections.iter_mut() {
         println!(">> Sending get_decrypt_result request to server {i}.");
         let response = conn
-            .get_decrypt_result(get_result_request.clone())
+            .get_status(get_result_request.clone())
             .await
             .expect("This should not return Err");
         let get_result_response = response.into_inner();
-        assert!(get_result_response.is_started == false);
         assert!(get_result_response.is_finished == false);
-        assert!(get_result_response.plaintext == None);
+        assert!(get_result_response.result == None);
         i += 1;
     }
 
@@ -66,18 +63,17 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 
         // Immediately ask for decrypt result. The instance cannot have finished at this point
         if i == 0 {
-            let get_result_request = GetDecryptResultRequest {
+            let get_result_request = StatusRequest {
                 instance_id: instance_id.clone(),
             };
             println!(">> Sending get_decrypt_result request to server {i}.");
             let response = conn
-                .get_decrypt_result(get_result_request.clone())
+                .get_status(get_result_request.clone())
                 .await
                 .expect("This should not return Err");
             let get_result_response = response.into_inner();
-            assert!(get_result_response.is_started == true);
             assert!(get_result_response.is_finished == false);
-            assert!(get_result_response.plaintext == None);
+            assert!(get_result_response.result == None);
         }
 
         i += 1;
@@ -88,19 +84,18 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 
     // Ask for decrypt result. Instance should have finished by now.
     let mut i = 0;
-    let get_result_request = GetDecryptResultRequest {
+    let get_result_request = StatusRequest {
         instance_id: instance_id.clone(),
     };
     for conn in connections.iter_mut() {
         println!(">> Sending get_decrypt_result request to server {i}.");
         let response = conn
-            .get_decrypt_result(get_result_request.clone())
+            .get_status(get_result_request.clone())
             .await
             .expect("This should not return Err");
         let get_result_response = response.into_inner();
-        assert!(get_result_response.is_started == true);
         assert!(get_result_response.is_finished == true);
-        match get_result_response.plaintext {
+        match get_result_response.result {
             Some(plaintext) => {
                 println!(
                     ">> Decrypted plaintext: {:?}.",
@@ -166,19 +161,18 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
     // Ask for decrypt result. Instance should have finished by now.
     let mut i = 0;
     let get_result_request
-     = GetDecryptResultRequest {
+     = StatusRequest {
         instance_id: instance_id1,
     };
     for conn in connections.iter_mut() {
         println!(">> Sending get_decrypt_result request to server {i}.");
         let response = conn
-            .get_decrypt_result(get_result_request.clone())
+            .get_status(get_result_request.clone())
             .await
             .expect("This should not return Err");
         let get_result_response = response.into_inner();
-        assert!(get_result_response.is_started == true);
         assert!(get_result_response.is_finished == true);
-        match get_result_response.plaintext {
+        match get_result_response.result {
             Some(plaintext) => {
                 println!(
                     ">> Decrypted plaintext: {:?}.",
@@ -251,12 +245,12 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
     let mut advertised_public_keys_count: HashMap<[u8; 32], u32> = HashMap::new();
 
     // Ask all the nodes for their available public keys. We say each node "advertises" some public keys.
-    let req = GetPublicKeysForEncryptionRequest {};
+    let req = KeyRequest {};
     let mut responses = Vec::new();
     let mut i = 0;
     for conn in connections.iter_mut() {
         println!(">> Sending a get-keys request to node {i}.");
-        match conn.get_public_keys_for_encryption(req.clone()).await {
+        match conn.get_public_keys(req.clone()).await {
             Ok(response) => {
                 let response_keys = response.into_inner().keys;
                 println!(

@@ -7,11 +7,12 @@ use theta_schemes::interface::{
 };
 use theta_schemes::keys::{PrivateKey, PublicKey};
 use theta_schemes::scheme_types_impl::SchemeDetails;
+use tonic::async_trait;
 
-use theta_orchestration::types::{Key, ProtocolError};
+use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdSignatureProtocol {
-    key: Arc<Key>,
+    private_key: Arc<PrivateKey>,
     message: Option<Vec<u8>>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
@@ -27,7 +28,7 @@ pub struct ThresholdSignatureProtocol {
 }
 
 pub struct ThresholdSignaturePrecomputation {
-    key: Arc<Key>,
+    private_key: Arc<PrivateKey>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -38,73 +39,9 @@ pub struct ThresholdSignaturePrecomputation {
     round_results: Vec<RoundResult>
 }
 
-impl<'a> ThresholdSignatureProtocol {
-    pub fn new(
-        key: Arc<Key>,
-        message: Option<&Vec<u8>>,
-        label: &Vec<u8>,
-        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
-        instance_id: String,
-    ) -> Self {
-        let mut instance = Option::None;
-        if key.sk.get_scheme().is_interactive() {
-            println!(">> Creating interactive instance");
-            let mut i = InteractiveThresholdSignature::new(&key.sk);
-            if i.is_err() {
-                panic!("Error creating signature instance");
-            }
-
-            let mut i = i.unwrap();
-            i.set_label(&label);
-
-            instance = Option::Some(i);
-        } 
-
-        ThresholdSignatureProtocol{
-            key,
-            message:message.clone().cloned(),
-            label:label.clone(),
-            chan_in,
-            chan_out,
-            instance_id,
-            valid_shares: Vec::new(),
-            finished: false,
-            signature: Option::None,
-            received_share_ids: HashSet::new(),
-            instance,
-            round_results: Vec::new(),
-            precomputed: false
-        }
-    }
-
-    pub fn from_instance(
-        instance: &InteractiveThresholdSignature,
-        key: Arc<Key>,
-        message: &Vec<u8>,
-        label: &Vec<u8>,
-        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
-        instance_id: String
-    ) -> Self {
-        return ThresholdSignatureProtocol{
-            key,
-            message:Option::Some(message.clone()),
-            label:label.clone(),
-            chan_in,
-            chan_out,
-            instance_id,
-            valid_shares: Vec::new(),
-            finished: false,
-            signature: Option::None,
-            received_share_ids: HashSet::new(),
-            instance:Option::Some(instance.clone()),
-            round_results: Vec::new(),
-            precomputed: true
-        }
-    }
-
-    pub async fn run(&mut self) -> Result<Signature, ProtocolError> {
+#[async_trait]
+impl ThresholdProtocol for ThresholdSignatureProtocol {
+    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
 
         if(!self.precomputed) {
@@ -116,7 +53,7 @@ impl<'a> ThresholdSignatureProtocol {
         loop {
             match self.chan_in.recv().await {
                 Some(msg) => {
-                    if self.key.sk.get_scheme().is_interactive() {
+                    if self.private_key.get_scheme().is_interactive() {
                         match RoundResult::deserialize(&msg) {
                             Ok(round_result) => {
                                 if self.instance.as_mut().unwrap().update(&round_result).is_err() {
@@ -135,7 +72,12 @@ impl<'a> ThresholdSignatureProtocol {
                                         println!(
                                             ">> PROT: Calculated signature."
                                         );
-                                        return Ok(self.signature.as_ref().unwrap().clone());
+
+                                        let result = self.signature.as_ref().unwrap().serialize();
+                                        if result.is_err() {
+                                            return Err(ProtocolError::SchemeError(result.unwrap_err()))
+                                        }
+                                        return Ok(result.unwrap());
                                     } 
 
                                     let rr = self.instance.as_mut().unwrap().do_round();
@@ -166,14 +108,20 @@ impl<'a> ThresholdSignatureProtocol {
                                 continue;
                             }
                         }
-                       
+                        
                     } else {
                         match SignatureShare::deserialize(&msg) {
                             Ok(deserialized_share) => {
                                 self.on_receive_signature_share(deserialized_share)?;
                                 if self.finished {
                                     self.terminate().await?;
-                                    return Ok(self.signature.as_ref().unwrap().clone());
+                                    
+                                    
+                                    let result = self.signature.as_ref().unwrap().serialize();
+                                    if result.is_err() {
+                                        return Err(ProtocolError::SchemeError(result.unwrap_err()))
+                                    }
+                                    return Ok(result.unwrap());
                                 }
                             }
                             Err(tcerror) => {
@@ -194,9 +142,76 @@ impl<'a> ThresholdSignatureProtocol {
         }
         // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
     }
+}
+
+impl<'a> ThresholdSignatureProtocol {
+    pub fn new(
+        private_key: Arc<PrivateKey>,
+        message: Option<&Vec<u8>>,
+        label: &Vec<u8>,
+        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        instance_id: String,
+    ) -> Self {
+        let mut instance = Option::None;
+        if private_key.get_scheme().is_interactive() {
+            println!(">> Creating interactive instance");
+            let mut i = InteractiveThresholdSignature::new(&private_key);
+            if i.is_err() {
+                panic!("Error creating signature instance");
+            }
+
+            let mut i = i.unwrap();
+            i.set_label(&label);
+
+            instance = Option::Some(i);
+        } 
+
+        ThresholdSignatureProtocol{
+            private_key,
+            message:message.clone().cloned(),
+            label:label.clone(),
+            chan_in,
+            chan_out,
+            instance_id,
+            valid_shares: Vec::new(),
+            finished: false,
+            signature: Option::None,
+            received_share_ids: HashSet::new(),
+            instance,
+            round_results: Vec::new(),
+            precomputed: false
+        }
+    }
+
+    pub fn from_instance(
+        instance: &InteractiveThresholdSignature,
+        private_key: Arc<PrivateKey>,
+        message: &Vec<u8>,
+        label: &Vec<u8>,
+        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        instance_id: String
+    ) -> Self {
+        return ThresholdSignatureProtocol{
+            private_key,
+            message:Option::Some(message.clone()),
+            label:label.clone(),
+            chan_in,
+            chan_out,
+            instance_id,
+            valid_shares: Vec::new(),
+            finished: false,
+            signature: Option::None,
+            received_share_ids: HashSet::new(),
+            instance:Option::Some(instance.clone()),
+            round_results: Vec::new(),
+            precomputed: true
+        }
+    }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
-        if self.key.sk.get_scheme().is_interactive() {
+        if self.private_key.get_scheme().is_interactive() {
             let rr = self.instance.as_mut().unwrap().do_round()?;
             self.instance.as_mut().unwrap().update(&rr);
             let message = NetMessage {
@@ -212,9 +227,9 @@ impl<'a> ThresholdSignatureProtocol {
             println!(
                 ">> PROT: instance_id: {:?} computing signature share for key id:{:?}.",
                 &self.instance_id,
-                self.key.sk.get_id()
+                self.private_key.get_id()
             );
-            let share = ThresholdSignature::partial_sign(&(&self.message).clone().unwrap(), &self.label, &self.key.sk, &mut params)?;
+            let share = ThresholdSignature::partial_sign(&(&self.message).clone().unwrap(), &self.label, &self.private_key, &mut params)?;
             // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
             let message = NetMessage {
                 instance_id: self.instance_id.clone(),
@@ -244,7 +259,7 @@ impl<'a> ThresholdSignatureProtocol {
         }
         self.received_share_ids.insert(share.get_id());
         let verification_result =
-            ThresholdSignature::verify_share(&share, &(&self.message).clone().unwrap(), &self.key.sk.get_public_key());
+            ThresholdSignature::verify_share(&share, &(&self.message).clone().unwrap(), &self.private_key.get_public_key());
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
@@ -260,9 +275,9 @@ impl<'a> ThresholdSignatureProtocol {
 
         self.valid_shares.push(share);
 
-        if self.valid_shares.len() >= self.key.sk.get_threshold() as usize {
+        if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
             let sig =
-                ThresholdSignature::assemble(&self.valid_shares, &(&self.message).clone().unwrap(), &self.key.sk.get_public_key())?;
+                ThresholdSignature::assemble(&self.valid_shares, &(&self.message).clone().unwrap(), &self.private_key.get_public_key())?;
             self.signature = Option::Some(sig);
             self.finished = true;
             println!(
@@ -276,7 +291,7 @@ impl<'a> ThresholdSignatureProtocol {
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.key.sk.get_public_key());
+        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
@@ -288,14 +303,14 @@ impl<'a> ThresholdSignatureProtocol {
 
 impl<'a> ThresholdSignaturePrecomputation {
     pub fn new(
-        key: Arc<Key>,
+        private_key: Arc<PrivateKey>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self { 
         println!(">> Creating precomputation instance");
-        let mut i = InteractiveThresholdSignature::new(&key.sk);
+        let mut i = InteractiveThresholdSignature::new(&private_key);
         if i.is_err() {
             panic!("Error creating precomputation instance");
         }
@@ -303,7 +318,7 @@ impl<'a> ThresholdSignaturePrecomputation {
         let instance = i.unwrap();
 
         ThresholdSignaturePrecomputation{
-            key,
+            private_key,
             label:label.clone(),
             chan_in,
             chan_out,
@@ -316,7 +331,7 @@ impl<'a> ThresholdSignaturePrecomputation {
     }
     
     pub async fn run(&mut self) -> Result<InteractiveThresholdSignature, ProtocolError> {
-        if self.key.sk.get_scheme() != ThresholdScheme::Frost {
+        if self.private_key.get_scheme() != ThresholdScheme::Frost {
             println!(">> PROT: error - trying to use precompute on scheme other than Frost");
             return Err(ProtocolError::SchemeError(ThresholdCryptoError::WrongScheme));
         }
@@ -345,7 +360,7 @@ impl<'a> ThresholdSignaturePrecomputation {
             match self.chan_in.recv().await {
                 Some(msg) => {
                     println!(">> PROT: received something");
-                    if self.key.sk.get_scheme() == ThresholdScheme::Frost {
+                    if self.private_key.get_scheme() == ThresholdScheme::Frost {
                         match RoundResult::deserialize(&msg) {
                             Ok(round_result) => {
                                 println!(">> PROT: Precomputation round result received");
@@ -380,7 +395,7 @@ impl<'a> ThresholdSignaturePrecomputation {
 
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.key.sk.get_public_key());
+        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());

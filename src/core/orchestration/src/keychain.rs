@@ -79,10 +79,14 @@ impl KeyChain {
 
     pub fn from_config_file(filename: &PathBuf) -> std::io::Result<Self> {
         let key_chain_str = fs::read_to_string(filename)?;
-        let node_keys: HashMap<String, PrivateKey> = serde_json::from_str(&key_chain_str)?;
+        let node_keys: HashMap<String, String> = serde_json::from_str(&key_chain_str)?;
         let mut keychain = KeyChain::new();
         for key in node_keys{
-           keychain.insert_key(key.1, key.0).expect("error generating key"); 
+            let result = PrivateKey::from_pem(&key.1);
+            if let Ok(k) = result {
+                keychain.insert_key(k.clone(), key.0.clone()).expect("error loading key"); 
+                println!(">> Successfully imported key '{}' {} {}", key.0, k.get_group().as_str_name(), k.get_scheme().as_str_name());
+            }
         }
         Ok(keychain)
     }

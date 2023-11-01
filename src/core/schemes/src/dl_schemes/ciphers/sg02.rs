@@ -195,10 +195,10 @@ impl Serializable for Sg02PrivateKey {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Sg02Ciphertext{
     label: Vec<u8>,
-    msg: Vec<u8>,
+    ctxt: Vec<u8>,
     u: GroupElement,
     u_bar: GroupElement,
     e: BigImpl,
@@ -212,7 +212,7 @@ impl Serializable for Sg02Ciphertext {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&self.get_group().get_code())?;
                 w.write_element(&self.label.as_slice())?;
-                w.write_element(&self.msg.as_slice())?;
+                w.write_element(&self.ctxt.as_slice())?;
                 w.write_element(&self.u.to_bytes().as_slice())?;
                 w.write_element(&self.u_bar.to_bytes().as_slice())?;
                 w.write_element(&self.e.to_bytes().as_slice())?;
@@ -254,7 +254,7 @@ impl Serializable for Sg02Ciphertext {
 
                 let c_k = d.read_element::<&[u8]>()?.to_vec();
 
-                return Ok(Sg02Ciphertext { label, msg, u, u_bar, e, f, c_k });
+                return Ok(Sg02Ciphertext { label, ctxt: msg, u, u_bar, e, f, c_k });
             })
         });
 
@@ -269,16 +269,17 @@ impl Serializable for Sg02Ciphertext {
 
 impl Sg02Ciphertext {
     pub fn new(label: Vec<u8>,
-        msg: Vec<u8>,
+        ctxt: Vec<u8>,
         u: GroupElement,
         u_bar: GroupElement,
         e: BigImpl,
         f: BigImpl,
         c_k: Vec<u8>) -> Self{
-            Self {msg, label, u, u_bar, e, f, c_k}
+            Self {ctxt, label, u, u_bar, e, f, c_k}
         }
-    pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
-    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_ctxt(&self) -> &[u8] { &self.ctxt }
+    pub fn get_ck(&self) -> &[u8] { &self.c_k }
+    pub fn get_label(&self) -> &[u8] { &self.label }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
     pub fn get_group(&self) -> &Group { self.e.get_group() }
 }
@@ -382,7 +383,7 @@ impl Sg02ThresholdCipher {
             .add(&BigImpl::rmul(&e, &r, &order))
             .rmod(&order);
 
-        let c = Sg02Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
+        let c = Sg02Ciphertext{label:label.to_vec(), ctxt:encryption, c_k:c_k.to_vec(), u:u, u_bar:u_bar, e:e, f:f};
         c
     }
 
@@ -444,7 +445,7 @@ impl Sg02ThresholdCipher {
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let msg = cipher
-            .decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.msg.as_ref())
+            .decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.ctxt.as_ref())
             .expect("Failed to decrypt ciphertext. Make sure you have enough valid decryption shares");
         msg
     }

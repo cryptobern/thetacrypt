@@ -11,7 +11,7 @@ fn test_key_generation() {
         5,  
         &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
-        &Group::Rsa512, 
+        &Group::Rsa4096, 
         &Option::Some(params))
         .unwrap();
     assert!(keys.len() == 5);
@@ -26,7 +26,7 @@ fn test_public_key_serialization() {
         5,  
         &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
-        &Group::Rsa512, 
+        &Group::Rsa1024, 
         &Option::Some(params))
         .unwrap();
     let secret_key = keys[0].clone();
@@ -59,7 +59,7 @@ fn test_full_scheme() {
         5,  
         &mut RNG::new(RngAlgorithm::OsRng), 
         &ThresholdScheme::Sh00,
-        &Group::Rsa512, 
+        &Group::Rsa2048, 
         &Option::None)
         .unwrap();
     let mut params = ThresholdSignatureParams::new();

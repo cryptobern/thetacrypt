@@ -7,11 +7,12 @@ use theta_schemes::interface::{
 };
 use theta_schemes::keys::{PrivateKey, PublicKey};
 use theta_schemes::rand::RNG;
+use tonic::async_trait;
 
-use theta_orchestration::types::{Key, ProtocolError};
+use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdCoinProtocol {
-    key: Arc<Key>,
+    private_key: Arc<PrivateKey>,
     name: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -22,28 +23,9 @@ pub struct ThresholdCoinProtocol {
     received_share_ids: HashSet<u16>,
 }
 
-impl ThresholdCoinProtocol {
-    pub fn new(
-        key: Arc<Key>,
-        name: &Vec<u8>,
-        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
-        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
-        instance_id: String,
-    ) -> Self {
-        ThresholdCoinProtocol {
-            key,
-            name:name.clone(),
-            chan_in,
-            chan_out,
-            instance_id,
-            valid_shares: Vec::new(),
-            finished: false,
-            coin: Option::None,
-            received_share_ids: HashSet::new(),
-        }
-    }
-
-    pub async fn run(&mut self) -> Result<u8, ProtocolError> {
+#[async_trait]
+impl ThresholdProtocol for ThresholdCoinProtocol {
+    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
 
         self.on_init().await?;
@@ -55,7 +37,9 @@ impl ThresholdCoinProtocol {
                             self.on_receive_coin_share(deserialized_share)?;
                             if self.finished {
                                 self.terminate().await?;
-                                return Ok(self.coin.as_ref().unwrap().clone());
+                                let mut result = Vec::new();
+                                result.push(self.coin.as_ref().unwrap().clone());
+                                return Ok(result);
                             }
                         }
                         Err(tcerror) => {
@@ -75,15 +59,37 @@ impl ThresholdCoinProtocol {
         }
         // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
     }
+}
+
+impl ThresholdCoinProtocol {
+    pub fn new(
+        private_key: Arc<PrivateKey>,
+        name: &Vec<u8>,
+        chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
+        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        instance_id: String,
+    ) -> Self {
+        ThresholdCoinProtocol {
+            private_key,
+            name:name.clone(),
+            chan_in,
+            chan_out,
+            instance_id,
+            valid_shares: Vec::new(),
+            finished: false,
+            coin: Option::None,
+            received_share_ids: HashSet::new(),
+        }
+    }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send coin share
         println!(
             ">> PROT: instance_id: {:?} computing coin share for key id:{:?}.",
             &self.instance_id,
-            self.key.sk.get_id()
+            self.private_key.get_id()
         );
-        let share = ThresholdCoin::create_share(&self.name, &self.key.sk, &mut RNG::new(theta_schemes::rand::RngAlgorithm::OsRng))?;
+        let share = ThresholdCoin::create_share(&self.name, &self.private_key, &mut RNG::new(theta_schemes::rand::RngAlgorithm::OsRng))?;
         // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
         let message = NetMessage {
             instance_id: self.instance_id.clone(),
@@ -113,7 +119,7 @@ impl ThresholdCoinProtocol {
         self.received_share_ids.insert(share.get_id());
 
         let verification_result =
-            ThresholdCoin::verify_share(&share, &self.name, &self.key.sk.get_public_key());
+            ThresholdCoin::verify_share(&share, &self.name, &self.private_key.get_public_key());
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
@@ -129,7 +135,7 @@ impl ThresholdCoinProtocol {
 
         self.valid_shares.push(share);
 
-        if self.valid_shares.len() >= self.key.sk.get_threshold() as usize {
+        if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
             let coin =
                 ThresholdCoin::assemble(&self.valid_shares)?;
             self.coin = Option::Some(coin);
@@ -144,7 +150,7 @@ impl ThresholdCoinProtocol {
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.key.sk.get_public_key());
+        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
