@@ -1206,7 +1206,7 @@ pub enum ThresholdCryptoError {
     UnknownGroup,
     IOError,
     InvalidParams,
-    Aborted,
+    Aborted(String),
 }
 
 impl Error for ThresholdCryptoError {}

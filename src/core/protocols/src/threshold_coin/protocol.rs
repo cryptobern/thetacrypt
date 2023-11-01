@@ -7,8 +7,9 @@ use theta_schemes::interface::{
 };
 use theta_schemes::keys::{PrivateKey, PublicKey};
 use theta_schemes::rand::RNG;
+use tonic::async_trait;
 
-use crate::interface::ProtocolError;
+use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdCoinProtocol {
     private_key: Arc<PrivateKey>,
@@ -20,6 +21,44 @@ pub struct ThresholdCoinProtocol {
     finished: bool,
     coin: Option<u8>,
     received_share_ids: HashSet<u16>,
+}
+
+#[async_trait]
+impl ThresholdProtocol for ThresholdCoinProtocol {
+    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
+        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
+
+        self.on_init().await?;
+        loop {
+            match self.chan_in.recv().await {
+                Some(share) => {
+                    match CoinShare::deserialize(&share) {
+                        Ok(deserialized_share) => {
+                            self.on_receive_coin_share(deserialized_share)?;
+                            if self.finished {
+                                self.terminate().await?;
+                                let mut result = Vec::new();
+                                result.push(self.coin.as_ref().unwrap().clone());
+                                return Ok(result);
+                            }
+                        }
+                        Err(tcerror) => {
+                            println!(
+                                ">> PROT: Could not deserialize share. Share will be ignored."
+                            );
+                            continue;
+                        }
+                    };
+                }
+                None => {
+                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    self.terminate().await?;
+                    return Err(ProtocolError::InternalError);
+                }
+            }
+        }
+        // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
+    }
 }
 
 impl ThresholdCoinProtocol {
@@ -41,39 +80,6 @@ impl ThresholdCoinProtocol {
             coin: Option::None,
             received_share_ids: HashSet::new(),
         }
-    }
-
-    pub async fn run(&mut self) -> Result<u8, ProtocolError> {
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-
-        self.on_init().await?;
-        loop {
-            match self.chan_in.recv().await {
-                Some(share) => {
-                    match CoinShare::deserialize(&share) {
-                        Ok(deserialized_share) => {
-                            self.on_receive_coin_share(deserialized_share)?;
-                            if self.finished {
-                                self.terminate().await?;
-                                return Ok(self.coin.as_ref().unwrap().clone());
-                            }
-                        }
-                        Err(tcerror) => {
-                            println!(
-                                ">> PROT: Could not deserialize share. Share will be ignored."
-                            );
-                            continue;
-                        }
-                    };
-                }
-                None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
-                    self.terminate().await?;
-                    return Err(ProtocolError::InternalError);
-                }
-            }
-        }
-        // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
     }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {

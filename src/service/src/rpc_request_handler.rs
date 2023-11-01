@@ -159,6 +159,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
+            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
@@ -167,11 +168,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }))
     }
 
-    /* this method is called in the case of atomic broadcast */
     async fn sign(
         &self,
         request: Request<SignRequest>,
     ) -> Result<Response<SignResponse>, Status> {
+        println!(">> REQH: Received a signature request");
         let req: &SignRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -180,12 +181,13 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }
         let scheme = scheme.unwrap();
 
-        let group = Group::from_i32(req.scheme);
+        let group = Group::from_i32(req.group);
         if group.is_none() {
             return Err(Status::aborted("Invalid group"));
         }
         let group = group.unwrap();
 
+        println!(">> {} {}", scheme.as_str_name(), group.as_str_name());
 
         let (response_sender, response_receiver) = oneshot::channel::<Result<String, ThresholdCryptoError>>();
         self.instance_manager_command_sender
@@ -193,8 +195,8 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 request: StartInstanceRequest::Signature {
                     message: req.message.clone(),
                     label: req.label.clone(),
-                    group:group,
-                    scheme:scheme
+                    group,
+                    scheme
                 }, 
                 responder: response_sender 
             })
@@ -205,6 +207,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
+            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
@@ -226,7 +229,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         }
         let scheme = scheme.unwrap();
 
-        let group = Group::from_i32(req.scheme);
+        let group = Group::from_i32(req.group);
         if group.is_none() {
             return Err(Status::aborted("Invalid group"));
         }
@@ -249,12 +252,13 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
+            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
 
         Ok(Response::new(CoinResponse{
-            instance_id: String::from("")
+            instance_id: result.unwrap()
         }))
     }
 
@@ -307,7 +311,19 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         println!(">> REQH: Received a result request.");
         let req: &StatusRequest = request.get_ref();
 
-        let status = self.get_protocol_result(&req.instance_id).await;
+        // Get status of the instance by contacting the state manager
+        let (response_sender, response_receiver) = oneshot::channel::<Option<InstanceStatus>>();
+        let cmd = InstanceManagerCommand::GetInstanceStatus {
+            instance_id: req.instance_id.clone(),
+            responder: response_sender
+        };
+        self.instance_manager_command_sender
+            .send(cmd)
+            .await
+            .expect("Receiver for state_command_sender closed.");
+        let status = response_receiver
+            .await
+            .expect("response_receiver.await returned Err");
 
         if status.is_none() {
             return Err(Status::not_found("Instance not found"));
@@ -329,26 +345,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             key_id: None
         };
         Ok(Response::new(response))
-    }
-}
-
-impl RpcRequestHandler {
-    async fn get_protocol_result(&self, instance_id: &str) -> Option<InstanceStatus> {
-        // Get status of the instance by contacting the state manager
-        let (response_sender, response_receiver) = oneshot::channel::<Option<InstanceStatus>>();
-        let cmd = InstanceManagerCommand::GetInstanceStatus {
-            instance_id: instance_id.to_string(),
-            responder: response_sender
-        };
-        self.instance_manager_command_sender
-            .send(cmd)
-            .await
-            .expect("Receiver for state_command_sender closed.");
-        let status = response_receiver
-            .await
-            .expect("response_receiver.await returned Err");
-
-        return status;
     }
 }
 

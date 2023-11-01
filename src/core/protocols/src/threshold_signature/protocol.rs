@@ -7,8 +7,9 @@ use theta_schemes::interface::{
 };
 use theta_schemes::keys::{PrivateKey, PublicKey};
 use theta_schemes::scheme_types_impl::SchemeDetails;
+use tonic::async_trait;
 
-use crate::interface::ProtocolError;
+use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdSignatureProtocol {
     private_key: Arc<PrivateKey>,
@@ -36,6 +37,111 @@ pub struct ThresholdSignaturePrecomputation {
     instance: InteractiveThresholdSignature,
     received_share_ids: HashSet<u16>,
     round_results: Vec<RoundResult>
+}
+
+#[async_trait]
+impl ThresholdProtocol for ThresholdSignatureProtocol {
+    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
+        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
+
+        if(!self.precomputed) {
+            self.instance.as_mut().unwrap().set_msg(&(&self.message).clone().unwrap());
+        }
+        
+        self.on_init().await?;
+        
+        loop {
+            match self.chan_in.recv().await {
+                Some(msg) => {
+                    if self.private_key.get_scheme().is_interactive() {
+                        match RoundResult::deserialize(&msg) {
+                            Ok(round_result) => {
+                                if self.instance.as_mut().unwrap().update(&round_result).is_err() {
+                                    println!(
+                                        ">> PROT: Could not process round result. Will be ignored."
+                                    );
+                                }
+
+                                if self.instance.as_mut().unwrap().is_ready_for_next_round() {
+                                    if self.instance.as_ref().unwrap().is_finished() {
+                                        self.finished = true;
+                                        let sig = self.instance.as_mut().unwrap().get_signature()?;
+                                        self.signature = Some(sig);
+                                        self.terminate().await?;
+
+                                        println!(
+                                            ">> PROT: Calculated signature."
+                                        );
+
+                                        let result = self.signature.as_ref().unwrap().serialize();
+                                        if result.is_err() {
+                                            return Err(ProtocolError::SchemeError(result.unwrap_err()))
+                                        }
+                                        return Ok(result.unwrap());
+                                    } 
+
+                                    let rr = self.instance.as_mut().unwrap().do_round();
+                                    self.received_share_ids.clear();
+                                    self.round_results.clear();
+                                    
+                                    if rr.is_err() {
+                                        println!(
+                                            ">> PROT: Error while doing signature protocol round: {}", rr.unwrap_err().to_string()
+                                        );
+                                    } else {
+                                        let rr = rr.unwrap();
+                                        self.instance.as_mut().unwrap().update(&rr); 
+                                        
+                                        let message = NetMessage {
+                                            instance_id: self.instance_id.clone(),
+                                            message_data: rr.serialize().unwrap(),
+                                            is_total_order: false
+                                        };
+                                        self.chan_out.send(message).await.unwrap();
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                println!(
+                                    ">> PROT: Could not deserialize round result. Round result will be ignored."
+                                );
+                                continue;
+                            }
+                        }
+                        
+                    } else {
+                        match SignatureShare::deserialize(&msg) {
+                            Ok(deserialized_share) => {
+                                self.on_receive_signature_share(deserialized_share)?;
+                                if self.finished {
+                                    self.terminate().await?;
+                                    
+                                    
+                                    let result = self.signature.as_ref().unwrap().serialize();
+                                    if result.is_err() {
+                                        return Err(ProtocolError::SchemeError(result.unwrap_err()))
+                                    }
+                                    return Ok(result.unwrap());
+                                }
+                            }
+                            Err(tcerror) => {
+                                println!(
+                                    ">> PROT: Could not deserialize share. Share will be ignored."
+                                );
+                                continue;
+                            }
+                        };
+                    }
+                }
+                None => {
+                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    self.terminate().await?;
+                    return Err(ProtocolError::InternalError);
+                }
+            }
+        }
+        // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
+    }
 }
 
 impl<'a> ThresholdSignatureProtocol {
@@ -102,97 +208,6 @@ impl<'a> ThresholdSignatureProtocol {
             round_results: Vec::new(),
             precomputed: true
         }
-    }
-
-    pub async fn run(&mut self) -> Result<Signature, ProtocolError> {
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-
-        if(!self.precomputed) {
-            self.instance.as_mut().unwrap().set_msg(&(&self.message).clone().unwrap());
-        }
-        
-        self.on_init().await?;
-        
-        loop {
-            match self.chan_in.recv().await {
-                Some(msg) => {
-                    if self.private_key.get_scheme().is_interactive() {
-                        match RoundResult::deserialize(&msg) {
-                            Ok(round_result) => {
-                                if self.instance.as_mut().unwrap().update(&round_result).is_err() {
-                                    println!(
-                                        ">> PROT: Could not process round result. Will be ignored."
-                                    );
-                                }
-
-                                if self.instance.as_mut().unwrap().is_ready_for_next_round() {
-                                    if self.instance.as_ref().unwrap().is_finished() {
-                                        self.finished = true;
-                                        let sig = self.instance.as_mut().unwrap().get_signature()?;
-                                        self.signature = Some(sig);
-                                        self.terminate().await?;
-
-                                        println!(
-                                            ">> PROT: Calculated signature."
-                                        );
-                                        return Ok(self.signature.as_ref().unwrap().clone());
-                                    } 
-
-                                    let rr = self.instance.as_mut().unwrap().do_round();
-                                    self.received_share_ids.clear();
-                                    self.round_results.clear();
-                                    
-                                    if rr.is_err() {
-                                        println!(
-                                            ">> PROT: Error while doing signature protocol round: {}", rr.unwrap_err().to_string()
-                                        );
-                                    } else {
-                                        let rr = rr.unwrap();
-                                        self.instance.as_mut().unwrap().update(&rr); 
-                                        
-                                        let message = NetMessage {
-                                            instance_id: self.instance_id.clone(),
-                                            message_data: rr.serialize().unwrap(),
-                                            is_total_order: false
-                                        };
-                                        self.chan_out.send(message).await.unwrap();
-                                    }
-                                }
-                            },
-                            Err(e) => {
-                                println!(
-                                    ">> PROT: Could not deserialize round result. Round result will be ignored."
-                                );
-                                continue;
-                            }
-                        }
-                       
-                    } else {
-                        match SignatureShare::deserialize(&msg) {
-                            Ok(deserialized_share) => {
-                                self.on_receive_signature_share(deserialized_share)?;
-                                if self.finished {
-                                    self.terminate().await?;
-                                    return Ok(self.signature.as_ref().unwrap().clone());
-                                }
-                            }
-                            Err(tcerror) => {
-                                println!(
-                                    ">> PROT: Could not deserialize share. Share will be ignored."
-                                );
-                                continue;
-                            }
-                        };
-                    }
-                }
-                None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
-                    self.terminate().await?;
-                    return Err(ProtocolError::InternalError);
-                }
-            }
-        }
-        // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
     }
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {

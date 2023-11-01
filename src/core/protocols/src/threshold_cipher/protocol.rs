@@ -136,8 +136,7 @@ impl ThresholdCipherProtocol {
 
         self.valid_shares.push(share);
 
-        println!(">> PROT: Current valid shares: {:?}", self.valid_shares.len());
-        println!(">> PROT: We need still shares: {:?}", self.private_key.get_threshold() - (self.valid_shares.len() as u16));
+        println!(">> PROT: Valid shares: {:?} / {:?}", self.valid_shares.len(), self.private_key.get_threshold() );
 
         if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
             self.decrypted_plaintext =

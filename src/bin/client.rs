@@ -138,8 +138,14 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     let mut instance_id= String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request to server {i}.");
-        let r = conn.decrypt(request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.decrypt(request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
 
@@ -184,10 +190,17 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 
     let mut i = 0;
     let mut instance_id= String::new();
+
     for conn in connections.iter_mut() {
         println!(">> Sending sign request to server {i}.");
-        let r = conn.sign(sign_request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.sign(sign_request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
 
@@ -213,7 +226,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bls12381)?
+        .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bn254)?
         .sk
         .get_public_key();
     let mut connections = connect_to_all_local(config).await;
@@ -230,10 +243,18 @@ async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::
     let mut instance_id= String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending coin flip request to server {i}.");
-        let r = conn.flip_coin(coin_request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.flip_coin(coin_request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
+
+    println!("Started instance '{}'", &instance_id);
 
     let req = StatusRequest { instance_id };
     let mut status = connections[0].get_status(req.clone()).await?;
@@ -279,7 +300,7 @@ fn create_coin_flip_request(pk: &PublicKey, name: String) -> CoinRequest {
         name:name.into_bytes(),
         key_id: None,
         scheme: ThresholdScheme::Cks05.get_id() as i32,
-        group: Group::Bls12381.get_code() as i32
+        group: Group::Bn254.get_code() as i32
     };
     req
 }

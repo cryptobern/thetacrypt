@@ -3,12 +3,12 @@ use std::{collections::HashMap, sync::Arc, time, thread};
 use mcore::hash256::HASH256;
 use theta_network::types::message::{NetMessage, self};
 use theta_proto::{protocol_types::{SignRequest, DecryptRequest, CoinRequest}, scheme_types::{ThresholdScheme, Group}};
-use theta_protocols::{threshold_cipher::protocol::ThresholdCipherProtocol, interface::{ProtocolError, ThresholdProtocol}};
+use theta_protocols::{threshold_cipher::protocol::ThresholdCipherProtocol, interface::{ProtocolError, ThresholdProtocol}, threshold_signature::protocol::ThresholdSignatureProtocol, threshold_coin::protocol::ThresholdCoinProtocol};
 use theta_schemes::interface::{Ciphertext, Serializable, ThresholdCryptoError};
 use tokio::sync::oneshot;
 use tonic::{Status, Code};
 
-use crate::{state_manager::{ StateManagerCommand, StateManagerMsg, StateManagerResponse }, message_dispatcher::MessageDispatcherCommand, types::Key};
+use crate::{state_manager::{ StateManagerCommand, StateManagerMsg, StateManagerResponse }, types::Key};
 use crate::instance_manager::instance::Instance;
 
 pub struct InstanceManager {
@@ -245,7 +245,7 @@ impl InstanceManager {
                 Option::None).await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted);
+                    return Err(ThresholdCryptoError::Aborted(String::from("key not found")));
                 }
 
                 let key = Arc::new(key.unwrap().sk.clone());
@@ -274,8 +274,91 @@ impl InstanceManager {
 
                 return Ok(instance_id.clone());
             },
-            _ => {
-                return Ok(String::from(""));
+            StartInstanceRequest::Signature{
+                message,
+                label,
+                scheme,
+                group
+            } => {
+
+                let key = self.setup_instance(
+                    scheme,
+                    &group,
+                    &instance_id,
+                Option::None).await;
+
+                if key.is_err() {
+                    return Err(ThresholdCryptoError::Aborted(key.as_ref().unwrap_err().to_string()));
+                }
+
+                let key = Arc::new(key.unwrap().sk.clone());
+
+                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+
+                let instance = Instance::new(instance_id.clone(),
+                                        scheme,
+                                    group.clone(),
+                                    sender);
+
+                // Create the new protocol instance
+                let mut prot = ThresholdSignatureProtocol::new(
+                    key,
+                    Some(&message),
+                    &label,
+                    receiver,
+                    self.outgoing_p2p_sender.clone(),
+                    instance_id.clone()
+                );
+
+                self.instances.insert(instance_id.clone(), instance);
+
+                
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                Self::start_protocol(prot, instance_id.clone(), self.instance_command_sender.clone());
+
+                return Ok(instance_id.clone());
+            },
+            StartInstanceRequest::Coin{
+                name,
+                scheme,
+                group
+            } => {
+
+                let key = self.setup_instance(
+                    scheme,
+                    &group,
+                    &instance_id,
+                Option::None).await;
+
+                if key.is_err() {
+                    return Err(ThresholdCryptoError::Aborted(key.as_ref().unwrap_err().message().to_string()));
+                }
+
+                let key = Arc::new(key.unwrap().sk.clone());
+
+                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+
+                let instance = Instance::new(instance_id.clone(),
+                                        scheme,
+                                        group,
+                                    sender);
+
+                // Create the new protocol instance
+                let mut prot = ThresholdCoinProtocol::new(
+                    key,
+                    &name,
+                    receiver,
+                    self.outgoing_p2p_sender.clone(),
+                    instance_id.clone(),
+                );
+
+                self.instances.insert(instance_id.clone(), instance);
+
+                
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                Self::start_protocol(prot, instance_id.clone(), self.instance_command_sender.clone());
+
+                return Ok(instance_id.clone());
             }
         }
     }
@@ -440,7 +523,7 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             group
         }=> {
              /* PROBLEM: Hashing the whole 
-            message might become a bottleneck for big messages */
+            name might become a bottleneck for long names */
             digest.process_array(&name); 
             let h: &[u8] = &digest.hash()[..8];
             return hex::encode(h);

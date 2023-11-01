@@ -13,6 +13,7 @@ use rasn::Encoder;
 use rasn::ber::encode;
 use rasn::der::decode;
 use serde::ser::SerializeSeq;
+use base64::{engine::general_purpose, Engine as _};
 
 use crate::BIGINT;
 use crate::ONE;
@@ -145,6 +146,24 @@ impl PrivateKey {
             PrivateKey::Sh00(key) => PublicKey::Sh00(key.get_public_key()),
             PrivateKey::Frost(key) => PublicKey::Frost(key.get_public_key())
         }
+    }
+
+    pub fn pem(&self) -> Result<String, ThresholdCryptoError> {
+        let r = self.serialize();
+        if let Ok(bytes) = r {
+            let encoded_url = general_purpose::URL_SAFE.encode(bytes);
+            return Ok(encoded_url);
+        }
+        Err(r.unwrap_err())
+    }
+
+    pub fn from_pem(pem: &str) -> Result<Self, ThresholdCryptoError> {
+        let r = general_purpose::URL_SAFE_NO_PAD.decode(pem);
+        if let Ok(bytes) = r {
+            return PrivateKey::deserialize(&bytes);
+        }
+
+        Err(ThresholdCryptoError::DeserializationFailed)
     }
 }
 
@@ -672,6 +691,15 @@ impl PublicKey {
             PublicKey::Sh00(key) => key.get_n(),
             PublicKey::Frost(key) => key.get_n(),
         }
+    }
+
+    pub fn pem(&self) -> Result<String, ThresholdCryptoError> {
+        let r = self.serialize();
+        if let Ok(bytes) = r {
+            let encoded_url = general_purpose::URL_SAFE.encode(bytes);
+            return Ok(encoded_url);
+        }
+        Err(r.unwrap_err())
     }
 }
 
