@@ -29,7 +29,7 @@ pub struct KeyGenArgs {
     #[arg(
         short,
         long,
-        help = "A list of comma separated elements of the format 'scheme-group', where 'scheme' is one of the following:\n\t encryption schemes: sg02, bz03\n\t signature schemes: bls04, frost, sh00\n\t coin schemes: cks05\nand 'group' is one of\n\t 'bls12381', 'bn254', 'ed25519', 'rsa512', 'rsa1024', 'rsa2048'.\nexample: sg02-bls12381,bz03-ed25519",
+        help = "A list of comma separated elements of the format 'scheme-group', where 'scheme' is one of the following:\n\t encryption schemes: sg02, bz03\n\t signature schemes: bls04, frost, sh00\n\t coin schemes: cks05\nand 'group' is one of\n\t 'bls12381', 'bn254', 'ed25519', 'rsa512', 'rsa1024', 'rsa2048', 'rsa4096'.\nexample: sg02-bls12381,bz03-ed25519. \nA single string 'all' should be used to create all possible keys.",
     )]
     pub subjects: String,
     #[arg(
@@ -39,7 +39,7 @@ pub struct KeyGenArgs {
     )]
     pub dir: String,
     #[arg(long, 
-        help = "Create a completely new set of keys",
+        help = "Option to create a completely new set of keys, overwriting the chosen keyfile if it already existed",
         default_value_t = false
     )]
     pub new: bool,
