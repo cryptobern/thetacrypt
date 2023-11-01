@@ -52,7 +52,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     let mut default_key_set:Vec<String>;
 
-    if a == "default" {
+    if a == "all" {
         default_key_set = generate_valid_scheme_group_pairs();
         for string in default_key_set.clone(){
             println!("{}", string)
