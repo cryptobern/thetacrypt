@@ -77,6 +77,16 @@ impl KeyChain {
         }
     }
 
+    pub fn from_config_file(filename: &PathBuf) -> std::io::Result<Self> {
+        let key_chain_str = fs::read_to_string(filename)?;
+        let node_keys: HashMap<String, PrivateKey> = serde_json::from_str(&key_chain_str)?;
+        let mut keychain = KeyChain::new();
+        for key in node_keys{
+           keychain.insert_key(key.1, key.0).expect("error generating key"); 
+        }
+        Ok(keychain)
+    }
+
     pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
         let key_chain_str = fs::read_to_string(filename)?;
         let ks: KeyChainSerializable = serde_json::from_str(&key_chain_str)?;
@@ -96,7 +106,7 @@ impl KeyChain {
     }
 
     // Inserts a key to the key_chain. A key_id must be given and must be unique among all keys (regardless of the key scheme).
-    // The funcion, and eventually the KeyChain, gets ownership of the key.
+    // The function, and eventually the KeyChain, gets ownership of the key.
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group.
     // A key is_default_for_operation if it is the first key created for its operation.
     pub fn insert_key(&mut self, key: PrivateKey, key_id: String) -> Result<(), String> {

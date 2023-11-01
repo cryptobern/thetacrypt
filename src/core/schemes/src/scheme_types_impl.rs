@@ -9,6 +9,7 @@ pub trait SchemeDetails {
     fn from_id(id: u8) -> Option<ThresholdScheme>;
     fn parse_string(scheme: &str) -> Result<ThresholdScheme, ThresholdCryptoError>;
     fn is_interactive(&self) -> bool;
+    fn check_valid_group(&self, group: Group) -> bool;
 }
 
 impl SchemeDetails for ThresholdScheme {
@@ -22,12 +23,12 @@ impl SchemeDetails for ThresholdScheme {
 
     fn parse_string(scheme: &str) -> Result<Self, ThresholdCryptoError> {
         match scheme {
-            "bz03" => Ok(Self::Bz03),
-            "sg02" => Ok(Self::Sg02),
-            "bls04" => Ok(Self::Bls04),
-            "cks05" => Ok(Self::Cks05),
-            "frost" => Ok(Self::Frost),
-            "sh00" => Ok(Self::Sh00),
+            "Bz03" => Ok(Self::Bz03),
+            "Sg02" => Ok(Self::Sg02),
+            "Bls04" => Ok(Self::Bls04),
+            "Cks05" => Ok(Self::Cks05),
+            "Frost" => Ok(Self::Frost),
+            "Sh00" => Ok(Self::Sh00),
             _ => Err(ThresholdCryptoError::UnknownScheme)
         } 
     }
@@ -35,6 +36,18 @@ impl SchemeDetails for ThresholdScheme {
     fn is_interactive(&self) -> bool {
         match self {
             Self::Frost => true,
+            _ => false
+        }
+    }
+
+    fn check_valid_group(&self, group: Group) -> bool {
+        match self {
+            Self::Bls04 => group.is_dl() && group.supports_pairings(),
+            Self::Bz03 => group.is_dl() && group.supports_pairings(),
+            Self::Cks05 => group.is_dl(),
+            Self::Frost => group.is_dl(),
+            Self::Sg02 => group.is_dl(),
+            Self::Sh00 => !group.is_dl(),
             _ => false
         }
     }
