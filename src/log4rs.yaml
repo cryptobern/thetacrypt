@@ -1,0 +1,9 @@
+appenders:
+  console:
+    kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} | {h({({l}):5.5})} | [{T}] {M}: {m}{n}"
+root:
+  level: info
+  appenders:
+    - console

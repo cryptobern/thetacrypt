@@ -3,6 +3,7 @@ use std::convert::TryInto;
 use asn1::{WriteError, ParseError};
 use chacha20poly1305::aead::generic_array::typenum::Gr;
 
+use log::error;
 use mcore::hash512::HASH512;
 use theta_proto::scheme_types::Group;
 use crate::{dl_schemes::{bigint::{BigImpl, BigInt}, common::{shamir_share, lagrange_coeff}}, group::{GroupElement}, interface::{ThresholdCryptoError, Serializable}, rand::{RNG, RngAlgorithm}, rsa_schemes::bigint::RsaBigInt, scheme_types_impl::GroupDetails};
@@ -95,7 +96,7 @@ impl Serializable for FrostPublicKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -169,7 +170,7 @@ impl Serializable for FrostPrivateKey {
                 let pubbytes = d.read_element::<&[u8]>()?;
                 let res = FrostPublicKey::deserialize(&pubbytes.to_vec());
                 if res.is_err() {
-                    println!("Error deserializing frost public key");
+                    error!("Error deserializing frost public key");
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
                 }
 
@@ -182,7 +183,7 @@ impl Serializable for FrostPrivateKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -246,7 +247,7 @@ impl Serializable for PublicCommitment {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -297,7 +298,7 @@ impl Serializable for Nonce {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -363,7 +364,7 @@ impl Serializable for FrostSignatureShare {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -417,7 +418,7 @@ impl Serializable for FrostSignature {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -553,12 +554,12 @@ impl<'a> FrostThresholdSignature {
         let order = group.get_order();
 
         if self.get_nonce().is_none() {
-            println!("no nonce");
+            error!("No nonce set");
             return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
         }
 
         if self.msg.is_none() {
-            println!("msg not set");
+            error!("Message not set");
             return Err(ThresholdCryptoError::MessageNotSpecified);
         }
 
@@ -571,14 +572,14 @@ impl<'a> FrostThresholdSignature {
 
         let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
         if binding_factor.is_err() {
-            println!("binding factor error");
+            error!("binding factor error");
             return Err(binding_factor.expect_err(""));
         }
 
         let binding_factor = binding_factor.unwrap();
         let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
         if group_commitment.is_err() {
-            println!("group commitment error");
+            error!("group commitment error");
             return Err(group_commitment.expect_err(""));
         }
 
@@ -782,7 +783,7 @@ impl Serializable for FrostRoundResult {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -813,7 +814,6 @@ fn compute_binding_factors(pubkey: &FrostPublicKey, commitment_list: &[PublicCom
     let encoded_commitment_hash = h5(&encode_group_commitment_list(commitment_list), group);
     let rho_input_prefix = [pubkey_enc, &msg_hash, &encoded_commitment_hash].concat();
 
-    println!("prefix: {}", hex::encode(&rho_input_prefix));
     let mut binding_factor_list:Vec<BindingFactor> = Vec::new();
     for i in 0..commitment_list.len() {
         let rho_input = [rho_input_prefix.clone(), encode_uint16(commitment_list[i].id)].concat();
@@ -829,7 +829,6 @@ fn compute_group_commitment(commitment_list: &[PublicCommitment], binding_factor
     for i in 0..commitment_list.len() {
         let binding_factor;
         if let Ok(factor) = binding_factor_for_participant(&binding_factor_list, commitment_list[i].id) {
-            println!("id: {} factor: {}", commitment_list[i].id, hex::encode(factor.factor.to_bytes()));
             binding_factor = factor.factor;
         } else {
             return Err(ThresholdCryptoError::IdNotFound);

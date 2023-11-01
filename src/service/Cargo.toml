@@ -33,6 +33,8 @@ urlencoding = "2.1.2"
 text_io = "0.1.12"
 clap = { version = "4.0.14", features = ["derive"] }
 
+log4rs = "1.1.1"
+
 [build-dependencies]
 tonic-build = "0.8"
 prost-build = "0.11.1"

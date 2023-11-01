@@ -1,4 +1,5 @@
 use log::{error, info};
+use log4rs;
 use clap::Parser;
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
@@ -10,7 +11,7 @@ use theta_network::{config::static_net, types::message::NetMessage};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);

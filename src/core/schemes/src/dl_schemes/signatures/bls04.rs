@@ -5,6 +5,7 @@
 
 use asn1::{WriteError, ParseError};
 use derive::{DlShare};
+use log::error;
 use mcore::hash256::HASH256;
 
 use crate::{group::{GroupElement}, dl_schemes::{common::interpolate}, interface::{ThresholdSignatureParams, DlShare, Serializable, ThresholdCryptoError}, scheme_types_impl::GroupDetails};
@@ -100,7 +101,7 @@ impl Serializable for Bls04PublicKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -188,7 +189,7 @@ impl Serializable for Bls04PrivateKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -247,7 +248,7 @@ impl Serializable for Bls04SignatureShare {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -300,7 +301,7 @@ impl Serializable for Bls04Signature {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -310,6 +311,7 @@ impl Serializable for Bls04Signature {
 
 impl Bls04ThresholdSignature {
     pub fn verify(sig: &Bls04Signature, pk: &Bls04PublicKey, msg:&[u8]) -> Result<bool, ThresholdCryptoError> {
+        // TODO: Fix verification
         // R = signature_to_point(signature)
         // if R is invalid, return invalid
         // if signature_subgroup_check(R) is invalid, return invalid

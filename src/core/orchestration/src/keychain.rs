@@ -1,3 +1,4 @@
+use log::{info, error};
 use serde::{Deserialize, Serialize};
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 use std::collections::HashMap;
@@ -84,8 +85,11 @@ impl KeyChain {
         for key in node_keys{
             let result = PrivateKey::from_pem(&key.1);
             if let Ok(k) = result {
-                keychain.insert_key(k.clone(), key.0.clone()).expect("error loading key"); 
-                println!(">> Successfully imported key '{}' {} {}", key.0, k.get_group().as_str_name(), k.get_scheme().as_str_name());
+                if let Err(_) = keychain.insert_key(k.clone(), key.0.clone()) {
+                    error!("Importing key '{}' failed", key.0);
+                } else {
+                    info!("Imported key '{}' {} {}", key.0, k.get_group().as_str_name(), k.get_scheme().as_str_name());
+                }
             }
         }
         Ok(keychain)
@@ -186,12 +190,12 @@ impl KeyChain {
                     .collect();
                 match default_key_entries.len() {
                     0 => {
-                        print!(">> KEYC: ERROR: One key should always be specified as default.");
+                        error!("One key should always be specified as default.");
                         Err(String::from("Could not find a default key for this scheme. Please specify a key id."))
                     }
                     1 => Ok(Arc::clone(&default_key_entries[0].1)),
                     _ => {
-                        print!(">> KEYC: ERROR: No more than one key should always be specified as default.");
+                        error!("No more than one key should always be specified as default.");
                         Err(String::from("Could not select a default key for this scheme. Please specify a key id."))
                     }
                 }

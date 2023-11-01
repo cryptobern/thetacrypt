@@ -280,6 +280,10 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
             None => break,
         };
 
+        if i > 4 {
+            break;
+        }
+
         let mut j:i32 = 0;
         loop {
             let group = match Group::from_i32(j) {

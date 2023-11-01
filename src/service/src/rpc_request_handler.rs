@@ -15,6 +15,9 @@ use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 use std::str;
 
+use log::{self, info, error};
+use log4rs;
+
 use mcore::hash256::HASH256;
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{Ciphertext, Serializable, Signature, ThresholdScheme, ThresholdCoin, InteractiveThresholdSignature, ThresholdCryptoError};
@@ -132,14 +135,14 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<DecryptRequest>,
     ) -> Result<Response<DecryptResponse>, Status> {
-        println!(">> REQH: Received a decrypt request.");
+        info!(">> REQH: Received a decrypt request.");
         let req: &DecryptRequest = request.get_ref();
 
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::deserialize(&request.get_ref().ciphertext) {
             Ok(ctxt) => ctxt,
             Err(err) => {
-                println!(">> ERROR: invalid ciphertext");
+                error!("Invalid ciphertext");
                 return Err(Status::aborted("Invalid ciphertext"));
             }
         };
@@ -159,7 +162,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
-            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
+            error!("Eror creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
@@ -172,7 +175,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<SignRequest>,
     ) -> Result<Response<SignResponse>, Status> {
-        println!(">> REQH: Received a signature request");
+        info!("Received a signature request");
         let req: &SignRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -186,8 +189,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             return Err(Status::aborted("Invalid group"));
         }
         let group = group.unwrap();
-
-        println!(">> {} {}", scheme.as_str_name(), group.as_str_name());
 
         let (response_sender, response_receiver) = oneshot::channel::<Result<String, ThresholdCryptoError>>();
         self.instance_manager_command_sender
@@ -207,7 +208,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
-            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
+            error!("Error creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
@@ -220,7 +221,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<CoinRequest>,
     ) -> Result<Response<CoinResponse>, Status> {
-        println!(">> REQH: Received a coin flip request.");
+        info!("Received a coin flip request.");
         let req: &CoinRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -252,7 +253,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             response_receiver.await.expect("response_receiver.await returned Err");
 
         if result.is_err() {
-            println!(">> ERR creating instance: {}", result.as_ref().unwrap_err().to_string());
+            error!("Error creating instance: {}", result.as_ref().unwrap_err().to_string());
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
@@ -266,7 +267,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<KeyRequest>,
     ) -> Result<Response<KeyResponse>, Status> {
-        println!(">> REQH: Received a get_public_keys_for_encryption request.");
+        info!("Received a get_public_keys_for_encryption request.");
         let (response_sender, response_receiver) = oneshot::channel::<StateManagerResponse>();
         
         let cmd = StateManagerMsg {
@@ -301,14 +302,15 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             }));
         }
 
-        Err(Status::aborted(""))
+        error!("Error getting keys");
+        Err(Status::aborted("Error getting keys"))
     }
 
     async fn get_status(
         &self,
         request: Request<StatusRequest>,
     ) -> Result<Response<StatusResponse>, Status> {
-        println!(">> REQH: Received a result request.");
+        info!("Received a result request.");
         let req: &StatusRequest = request.get_ref();
 
         // Get status of the instance by contacting the state manager
@@ -363,7 +365,7 @@ pub async fn init(
 
     // Spawn StateManager.
     // Takes ownerhsip of keychain and state_command_receiver
-    println!(">> REQH: Initiating the state manager.");
+    info!("Initiating the state manager.");
     tokio::spawn(async move {
         let mut sm = StateManager::new(keychain, state_command_receiver);
         sm.run().await;
@@ -378,7 +380,7 @@ pub async fn init(
 
     // Spawn InstanceManager
     // Takes ownershiip of instance_manager_receiver, incoming_message_receiver, state_command_sender
-    println!(">> REQH: Initiating InstanceManager.");
+    info!("Initiating InstanceManager.");
 
     let state_cmd_sender = state_command_sender.clone();
     let inst_cmd_sender = instance_manager_sender.clone();
@@ -406,5 +408,5 @@ pub async fn init(
         .serve(rpc_addr.parse().unwrap())
         .await
         .expect("");
-    println!(">> REQH: Request handler is starting. Listening for RPC on address: {rpc_addr}");
+    info!("Request handler is starting. Listening for RPC on address: {rpc_addr}");
 }

@@ -8,6 +8,7 @@ use asn1::{WriteError, ParseError};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce}; 
 use chacha20poly1305::aead::{Aead, NewAead};
 use derive::{DlShare, Ciphertext};
+use log::error;
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::{AsnType, Tag, Encode, Decode};
@@ -101,7 +102,7 @@ impl Serializable for Bz03PublicKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -197,7 +198,7 @@ impl Serializable for Bz03PrivateKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -268,7 +269,7 @@ impl Serializable for Bz03DecryptionShare {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -345,7 +346,7 @@ impl Serializable for Bz03Ciphertext {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 

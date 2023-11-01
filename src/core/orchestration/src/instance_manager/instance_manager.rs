@@ -1,5 +1,7 @@
+use core::panic;
 use std::{collections::HashMap, sync::Arc, time, thread};
 
+use log::{info, error};
 use mcore::hash256::HASH256;
 use theta_network::types::message::{NetMessage, self};
 use theta_proto::{protocol_types::{SignRequest, DecryptRequest, CoinRequest}, scheme_types::{ThresholdScheme, Group}};
@@ -89,7 +91,7 @@ macro_rules! call_state_manager {
             let _tmp = $self.call_state_manager($cmd).await;
 
             if _tmp.is_none()  {
-                println!(">> Got no response from state manager");
+                info!("Got no response from state manager");
                 return Err(Status::aborted("Could not get a response from state manager"));
             } 
 
@@ -162,7 +164,7 @@ impl InstanceManager {
 
                             match instance {
                                 Some(_instance) => _instance.set_result(result),
-                                None => println!("Error storing instance result for instance {}", instance_id)
+                                None => info!("Error storing instance result for instance {}", instance_id)
                             }
                         },
 
@@ -197,8 +199,8 @@ impl InstanceManager {
                             // - The instance has not yet started because the corresponding request has not yet arrived.
                             // In both cases, we backlog the message. If the instance has already been finished,
                             // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
-                            println!(
-                                ">> FORW: Backlogging message for instance with id: {:?}",
+                            info!(
+                                "Backlogging message for instance with id: {:?}",
                                 &instance_id
                             );
                             if let Some(backlog_data) =  self.backlog.get_mut(&instance_id) {
@@ -223,7 +225,7 @@ impl InstanceManager {
                     for (_, v) in self.backlog.iter_mut(){
                         v.checked = true;
                     }
-                    println!(">> FORW: Old backlogged instances deleted");
+                    info!("Old backlogged instances deleted");
                 }
             }
         }
@@ -370,8 +372,8 @@ impl InstanceManager {
             let result = prot.run().await;
 
             // Protocol terminated, update state with the result.
-            println!(
-                ">> REQH: Received result from protocol with instance_id: {:?}",
+            info!(
+                "Instance {:?} finished",
                 instance_id
             );
 
@@ -380,7 +382,7 @@ impl InstanceManager {
                 result:result.clone()
             }).await.is_err() {
                 // loop until transmission successful
-                println!(">> Error storing result, retrying...");
+                error!("Error storing result, retrying...");
                 thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
             }
         });
@@ -450,8 +452,8 @@ impl InstanceManager {
     ) -> Result<Arc<Key>, Status> {
 
         if self.instances.contains_key(instance_id) {
-            println!(
-                ">> REQH: A request with the same id already exists. Instance_id: {:?}",
+            error!(
+                "A request with the same id '{:?}' already exists.",
                 instance_id
             );
             return Err(Status::new(
@@ -463,7 +465,7 @@ impl InstanceManager {
         // Retrieve private key for this instance
         let key: Arc<Key>;
         if let Some(_) = key_id {
-            unimplemented!(">> REQH: Using specific key by specifying its id not yet supported.")
+            unimplemented!("Using specific key by specifying its id not yet supported.");
         } else {
 
             let key_result = 
@@ -474,7 +476,7 @@ impl InstanceManager {
             StateManagerResponse::Key);
 
             if(key_result.is_none()) {
-                println!(">> Got no response from state manager");
+                error!("Got no response from state manager");
                 return Err(Status::aborted("Could not get a response from state manager"));
             } 
 
@@ -483,8 +485,8 @@ impl InstanceManager {
                 Err(err) => return Err(Status::new(Code::InvalidArgument, err)),
             };
         };
-        println!(
-            ">> REQH: Using key with id: {:?} for request {:?}",
+        info!(
+            "Using key with id: {:?} for request {:?}",
             key.id, &instance_id
         );
 

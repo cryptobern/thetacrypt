@@ -8,6 +8,7 @@ use std::ops::BitAnd;
 
 use asn1::{WriteError, ParseError};
 use derive::{DlShare};
+use log::error;
 use mcore::{hash256::HASH256};
 use rasn::{AsnType, Encode, Decode};
 
@@ -107,7 +108,7 @@ impl Serializable for Cks05PublicKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -203,7 +204,7 @@ impl Serializable for Cks05PrivateKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -273,7 +274,7 @@ impl Serializable for Cks05CoinShare {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 

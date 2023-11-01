@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use log::{info, warn, error};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
     Ciphertext, Signature, SignatureShare, Serializable, ThresholdSignature, ThresholdSignatureParams, InteractiveThresholdSignature, RoundResult, ThresholdScheme, ThresholdCryptoError,
@@ -42,7 +43,7 @@ pub struct ThresholdSignaturePrecomputation {
 #[async_trait]
 impl ThresholdProtocol for ThresholdSignatureProtocol {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
+        info!("<{:?}>: Starting threshold signature instance", &self.instance_id);
 
         if(!self.precomputed) {
             self.instance.as_mut().unwrap().set_msg(&(&self.message).clone().unwrap());
@@ -57,8 +58,9 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                         match RoundResult::deserialize(&msg) {
                             Ok(round_result) => {
                                 if self.instance.as_mut().unwrap().update(&round_result).is_err() {
-                                    println!(
-                                        ">> PROT: Could not process round result. Will be ignored."
+                                    warn!(
+                                        "<{:?}>: Could not process round result. Will be ignored.",
+                                        &self.instance_id
                                     );
                                 }
 
@@ -69,8 +71,8 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                         self.signature = Some(sig);
                                         self.terminate().await?;
 
-                                        println!(
-                                            ">> PROT: Calculated signature."
+                                        info!(
+                                            "<{:?}>: Calculated signature.", &self.instance_id
                                         );
 
                                         let result = self.signature.as_ref().unwrap().serialize();
@@ -85,8 +87,10 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                     self.round_results.clear();
                                     
                                     if rr.is_err() {
-                                        println!(
-                                            ">> PROT: Error while doing signature protocol round: {}", rr.unwrap_err().to_string()
+                                        error!(
+                                            "<{:?}>: Error while doing signature protocol round: {}", 
+                                            &self.instance_id,
+                                            rr.unwrap_err().to_string()
                                         );
                                     } else {
                                         let rr = rr.unwrap();
@@ -102,8 +106,9 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                 }
                             },
                             Err(e) => {
-                                println!(
-                                    ">> PROT: Could not deserialize round result. Round result will be ignored."
+                                warn!(
+                                    "<{:?}>: Could not deserialize round result. Round result will be ignored.",
+                                    &self.instance_id
                                 );
                                 continue;
                             }
@@ -125,8 +130,9 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                 }
                             }
                             Err(tcerror) => {
-                                println!(
-                                    ">> PROT: Could not deserialize share. Share will be ignored."
+                                warn!(
+                                    "<{:?}>: Could not deserialize share. Share will be ignored.",
+                                    &self.instance_id
                                 );
                                 continue;
                             }
@@ -134,7 +140,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                     }
                 }
                 None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    error!("<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.", &self.instance_id);
                     self.terminate().await?;
                     return Err(ProtocolError::InternalError);
                 }
@@ -155,7 +161,7 @@ impl<'a> ThresholdSignatureProtocol {
     ) -> Self {
         let mut instance = Option::None;
         if private_key.get_scheme().is_interactive() {
-            println!(">> Creating interactive instance");
+            info!("<{:?}>: Creating interactive instance", instance_id);
             let mut i = InteractiveThresholdSignature::new(&private_key);
             if i.is_err() {
                 panic!("Error creating signature instance");
@@ -224,13 +230,8 @@ impl<'a> ThresholdSignatureProtocol {
         } else {
             // compute and send decryption share
             let mut params = ThresholdSignatureParams::new();
-            println!(
-                ">> PROT: instance_id: {:?} computing signature share for key id:{:?}.",
-                &self.instance_id,
-                self.private_key.get_id()
-            );
             let share = ThresholdSignature::partial_sign(&(&self.message).clone().unwrap(), &self.label, &self.private_key, &mut params)?;
-            // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
+
             let message = NetMessage {
                 instance_id: self.instance_id.clone(),
                 message_data: share.serialize().unwrap(),
@@ -244,8 +245,8 @@ impl<'a> ThresholdSignatureProtocol {
     }
 
     fn on_receive_signature_share(&mut self, share: SignatureShare) -> Result<(), ProtocolError> {
-        println!(
-            ">> PROT: instance_id: {:?} received share with share_id: {:?}.",
+        info!(
+            "<{:?}>: Received share with id {:?}.",
             &self.instance_id,
             share.get_id()
         );
@@ -254,7 +255,7 @@ impl<'a> ThresholdSignatureProtocol {
         }
 
         if self.received_share_ids.contains(&share.get_id()) {
-            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}. Share will be ignored.", &self.instance_id, share.get_id());
+            warn!("<{:?}>: Found share to be DUPLICATE with id {:?}. Share will be ignored.", &self.instance_id, share.get_id());
             return Ok(());
         }
         self.received_share_ids.insert(share.get_id());
@@ -263,12 +264,12 @@ impl<'a> ThresholdSignatureProtocol {
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
-                    println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                    warn!("<{:?}>: Received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
                     return Ok(());
                 }
             }
             Err(err) => {
-                println!(">> PROT: instance_id: {:?} encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                warn!("<{:?}>: Encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
                 return Ok(());
             }
         }
@@ -280,8 +281,8 @@ impl<'a> ThresholdSignatureProtocol {
                 ThresholdSignature::assemble(&self.valid_shares, &(&self.message).clone().unwrap(), &self.private_key.get_public_key())?;
             self.signature = Option::Some(sig);
             self.finished = true;
-            println!(
-                ">> PROT: instance_id: {:?} has issued a signature share.",
+            info!(
+                "<{:?}>: Issued a signature share.",
                 &self.instance_id
             );
             return Ok(());
@@ -291,7 +292,7 @@ impl<'a> ThresholdSignatureProtocol {
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
+        info!("<{:?}>: Instance finished.", &self.instance_id);
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
@@ -309,7 +310,7 @@ impl<'a> ThresholdSignaturePrecomputation {
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
         instance_id: String,
     ) -> Self { 
-        println!(">> Creating precomputation instance");
+        info!("<{:?}>: Creating precomputation instance", &instance_id);
         let mut i = InteractiveThresholdSignature::new(&private_key);
         if i.is_err() {
             panic!("Error creating precomputation instance");
@@ -332,11 +333,12 @@ impl<'a> ThresholdSignaturePrecomputation {
     
     pub async fn run(&mut self) -> Result<InteractiveThresholdSignature, ProtocolError> {
         if self.private_key.get_scheme() != ThresholdScheme::Frost {
-            println!(">> PROT: error - trying to use precompute on scheme other than Frost");
+            error!("<{:?}>: trying to use precompute on scheme other than Frost",
+            &self.instance_id);
             return Err(ProtocolError::SchemeError(ThresholdCryptoError::WrongScheme));
         }
 
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
+        info!("<{:?}>: Instance starting.", &self.instance_id);
 
         let rr = self.instance.do_round()?;
         let message = NetMessage {
@@ -350,34 +352,36 @@ impl<'a> ThresholdSignaturePrecomputation {
         let res = self.chan_out.send(message).await;
 
         if res.is_ok() {
-            println!(">> PROT: instance_id: {:?} sent round result.", &self.instance_id);
+            info!("<{:?}>: sent round result.", &self.instance_id);
         } else {
-            println!(">> PROT: instance_id: {:?} error sending round result.", &self.instance_id);
+            error!("<{:?}>: error sending round result.", &self.instance_id);
         }
         
         loop {
-            println!("listen for messages...");
             match self.chan_in.recv().await {
                 Some(msg) => {
-                    println!(">> PROT: received something");
                     if self.private_key.get_scheme() == ThresholdScheme::Frost {
                         match RoundResult::deserialize(&msg) {
                             Ok(round_result) => {
-                                println!(">> PROT: Precomputation round result received");
+                                info!("<{:?}>: Precomputation round result received",
+                                    &self.instance_id);
                                 if self.instance.update(&round_result).is_err() {
-                                    println!(
-                                        ">> PROT: Could not process round result. Will be ignored."
+                                    warn!(
+                                        "<{:?}>: Could not process round result. Will be ignored.",
+                                        &self.instance_id
                                     );
                                 }
 
                                 if self.instance.is_ready_for_next_round() {
-                                    println!(">> Finished precomputation");
+                                    info!("<{:?}>: Finished precomputation",
+                                    &self.instance_id);
                                    return Result::Ok(self.instance.clone()); // we have enough round results for round two - stop precomputation
                                 }
                             },
                             Err(e) => {
-                                println!(
-                                    ">> PROT: Could not deserialize round result. Round result will be ignored."
+                                warn!(
+                                    "<{:?}>: Could not deserialize round result. Round result will be ignored.",
+                                    &self.instance_id
                                 );
                                 continue;
                             }
@@ -385,7 +389,7 @@ impl<'a> ThresholdSignaturePrecomputation {
                     } 
                 }
                 None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    error!("<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.", &self.instance_id);
                     self.terminate().await?;
                     return Err(ProtocolError::InternalError);
                 }
@@ -395,7 +399,7 @@ impl<'a> ThresholdSignaturePrecomputation {
 
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
+        info!("<{:?}>: Instance finished.", &self.instance_id);
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
         //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());

@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+use log::info;
 use theta_protocols::interface::ProtocolError;
 use theta_schemes::{interface::{ThresholdScheme, InteractiveThresholdSignature}};
 use theta_proto::scheme_types::Group;
@@ -93,10 +94,10 @@ impl StateManager {
                             if let Option::Some(r) = responder {
                                 r.send(StateManagerResponse::Precomp(result)).expect("The receiver for responder in StateUpdateCommand::PopFrostPrecomputation has been closed.");
                             }
+                            info!("{} FROST precomputations stored", self.keychain.num_precomputations());
                         },
                         StateManagerCommand::PushFrostPrecomputation { instance } => {
                             let result = self.keychain.push_precompute_result(instance);
-                            println!(">> {} FROST precomputations", self.keychain.num_precomputations());
                         }
                         _ => unimplemented!()
                     }

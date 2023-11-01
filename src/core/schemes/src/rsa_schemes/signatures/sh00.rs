@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use asn1::{WriteError, ParseError};
 use derive::{DlShare};
+use log::error;
 use mcore::{hash256::HASH256};
 use theta_proto::scheme_types::Group;
 use crate::{interface::{ThresholdSignature, ThresholdSignatureParams, ThresholdCryptoError, ThresholdScheme, Serializable}, rsa_schemes::{ common::{interpolate, ext_euclid}, bigint::RsaBigInt}, BIGINT, rand::{RNG, RngAlgorithm}, unwrap_enum_vec, group::{GroupElement}, dl_schemes::{signatures::frost::FrostPublicKey, bigint::BigImpl}, scheme_types_impl::GroupDetails};
@@ -107,7 +108,7 @@ impl Serializable for Sh00PublicKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -202,7 +203,7 @@ impl Serializable for Sh00PrivateKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -295,7 +296,7 @@ impl Serializable for Sh00SignatureShare {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -348,7 +349,7 @@ impl Serializable for Sh00Signature {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -422,7 +423,7 @@ impl Serializable for Sh00VerificationKey {
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
