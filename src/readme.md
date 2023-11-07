@@ -105,9 +105,9 @@ Available groups are:
 
 For more information run the binary with `--help` option.
 
-To setup the network of servers with all possible available schemes you can run `thetacli` script with the `--subjects` flag set to "*default*":
+To setup the network of servers with all possible available schemes you can run `thetacli` script with the `--subjects` flag set to "*all*":
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects default --dir ./conf
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf
 ```
 
 ### Starting the server binary

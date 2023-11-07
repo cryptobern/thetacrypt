@@ -10,14 +10,15 @@ use rand::distributions::Alphanumeric;
 use hex::encode;
 use env_logger::init;
 
-use theta_schemes::interface::Serializable;
+use serde_json::Error;
+use theta_schemes::interface::{Serializable, Signature};
 use theta_schemes::keys::PublicKey;
 use theta_schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
 use theta_schemes::util::printbinary;
 use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
 
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use theta_proto::protocol_types::{DecryptRequest, SignRequest, GetSignatureResultRequest, CoinRequest, GetDecryptResultRequest, GetCoinResultRequest};
+use theta_proto::protocol_types::{DecryptRequest, SignRequest, CoinRequest, StatusRequest };
 use theta_proto::scheme_types::{ThresholdScheme, Group};
 
 use theta_orchestration::keychain::KeyChain;
@@ -137,24 +138,31 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     let mut instance_id= String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request to server {i}.");
-        let r = conn.decrypt(request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.decrypt(request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
 
-    let req = GetDecryptResultRequest { instance_id };
-    let mut result = connections[0].get_decrypt_result(req.clone()).await?;
+    let req = StatusRequest { instance_id };
+    let mut status = connections[0].get_status(req.clone()).await?;
 
-    while !result.get_ref().is_finished {
+    while !status.get_ref().is_finished {
         thread::sleep(time::Duration::from_millis(100));
-        result = connections[0].get_decrypt_result(req.clone()).await?;
+        status = connections[0].get_status(req.clone()).await?;
     }
 
-    if result.get_ref().plaintext.is_some() {
-        if let Ok(s) = std::str::from_utf8(&result.get_ref().plaintext()) {
+    if status.get_ref().result.is_some() {
+        let result = status.get_ref().result.as_ref().unwrap();
+        if let Ok(s) = std::str::from_utf8(result) {
             println!(">> Received plaintext: {}", s);
         } else {
-            printbinary(result.get_ref().plaintext(), Option::Some(">> Received plaintext: "));
+            printbinary(result, Option::Some(">> Received plaintext: "));
         }
     } else {
         println!("! Decryption computation failed");
@@ -182,23 +190,32 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 
     let mut i = 0;
     let mut instance_id= String::new();
+
     for conn in connections.iter_mut() {
         println!(">> Sending sign request to server {i}.");
-        let r = conn.sign(sign_request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.sign(sign_request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
 
-    let req = GetSignatureResultRequest { instance_id };
-    let mut result = connections[0].get_signature_result(req.clone()).await?;
+    let req = StatusRequest { instance_id };
+    let mut status = connections[0].get_status(req.clone()).await?;
 
-    while !result.get_ref().is_finished {
+    while !status.get_ref().is_finished {
         thread::sleep(time::Duration::from_millis(100));
-        result = connections[0].get_signature_result(req.clone()).await?;
+        status = connections[0].get_status(req.clone()).await?;
     }
 
-    if result.get_ref().signature.is_some() {
-        println!(">> Received signature: {}", encode(result.get_ref().signature()));
+    if status.get_ref().result.is_some() {
+        let signature = status.get_ref().result.as_ref().unwrap();
+        println!(">> Received signature: {}", encode(signature));
+        
     } else {
         println!("! Signature computation failed");
     }
@@ -209,7 +226,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bls12381)?
+        .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bn254)?
         .sk
         .get_public_key();
     let mut connections = connect_to_all_local(config).await;
@@ -226,21 +243,30 @@ async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::
     let mut instance_id= String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending coin flip request to server {i}.");
-        let r = conn.flip_coin(coin_request.clone()).await.unwrap();
-        instance_id = r.get_ref().instance_id.clone();
+        let result = conn.flip_coin(coin_request.clone()).await;
+        if let Ok(r) = result {
+            instance_id = r.get_ref().instance_id.clone();
+            println!(">> OK");
+        } else {
+            println!("! ERR: {}", result.unwrap_err().to_string());
+        }
+
         i += 1;
     }
 
-    let req = GetCoinResultRequest { instance_id };
-    let mut result = connections[0].get_coin_result(req.clone()).await?;
+    println!("Started instance '{}'", &instance_id);
 
-    while !result.get_ref().is_finished {
+    let req = StatusRequest { instance_id };
+    let mut status = connections[0].get_status(req.clone()).await?;
+
+    while !status.get_ref().is_finished {
         thread::sleep(time::Duration::from_millis(100));
-        result = connections[0].get_coin_result(req.clone()).await?;
+        status = connections[0].get_status(req.clone()).await?;
     }
 
-    if result.get_ref().coin.is_some() {
-        println!(">> Received coin flip result: {}", result.get_ref().coin.unwrap());
+    if status.get_ref().result.is_some() {
+        let result = status.get_ref().result.as_ref().unwrap();
+        println!(">> Received coin flip result: {}", encode(result));
     } else {
         println!("! Coin computation failed");
     }
@@ -274,7 +300,7 @@ fn create_coin_flip_request(pk: &PublicKey, name: String) -> CoinRequest {
         name:name.into_bytes(),
         key_id: None,
         scheme: ThresholdScheme::Cks05.get_id() as i32,
-        group: Group::Bls12381.get_code() as i32
+        group: Group::Bn254.get_code() as i32
     };
     req
 }
@@ -298,14 +324,6 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
 }
 
 async fn connect_to_all_local(config: ClientConfig) -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
-
-    // let peers = vec![
-    //     (0, String::from("127.0.0.1"), 51000),
-    //     (1, String::from("127.0.0.1"), 51001),
-    //     (2, String::from("127.0.0.1"), 51002),
-    //     (3, String::from("127.0.0.1"), 51003),
-    // ];
-
     let mut connections = Vec::new();
     for peer in config.peers.iter() {
         let ip = peer.ip.clone();

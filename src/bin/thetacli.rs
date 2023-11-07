@@ -40,8 +40,6 @@ fn main() -> Result<(), Error> {
 }
 
 fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
-
-
     let mut parts = a.split(',');
     let mut keys = HashMap::new();
     let mut rng = RNG::new(RngAlgorithm::OsRng);
@@ -54,7 +52,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     let mut default_key_set:Vec<String>;
 
-    if a == "default" {
+    if a == "all" {
         default_key_set = generate_valid_scheme_group_pairs();
         for string in default_key_set.clone(){
             println!("{}", string)
@@ -108,14 +106,14 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
             return Err(Error::Threshold(ThresholdCryptoError::IOError));
         }
 
-        keys.insert(name.clone(),key);
+        keys.insert(name.clone(), key);
     }
 
     for node_id in 0..n {
 
         // Define the expected internal structure of the dictionary of keys 
         // TODO: this can be a defined struct
-        let mut node_keys: HashMap<String, PrivateKey> = HashMap::new();
+        let mut node_keys: HashMap<String, String> = HashMap::new();
 
         // Define the name of the key file based on the node 
         let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
@@ -142,7 +140,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
             // let key_b64 = general_purpose::STANDARD.encode(k.1[node_id as usize].clone());
             // println!("{}", key_b64);
             // the node_id refers to the index of a specific party and it is used to index the right share for the party
-            node_keys.insert(k.0.clone(), k.1[node_id as usize].clone());
+            node_keys.insert(k.0.clone(), k.1[node_id as usize].pem().unwrap());
         }
 
         // Here the information about the keys of a specific party are actually being written on file

@@ -114,7 +114,6 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
             keychain,
             net_to_prot_receiver,
             prot_to_net_sender,
-            net_to_prot_sender_rpc
         )
         .await
     });

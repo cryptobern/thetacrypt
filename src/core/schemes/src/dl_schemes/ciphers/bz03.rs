@@ -282,18 +282,19 @@ impl PartialEq for Bz03DecryptionShare {
     }
 }
 
-#[derive(Clone, AsnType)]
+#[derive(Clone, AsnType, Debug)]
 pub struct Bz03Ciphertext {
     label: Vec<u8>,
-    msg: Vec<u8>,
+    ctxt: Vec<u8>,
     c_k: Vec<u8>,
     u: GroupElement, //ECP2
     hr: GroupElement
 }
 
 impl Bz03Ciphertext {
-    pub fn get_msg(&self) -> Vec<u8> { self.msg.clone() }
-    pub fn get_label(&self) -> Vec<u8> { self.label.clone() }
+    pub fn get_ctxt(&self) -> &[u8] { &self.ctxt }
+    pub fn get_ck(&self) -> &[u8] { &self.c_k }
+    pub fn get_label(&self) -> &[u8] { &self.label }
     pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Sg02 }
     pub fn get_group(&self) -> &Group { self.u.get_group() }
 }
@@ -304,7 +305,7 @@ impl Serializable for Bz03Ciphertext {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&self.get_group().get_code())?;
                 w.write_element(&self.label.as_slice())?;
-                w.write_element(&self.msg.as_slice())?;
+                w.write_element(&self.ctxt.as_slice())?;
                 w.write_element(&self.u.to_bytes().as_slice())?;
                 w.write_element(&self.hr.to_bytes().as_slice())?;
                 w.write_element(&self.c_k.as_slice())?;
@@ -339,7 +340,7 @@ impl Serializable for Bz03Ciphertext {
 
                 let c_k = d.read_element::<&[u8]>()?.to_vec();
 
-                return Ok(Self { label, msg, u, c_k, hr });
+                return Ok(Self { label, ctxt: msg, u, c_k, hr });
             })
         });
 
@@ -354,7 +355,7 @@ impl Serializable for Bz03Ciphertext {
 
 impl PartialEq for Bz03Ciphertext {
     fn eq(&self, other: &Self) -> bool {
-        self.label == other.label && self.msg == other.msg && self.c_k == other.c_k && self.u == other.u && self.hr == other.hr
+        self.label == other.label && self.ctxt == other.ctxt && self.c_k == other.c_k && self.u == other.u && self.hr == other.hr
     }
 }
 
@@ -383,7 +384,7 @@ impl Bz03ThresholdCipher {
 
         let hr = h(&u, &c_k).pow(&r);
 
-        let c = Bz03Ciphertext{label:label.to_vec(), msg:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
+        let c = Bz03Ciphertext{label:label.to_vec(), ctxt:encryption, c_k:c_k.to_vec(), u:u, hr:hr};
         c
     }
 
@@ -410,7 +411,7 @@ impl Bz03ThresholdCipher {
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
         let msg = cipher
-            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.msg.as_ref())
+            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.ctxt.as_ref())
             .expect("decryption failure");
 
         msg

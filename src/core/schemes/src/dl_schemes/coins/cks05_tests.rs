@@ -56,7 +56,7 @@ fn test_full_scheme() {
     let coin1 = ThresholdCoin::assemble(&shares[0..3].to_vec()).unwrap();
     let coin2 = ThresholdCoin::assemble(&shares[1..4].to_vec()).unwrap();
     assert_eq!(coin1, coin2);
-
+    assert!(coin1 < 2 && coin1 >= 0);
 }
 
 #[test]

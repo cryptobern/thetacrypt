@@ -7,28 +7,40 @@ import "scheme_types.proto"; // Must be relative to the "includes" in build.rs
 // and string (String in Rust) for the rest
 
 service ThresholdCryptoLibrary {
-    // decrypt returns as soons as the decryption protocol is started. It returns only the instance_id of the newly started protocol instance.
+    // returns one or more public keys matching the request
+    rpc get_public_keys (KeyRequest) returns (KeyResponse);
+
+    // starts a decryption protocol and returns the instance id
     rpc decrypt (DecryptRequest) returns (DecryptResponse);
-    // Returns the result of a protocol instance
-    rpc get_decrypt_result (GetDecryptResultRequest) returns (GetDecryptResultResponse);
-    // Returns the result of a signature instance
-    rpc get_signature_result (GetSignatureResultRequest) returns (GetSignatureResultResponse);
-    // Returns the result of a coin flip instance
-    rpc get_coin_result (GetCoinResultRequest) returns (GetCoinResultResponse);
-
-    rpc get_public_keys_for_encryption (GetPublicKeysForEncryptionRequest) returns (GetPublicKeysForEncryptionResponse);
     
-    // this is an alternative way to send shares. used only for testing
-    rpc push_decryption_share (PushDecryptionShareRequest) returns (PushDecryptionShareResponse); 
-
-    // starts a signature protocol
+    // starts a signature protocol and returns the instance id
     rpc sign(SignRequest) returns (SignResponse);
 
-    // starts a coin flip protocol
+    // starts a coin flip protocol and returns the instance id
     rpc flip_coin (CoinRequest) returns (CoinResponse);
+
+    // returns the status (and if finished, the result) of a protocol instance
+    rpc get_status (StatusRequest) returns (StatusResponse);
 }
 
-// ---------- Decrypt a ciphertext ----------
+// ---------- Keys ----------
+message PublicKeyEntry {
+    string id = 1;
+    scheme_types.ThresholdScheme scheme = 2;
+    scheme_types.Group group = 3;
+    // bool is_default = 3;
+    bytes key = 4;
+}
+
+message KeyRequest {
+}
+
+message KeyResponse {
+    repeated PublicKeyEntry keys = 1;
+}
+
+
+// ---------- Ciphers ----------
 message DecryptRequest {
     bytes ciphertext = 1;
     optional string key_id = 2;
@@ -38,94 +50,41 @@ message DecryptResponse {
     string instance_id = 1;
 }
 
-message GetDecryptResultRequest {
-    string instance_id = 1;
-}
-
-message GetDecryptResultResponse {
-    string instance_id = 1;
-    bool is_started = 2;
-    bool is_finished = 3;
-    optional bytes plaintext = 4;
-}
-
-// ---------- Get available keys ----------
-message PublicKeyEntry {
-    string id = 1;
-    scheme_types.ThresholdScheme scheme = 2;
-    scheme_types.Group group = 3;
-    // bool is_default = 3;
-    bytes key = 4;
-}
-
-message GetPublicKeysForEncryptionRequest {
-}
-
-message GetPublicKeysForEncryptionResponse {
-    repeated PublicKeyEntry keys = 1;
-}
-
-message GetPublicKeysForSignatureRequest {
-}
-
-message GetPublicKeysForSignatureResponse {
-    repeated PublicKeyEntry keys = 1;
-}
-
-
-//---------- Push decryption share, test only ----------
-message PushDecryptionShareRequest {
-  string instance_id = 1;
-  bytes decryption_share = 2;
-
-}
-
-message PushDecryptionShareResponse {
-}
-
 //------------ Signatures ---------------
 message SignRequest {
     bytes message = 1;
     bytes label = 2;
     optional string key_id = 3;
-    int32 scheme = 4;
-    int32 group = 5;
+    scheme_types.ThresholdScheme scheme = 4;
+    scheme_types.Group group = 5;
 }
 
 message SignResponse {
     string instance_id = 1;
 }
 
-message GetSignatureResultRequest {
-    string instance_id = 1;
-}
-
-message GetSignatureResultResponse {
-    string instance_id = 1;
-    bool is_started = 2;
-    bool is_finished = 3;
-    optional bytes signature = 4;
-}
-
 //------------ Coins ---------------
 message CoinRequest {
     bytes name = 1;
     optional string key_id = 2;
-    int32 scheme = 3;
-    int32 group = 4;
+    scheme_types.ThresholdScheme scheme = 3;
+    scheme_types.Group group = 4;
 }
 
 message CoinResponse {
     string instance_id = 1;
 }
 
-message GetCoinResultRequest {
+//------------ Status --------------
+message StatusRequest {
     string instance_id = 1;
 }
 
-message GetCoinResultResponse {
+message StatusResponse {
     string instance_id = 1;
-    bool is_started = 2;
-    bool is_finished = 3;
-    optional int32 coin = 4;
+    scheme_types.ThresholdScheme scheme = 2;
+    scheme_types.Group group = 3;
+    bool is_finished = 4;
+    optional bytes result = 5;
+    optional string key_id = 6; // TODO: remove optional as soon as key_ids are implemented
 }

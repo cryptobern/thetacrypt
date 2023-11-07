@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 theta_schemes = {path = "../schemes", version = "0.1.0"}
+theta_protocols = {path = "../protocols", version = "0.1.0"}
 theta_proto = {path = "../../proto", version = "0.1.0"}
 theta_network = {path="../../network"}
 
