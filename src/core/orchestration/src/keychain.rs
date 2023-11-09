@@ -82,16 +82,22 @@ impl KeyChain {
         let mut keychain = KeyChain::new();
         for key in node_keys {
             let result = PrivateKey::from_pem(&key.1);
-            if let Ok(k) = result {
-                keychain
-                    .insert_key(k.clone(), key.0.clone())
-                    .expect("error loading key");
-                println!(
-                    ">> Successfully imported key '{}' {} {}",
-                    key.0,
-                    k.get_group().as_str_name(),
-                    k.get_scheme().as_str_name()
-                );
+
+            match result {
+                Ok(k) => {
+                    keychain
+                        .insert_key(k.clone(), key.0.clone())
+                        .expect("error loading key");
+                    println!(
+                        ">> Successfully imported key '{}' {} {}",
+                        key.0,
+                        k.get_group().as_str_name(),
+                        k.get_scheme().as_str_name()
+                    );
+                }
+                Err(e) => {
+                    println!(">> Unable to load key '{}': {}", key.0, e)
+                }
             }
         }
         Ok(keychain)

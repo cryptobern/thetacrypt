@@ -151,7 +151,7 @@ impl PrivateKey {
     }
 
     pub fn from_pem(pem: &str) -> Result<Self, ThresholdCryptoError> {
-        let r = general_purpose::URL_SAFE_NO_PAD.decode(pem);
+        let r = general_purpose::URL_SAFE.decode(pem);
         if let Ok(bytes) = r {
             return PrivateKey::deserialize(&bytes);
         }
