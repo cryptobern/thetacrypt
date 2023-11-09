@@ -1,18 +1,16 @@
 use serde::{Deserialize, Serialize};
-use theta_proto::scheme_types::{ThresholdScheme, Group};
 use std::collections::HashMap;
-use std::fmt::format;
 use std::fs::{self, File};
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
+use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 use crate::types::Key;
 use theta_schemes::{interface::InteractiveThresholdSignature, keys::PrivateKey};
 
 pub struct KeyChain {
     key_entries: HashMap<String, Arc<Key>>,
-    frost_precomputes: Vec<InteractiveThresholdSignature>
+    frost_precomputes: Vec<InteractiveThresholdSignature>,
 }
 
 // KeyChainSerializable is the same as KeyChain without the shared references.
@@ -25,7 +23,7 @@ struct KeyChainSerializable {
 impl KeyChainSerializable {
     fn new() -> Self {
         KeyChainSerializable {
-            key_entries: HashMap::new()
+            key_entries: HashMap::new(),
         }
     }
 }
@@ -34,7 +32,8 @@ impl From<&KeyChain> for KeyChainSerializable {
     fn from(k: &KeyChain) -> Self {
         let mut ks = KeyChainSerializable::new();
         for entry in k.key_entries.iter() {
-            ks.key_entries.insert((*entry.0).clone(), (**entry.1).clone());
+            ks.key_entries
+                .insert((*entry.0).clone(), (**entry.1).clone());
         }
         ks
     }
@@ -73,7 +72,7 @@ impl KeyChain {
     pub fn new() -> Self {
         KeyChain {
             key_entries: HashMap::new(),
-            frost_precomputes: Vec::new()
+            frost_precomputes: Vec::new(),
         }
     }
 
@@ -81,11 +80,24 @@ impl KeyChain {
         let key_chain_str = fs::read_to_string(filename)?;
         let node_keys: HashMap<String, String> = serde_json::from_str(&key_chain_str)?;
         let mut keychain = KeyChain::new();
-        for key in node_keys{
+        for key in node_keys {
             let result = PrivateKey::from_pem(&key.1);
-            if let Ok(k) = result {
-                keychain.insert_key(k.clone(), key.0.clone()).expect("error loading key"); 
-                println!(">> Successfully imported key '{}' {} {}", key.0, k.get_group().as_str_name(), k.get_scheme().as_str_name());
+
+            match result {
+                Ok(k) => {
+                    keychain
+                        .insert_key(k.clone(), key.0.clone())
+                        .expect("error loading key");
+                    println!(
+                        ">> Successfully imported key '{}' {} {}",
+                        key.0,
+                        k.get_group().as_str_name(),
+                        k.get_scheme().as_str_name()
+                    );
+                }
+                Err(e) => {
+                    println!(">> Unable to load key '{}': {}", key.0, e)
+                }
             }
         }
         Ok(keychain)
@@ -130,22 +142,29 @@ impl KeyChain {
             .iter()
             .any(|e| get_operation_of_scheme(&e.1.sk.get_scheme()) == operation);
 
-        self.key_entries.insert(key_id.clone(), Arc::new(Key {
-            id: key_id,
-            is_default_for_scheme_and_group,
-            is_default_for_operation,
-            sk: key,
-        }));
+        self.key_entries.insert(
+            key_id.clone(),
+            Arc::new(Key {
+                id: key_id,
+                is_default_for_scheme_and_group,
+                is_default_for_operation,
+                sk: key,
+            }),
+        );
         Ok(())
     }
 
-    pub fn append_precompute_results(&mut self, instances: &mut Vec<InteractiveThresholdSignature>) {
+    pub fn append_precompute_results(
+        &mut self,
+        instances: &mut Vec<InteractiveThresholdSignature>,
+    ) {
         self.frost_precomputes.append(instances);
     }
 
     pub fn push_precompute_result(&mut self, instance: InteractiveThresholdSignature) {
         self.frost_precomputes.push(instance);
-        self.frost_precomputes.sort_by(|a, b| a.get_label().cmp(&b.get_label()))
+        self.frost_precomputes
+            .sort_by(|a, b| a.get_label().cmp(&b.get_label()))
     }
 
     pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
@@ -155,7 +174,10 @@ impl KeyChain {
     // Return the matching key with the given key_id, or an error if no key with key_id exists.
     pub fn get_key_by_id(&self, id: &String) -> Result<Arc<Key>, String> {
         if self.key_entries.contains_key(id) == false {
-            return Err(format!("Could not find a key with the given key_id '{}'", id));
+            return Err(format!(
+                "Could not find a key with the given key_id '{}'",
+                id
+            ));
         }
 
         return Ok(self.key_entries.get(id).unwrap().clone());
