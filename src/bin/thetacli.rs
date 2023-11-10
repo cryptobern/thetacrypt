@@ -34,34 +34,32 @@ enum Error {
 fn main() -> Result<(), Error> {
     let args = ThetaCliArgs::parse();
 
-    if let Commands::Keygen(key_gen_args) = args.command {
-        return keygen(
-            key_gen_args.k,
-            key_gen_args.n,
-            &key_gen_args.subjects,
-            &key_gen_args.dir,
-            key_gen_args.new,
-        );
+    match args.command {
+        Commands::KeyGen(key_gen_args) => {
+            return keygen(
+                key_gen_args.k,
+                key_gen_args.n,
+                &key_gen_args.subjects,
+                &key_gen_args.dir,
+                key_gen_args.new,
+            );
+        }
+        Commands::Enc(enc_args) => {
+            return encrypt(
+                &enc_args.infile,
+                enc_args.label.as_bytes(),
+                &enc_args.outfile,
+                &enc_args.key_path,
+            );
+        }
+        Commands::Verify(verify_args) => {
+            return verify(
+                &verify_args.key_path,
+                &verify_args.message_path,
+                &verify_args.signature_path,
+            );
+        }
     }
-
-    if let Commands::Enc(enc_args) = args.command {
-        return encrypt(
-            &enc_args.infile,
-            enc_args.label.as_bytes(),
-            &enc_args.outfile,
-            &enc_args.key_path,
-        );
-    }
-
-    if let Commands::Verify(verify_args) = args.command {
-        return verify(
-            &verify_args.key_path,
-            &verify_args.message_path,
-            &verify_args.signature_path,
-        );
-    }
-
-    return Ok(());
 }
 
 fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
