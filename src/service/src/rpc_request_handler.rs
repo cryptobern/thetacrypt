@@ -28,7 +28,6 @@ use theta_orchestration::{
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
 }
 
 #[tonic::async_trait]
@@ -308,7 +307,6 @@ pub async fn init(
     let service = RpcRequestHandler {
         state_command_sender,
         instance_manager_command_sender: instance_manager_sender,
-        outgoing_message_sender,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
