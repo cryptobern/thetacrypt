@@ -306,9 +306,9 @@ pub async fn init(
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     let service = RpcRequestHandler {
-        state_command_sender: state_command_sender,
+        state_command_sender,
         instance_manager_command_sender: instance_manager_sender,
-        outgoing_message_sender: outgoing_message_sender,
+        outgoing_message_sender,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
