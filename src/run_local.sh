@@ -25,7 +25,9 @@ function main {
 }
 
 function start_thetacrypt {
-	start_command="cargo run --release --bin server --"
+	info "Starting local Thetacrypt environment"
+
+	start_command="RUST_LOG=info cargo run --release --bin server --"
 
 	for (( id = 0; id < N; id++ )); do
 		cmd="${start_command} --config-file local/server_${id}.json --key-file local/keys/keys_${id}.json"
@@ -34,8 +36,9 @@ function start_thetacrypt {
 }
 
 function stop_thetacrypt {
+	info "Stopping local Thetacrypt environment"
 	for (( id = 0; id < N; id++ )); do
-		tmux send-keys -t "${TMUX_SESSION}:${id}" C-c Enter "clear" Enter
+		tmux send-keys -t "${TMUX_SESSION}:${id}" C-c Enter
 	done
 }
 
