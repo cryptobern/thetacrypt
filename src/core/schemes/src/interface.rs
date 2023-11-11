@@ -901,7 +901,10 @@ impl ThresholdSignature {
             )),
             PrivateKey::Sh00(s) => Result::Ok(SignatureShare::Sh00(
                 Sh00ThresholdSignature::partial_sign(msg, label, s, params),
-            )),
+            )), /*
+            PrivateKey::Frost(s) => {
+            Result::Ok(SignatureShare::Frost(FrostThresholdSignature::partial_sign(s, msg, label,s, params)))
+            },*/
             _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
         }
     }
