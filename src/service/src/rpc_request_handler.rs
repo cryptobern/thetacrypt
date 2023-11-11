@@ -1,3 +1,4 @@
+use chrono::Utc;
 use theta_orchestration::instance_manager::instance_manager::{
     InstanceManager, InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
@@ -41,6 +42,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<DecryptResponse>, Status> {
         info!(">> REQH: Received a decrypt request.");
 
+        let start = Utc::now();
+        let event = Event::ReceivedDecryptionRequest { timestamp: start };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::deserialize(&request.get_ref().ciphertext) {
             Ok(ctxt) => ctxt,
@@ -72,6 +77,14 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
+        let now = Utc::now();
+        let event = Event::FinishedDecryptionRequest {
+            timestamp: now,
+            instance_id: result.clone().unwrap(),
+            duration_microseconds: (now - start).num_microseconds().unwrap(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         Ok(Response::new(DecryptResponse {
             instance_id: result.unwrap(),
         }))
@@ -79,6 +92,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         info!("Received a signature request");
+        let start = Utc::now();
+        let event = Event::ReceivedSigningRequest { timestamp: start };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         let req: &SignRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -120,6 +137,14 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
+        let now = Utc::now();
+        let event = Event::FinishedSigningRequest {
+            timestamp: now,
+            instance_id: result.clone().unwrap(),
+            duration_microseconds: (now - start).num_microseconds().unwrap(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         Ok(Response::new(SignResponse {
             instance_id: result.unwrap(),
         }))
@@ -130,6 +155,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         request: Request<CoinRequest>,
     ) -> Result<Response<CoinResponse>, Status> {
         info!("Received a coin flip request.");
+
+        let start = Utc::now();
+        let event = Event::ReceivedCoinRequest { timestamp: start };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         let req: &CoinRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -169,6 +199,14 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             );
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
+
+        let now = Utc::now();
+        let event = Event::FinishedCoinRequest {
+            timestamp: now,
+            instance_id: result.clone().unwrap(),
+            duration_microseconds: (now - start).num_microseconds().unwrap(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
 
         Ok(Response::new(CoinResponse {
             instance_id: result.unwrap(),

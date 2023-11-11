@@ -13,6 +13,7 @@ pub enum Event {
     FinishedDecryptionRequest {
         timestamp: DateTime<Utc>,
         instance_id: String,
+        duration_microseconds: i64,
     },
 
     // Emitted when the server received a signing request.
@@ -23,6 +24,7 @@ pub enum Event {
     FinishedSigningRequest {
         timestamp: DateTime<Utc>,
         instance_id: String,
+        duration_microseconds: i64,
     },
 
     // Emitted when the server received a coin request.
@@ -33,6 +35,7 @@ pub enum Event {
     FinishedCoinRequest {
         timestamp: DateTime<Utc>,
         instance_id: String,
+        duration_microseconds: i64,
     },
 }
 
