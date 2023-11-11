@@ -25,9 +25,12 @@ use theta_orchestration::{
     state_manager::{StateManager, StateManagerCommand},
 };
 
+use crate::event::Event;
+
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 #[tonic::async_trait]
@@ -263,6 +266,7 @@ pub async fn init(
     keychain: KeyChain,
     incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 ) {
     // Channel to send commands to the StateManager.
     // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
@@ -307,6 +311,7 @@ pub async fn init(
     let service = RpcRequestHandler {
         state_command_sender,
         instance_manager_command_sender: instance_manager_sender,
+        event_emitter_sender,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

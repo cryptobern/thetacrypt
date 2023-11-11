@@ -32,6 +32,7 @@ base64 = "0.13.0"
 urlencoding = "2.1.2"
 text_io = "0.1.12"
 clap = { version = "4.0.14", features = ["derive"] }
+chrono = { version = "0.4.31", features = ["serde"] }
 
 log4rs = "1.1.1"
 

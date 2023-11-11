@@ -1,9 +1,9 @@
 use clap::Parser;
 use log::{error, info};
 use log4rs;
-use std::process::exit;
+use std::{path::PathBuf, process::exit};
 use theta_orchestration::keychain::KeyChain;
-use theta_service::rpc_request_handler;
+use theta_service::{event::emitter, rpc_request_handler};
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};
@@ -54,14 +54,6 @@ async fn main() {
     }
 
     start_server(&cfg, keychain).await;
-
-    info!("Server is running");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received interrupt signal, shutting down");
-            return;
-        }
-    }
 }
 
 /// Start main event loop of server.
@@ -102,6 +94,15 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         .await;
     });
 
+    info!("Starting event emitter");
+    let event_file = PathBuf::from("/tmp/events.csv");
+    let emitter = match emitter::new(&event_file) {
+        Ok(emitter) => emitter,
+        Err(e) => panic!("Unable to instantiate event emitter: {}", e),
+    };
+
+    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = emitter::start(emitter);
+
     let my_listen_address = config.listen_address.clone();
     let my_rpc_port = match config.my_rpc_port() {
         Ok(port) => port,
@@ -111,14 +112,31 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
-    tokio::spawn(async move {
+    let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
             my_rpc_port,
             keychain,
             net_to_prot_receiver,
             prot_to_net_sender,
+            emitter_tx,
         )
         .await
     });
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Threshold server received ctrl-c, shutting down");
+
+            info!("Notifying event emitter of shutdown");
+            emitter_shutdown_tx.send(true).unwrap();
+            // Now that it's shutting down we can await its handle to ensure it has shut down.
+            emitter_handle.await.unwrap().unwrap();
+
+            info!("Killing RPC server");
+            rpc_handle.abort();
+
+            info!("Shutdown complete");
+        }
+    }
 }
