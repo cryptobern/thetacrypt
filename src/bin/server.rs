@@ -1,13 +1,13 @@
+use clap::Parser;
+use log::{error, info};
 use log::{error, info};
 use log4rs;
-use clap::Parser;
+use std::process::exit;
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
-use utils::server::{types::ServerConfig, cli::ServerCli};
-use std::process::exit;
+use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};
-
 
 #[tokio::main]
 async fn main() {
@@ -33,20 +33,24 @@ async fn main() {
         }
     };
 
-
-// Here we create an empty keychain and initialize it only if a key file has been provided
+    // Here we create an empty keychain and initialize it only if a key file has been provided
     let mut keychain = KeyChain::new();
     if server_cli.key_file.is_some() {
         keychain = match KeyChain::from_config_file(&server_cli.key_file.clone().unwrap()) {
-                    Ok(key_chain) => key_chain,
-                    Err(e) => {
-                        error!("{}", e);
-                        exit(1);
-                    }
+            Ok(key_chain) => key_chain,
+            Err(e) => {
+                error!("{}", e);
+                exit(1);
+            }
         };
 
         info!(
-            "Loading keychain from file: {}", server_cli.key_file.unwrap().to_str().unwrap_or("Unable to print path, was not valid UTF-8")
+            "Loading keychain from file: {}",
+            server_cli
+                .key_file
+                .unwrap()
+                .to_str()
+                .unwrap_or("Unable to print path, was not valid UTF-8")
         );
     }
 
@@ -95,8 +99,13 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         config.listen_address, my_p2p_port
     );
     tokio::spawn(async move {
-        theta_network::p2p::gossipsub_setup::static_net::init(prot_to_net_receiver, net_to_prot_sender, net_cfg, my_id)
-            .await;
+        theta_network::p2p::gossipsub_setup::static_net::init(
+            prot_to_net_receiver,
+            net_to_prot_sender,
+            net_cfg,
+            my_id,
+        )
+        .await;
     });
 
     let my_listen_address = config.listen_address.clone();

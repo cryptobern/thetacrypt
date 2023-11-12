@@ -1,13 +1,15 @@
-use std::{path::PathBuf, convert::TryFrom, fs, net::IpAddr, process::exit, str::FromStr};
+use std::{convert::TryFrom, fs, net::IpAddr, path::PathBuf, process::exit, str::FromStr};
 
-use utils::confgen::cli::{ConfgenCli, PortStrategy};
 use clap::Parser;
 use rand::seq::SliceRandom;
+use utils::confgen::cli::{ConfgenCli, PortStrategy};
 
 use log::{error, info};
-use utils::server::{types::{Peer, ServerConfig, ServerProxyConfig, ProxyNode}, dirutil};
-use utils::client::types::{PeerPublicInfo, ClientConfig};
-
+use utils::client::types::{ClientConfig, PeerPublicInfo};
+use utils::server::{
+    dirutil,
+    types::{Peer, ProxyNode, ServerConfig, ServerProxyConfig},
+};
 
 fn main() {
     env_logger::init();
@@ -20,19 +22,18 @@ fn main() {
             exit(1);
         }
     };
-    
+
     let mut ips_proxy_nodes = Vec::new();
 
     if let Some(path) = confgen_cli.integration_file {
         ips_proxy_nodes = match ips_from_file(&path) {
-                Ok(ips) => ips,
-                Err(e) => {
-                    error!("{}", e);
-                    exit(1);
-                }
+            Ok(ips) => ips,
+            Err(e) => {
+                error!("{}", e);
+                exit(1);
+            }
         };
     }
-    
 
     match dirutil::ensure_sane_output_directory(&confgen_cli.outdir, false) {
         Ok(_) => info!("Using output directory: {}", &confgen_cli.outdir.display()),
@@ -79,8 +80,6 @@ fn main() {
             }
         }
     }
-
-   
 }
 
 fn ips_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
@@ -155,10 +154,18 @@ fn run(
         })
         .collect();
 
-    let public_peers: Vec<PeerPublicInfo> = peers.iter().enumerate().map(|(i, peer_ref)|{
-        let peer = peer_ref.clone();
-        PeerPublicInfo { id: peer.id, ip: peer.ip, rpc_port: peer.rpc_port }
-    }).collect();
+    let public_peers: Vec<PeerPublicInfo> = peers
+        .iter()
+        .enumerate()
+        .map(|(_, peer_ref)| {
+            let peer = peer_ref.clone();
+            PeerPublicInfo {
+                id: peer.id,
+                ip: peer.ip,
+                rpc_port: peer.rpc_port,
+            }
+        })
+        .collect();
 
     let client_config = ClientConfig::new(public_peers).unwrap();
 
@@ -196,7 +203,6 @@ fn run(
         }
     }
 
-
     Ok(())
 }
 
@@ -232,15 +238,15 @@ fn run_integration(
             }
         })
         .collect();
-    
+
     // TODO:
     // check that the two vectors of ips are of equal lenght
-    // check if we need the local ip 
+    // check if we need the local ip
 
     let configs: Vec<ServerProxyConfig> = ips_proxy_nodes
         .iter()
         .enumerate()
-        .map(|(i,ip)| {
+        .map(|(i, ip)| {
             let (rpc_port, p2p_port) = match port_strategy {
                 PortStrategy::Consecutive => (
                     // More than 2^16 peers? What are we, an ISP?
@@ -249,7 +255,14 @@ fn run_integration(
                 ),
                 PortStrategy::Static => (rpc_port, p2p_port),
             };
-            ServerProxyConfig::new(u32::try_from(i).unwrap(), listen_address.clone(), p2p_port, rpc_port, ProxyNode{ip: ip.to_string()}).unwrap()
+            ServerProxyConfig::new(
+                u32::try_from(i).unwrap(),
+                listen_address.clone(),
+                p2p_port,
+                rpc_port,
+                ProxyNode { ip: ip.to_string() },
+            )
+            .unwrap()
         })
         .collect();
 

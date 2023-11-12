@@ -1,35 +1,32 @@
-use std::process::exit;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::exit;
 use std::{io, thread, time};
 
 use clap::Parser;
-use log::{error, info};
-use rand::Rng;
-use rand::distributions::Alphanumeric;
-use hex::encode;
 use env_logger::init;
+use hex::encode;
+use log::{error, info};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 
-use serde_json::Error;
-use theta_schemes::interface::{Serializable, Signature};
-use theta_schemes::keys::PublicKey;
-use theta_schemes::scheme_types_impl::{SchemeDetails, GroupDetails};
-use theta_schemes::util::printbinary;
+use theta_schemes::interface::Serializable;
 use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
+use theta_schemes::keys::PublicKey;
+use theta_schemes::scheme_types_impl::{GroupDetails, SchemeDetails};
+use theta_schemes::util::printbinary;
 
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use theta_proto::protocol_types::{DecryptRequest, SignRequest, CoinRequest, StatusRequest };
-use theta_proto::scheme_types::{ThresholdScheme, Group};
+use theta_proto::protocol_types::{CoinRequest, DecryptRequest, SignRequest, StatusRequest};
+use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 use theta_orchestration::keychain::KeyChain;
 
 use utils::client::cli::ClientCli;
 use utils::client::types::ClientConfig;
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     init();
 
     let version = env!("CARGO_PKG_VERSION");
@@ -54,7 +51,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut running = true;
     while running {
-        _ = std::process::Command::new("clear").status().unwrap().success();
+        _ = std::process::Command::new("clear")
+            .status()
+            .unwrap()
+            .success();
 
         println!("\n--------------");
         println!("Thetacrypt Demo");
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdout().flush().expect("error flushing stdout");
 
         let mut choice = String::new();
-        
+
         io::stdin()
             .read_line(&mut choice)
             .expect("Failed to read line");
@@ -77,32 +77,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match x {
             0 => {
-                running = false; //return 
-            },
+                running = false; //return
+            }
             1 => {
                 let result = threshold_decryption(config.clone()).await;
                 if result.is_err() {
-                    println!("Error while running decryption protocol: {}", result.unwrap_err().to_string());
+                    println!(
+                        "Error while running decryption protocol: {}",
+                        result.unwrap_err().to_string()
+                    );
                 }
 
                 println!("---------------\n\n");
-            }, 
+            }
             2 => {
                 let result = threshold_signature(config.clone()).await;
                 if result.is_err() {
-                    println!("Error while running signature protocol: {}", result.unwrap_err().to_string());
+                    println!(
+                        "Error while running signature protocol: {}",
+                        result.unwrap_err().to_string()
+                    );
                 }
 
                 println!("---------------\n\n");
-            },
+            }
             3 => {
                 let result = threshold_coin(config.clone()).await;
                 if result.is_err() {
-                    println!("Error while running coin protocol: {}", result.unwrap_err().to_string());
+                    println!(
+                        "Error while running coin protocol: {}",
+                        result.unwrap_err().to_string()
+                    );
                 }
 
                 println!("---------------\n\n");
-            },
+            }
             _ => {
                 println!("Invalid input");
             }
@@ -112,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         io::stdout().flush().expect("error flushing stdout");
         io::stdin().read_line(&mut choice)?;
     }
-    
+
     Ok(())
 }
 
@@ -135,7 +144,7 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
 
     let mut i = 0;
-    let mut instance_id= String::new();
+    let mut instance_id = String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending decryption request to server {i}.");
         let result = conn.decrypt(request.clone()).await;
@@ -177,7 +186,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
         .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
         .sk
         .get_public_key();
-    
+
     let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter message to sign: ");
@@ -189,7 +198,7 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
     let sign_request = create_signing_request(input.into_bytes());
 
     let mut i = 0;
-    let mut instance_id= String::new();
+    let mut instance_id = String::new();
 
     for conn in connections.iter_mut() {
         println!(">> Sending sign request to server {i}.");
@@ -215,7 +224,6 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
     if status.get_ref().result.is_some() {
         let signature = status.get_ref().result.as_ref().unwrap();
         println!(">> Received signature: {}", encode(signature));
-        
     } else {
         println!("! Signature computation failed");
     }
@@ -240,7 +248,7 @@ async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::
     let coin_request = create_coin_flip_request(&pk, input);
 
     let mut i = 0;
-    let mut instance_id= String::new();
+    let mut instance_id = String::new();
     for conn in connections.iter_mut() {
         println!(">> Sending coin flip request to server {i}.");
         let result = conn.flip_coin(coin_request.clone()).await;
@@ -274,7 +282,6 @@ async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-
 fn create_decryption_request(pk: &PublicKey, msg_string: String) -> (DecryptRequest, Ciphertext) {
     let mut params = ThresholdCipherParams::new();
     let msg: Vec<u8> = msg_string.as_bytes().to_vec();
@@ -297,10 +304,10 @@ fn create_decryption_request(pk: &PublicKey, msg_string: String) -> (DecryptRequ
 
 fn create_coin_flip_request(pk: &PublicKey, name: String) -> CoinRequest {
     let req = CoinRequest {
-        name:name.into_bytes(),
+        name: name.into_bytes(),
         key_id: None,
         scheme: ThresholdScheme::Cks05.get_id() as i32,
-        group: Group::Bn254.get_code() as i32
+        group: Group::Bn254.get_code() as i32,
     };
     req
 }
@@ -317,13 +324,15 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
         label,
         key_id: None,
         scheme: ThresholdScheme::Frost.get_id() as i32,
-        group: Group::Ed25519.get_code() as i32
+        group: Group::Ed25519.get_code() as i32,
     };
 
     req
 }
 
-async fn connect_to_all_local(config: ClientConfig) -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
+async fn connect_to_all_local(
+    config: ClientConfig,
+) -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let mut connections = Vec::new();
     for peer in config.peers.iter() {
         let ip = peer.ip.clone();
