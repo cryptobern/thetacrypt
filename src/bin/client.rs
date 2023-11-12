@@ -140,7 +140,7 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
-    let (request, ct) = create_decryption_request(&pk, input);
+    let (request, _ct) = create_decryption_request(&pk, input);
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
 
     let mut i = 0;
@@ -182,7 +182,7 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
 
 async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
-    let pk = key_chain_1
+    let _pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
         .sk
         .get_public_key();
@@ -302,7 +302,7 @@ fn create_decryption_request(pk: &PublicKey, msg_string: String) -> (DecryptRequ
     (req, ciphertext)
 }
 
-fn create_coin_flip_request(pk: &PublicKey, name: String) -> CoinRequest {
+fn create_coin_flip_request(_pk: &PublicKey, name: String) -> CoinRequest {
     let req = CoinRequest {
         name: name.into_bytes(),
         key_id: None,

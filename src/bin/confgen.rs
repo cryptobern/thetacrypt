@@ -216,7 +216,7 @@ fn run_integration(
     outdir: PathBuf,
 ) -> Result<(), String> {
     info!("Generating configuration structs");
-    let peers: Vec<Peer> = ips
+    let _peers: Vec<Peer> = ips
         .iter()
         .enumerate()
         .map(|(i, ip)| {

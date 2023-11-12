@@ -1,6 +1,5 @@
 use clap::Parser;
 use log::{error, info};
-use log::{error, info};
 use log4rs;
 use std::process::exit;
 use theta_orchestration::keychain::KeyChain;
@@ -76,13 +75,8 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
     };
 
-    //To remove when the RPC doesn't have config as input parameter anymore
-    let handler_cfg = net_cfg.clone();
-
     // Network to protocol communication
     let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
-    // And a dedicated  copy for the RPC server
-    let net_to_prot_sender_rpc = net_to_prot_sender.clone();
 
     // Protocol to network communication
     let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);

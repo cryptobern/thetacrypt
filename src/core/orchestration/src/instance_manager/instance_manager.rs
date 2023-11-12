@@ -1,17 +1,25 @@
 use core::panic;
-use std::{collections::HashMap, sync::Arc, time, thread};
+use std::{collections::HashMap, sync::Arc, thread, time};
 
-use log::{info, error};
+use log::{error, info};
 use mcore::hash256::HASH256;
-use theta_network::types::message::{NetMessage, self};
-use theta_proto::{protocol_types::{SignRequest, DecryptRequest, CoinRequest}, scheme_types::{ThresholdScheme, Group}};
-use theta_protocols::{threshold_cipher::protocol::ThresholdCipherProtocol, interface::{ProtocolError, ThresholdProtocol}, threshold_signature::protocol::ThresholdSignatureProtocol, threshold_coin::protocol::ThresholdCoinProtocol};
-use theta_schemes::interface::{Ciphertext, Serializable, ThresholdCryptoError};
+use theta_network::types::message::NetMessage;
+use theta_proto::scheme_types::{Group, ThresholdScheme};
+use theta_protocols::{
+    interface::{ProtocolError, ThresholdProtocol},
+    threshold_cipher::protocol::ThresholdCipherProtocol,
+    threshold_coin::protocol::ThresholdCoinProtocol,
+    threshold_signature::protocol::ThresholdSignatureProtocol,
+};
+use theta_schemes::interface::{Ciphertext, ThresholdCryptoError};
 use tokio::sync::oneshot;
-use tonic::{Status, Code};
+use tonic::{Code, Status};
 
-use crate::{state_manager::{ StateManagerCommand, StateManagerMsg, StateManagerResponse }, types::Key};
 use crate::instance_manager::instance::Instance;
+use crate::{
+    state_manager::{StateManagerCommand, StateManagerMsg, StateManagerResponse},
+    types::Key,
+};
 
 pub struct InstanceManager {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
@@ -19,7 +27,7 @@ pub struct InstanceManager {
     instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
     incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
-    instances:HashMap<String, Instance>,
+    instances: HashMap<String, Instance>,
     backlog: HashMap<String, BacklogData>,
     backlog_interval: tokio::time::Interval,
 }
@@ -34,31 +42,31 @@ struct BacklogData {
 }
 
 #[derive(Debug)]
-pub enum StartInstanceRequest { 
+pub enum StartInstanceRequest {
     Decryption {
-        ciphertext: Ciphertext
+        ciphertext: Ciphertext,
     },
     Signature {
         message: Vec<u8>,
         label: Vec<u8>,
         scheme: ThresholdScheme,
-        group: Group
+        group: Group,
     },
     Coin {
         name: Vec<u8>,
         scheme: ThresholdScheme,
-        group: Group
-    }
+        group: Group,
+    },
 }
 
-// InstanceStatus describes the currenct state of a protocol instance. 
-// The field result has meaning only when finished == true. 
+// InstanceStatus describes the currenct state of a protocol instance.
+// The field result has meaning only when finished == true.
 #[derive(Debug, Clone)]
 pub struct InstanceStatus {
     pub scheme: ThresholdScheme,
     pub group: Group,
     pub finished: bool,
-    pub result: Option<Result<Vec<u8>, ProtocolError>>, 
+    pub result: Option<Result<Vec<u8>, ProtocolError>>,
 }
 
 #[derive(Debug)]
@@ -75,33 +83,33 @@ pub enum InstanceManagerCommand {
 
     StoreResult {
         instance_id: String,
-        result: Result<Vec<u8>, ProtocolError>
+        result: Result<Vec<u8>, ProtocolError>,
     },
 
     UpdateInstanceStatus {
         instance_id: String,
-        status: String
-    }
+        status: String,
+    },
 }
 
 #[macro_export]
 macro_rules! call_state_manager {
-    ( $self:ident, $cmd:expr, $rtype:path ) => {
-        {
-            let _tmp = $self.call_state_manager($cmd).await;
+    ( $self:ident, $cmd:expr, $rtype:path ) => {{
+        let _tmp = $self.call_state_manager($cmd).await;
 
-            if _tmp.is_none()  {
-                info!("Got no response from state manager");
-                return Err(Status::aborted("Could not get a response from state manager"));
-            } 
-
-            if let Option::Some($rtype(s)) = _tmp {
-                Option::Some(s)
-            } else {
-                Option::None
-            }
+        if _tmp.is_none() {
+            info!("Got no response from state manager");
+            return Err(Status::aborted(
+                "Could not get a response from state manager",
+            ));
         }
-    };
+
+        if let Option::Some($rtype(s)) = _tmp {
+            Option::Some(s)
+        } else {
+            Option::None
+        }
+    }};
 }
 
 impl InstanceManager {
@@ -110,19 +118,19 @@ impl InstanceManager {
         instance_command_receiver: tokio::sync::mpsc::Receiver<InstanceManagerCommand>,
         instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
         outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
-        incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>) -> Self {
-    
-        return Self { 
-            state_command_sender, 
+        incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
+    ) -> Self {
+        return Self {
+            state_command_sender,
             instance_command_receiver,
             instance_command_sender,
-            outgoing_p2p_sender, 
-            incoming_p2p_receiver, 
+            outgoing_p2p_sender,
+            incoming_p2p_receiver,
             instances: HashMap::new(),
             backlog: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
-            ))
+            )),
         };
     }
 
@@ -179,9 +187,9 @@ impl InstanceManager {
                 }
 
                 incoming_message = self.incoming_p2p_receiver.recv() => {
-                    let NetMessage { 
-                        instance_id, 
-                        is_total_order, 
+                    let NetMessage {
+                        instance_id,
+                        is_total_order: _,
                         message_data
                     } = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
 
@@ -191,7 +199,7 @@ impl InstanceManager {
                     match instance {
                         Some(_instance) => {
                             // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
-                            _instance.send_message(message_data).await;
+                            let _ = _instance.send_message(message_data).await;
                         },
                         None => {
                             // Otherwise, backlog the message. This can happen for two reasons:
@@ -231,20 +239,23 @@ impl InstanceManager {
         }
     }
 
-    pub async fn start<'a>(&mut self, instance_request: StartInstanceRequest) -> Result<String, ThresholdCryptoError> {
+    pub async fn start<'a>(
+        &mut self,
+        instance_request: StartInstanceRequest,
+    ) -> Result<String, ThresholdCryptoError> {
         // Create a unique instance_id for this instance
-        let instance_id =  assign_instance_id(&instance_request);
+        let instance_id = assign_instance_id(&instance_request);
 
         match instance_request {
-            StartInstanceRequest::Decryption{
-                ciphertext
-            } => {
-
-                let key = self.setup_instance(
-                    ciphertext.get_scheme(),
-                    ciphertext.get_group(),
-                    &instance_id,
-                Option::None).await;
+            StartInstanceRequest::Decryption { ciphertext } => {
+                let key = self
+                    .setup_instance(
+                        ciphertext.get_scheme(),
+                        ciphertext.get_group(),
+                        &instance_id,
+                        Option::None,
+                    )
+                    .await;
 
                 if key.is_err() {
                     return Err(ThresholdCryptoError::Aborted(String::from("key not found")));
@@ -254,13 +265,15 @@ impl InstanceManager {
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
-                let instance = Instance::new(instance_id.clone(),
-                                        ciphertext.get_scheme(),
-                                    ciphertext.get_group().clone(),
-                                    sender);
+                let instance = Instance::new(
+                    instance_id.clone(),
+                    ciphertext.get_scheme(),
+                    ciphertext.get_group().clone(),
+                    sender,
+                );
 
                 // Create the new protocol instance
-                let mut prot = ThresholdCipherProtocol::new(
+                let prot = ThresholdCipherProtocol::new(
                     key,
                     ciphertext,
                     receiver,
@@ -270,83 +283,81 @@ impl InstanceManager {
 
                 self.instances.insert(instance_id.clone(), instance);
 
-                
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(prot, instance_id.clone(), self.instance_command_sender.clone());
+                Self::start_protocol(
+                    prot,
+                    instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
 
                 return Ok(instance_id.clone());
-            },
-            StartInstanceRequest::Signature{
+            }
+            StartInstanceRequest::Signature {
                 message,
                 label,
                 scheme,
-                group
+                group,
             } => {
-
-                let key = self.setup_instance(
-                    scheme,
-                    &group,
-                    &instance_id,
-                Option::None).await;
+                let key = self
+                    .setup_instance(scheme, &group, &instance_id, Option::None)
+                    .await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted(key.as_ref().unwrap_err().to_string()));
+                    return Err(ThresholdCryptoError::Aborted(
+                        key.as_ref().unwrap_err().to_string(),
+                    ));
                 }
 
                 let key = Arc::new(key.unwrap().sk.clone());
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
-                let instance = Instance::new(instance_id.clone(),
-                                        scheme,
-                                    group.clone(),
-                                    sender);
+                let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
 
                 // Create the new protocol instance
-                let mut prot = ThresholdSignatureProtocol::new(
+                let prot = ThresholdSignatureProtocol::new(
                     key,
                     Some(&message),
                     &label,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
-                    instance_id.clone()
+                    instance_id.clone(),
                 );
 
                 self.instances.insert(instance_id.clone(), instance);
 
-                
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(prot, instance_id.clone(), self.instance_command_sender.clone());
+                Self::start_protocol(
+                    prot,
+                    instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
 
                 return Ok(instance_id.clone());
-            },
-            StartInstanceRequest::Coin{
+            }
+            StartInstanceRequest::Coin {
                 name,
                 scheme,
-                group
+                group,
             } => {
-
-                let key = self.setup_instance(
-                    scheme,
-                    &group,
-                    &instance_id,
-                Option::None).await;
+                let key = self
+                    .setup_instance(scheme, &group, &instance_id, Option::None)
+                    .await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted(key.as_ref().unwrap_err().message().to_string()));
+                    return Err(ThresholdCryptoError::Aborted(
+                        key.as_ref().unwrap_err().message().to_string(),
+                    ));
                 }
 
                 let key = Arc::new(key.unwrap().sk.clone());
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
-                let instance = Instance::new(instance_id.clone(),
-                                        scheme,
-                                        group,
-                                    sender);
+                let instance = Instance::new(instance_id.clone(), scheme, group, sender);
 
                 // Create the new protocol instance
-                let mut prot = ThresholdCoinProtocol::new(
+                let prot = ThresholdCoinProtocol::new(
                     key,
                     &name,
                     receiver,
@@ -356,31 +367,37 @@ impl InstanceManager {
 
                 self.instances.insert(instance_id.clone(), instance);
 
-                
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(prot, instance_id.clone(), self.instance_command_sender.clone());
+                Self::start_protocol(
+                    prot,
+                    instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
 
                 return Ok(instance_id.clone());
             }
         }
     }
 
-    fn start_protocol(mut prot: (impl ThresholdProtocol + std::marker::Send + 'static), 
-        instance_id: String, 
-        sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>) {
+    fn start_protocol(
+        mut prot: (impl ThresholdProtocol + std::marker::Send + 'static),
+        instance_id: String,
+        sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
+    ) {
         tokio::spawn(async move {
             let result = prot.run().await;
 
             // Protocol terminated, update state with the result.
-            info!(
-                "Instance {:?} finished",
-                instance_id
-            );
+            info!("Instance {:?} finished", instance_id);
 
-            while sender.send(InstanceManagerCommand::StoreResult { 
-                instance_id: instance_id.clone(),
-                result:result.clone()
-            }).await.is_err() {
+            while sender
+                .send(InstanceManagerCommand::StoreResult {
+                    instance_id: instance_id.clone(),
+                    result: result.clone(),
+                })
+                .await
+                .is_err()
+            {
                 // loop until transmission successful
                 error!("Error storing result, retrying...");
                 thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
@@ -388,14 +405,14 @@ impl InstanceManager {
         });
     }
 
-    async fn forward_backlogged_messages(&mut self, instance_id: String) {
+    async fn _forward_backlogged_messages(&mut self, instance_id: String) {
         let instance = self.instances.get(&instance_id);
 
         if instance.is_none() {
             return;
         }
         let instance = instance.unwrap();
-    
+
         let backlog = self.backlog.get(&instance_id);
         if backlog.is_none() {
             return;
@@ -403,32 +420,33 @@ impl InstanceManager {
 
         let backlog = backlog.unwrap();
         for msg in &backlog.messages {
-            instance.send_message(msg.clone()).await;
+            let _ = instance.send_message(msg.clone()).await;
         }
 
         self.backlog.remove(&instance_id);
     }
 
-    async fn call_state_manager(&self, command: StateManagerCommand) -> Option<StateManagerResponse> {
+    async fn call_state_manager(
+        &self,
+        command: StateManagerCommand,
+    ) -> Option<StateManagerResponse> {
         let (response_sender, response_receiver) = oneshot::channel::<StateManagerResponse>();
-        
+
         let msg = if command.will_respond() {
             StateManagerMsg {
                 command,
-                responder:Option::Some(response_sender)
+                responder: Option::Some(response_sender),
             }
-        }   else  {
+        } else {
             StateManagerMsg {
                 command,
-                responder:Option::None
+                responder: Option::None,
             }
         };
 
         let wait_for_response = msg.responder.is_some();
-        
-        if self.state_command_sender
-            .send(msg)
-            .await.is_err() {
+
+        if self.state_command_sender.send(msg).await.is_err() {
             return None;
         }
 
@@ -447,10 +465,8 @@ impl InstanceManager {
         scheme: ThresholdScheme,
         group: &Group,
         instance_id: &str,
-        key_id: Option<String>
-
+        key_id: Option<String>,
     ) -> Result<Arc<Key>, Status> {
-
         if self.instances.contains_key(instance_id) {
             error!(
                 "A request with the same id '{:?}' already exists.",
@@ -467,18 +483,21 @@ impl InstanceManager {
         if let Some(_) = key_id {
             unimplemented!("Using specific key by specifying its id not yet supported.");
         } else {
-
-            let key_result = 
-                call_state_manager!(self, StateManagerCommand::GetPrivateKeyByType {
+            let key_result = call_state_manager!(
+                self,
+                StateManagerCommand::GetPrivateKeyByType {
                     scheme,
-                    group:group.clone(),
-            },
-            StateManagerResponse::Key);
+                    group: group.clone(),
+                },
+                StateManagerResponse::Key
+            );
 
-            if(key_result.is_none()) {
+            if key_result.is_none() {
                 error!("Got no response from state manager");
-                return Err(Status::aborted("Could not get a response from state manager"));
-            } 
+                return Err(Status::aborted(
+                    "Could not get a response from state manager",
+                ));
+            }
 
             match key_result.unwrap() {
                 Ok(key_entry) => key = key_entry,
@@ -494,39 +513,36 @@ impl InstanceManager {
     }
 }
 
-
 /* TODO: rethink how to assign instance ids */
 fn assign_instance_id(request: &StartInstanceRequest) -> String {
     let mut digest = HASH256::new();
 
     match request {
-        StartInstanceRequest::Decryption{
-            ciphertext
-        } => {
-            digest.process_array(ciphertext.get_ck()); 
+        StartInstanceRequest::Decryption { ciphertext } => {
+            digest.process_array(ciphertext.get_ck());
             let h: &[u8] = &digest.hash()[..8];
             return hex::encode(h);
-        },
-        StartInstanceRequest::Signature{
+        }
+        StartInstanceRequest::Signature {
             message,
-            label,
-            scheme,
-            group
+            label: _,
+            scheme: _,
+            group: _,
         } => {
-            /* PROBLEM: Hashing the whole 
+            /* PROBLEM: Hashing the whole
             message might become a bottleneck for big messages */
-            digest.process_array(&message); 
+            digest.process_array(&message);
             let h: &[u8] = &digest.hash()[..8];
             return hex::encode(h);
-        },
-        StartInstanceRequest::Coin{
+        }
+        StartInstanceRequest::Coin {
             name,
-            scheme,
-            group
-        }=> {
-             /* PROBLEM: Hashing the whole 
+            scheme: _,
+            group: _,
+        } => {
+            /* PROBLEM: Hashing the whole
             name might become a bottleneck for long names */
-            digest.process_array(&name); 
+            digest.process_array(&name);
             let h: &[u8] = &digest.hash()[..8];
             return hex::encode(h);
         }

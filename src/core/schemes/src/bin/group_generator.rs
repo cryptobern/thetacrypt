@@ -1,12 +1,12 @@
-use mcore::{hash256::HASH256};
-use theta_schemes::{group::{GroupElement}, scheme_types_impl::GroupDetails};
+use mcore::hash256::HASH256;
 use theta_proto::scheme_types::Group;
+use theta_schemes::{group::GroupElement, scheme_types_impl::GroupDetails};
 
 // This binary can be used to generate a second generator for the given cyclic EC-based groups.
 // The generator is chosen by mapping the SHA256 hash of the string
 // "thetacrypt_<commit ID of Linux 6.4>"" to a point on the respective elliptic curve.
 // That point is then chosen as generator.
-fn main(){
+fn main() {
     let groups: Vec<Group> = vec![Group::Bls12381, Group::Bn254];
 
     // Linux version 6.4 commit hash
@@ -24,8 +24,16 @@ fn main(){
     for group in groups {
         let computed_generator = GroupElement::new_hash(&group, &hash);
         let predefined_generator = group.get_alternate_generator();
-        println!("computed generator for group {}: {}", group.as_str_name(), computed_generator.to_string());
-        println!("predefined generator for group {}: {}", group.as_str_name(), predefined_generator.to_string());
+        println!(
+            "computed generator for group {}: {}",
+            group.as_str_name(),
+            computed_generator.to_string()
+        );
+        println!(
+            "predefined generator for group {}: {}",
+            group.as_str_name(),
+            predefined_generator.to_string()
+        );
 
         // Output:
         // computed generator for group Bls12381: (15923CA30404617E50806EC015F2597157B75D0BD342EF2A5FC1CB4041E89AC356806FD04CCC0B118C803F0006CD9413,1511F2A6BBF3F63561A41D3A49CCFF50DF35B9AD116AC539D1AEBDFC3873AEB5F6EAACADB00C4B36EFD000904BC12833)

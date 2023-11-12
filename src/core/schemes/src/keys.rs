@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::convert::TryInto;
 
 use std::time::Instant;
@@ -6,12 +8,7 @@ use asn1::ParseError;
 use asn1::WriteError;
 use base64::{engine::general_purpose, Engine as _};
 use log::debug;
-use rasn::ber::encode;
-use rasn::der::decode;
 use rasn::AsnType;
-use rasn::Decode;
-use rasn::Encode;
-use rasn::Encoder;
 use serde::ser::SerializeSeq;
 
 use crate::dl_schemes::bigint::BigImpl;
@@ -287,7 +284,6 @@ impl Serializable for PrivateKey {
 
                 return Ok(result.unwrap());
             }
-            _ => Err(ThresholdCryptoError::WrongScheme),
         }
     }
 
@@ -350,9 +346,6 @@ impl Serializable for PrivateKey {
                         }
 
                         key = Ok(Self::Sh00(r.unwrap()));
-                    }
-                    _ => {
-                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                     }
                 }
 
@@ -552,7 +545,7 @@ impl Serializable for PublicKey {
             Self::Sh00(key) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
-                        w.write_element(&ThresholdScheme::Sh00.get_id());
+                        w.write_element(&ThresholdScheme::Sh00.get_id())?;
 
                         let bytes = key.serialize();
                         if bytes.is_err() {
@@ -569,7 +562,6 @@ impl Serializable for PublicKey {
 
                 return Ok(result.unwrap());
             }
-            _ => Err(ThresholdCryptoError::WrongScheme),
         }
     }
 
@@ -632,9 +624,6 @@ impl Serializable for PublicKey {
                         }
 
                         key = Ok(Self::Sh00(r.unwrap()));
-                    }
-                    _ => {
-                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                     }
                 }
 
@@ -965,10 +954,10 @@ impl KeyGenerator {
                     _ => return Err(ThresholdCryptoError::WrongGroup),
                 }
 
-                let PLEN = modsize / 2 - 2;
+                let plen = modsize / 2 - 2;
 
-                let mut p1 = RsaBigInt::new_rand(rng, PLEN);
-                let mut q1 = RsaBigInt::new_rand(rng, PLEN);
+                let mut p1 = RsaBigInt::new_rand(rng, plen);
+                let mut q1 = RsaBigInt::new_rand(rng, plen);
 
                 let mut p = RsaBigInt::new();
                 let mut q = RsaBigInt::new();
@@ -978,7 +967,7 @@ impl KeyGenerator {
                 }
 
                 let now = Instant::now();
-                gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN);
+                gen_strong_prime(&mut p1, &mut p, &e, rng, plen);
                 let elapsed_time = now.elapsed().as_millis();
                 if DEBUG {
                     debug!(
@@ -989,7 +978,7 @@ impl KeyGenerator {
                 }
 
                 let now = Instant::now();
-                gen_strong_prime(&mut q1, &mut q, &e, rng, PLEN);
+                gen_strong_prime(&mut q1, &mut q, &e, rng, plen);
                 let elapsed_time = now.elapsed().as_millis();
                 if DEBUG {
                     debug!(
@@ -1021,13 +1010,13 @@ impl KeyGenerator {
                     }
                 }
 
-                let verificationKey = Sh00VerificationKey::new(v, vi, u);
+                let verification_key = Sh00VerificationKey::new(v, vi, u);
                 let pubkey = Sh00PublicKey::new(
                     n as u16,
                     k as u16,
                     N,
                     e.clone(),
-                    verificationKey,
+                    verification_key,
                     delta,
                     modsize,
                 );
@@ -1199,10 +1188,10 @@ impl KeyGenerator {
                     _ => return Err(ThresholdCryptoError::WrongGroup),
                 }
 
-                let PLEN = modsize / 2 - 2;
+                let plen = modsize / 2 - 2;
 
-                let mut p1 = RsaBigInt::new_rand(rng, PLEN);
-                let mut q1 = RsaBigInt::new_rand(rng, PLEN);
+                let mut p1 = RsaBigInt::new_rand(rng, plen);
+                let mut q1 = RsaBigInt::new_rand(rng, plen);
 
                 let mut p = RsaBigInt::new();
                 let mut q = RsaBigInt::new();
@@ -1212,7 +1201,7 @@ impl KeyGenerator {
                 }
 
                 let now = Instant::now();
-                gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN);
+                gen_strong_prime(&mut p1, &mut p, &e, rng, plen);
                 let elapsed_time = now.elapsed().as_millis();
                 if DEBUG {
                     debug!(
@@ -1223,7 +1212,7 @@ impl KeyGenerator {
                 }
 
                 let now = Instant::now();
-                gen_strong_prime(&mut q1, &mut q, &e, rng, PLEN);
+                gen_strong_prime(&mut q1, &mut q, &e, rng, plen);
                 let elapsed_time = now.elapsed().as_millis();
                 if DEBUG {
                     debug!(
@@ -1255,13 +1244,13 @@ impl KeyGenerator {
                     }
                 }
 
-                let verificationKey = Sh00VerificationKey::new(v, vi, u);
+                let verification_key = Sh00VerificationKey::new(v, vi, u);
                 let pubkey = Sh00PublicKey::new(
                     n as u16,
                     k as u16,
                     N,
                     e.clone(),
-                    verificationKey,
+                    verification_key,
                     delta,
                     modsize,
                 );

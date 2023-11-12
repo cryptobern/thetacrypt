@@ -1,7 +1,6 @@
 use log::info;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use theta_proto::scheme_types::Group;
-use theta_protocols::interface::ProtocolError;
 use theta_schemes::interface::{InteractiveThresholdSignature, ThresholdScheme};
 use tokio::sync::mpsc::Receiver;
 
@@ -26,9 +25,12 @@ impl StateManagerCommand {
     pub fn will_respond(&self) -> bool {
         match self {
             Self::GetEncryptionKeys {} => true,
-            Self::GetPrivateKeyByType { scheme, group } => true,
+            Self::GetPrivateKeyByType {
+                scheme: _,
+                group: _,
+            } => true,
             Self::PopFrostPrecomputation {} => true,
-            Self::PushFrostPrecomputation { instance } => false,
+            Self::PushFrostPrecomputation { instance: _ } => false,
         }
     }
 }
@@ -89,7 +91,7 @@ impl StateManager {
                             info!("{} FROST precomputations stored", self.keychain.num_precomputations());
                         },
                         StateManagerCommand::PushFrostPrecomputation { instance } => {
-                            let result = self.keychain.push_precompute_result(instance);
+                            self.keychain.push_precompute_result(instance);
                         }
                         _ => unimplemented!()
                     }

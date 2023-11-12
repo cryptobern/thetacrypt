@@ -1,15 +1,15 @@
+use super::group::GroupElement;
 use crate::dl_schemes::bigint::BigImpl;
-use theta_proto::scheme_types::Group;
-use super::{group::GroupElement};
 use crate::dl_schemes::dl_groups::bls12381::Bls12381;
+use theta_proto::scheme_types::Group;
 
 static GROUP: Group = Group::Bls12381;
 
 #[test]
 fn test_mul() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int8:BigImpl = BigImpl::new_int(&GROUP, 8);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int8: BigImpl = BigImpl::new_int(&GROUP, 8);
 
     let a = GroupElement::new_pow_big(&GROUP, &int3);
     let b = GroupElement::new_pow_big(&GROUP, &int5);
@@ -25,9 +25,9 @@ fn test_mul() {
 
 #[test]
 fn test_ecp2_mul() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int8:BigImpl = BigImpl::new_int(&GROUP, 8);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int8: BigImpl = BigImpl::new_int(&GROUP, 8);
 
     let a = GroupElement::new_pow_big_ecp2(&GROUP, &int3);
     let b = GroupElement::new_pow_big_ecp2(&GROUP, &int5);
@@ -43,9 +43,9 @@ fn test_ecp2_mul() {
 
 #[test]
 fn test_div() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int8:BigImpl = BigImpl::new_int(&GROUP, 8);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int8: BigImpl = BigImpl::new_int(&GROUP, 8);
 
     let a = GroupElement::new_pow_big(&GROUP, &int8);
     let b = GroupElement::new_pow_big(&GROUP, &int5);
@@ -57,9 +57,9 @@ fn test_div() {
 
 #[test]
 fn test_div_ecp2() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int8:BigImpl = BigImpl::new_int(&GROUP, 8);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int8: BigImpl = BigImpl::new_int(&GROUP, 8);
 
     let a = GroupElement::new_pow_big_ecp2(&GROUP, &int8);
     let b = GroupElement::new_pow_big_ecp2(&GROUP, &int5);
@@ -71,9 +71,9 @@ fn test_div_ecp2() {
 
 #[test]
 fn test_pow() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int15:BigImpl = BigImpl::new_int(&GROUP, 15);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int15: BigImpl = BigImpl::new_int(&GROUP, 15);
 
     let a = GroupElement::new_pow_big(&GROUP, &int3);
     let b = a.pow(&int5);
@@ -84,9 +84,9 @@ fn test_pow() {
 
 #[test]
 fn test_pow_ecp2() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
-    let int5:BigImpl = BigImpl::new_int(&GROUP, 5);
-    let int15:BigImpl = BigImpl::new_int(&GROUP, 15);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int5: BigImpl = BigImpl::new_int(&GROUP, 5);
+    let int15: BigImpl = BigImpl::new_int(&GROUP, 15);
 
     let a = GroupElement::new_pow_big_ecp2(&GROUP, &int3);
     let b = a.pow(&int5);
@@ -95,10 +95,9 @@ fn test_pow_ecp2() {
     assert!(b.eq(&c));
 }
 
-
 #[test]
 fn test_new_pow() {
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int3: BigImpl = BigImpl::new_int(&GROUP, 3);
     let a = GroupElement::new_pow_big(&GROUP, &int3);
     let b = GroupElement::new(&GROUP).pow(&int3);
 
@@ -112,20 +111,11 @@ fn test_new_pow() {
 
 #[test]
 fn test_schnorr() {
-    let int1:BigImpl = BigImpl::new_int(&GROUP, 1);
-    let int2:BigImpl = BigImpl::new_int(&GROUP, 2);
-    let int3:BigImpl = BigImpl::new_int(&GROUP, 3);
+    let int2: BigImpl = BigImpl::new_int(&GROUP, 2);
 
     let a = GroupElement::new_pow_big(&GROUP, &int2);
-    let b = GroupElement::new_pow_big(&GROUP, &int1);
-    
-    let res = 
-            a
-            .pow(&int2)
-            .div(
-                &a
-                .pow(&int2)
-            );
+
+    let res = a.pow(&int2).div(&a.pow(&int2));
 
     assert!(res.eq(&GroupElement::identity(&GROUP)));
 }

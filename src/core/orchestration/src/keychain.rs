@@ -65,7 +65,6 @@ fn get_operation_of_scheme(scheme: &ThresholdScheme) -> Operation {
         ThresholdScheme::Cks05 => Operation::Coin,
         ThresholdScheme::Frost => Operation::Sign,
         ThresholdScheme::Sh00 => Operation::Sign,
-        _ => unimplemented!(),
     }
 }
 
