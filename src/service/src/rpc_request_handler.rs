@@ -26,7 +26,7 @@ use theta_orchestration::{
     state_manager::{StateManager, StateManagerCommand},
 };
 
-use crate::event::Event;
+use theta_events::event::Event;
 
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
