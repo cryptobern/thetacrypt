@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::Utc;
 use log::{error, info, warn};
+use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
     Ciphertext, DecryptionShare, ThresholdCipher, ThresholdCipherParams,
@@ -22,6 +24,7 @@ pub struct ThresholdCipherProtocol {
     decrypted: bool,
     decrypted_plaintext: Vec<u8>,
     received_share_ids: HashSet<u16>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 #[async_trait]
@@ -31,6 +34,13 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
             "<{:?}>: Starting threshold cipher instance",
             &self.instance_id
         );
+
+        let event = Event::StartedDecryptionInstance {
+            timestamp: Utc::now(),
+            instance_id: self.instance_id.clone(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         let valid_ctxt = ThresholdCipher::verify_ciphertext(
             &self.ciphertext,
             &self.private_key.get_public_key(),
@@ -53,6 +63,13 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
                         self.on_receive_decryption_share(decryption_share_message.share)?;
                         if self.decrypted {
                             self.terminate().await?;
+
+                            let event = Event::FinishedDecryptionInstance {
+                                timestamp: Utc::now(),
+                                instance_id: self.instance_id.clone(),
+                            };
+                            self.event_emitter_sender.send(event).await.unwrap();
+
                             return Ok(self.decrypted_plaintext.clone());
                         }
                     } else {
@@ -82,6 +99,7 @@ impl ThresholdCipherProtocol {
         ciphertext: Ciphertext,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
         instance_id: String,
     ) -> Self {
         ThresholdCipherProtocol {
@@ -94,6 +112,7 @@ impl ThresholdCipherProtocol {
             decrypted: false,
             decrypted_plaintext: Vec::new(),
             received_share_ids: HashSet::new(),
+            event_emitter_sender,
         }
     }
 

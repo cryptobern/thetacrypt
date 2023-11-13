@@ -9,33 +9,45 @@ pub enum Event {
     ReceivedDecryptionRequest {
         timestamp: DateTime<Utc>,
     },
-    // Emmitted when the server finished handling a decryption request.
-    FinishedDecryptionRequest {
+    // Emitted when an instance of the decryption protocol started.
+    StartedDecryptionInstance {
         timestamp: DateTime<Utc>,
         instance_id: String,
-        duration_microseconds: i64,
+    },
+    // Emitted when an instance of the decryption protocol terminated.
+    FinishedDecryptionInstance {
+        timestamp: DateTime<Utc>,
+        instance_id: String,
     },
 
     // Emitted when the server received a signing request.
     ReceivedSigningRequest {
         timestamp: DateTime<Utc>,
     },
-    // Emmitted when the server finished handling a signing request.
-    FinishedSigningRequest {
+    // Emitted when an instance of the signing protocol started.
+    StartedSigningInstance {
         timestamp: DateTime<Utc>,
         instance_id: String,
-        duration_microseconds: i64,
+    },
+    // Emitted when an instance of the signing protocol terminated.
+    FinishedSigningInstance {
+        timestamp: DateTime<Utc>,
+        instance_id: String,
     },
 
     // Emitted when the server received a coin request.
     ReceivedCoinRequest {
         timestamp: DateTime<Utc>,
     },
-    // Emmitted when the server finished handling a coin request.
-    FinishedCoinRequest {
+    // Emitted when an instance of the coin protocol started.
+    StartedCoinInstance {
         timestamp: DateTime<Utc>,
         instance_id: String,
-        duration_microseconds: i64,
+    },
+    // Emitted when an instance of the coin protocol terminated.
+    FinishedCoinInstance {
+        timestamp: DateTime<Utc>,
+        instance_id: String,
     },
 }
 

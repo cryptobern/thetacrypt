@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc, thread, time};
 
 use log::{error, info};
 use mcore::hash256::HASH256;
+use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
@@ -15,8 +16,8 @@ use theta_schemes::interface::{Ciphertext, ThresholdCryptoError};
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
 
-use crate::instance_manager::instance::Instance;
 use crate::{
+    instance_manager::instance::Instance,
     state_manager::{StateManagerCommand, StateManagerMsg, StateManagerResponse},
     types::Key,
 };
@@ -30,6 +31,7 @@ pub struct InstanceManager {
     instances: HashMap<String, Instance>,
     backlog: HashMap<String, BacklogData>,
     backlog_interval: tokio::time::Interval,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 const BACKLOG_CHECK_INTERVAL: u64 = 600;
@@ -119,6 +121,7 @@ impl InstanceManager {
         instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
         outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
         incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
     ) -> Self {
         return Self {
             state_command_sender,
@@ -131,6 +134,7 @@ impl InstanceManager {
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
             )),
+            event_emitter_sender,
         };
     }
 
@@ -278,6 +282,7 @@ impl InstanceManager {
                     ciphertext,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 
@@ -321,6 +326,7 @@ impl InstanceManager {
                     &label,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 
@@ -362,6 +368,7 @@ impl InstanceManager {
                     &name,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 

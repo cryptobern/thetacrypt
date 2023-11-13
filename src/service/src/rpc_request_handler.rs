@@ -42,8 +42,9 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<DecryptResponse>, Status> {
         info!(">> REQH: Received a decrypt request.");
 
-        let start = Utc::now();
-        let event = Event::ReceivedDecryptionRequest { timestamp: start };
+        let event = Event::ReceivedDecryptionRequest {
+            timestamp: Utc::now(),
+        };
         self.event_emitter_sender.send(event).await.unwrap();
 
         // Deserialize ciphertext
@@ -77,14 +78,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
-        let now = Utc::now();
-        let event = Event::FinishedDecryptionRequest {
-            timestamp: now,
-            instance_id: result.clone().unwrap(),
-            duration_microseconds: (now - start).num_microseconds().unwrap(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
-
         Ok(Response::new(DecryptResponse {
             instance_id: result.unwrap(),
         }))
@@ -93,7 +86,9 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         info!("Received a signature request");
         let start = Utc::now();
-        let event = Event::ReceivedSigningRequest { timestamp: start };
+        let event = Event::ReceivedSigningRequest {
+            timestamp: Utc::now(),
+        };
         self.event_emitter_sender.send(event).await.unwrap();
 
         let req: &SignRequest = request.get_ref();
@@ -137,14 +132,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
 
-        let now = Utc::now();
-        let event = Event::FinishedSigningRequest {
-            timestamp: now,
-            instance_id: result.clone().unwrap(),
-            duration_microseconds: (now - start).num_microseconds().unwrap(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
-
         Ok(Response::new(SignResponse {
             instance_id: result.unwrap(),
         }))
@@ -156,8 +143,9 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<CoinResponse>, Status> {
         info!("Received a coin flip request.");
 
-        let start = Utc::now();
-        let event = Event::ReceivedCoinRequest { timestamp: start };
+        let event = Event::ReceivedCoinRequest {
+            timestamp: Utc::now(),
+        };
         self.event_emitter_sender.send(event).await.unwrap();
 
         let req: &CoinRequest = request.get_ref();
@@ -199,14 +187,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             );
             return Err(Status::aborted(result.unwrap_err().to_string()));
         }
-
-        let now = Utc::now();
-        let event = Event::FinishedCoinRequest {
-            timestamp: now,
-            instance_id: result.clone().unwrap(),
-            duration_microseconds: (now - start).num_microseconds().unwrap(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
 
         Ok(Response::new(CoinResponse {
             instance_id: result.unwrap(),
@@ -333,6 +313,7 @@ pub async fn init(
     let inst_cmd_sender = instance_manager_sender.clone();
     let outgoing_p2p_sender = outgoing_message_sender.clone();
 
+    let instance_manager_event_tx = event_emitter_sender.clone();
     tokio::spawn(async move {
         let mut mfw = InstanceManager::new(
             state_cmd_sender,
@@ -340,6 +321,7 @@ pub async fn init(
             inst_cmd_sender,
             outgoing_p2p_sender,
             incoming_message_receiver,
+            instance_manager_event_tx,
         );
         mfw.run().await;
     });
