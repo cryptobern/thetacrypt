@@ -84,6 +84,30 @@ pub mod emitter {
         (tx, shutdown_tx, handle)
     }
 
+    /// Starts a null emitter which behaves like a regular emitter, but discards all events
+    /// passed to it.
+    pub fn start_null_emitter() -> (
+        Sender<Event>,
+        oneshot::Sender<bool>,
+        JoinHandle<Result<(), BenchmarkingError>>,
+    ) {
+        let (tx, mut rx) = mpsc::channel::<Event>(100);
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<bool>();
+        let handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        info!("Null-emitter shutting down. Nothing was achieved :)");
+                        return Ok(())
+                    }, // Terminate on shutdown signal
+                    Some(_) = rx.recv() => {}, // Discard incoming events
+                }
+            }
+        });
+
+        (tx, shutdown_tx, handle)
+    }
+
     /// New initializes a new emitter.
     ///
     /// An error is returned if opening its output file failed.

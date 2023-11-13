@@ -3,7 +3,11 @@ use log::{error, info};
 use log4rs;
 use std::{path::PathBuf, process::exit};
 use theta_orchestration::keychain::KeyChain;
-use theta_service::{event::emitter, rpc_request_handler};
+use theta_service::{
+    event::emitter::{self, start_null_emitter},
+    rpc_request_handler,
+};
+
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};
@@ -94,14 +98,25 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         .await;
     });
 
-    info!("Starting event emitter");
-    let event_file = PathBuf::from("/tmp/events.csv");
-    let emitter = match emitter::new(&event_file) {
-        Ok(emitter) => emitter,
-        Err(e) => panic!("Unable to instantiate event emitter: {}", e),
-    };
+    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
+        Some(f) => {
+            info!(
+                "Starting event emitter with output file {}",
+                f.to_str().unwrap_or("<cannot print path>")
+            );
+            let emitter = match emitter::new(&f) {
+                Ok(emitter) => emitter,
+                Err(e) => panic!("Unable to instantiate event emitter: {}", e),
+            };
 
-    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = emitter::start(emitter);
+            emitter::start(emitter)
+        }
+        None => {
+            info!("Starting null-emitter, which will discard all benchmarking events");
+
+            start_null_emitter()
+        }
+    };
 
     let my_listen_address = config.listen_address.clone();
     let my_rpc_port = match config.my_rpc_port() {

@@ -150,7 +150,13 @@ fn run(
                 my_peers.shuffle(&mut rng);
             }
 
-            ServerConfig::new(u32::try_from(i).unwrap(), listen_address.clone(), my_peers).unwrap()
+            ServerConfig::new(
+                u32::try_from(i).unwrap(),
+                listen_address.clone(),
+                my_peers,
+                None,
+            )
+            .unwrap()
         })
         .collect();
 
