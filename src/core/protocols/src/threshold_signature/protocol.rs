@@ -59,11 +59,12 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
         self.event_emitter_sender.send(event).await.unwrap();
 
         if !self.precomputed {
-            let _ = self
-                .instance
-                .as_mut()
-                .unwrap()
-                .set_msg(&(&self.message).clone().unwrap());
+            if self.private_key.get_scheme().is_interactive() {
+                self.instance
+                    .as_mut()
+                    .unwrap()
+                    .set_msg(&(&self.message).clone().unwrap());
+            }
         }
 
         self.on_init().await?;
