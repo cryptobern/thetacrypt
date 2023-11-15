@@ -1,18 +1,7 @@
-<<<<<<< HEAD
-use std::{process::exit, vec};
-use log::{error, info};
-use clap::Parser;
-use theta_network::{
-    proxy::proxyp2p::ProxyConfig, 
-    types::message::NetMessage,
-    config::static_net
-};
-=======
 use clap::Parser;
 use log::{error, info};
 use std::process::exit;
 use theta_network::{proxy::proxyp2p::ProxyConfig, types::message::NetMessage};
->>>>>>> dev
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerProxyConfig};
