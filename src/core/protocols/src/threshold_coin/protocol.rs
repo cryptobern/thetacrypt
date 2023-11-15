@@ -1,11 +1,10 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use log::{error, info, warn};
 use theta_network::types::message::NetMessage;
-use theta_schemes::interface::{
-    Serializable, ThresholdSignature, ThresholdCoin, CoinShare,
-};
-use theta_schemes::keys::{PrivateKey, PublicKey};
+use theta_schemes::interface::{CoinShare, Serializable, ThresholdCoin};
+use theta_schemes::keys::PrivateKey;
 use theta_schemes::rand::RNG;
 use tonic::async_trait;
 
@@ -26,7 +25,10 @@ pub struct ThresholdCoinProtocol {
 #[async_trait]
 impl ThresholdProtocol for ThresholdCoinProtocol {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
+        info!(
+            "<{:?}>: Starting threshold coin instance",
+            &self.instance_id
+        );
 
         self.on_init().await?;
         loop {
@@ -42,16 +44,20 @@ impl ThresholdProtocol for ThresholdCoinProtocol {
                                 return Ok(result);
                             }
                         }
-                        Err(tcerror) => {
-                            println!(
-                                ">> PROT: Could not deserialize share. Share will be ignored."
+                        Err(_tcerror) => {
+                            info!(
+                                "<{:?}>: Could not deserialize share. Share will be ignored.",
+                                &self.instance_id
                             );
                             continue;
                         }
                     };
                 }
                 None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    error!(
+                        "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
+                        &self.instance_id
+                    );
                     self.terminate().await?;
                     return Err(ProtocolError::InternalError);
                 }
@@ -71,7 +77,7 @@ impl ThresholdCoinProtocol {
     ) -> Self {
         ThresholdCoinProtocol {
             private_key,
-            name:name.clone(),
+            name: name.clone(),
             chan_in,
             chan_out,
             instance_id,
@@ -84,17 +90,16 @@ impl ThresholdCoinProtocol {
 
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send coin share
-        println!(
-            ">> PROT: instance_id: {:?} computing coin share for key id:{:?}.",
-            &self.instance_id,
-            self.private_key.get_id()
-        );
-        let share = ThresholdCoin::create_share(&self.name, &self.private_key, &mut RNG::new(theta_schemes::rand::RngAlgorithm::OsRng))?;
-        // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
+        let share = ThresholdCoin::create_share(
+            &self.name,
+            &self.private_key,
+            &mut RNG::new(theta_schemes::rand::RngAlgorithm::OsRng),
+        )?;
+
         let message = NetMessage {
             instance_id: self.instance_id.clone(),
             message_data: share.serialize().unwrap(),
-            is_total_order: false
+            is_total_order: false,
         };
         self.chan_out.send(message).await.unwrap();
         self.received_share_ids.insert(share.get_id());
@@ -103,8 +108,8 @@ impl ThresholdCoinProtocol {
     }
 
     fn on_receive_coin_share(&mut self, share: CoinShare) -> Result<(), ProtocolError> {
-        println!(
-            ">> PROT: instance_id: {:?} received share with share_id: {:?}.",
+        info!(
+            "<{:?}>: Received share with share_id: {:?}.",
             &self.instance_id,
             share.get_id()
         );
@@ -113,7 +118,11 @@ impl ThresholdCoinProtocol {
         }
 
         if self.received_share_ids.contains(&share.get_id()) {
-            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}. Share will be ignored.", &self.instance_id, share.get_id());
+            warn!(
+                "<{:?}>: Found share with id {:?} to be DUPLICATE. Share will be ignored.",
+                &self.instance_id,
+                share.get_id()
+            );
             return Ok(());
         }
         self.received_share_ids.insert(share.get_id());
@@ -123,12 +132,16 @@ impl ThresholdCoinProtocol {
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
-                    println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                    warn!(
+                        "<{:?}>: Received INVALID share with id {:?}. Share will be ingored.",
+                        &self.instance_id,
+                        share.get_id()
+                    );
                     return Ok(());
                 }
             }
             Err(err) => {
-                println!(">> PROT: instance_id: {:?} encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                warn!("<{:?}>: Encountered error when validating share with id {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
                 return Ok(());
             }
         }
@@ -136,24 +149,23 @@ impl ThresholdCoinProtocol {
         self.valid_shares.push(share);
 
         if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
-            let coin =
-                ThresholdCoin::assemble(&self.valid_shares)?;
+            let coin = ThresholdCoin::assemble(&self.valid_shares)?;
             self.coin = Option::Some(coin);
             self.finished = true;
-            println!(
-                ">> PROT: instance_id: {:?} has issued a random coin.",
-                &self.instance_id
-            );
+            info!("<{:?}>: Finished computing random coin.", &self.instance_id);
             return Ok(());
         }
         return Ok(());
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.private_key.get_public_key());
+        info!(
+            "<{:?}>: Instance finished.",
+            &self.private_key.get_public_key()
+        );
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
-        //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
+        //     info!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
         // }
         Ok(())
     }

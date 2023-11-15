@@ -6,16 +6,17 @@
 
 use std::ops::BitAnd;
 
-use asn1::{WriteError, ParseError};
-use derive::{DlShare};
-use mcore::{hash256::HASH256};
-use rasn::{AsnType, Encode, Decode};
+use asn1::{ParseError, WriteError};
+use derive::DlShare;
+use log::error;
+use mcore::hash256::HASH256;
+use rasn::AsnType;
 
+use crate::dl_schemes::bigint::BigImpl;
 use crate::interface::{DlShare, Serializable, ThresholdCryptoError};
 use crate::scheme_types_impl::GroupDetails;
-use crate::{group::GroupElement, dl_schemes::{common::interpolate}, rand::RNG};
-use theta_proto::scheme_types::{ThresholdScheme, Group};
-use crate::dl_schemes::bigint::BigImpl;
+use crate::{dl_schemes::common::interpolate, group::GroupElement, rand::RNG};
+use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 pub struct Cks05ThresholdCoin {
     g: GroupElement,
@@ -27,7 +28,7 @@ pub struct Cks05PublicKey {
     n: u16,
     k: u16,
     y: GroupElement,
-    verification_key: Vec<GroupElement>
+    verification_key: Vec<GroupElement>,
 }
 
 impl Cks05PublicKey {
@@ -43,17 +44,23 @@ impl Cks05PublicKey {
         self.k
     }
 
-    pub fn get_n(&self) -> u16  {
+    pub fn get_n(&self) -> u16 {
         self.n
     }
 
-    pub fn new(group:&Group, n:usize, k:usize, y: &GroupElement, verification_key: &Vec<GroupElement>) -> Self {
+    pub fn new(
+        group: &Group,
+        n: usize,
+        k: usize,
+        y: &GroupElement,
+        verification_key: &Vec<GroupElement>,
+    ) -> Self {
         Self {
-            group:group.clone(),
-            n:n as u16,
-            k:k as u16,
+            group: group.clone(),
+            n: n as u16,
+            k: k as u16,
             y: y.clone(),
-            verification_key: verification_key.clone()
+            verification_key: verification_key.clone(),
         }
     }
 }
@@ -81,7 +88,7 @@ impl Serializable for Cks05PublicKey {
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let g = Group::from_code(d.read_element::<u8>()?);
@@ -91,10 +98,10 @@ impl Serializable for Cks05PublicKey {
                 let group = g.unwrap();
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
-                
+
                 let bytes = d.read_element::<&[u8]>()?;
                 let y = GroupElement::from_bytes(&bytes, &group, Option::None);
-                
+
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
@@ -102,12 +109,18 @@ impl Serializable for Cks05PublicKey {
                     verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
                 }
 
-                Ok(Self{n, k, group, y, verification_key})
-            })
+                Ok(Self {
+                    n,
+                    k,
+                    group,
+                    y,
+                    verification_key,
+                })
+            });
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -117,7 +130,7 @@ impl Serializable for Cks05PublicKey {
 
 impl PartialEq for Cks05PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.verification_key.eq(&other.verification_key) &&  self.y.eq(&other.y) 
+        self.verification_key.eq(&other.verification_key) && self.y.eq(&other.y)
     }
 }
 
@@ -182,7 +195,7 @@ impl Serializable for Cks05PrivateKey {
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>  {
+    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
@@ -191,19 +204,19 @@ impl Serializable for Cks05PrivateKey {
                 let pubbytes = d.read_element::<&[u8]>()?;
                 let res = Cks05PublicKey::deserialize(&pubbytes.to_vec());
                 if res.is_err() {
-                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault { }));
+                    return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault {}));
                 }
 
                 let pubkey = res.unwrap();
 
                 let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
 
-                return Ok(Self {id, xi, pubkey});
-            })
+                return Ok(Self { id, xi, pubkey });
+            });
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -211,7 +224,7 @@ impl Serializable for Cks05PrivateKey {
     }
 }
 
-impl PartialEq for Cks05PrivateKey{
+impl PartialEq for Cks05PrivateKey {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.xi == other.xi && self.pubkey == other.pubkey
     }
@@ -226,7 +239,9 @@ pub struct Cks05CoinShare {
 }
 
 impl Cks05CoinShare {
-    pub fn get_scheme(&self) -> ThresholdScheme { ThresholdScheme::Cks05 }
+    pub fn get_scheme(&self) -> ThresholdScheme {
+        ThresholdScheme::Cks05
+    }
 }
 
 impl Serializable for Cks05CoinShare {
@@ -258,7 +273,7 @@ impl Serializable for Cks05CoinShare {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
-                
+
                 let bytes = d.read_element::<&[u8]>()?;
                 let data = GroupElement::from_bytes(&bytes, &group, Option::None);
 
@@ -268,12 +283,12 @@ impl Serializable for Cks05CoinShare {
                 let bytes = d.read_element::<&[u8]>()?;
                 let z = BigImpl::from_bytes(&group, &bytes);
 
-                return Ok(Self { id, data, c, z});
-            })
+                return Ok(Self { id, data, c, z });
+            });
         });
 
         if result.is_err() {
-            println!("{}", result.err().unwrap().to_string());
+            error!("{}", result.err().unwrap().to_string());
             return Err(ThresholdCryptoError::DeserializationFailed);
         }
 
@@ -281,9 +296,12 @@ impl Serializable for Cks05CoinShare {
     }
 }
 
-impl PartialEq for Cks05CoinShare  {
+impl PartialEq for Cks05CoinShare {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.data.eq(&other.data) && self.c.eq(&other.c) && self.z.eq(&other.z)
+        self.id == other.id
+            && self.data.eq(&other.data)
+            && self.c.eq(&other.c)
+            && self.z.eq(&other.z)
     }
 }
 
@@ -309,23 +327,22 @@ impl Cks05ThresholdCoin {
             &h_bar,
         );
 
-        let z = s
-            .add(&BigImpl::rmul(&c, &sk.xi, &q))
-            .rmod(&q);
+        let z = s.add(&BigImpl::rmul(&c, &sk.xi, &q)).rmod(&q);
 
-        Cks05CoinShare { id: sk.id, data, c, z,}
+        Cks05CoinShare {
+            id: sk.id,
+            data,
+            c,
+            z,
+        }
     }
 
     pub fn verify_share(share: &Cks05CoinShare, name: &[u8], pk: &Cks05PublicKey) -> bool {
         let c_bar = H(name, &share.get_group());
 
-        let h = 
-            GroupElement::new(&pk.group)
+        let h = GroupElement::new(&pk.group)
             .pow(&share.z)
-            .div(
-                &pk.verification_key[(share.id -1) as usize]
-                .pow(&share.c)
-            );
+            .div(&pk.verification_key[(share.id - 1) as usize].pow(&share.c));
 
         let h_bar = c_bar.pow(&share.z).div(&share.data.pow(&share.c));
 
@@ -346,7 +363,6 @@ impl Cks05ThresholdCoin {
         H2(&coin)
     }
 }
-
 
 fn H(name: &[u8], group: &Group) -> GroupElement {
     let mut buf: Vec<u8> = Vec::new();
@@ -373,13 +389,20 @@ fn H(name: &[u8], group: &Group) -> GroupElement {
         }
     }
 
-    let mut res = BigImpl::from_bytes(&group, &buf);
+    let res = BigImpl::from_bytes(&group, &buf);
     res.rmod(&group.get_order());
 
     GroupElement::new_pow_big(&group, &res)
 }
 
-fn H1(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement, g5: &GroupElement, g6: &GroupElement) -> BigImpl {
+fn H1(
+    g1: &GroupElement,
+    g2: &GroupElement,
+    g3: &GroupElement,
+    g4: &GroupElement,
+    g5: &GroupElement,
+    g6: &GroupElement,
+) -> BigImpl {
     let mut buf: Vec<u8> = Vec::new();
     let q = g1.get_order();
 
@@ -409,7 +432,7 @@ fn H1(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement
         }
     }
 
-    let mut res = BigImpl::from_bytes(&g1.get_group(), &buf);
+    let res = BigImpl::from_bytes(&g1.get_group(), &buf);
     res.rmod(&g1.get_order());
 
     res
@@ -417,64 +440,57 @@ fn H1(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement, g4: &GroupElement
 
 // takes a group element and hashes it to a single bit
 fn H2(g: &GroupElement) -> u8 {
-
     // generated 256-bit mask using https://catonmat.net/tools/generate-random-bits
     // TODO: use a verifiable way to generate this randomness
-    const MASK: &[u8] = &[  
-        0b11011100, 0b01010111, 0b00100110, 0b01110100, 0b00100011, 0b00011101, 
-        0b10101101, 0b10010101, 0b11101001, 0b10011101, 0b00100100, 0b10000000, 
-        0b01100001, 0b00011110, 0b01011001, 0b00100110, 0b10111101, 0b01010100, 
-        0b10011010, 0b00011000, 0b01111100, 0b00000000, 0b10101101, 0b10011001, 
-        0b10101011, 0b00111000, 0b11100111, 0b01000110, 0b11010010, 0b10101010, 
-        0b11110101, 0b01010110, 0b00111010, 0b11101001, 0b01011000, 0b10011000, 
-        0b11110010, 0b00000110, 0b10001100, 0b00000110, 0b10011101, 0b11001110, 
-        0b11010111, 0b01001101, 0b10000010, 0b11010010, 0b10110000, 0b01101111, 
-        0b10101110, 0b10111011, 0b10110001, 0b10101010, 0b11010010, 0b10011010, 
-        0b00110111, 0b11001100, 0b11011100, 0b11001111, 0b11110100, 0b00000001, 
-        0b00000111, 0b11001010, 0b10101110, 0b11100100, 0b10001001, 0b10011111, 
-        0b00110100, 0b10101111, 0b11000111, 0b10000111, 0b10001101, 0b00000001, 
-        0b01011100, 0b11101101, 0b10111100, 0b11001000, 0b10000010, 0b01110101, 
-        0b10011111, 0b10010111, 0b01101010, 0b11011110, 0b10100101, 0b00110000, 
-        0b11010010, 0b01011110, 0b00111111, 0b01001010, 0b11011001, 0b01011010, 
-        0b01010110, 0b01001100, 0b10011000, 0b11100100, 0b00110100, 0b01100001, 
-        0b00110110, 0b11000100, 0b11110110, 0b11001011, 0b00101100, 0b11010001, 
-        0b00110000, 0b11011010, 0b10011001, 0b01101100, 0b10110110, 0b01110100, 
-        0b11000000, 0b00101011, 0b00111101, 0b01111010, 0b11100100, 0b10101101, 
-        0b00010001, 0b00111000, 0b11000110, 0b00110110, 0b00110010, 0b00010000, 
-        0b00001100, 0b11001100, 0b11011111, 0b10100001, 0b01000001, 0b10010010, 
-        0b11101011, 0b11101001, 0b11101001, 0b00101111, 0b01001010, 0b11101110, 
-        0b11001010, 0b01100101, 0b10001100, 0b11101111, 0b11101100, 0b11101101, 
-        0b10101111, 0b10000001, 0b00001110, 0b00110001, 0b01101100, 0b00100001, 
-        0b01111101, 0b11110011, 0b11110011, 0b00011011, 0b00011001, 0b10000101, 
-        0b01010110, 0b01001000, 0b11110000, 0b10011101, 0b11000010, 0b01000001, 
-        0b11001100, 0b11010101, 0b11010001, 0b10000110, 0b10000010, 0b10000011, 
-        0b10101101, 0b00110110, 0b10010001, 0b11110110, 0b10100110, 0b01000011, 
-        0b10010010, 0b10101110, 0b00001100, 0b00111001, 0b11110001, 0b10001001, 
-        0b00000100, 0b11100100, 0b11001000, 0b11000010, 0b11110101, 0b11010100, 
-        0b00111010, 0b10011110, 0b11000100, 0b11111001, 0b00000010, 0b00101111, 
-        0b00111101, 0b10110011, 0b01001001, 0b11001010, 0b00101011, 0b10100100, 
-        0b00011110, 0b10011101, 0b01000010, 0b00010011, 0b10111000, 0b11111111, 
-        0b01110000, 0b10001010, 0b10010111, 0b01111111, 0b00111010, 0b10110110, 
-        0b00010101, 0b00110110, 0b11011110, 0b10001100, 0b11011000, 0b11011100, 
-        0b10110111, 0b01011101, 0b01001101, 0b00011110, 0b10011101, 0b01110110, 
-        0b10011101, 0b10001000, 0b10100000, 0b00101110, 0b11100101, 0b10101011, 
-        0b11010011, 0b10101110, 0b01000011, 0b11010101, 0b00100010, 0b00100010, 
-        0b11111111, 0b11101101, 0b11011010, 0b01001000, 0b00101011, 0b00010000, 
-        0b01101101, 0b01001010, 0b11011010, 0b00110111, 0b00001000, 0b01101100, 
-        0b11110011, 0b11011100, 0b00001101, 0b00100010, 0b00111000, 0b10001000, 
-        0b01000101, 0b01111000, 0b01001100, 0b11001001, 0b10100101, 0b01100011, 
-        0b10111011, 0b01110011, 0b10010000, 0b01010110
+    const MASK: &[u8] = &[
+        0b11011100, 0b01010111, 0b00100110, 0b01110100, 0b00100011, 0b00011101, 0b10101101,
+        0b10010101, 0b11101001, 0b10011101, 0b00100100, 0b10000000, 0b01100001, 0b00011110,
+        0b01011001, 0b00100110, 0b10111101, 0b01010100, 0b10011010, 0b00011000, 0b01111100,
+        0b00000000, 0b10101101, 0b10011001, 0b10101011, 0b00111000, 0b11100111, 0b01000110,
+        0b11010010, 0b10101010, 0b11110101, 0b01010110, 0b00111010, 0b11101001, 0b01011000,
+        0b10011000, 0b11110010, 0b00000110, 0b10001100, 0b00000110, 0b10011101, 0b11001110,
+        0b11010111, 0b01001101, 0b10000010, 0b11010010, 0b10110000, 0b01101111, 0b10101110,
+        0b10111011, 0b10110001, 0b10101010, 0b11010010, 0b10011010, 0b00110111, 0b11001100,
+        0b11011100, 0b11001111, 0b11110100, 0b00000001, 0b00000111, 0b11001010, 0b10101110,
+        0b11100100, 0b10001001, 0b10011111, 0b00110100, 0b10101111, 0b11000111, 0b10000111,
+        0b10001101, 0b00000001, 0b01011100, 0b11101101, 0b10111100, 0b11001000, 0b10000010,
+        0b01110101, 0b10011111, 0b10010111, 0b01101010, 0b11011110, 0b10100101, 0b00110000,
+        0b11010010, 0b01011110, 0b00111111, 0b01001010, 0b11011001, 0b01011010, 0b01010110,
+        0b01001100, 0b10011000, 0b11100100, 0b00110100, 0b01100001, 0b00110110, 0b11000100,
+        0b11110110, 0b11001011, 0b00101100, 0b11010001, 0b00110000, 0b11011010, 0b10011001,
+        0b01101100, 0b10110110, 0b01110100, 0b11000000, 0b00101011, 0b00111101, 0b01111010,
+        0b11100100, 0b10101101, 0b00010001, 0b00111000, 0b11000110, 0b00110110, 0b00110010,
+        0b00010000, 0b00001100, 0b11001100, 0b11011111, 0b10100001, 0b01000001, 0b10010010,
+        0b11101011, 0b11101001, 0b11101001, 0b00101111, 0b01001010, 0b11101110, 0b11001010,
+        0b01100101, 0b10001100, 0b11101111, 0b11101100, 0b11101101, 0b10101111, 0b10000001,
+        0b00001110, 0b00110001, 0b01101100, 0b00100001, 0b01111101, 0b11110011, 0b11110011,
+        0b00011011, 0b00011001, 0b10000101, 0b01010110, 0b01001000, 0b11110000, 0b10011101,
+        0b11000010, 0b01000001, 0b11001100, 0b11010101, 0b11010001, 0b10000110, 0b10000010,
+        0b10000011, 0b10101101, 0b00110110, 0b10010001, 0b11110110, 0b10100110, 0b01000011,
+        0b10010010, 0b10101110, 0b00001100, 0b00111001, 0b11110001, 0b10001001, 0b00000100,
+        0b11100100, 0b11001000, 0b11000010, 0b11110101, 0b11010100, 0b00111010, 0b10011110,
+        0b11000100, 0b11111001, 0b00000010, 0b00101111, 0b00111101, 0b10110011, 0b01001001,
+        0b11001010, 0b00101011, 0b10100100, 0b00011110, 0b10011101, 0b01000010, 0b00010011,
+        0b10111000, 0b11111111, 0b01110000, 0b10001010, 0b10010111, 0b01111111, 0b00111010,
+        0b10110110, 0b00010101, 0b00110110, 0b11011110, 0b10001100, 0b11011000, 0b11011100,
+        0b10110111, 0b01011101, 0b01001101, 0b00011110, 0b10011101, 0b01110110, 0b10011101,
+        0b10001000, 0b10100000, 0b00101110, 0b11100101, 0b10101011, 0b11010011, 0b10101110,
+        0b01000011, 0b11010101, 0b00100010, 0b00100010, 0b11111111, 0b11101101, 0b11011010,
+        0b01001000, 0b00101011, 0b00010000, 0b01101101, 0b01001010, 0b11011010, 0b00110111,
+        0b00001000, 0b01101100, 0b11110011, 0b11011100, 0b00001101, 0b00100010, 0b00111000,
+        0b10001000, 0b01000101, 0b01111000, 0b01001100, 0b11001001, 0b10100101, 0b01100011,
+        0b10111011, 0b01110011, 0b10010000, 0b01010110,
     ];
 
     let bytes = g.to_bytes();
 
-    let mut bit:u8 = 0;
+    let mut bit: u8 = 0;
 
     // performing inner product of mask with bit representation of g
     for i in 0..bytes.len() {
         let g_byte = bytes[i];
         let mask_byte = MASK[i];
-        
+
         bit ^= g_byte.bitand(mask_byte).count_ones() as u8 % 2;
     }
 

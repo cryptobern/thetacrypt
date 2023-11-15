@@ -1,38 +1,36 @@
-use std::{collections::HashMap, sync::Arc};
-use theta_protocols::interface::ProtocolError;
-use theta_schemes::{interface::{ThresholdScheme, InteractiveThresholdSignature}};
+use log::info;
+use std::sync::Arc;
 use theta_proto::scheme_types::Group;
+use theta_schemes::interface::{InteractiveThresholdSignature, ThresholdScheme};
 use tokio::sync::mpsc::Receiver;
 
-use crate::{
-    keychain::KeyChain,
-    types::{Key},
-};
+use crate::{keychain::KeyChain, types::Key};
 
 #[derive(Debug)]
 pub enum StateManagerCommand {
     // Returns the private keys that can be used with the given scheme and group
-    GetPrivateKeyByType { 
+    GetPrivateKeyByType {
         scheme: ThresholdScheme,
         group: Group,
     },
     // Returns all public keys that can be used for encryption.
-    GetEncryptionKeys { 
-    },
-    PopFrostPrecomputation {
-    },
+    GetEncryptionKeys {},
+    PopFrostPrecomputation {},
     PushFrostPrecomputation {
-        instance: InteractiveThresholdSignature
-    }
+        instance: InteractiveThresholdSignature,
+    },
 }
 
 impl StateManagerCommand {
     pub fn will_respond(&self) -> bool {
         match self {
             Self::GetEncryptionKeys {} => true,
-            Self::GetPrivateKeyByType { scheme, group } => true,
+            Self::GetPrivateKeyByType {
+                scheme: _,
+                group: _,
+            } => true,
             Self::PopFrostPrecomputation {} => true,
-            Self::PushFrostPrecomputation { instance } => false,
+            Self::PushFrostPrecomputation { instance: _ } => false,
         }
     }
 }
@@ -40,14 +38,14 @@ impl StateManagerCommand {
 #[derive(Debug)]
 pub struct StateManagerMsg {
     pub command: StateManagerCommand,
-    pub responder: Option<tokio::sync::oneshot::Sender<StateManagerResponse>>
+    pub responder: Option<tokio::sync::oneshot::Sender<StateManagerResponse>>,
 }
 
 #[derive(Debug)]
 pub enum StateManagerResponse {
     Key(Result<Arc<Key>, String>),
     KeyVec(Vec<Arc<Key>>),
-    Precomp(Option<InteractiveThresholdSignature>)
+    Precomp(Option<InteractiveThresholdSignature>),
 }
 
 pub struct StateManager {
@@ -56,10 +54,7 @@ pub struct StateManager {
 }
 
 impl StateManager {
-    pub fn new(
-        keychain: KeyChain,
-        message_receiver: Receiver<StateManagerMsg>,
-    ) -> Self {
+    pub fn new(keychain: KeyChain, message_receiver: Receiver<StateManagerMsg>) -> Self {
         StateManager {
             keychain,
             message_receiver,
@@ -71,7 +66,7 @@ impl StateManager {
             tokio::select! {
                 command = self.message_receiver.recv() => { // Received a state-update command
                     let msg: StateManagerMsg = command.expect("All senders for state_command_receiver have been closed.");
-                    
+
                     let cmd: StateManagerCommand = msg.command;
                     let responder = msg.responder;
 
@@ -93,10 +88,10 @@ impl StateManager {
                             if let Option::Some(r) = responder {
                                 r.send(StateManagerResponse::Precomp(result)).expect("The receiver for responder in StateUpdateCommand::PopFrostPrecomputation has been closed.");
                             }
+                            info!("{} FROST precomputations stored", self.keychain.num_precomputations());
                         },
                         StateManagerCommand::PushFrostPrecomputation { instance } => {
-                            let result = self.keychain.push_precompute_result(instance);
-                            println!(">> {} FROST precomputations", self.keychain.num_precomputations());
+                            self.keychain.push_precompute_result(instance);
                         }
                         _ => unimplemented!()
                     }

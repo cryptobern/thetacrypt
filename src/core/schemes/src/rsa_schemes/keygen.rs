@@ -30,17 +30,17 @@ impl RsaKeyGenerator {
 
                 let e = BIGINT!(65537); // Question: Should we be able to change this?
 
-                if DEBUG { println!("generating strong primes..."); }
+                if DEBUG { debug!("generating strong primes..."); }
 
                 let now = Instant::now();
                 gen_strong_prime(&mut p1, &mut p, &e, rng, PLEN);
                 let elapsed_time = now.elapsed().as_millis();
-                if DEBUG { println!("found first prime p in {}ms: {}", elapsed_time, p.to_string()); }
+                if DEBUG { debug!("found first prime p in {}ms: {}", elapsed_time, p.to_string()); }
                 
                 let now = Instant::now();
                 gen_strong_prime(&mut q1, &mut q, &e,  rng, PLEN);
                 let elapsed_time = now.elapsed().as_millis();
-                if DEBUG { println!("found second prime q in {}ms: {}", elapsed_time, q.to_string()); }
+                if DEBUG { debug!("found second prime q in {}ms: {}", elapsed_time, q.to_string()); }
                 
                 let N = p.mul(&q);
                 let m = p1.mul(&q1);

@@ -1,3 +1,5 @@
+use log::info;
+
 /// print a vector of bytes to the console
 pub fn printbinary(array: &[u8], caption: Option<&str>) {
     if caption.is_some() {
@@ -6,7 +8,7 @@ pub fn printbinary(array: &[u8], caption: Option<&str>) {
     for i in 0..array.len() {
         print!("{:02X}", array[i])
     }
-    println!("")
+    info!("")
 }
 
 

@@ -1,21 +1,23 @@
 use std::{
     collections::{HashMap, HashSet},
-    io,
     path::PathBuf,
     thread, time, vec,
 };
-use tokio::task::JoinHandle;
-use tonic::{Code, Response, Status};
+use tonic::Code;
 
 use mcore::hash256::HASH256;
 use theta_orchestration::keychain::KeyChain;
-use theta_schemes::{keys::PublicKey, interface::Serializable};
-use theta_schemes::{
-    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
-};
+use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
+use theta_schemes::{interface::Serializable, keys::PublicKey};
 
-use theta_proto::{protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, StatusRequest, KeyRequest, PublicKeyEntry}, scheme_types::{ThresholdScheme, Group}};
 use theta_proto::protocol_types::DecryptRequest;
+use theta_proto::{
+    protocol_types::{
+        threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest, PublicKeyEntry,
+        StatusRequest,
+    },
+    scheme_types::{Group, ThresholdScheme},
+};
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
 // It is meant to test the basic network logic RpcRequestHandler, MessageDispatcher, etc.
@@ -160,8 +162,7 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
 
     // Ask for decrypt result. Instance should have finished by now.
     let mut i = 0;
-    let get_result_request
-     = StatusRequest {
+    let get_result_request = StatusRequest {
         instance_id: instance_id1,
     };
     for conn in connections.iter_mut() {
@@ -376,7 +377,7 @@ fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Cipher
     };
     (req, ciphertext)
 }
-/* 
+/*
 fn create_decrypt_sync_request(sn: u32, pk: &PublicKey) -> (DecryptSyncRequest, Ciphertext) {
     let ciphertext = create_ciphertext(sn, pk);
     let req = DecryptSyncRequest {

@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use clap::parser::ValueSource;
+use log::{error, info, warn};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
-    Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
+    Ciphertext, DecryptionShare, ThresholdCipher, ThresholdCipherParams,
 };
-use theta_schemes::keys::{PrivateKey, PublicKey};
+use theta_schemes::keys::PrivateKey;
 use tonic::async_trait;
 
 use crate::interface::{ProtocolError, ThresholdProtocol};
@@ -27,12 +27,17 @@ pub struct ThresholdCipherProtocol {
 #[async_trait]
 impl ThresholdProtocol for ThresholdCipherProtocol {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
-        println!(">> PROT: instance_id: {:?} starting.", &self.instance_id);
-        let valid_ctxt =
-            ThresholdCipher::verify_ciphertext(&self.ciphertext, &self.private_key.get_public_key())?;
+        info!(
+            "<{:?}>: Starting threshold cipher instance",
+            &self.instance_id
+        );
+        let valid_ctxt = ThresholdCipher::verify_ciphertext(
+            &self.ciphertext,
+            &self.private_key.get_public_key(),
+        )?;
         if !valid_ctxt {
-            println!(
-                ">> PROT: instance_id: {:?} found INVALID ciphertext. Protocol instance will quit.",
+            error!(
+                "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
                 &self.instance_id
             );
             self.terminate().await?;
@@ -51,11 +56,17 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
                             return Ok(self.decrypted_plaintext.clone());
                         }
                     } else {
-                        println!(">> PROT: Received and ignored unknown message type. instance_id: {:?}", &self.instance_id);    
+                        info!(
+                            "<{:?}>: Received and ignored unknown message type",
+                            &self.instance_id
+                        );
                     }
                 }
                 None => {
-                    println!(">> PROT: Sender end unexpectedly closed. Protocol instance_id: {:?} will quit.", &self.instance_id);
+                    error!(
+                        "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
+                        &self.instance_id
+                    );
                     self.terminate().await?;
                     return Err(ProtocolError::InternalError);
                 }
@@ -89,13 +100,8 @@ impl ThresholdCipherProtocol {
     async fn on_init(&mut self) -> Result<(), ProtocolError> {
         // compute and send decryption share
         let mut params = ThresholdCipherParams::new();
-        println!(
-            ">> PROT: instance_id: {:?} computing decryption share for key id:{:?}.",
-            &self.instance_id,
-            self.private_key.get_id()
-        );
-        let share = ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
-        // println!(">> PROT: instance_id: {:?} sending decryption share with share id :{:?}.", &self.instance_id, share.get_id());
+        let share =
+            ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
         let message = DecryptionShareMessage::to_net_message(&share, &self.instance_id);
         self.chan_out.send(message).await.unwrap();
         self.received_share_ids.insert(share.get_id());
@@ -104,8 +110,8 @@ impl ThresholdCipherProtocol {
     }
 
     fn on_receive_decryption_share(&mut self, share: DecryptionShare) -> Result<(), ProtocolError> {
-        println!(
-            ">> PROT: instance_id: {:?} received share with share_id: {:?}.",
+        info!(
+            "<{:?}>: Received share with id {:?}.",
             &self.instance_id,
             share.get_id()
         );
@@ -114,48 +120,57 @@ impl ThresholdCipherProtocol {
         }
 
         if self.received_share_ids.contains(&share.get_id()) {
-            println!(">> PROT: instance_id: {:?} found share to be DUPLICATE. share_id: {:?}. Share will be ignored.", &self.instance_id, share.get_id());
+            warn!(
+                "<{:?}>: Found share {:?} to be DUPLICATE. Share will be ignored.",
+                &self.instance_id,
+                share.get_id()
+            );
             return Ok(());
         }
         self.received_share_ids.insert(share.get_id());
 
-        let verification_result =
-            ThresholdCipher::verify_share(&share, &self.ciphertext, &self.private_key.get_public_key());
+        let verification_result = ThresholdCipher::verify_share(
+            &share,
+            &self.ciphertext,
+            &self.private_key.get_public_key(),
+        );
         match verification_result {
             Ok(is_valid) => {
                 if !is_valid {
-                    println!(">> PROT: instance_id: {:?} received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                    warn!("<{:?}>: Received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
                     return Ok(());
                 }
             }
             Err(err) => {
-                println!(">> PROT: instance_id: {:?} encountered error when validating share with share_id: {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                warn!("<{:?}>: Encountered error when validating share with id {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
                 return Ok(());
             }
         }
 
         self.valid_shares.push(share);
 
-        println!(">> PROT: Valid shares: {:?} / {:?}", self.valid_shares.len(), self.private_key.get_threshold() );
+        info!(
+            "<{:?}>: Valid shares: {:?}, needed: {:?}",
+            &self.instance_id,
+            self.valid_shares.len(),
+            self.private_key.get_threshold()
+        );
 
         if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
             self.decrypted_plaintext =
                 ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
-            println!(
-                ">> PROT: instance_id: {:?} has decrypted the ciphertext.",
-                &self.instance_id
-            );
+            info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
             return Ok(());
         }
         return Ok(());
     }
 
     async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        println!(">> PROT: instance_id: {:?} finished.", &self.instance_id);
+        info!("<{:?}>: Instance finished.", &self.instance_id);
         self.chan_in.close();
         // while let Some(share) = self.chan_in.recv().await {
-        //     println!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
+        //     info!(">> PROT: instance_id: {:?} unused share with share_id: {:?}", &self.instance_id, DecryptionShare::deserialize(&share).get_id());
         // }
         Ok(())
     }

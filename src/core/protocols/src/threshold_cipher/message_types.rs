@@ -10,7 +10,7 @@ impl DecryptionShareMessage {
     pub fn try_from_bytes(bytes: &Vec<u8>) -> Option<DecryptionShareMessage> {
         match DecryptionShare::deserialize(bytes) {
             Ok(share) => Some(DecryptionShareMessage { share }),
-            Err(tc_error) => None,
+            Err(_tc_error) => None,
         }
     }
 

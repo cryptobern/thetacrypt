@@ -1,17 +1,40 @@
 use theta_proto::scheme_types::Group;
 
-use crate::{keys::{KeyGenerator, PublicKey, PrivateKey}, interface::{ThresholdSignatureParams, ThresholdSignature, SignatureShare, Signature, ThresholdScheme, Serializable}, dl_schemes::dl_groups::bls12381::Bls12381, rand::{RngAlgorithm, RNG}};
-
+use crate::{
+    dl_schemes::dl_groups::bls12381::Bls12381,
+    interface::{
+        Serializable, Signature, SignatureShare, ThresholdScheme, ThresholdSignature,
+        ThresholdSignatureParams,
+    },
+    keys::{KeyGenerator, PrivateKey, PublicKey},
+    rand::{RngAlgorithm, RNG},
+};
 
 #[test]
 fn test_key_generation() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     assert!(keys.len() == 5);
 }
 
 #[test]
 fn test_public_key_serialization() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let secret_key = keys[0].clone();
     let public_key = secret_key.get_public_key();
     let public_key_encoded = public_key.serialize().unwrap();
@@ -21,7 +44,15 @@ fn test_public_key_serialization() {
 
 #[test]
 fn test_secret_key_serialization() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let secret_key = keys[0].clone();
     let secret_key_encoded = secret_key.serialize().unwrap();
     let secret_key_decoded = PrivateKey::deserialize(&secret_key_encoded).unwrap();
@@ -30,7 +61,15 @@ fn test_secret_key_serialization() {
 
 #[test]
 fn test_signature() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let msg: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
@@ -40,7 +79,15 @@ fn test_signature() {
 
 #[test]
 fn test_share_serialization() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let msg: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
@@ -52,35 +99,63 @@ fn test_share_serialization() {
 
 #[test]
 fn test_full_scheme() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let message: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
     let mut shares = Vec::new();
 
-
     for i in 0..3 {
-        shares.push(ThresholdSignature::partial_sign(&message, label,&keys[i as usize], &mut params).unwrap());
-        let valid = ThresholdSignature::verify_share(&shares[i as usize], &message, &keys[0].get_public_key());
+        shares.push(
+            ThresholdSignature::partial_sign(&message, label, &keys[i as usize], &mut params)
+                .unwrap(),
+        );
+        let valid = ThresholdSignature::verify_share(
+            &shares[i as usize],
+            &message,
+            &keys[0].get_public_key(),
+        );
         assert!(valid.unwrap());
     }
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
     assert!(ThresholdSignature::verify(&sig, &keys[0].get_public_key(), &message).unwrap());
-
 }
 #[test]
 fn test_signature_serialization() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let message: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
     let mut shares = Vec::new();
 
-
     for i in 0..3 {
-        shares.push(ThresholdSignature::partial_sign(&message, label,&keys[i as usize], &mut params).unwrap());
-        let valid = ThresholdSignature::verify_share(&shares[i as usize], &message, &keys[0].get_public_key()).unwrap();
+        shares.push(
+            ThresholdSignature::partial_sign(&message, label, &keys[i as usize], &mut params)
+                .unwrap(),
+        );
+        let valid = ThresholdSignature::verify_share(
+            &shares[i as usize],
+            &message,
+            &keys[0].get_public_key(),
+        )
+        .unwrap();
         assert!(valid);
     }
 
@@ -92,34 +167,80 @@ fn test_signature_serialization() {
 
 #[test]
 fn test_invalid_share() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let message: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
     let mut shares = Vec::new();
-    let keys2 = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys2 = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
 
     for i in 0..3 {
-        shares.push(ThresholdSignature::partial_sign(&message, label,&keys[i as usize], &mut params).unwrap());
-        let valid = ThresholdSignature::verify_share(&shares[i as usize], &message, &keys2[0].get_public_key());
+        shares.push(
+            ThresholdSignature::partial_sign(&message, label, &keys[i as usize], &mut params)
+                .unwrap(),
+        );
+        let valid = ThresholdSignature::verify_share(
+            &shares[i as usize],
+            &message,
+            &keys2[0].get_public_key(),
+        );
         assert!(!valid.unwrap());
     }
-}   
+}
 
 #[test]
 fn test_invalid_sig() {
-    let keys = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
     let mut params = ThresholdSignatureParams::new();
     let message: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
     let mut shares = Vec::new();
-    let keys2 = KeyGenerator::generate_keys(3, 5, &mut RNG::new(RngAlgorithm::OsRng), &ThresholdScheme::Bls04, &Group::Bls12381, &Option::None).unwrap();
+    let keys2 = KeyGenerator::generate_keys(
+        3,
+        5,
+        &mut RNG::new(RngAlgorithm::OsRng),
+        &ThresholdScheme::Bls04,
+        &Group::Bls12381,
+        &Option::None,
+    )
+    .unwrap();
 
     for i in 0..3 {
-        shares.push(ThresholdSignature::partial_sign(&message, label,&keys2[i as usize], &mut params).unwrap());
-        let _valid = ThresholdSignature::verify_share(&shares[i as usize], &message, &keys2[0].get_public_key());
+        shares.push(
+            ThresholdSignature::partial_sign(&message, label, &keys2[i as usize], &mut params)
+                .unwrap(),
+        );
+        let _valid = ThresholdSignature::verify_share(
+            &shares[i as usize],
+            &message,
+            &keys2[0].get_public_key(),
+        );
     }
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
     assert!(!ThresholdSignature::verify(&sig, &keys[0].get_public_key(), &message).unwrap());
-}   
+}

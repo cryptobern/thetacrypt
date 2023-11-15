@@ -1,4 +1,8 @@
-use crate::{rand::{RngAlgorithm, RNG}, interface::Serializable, util::printbinary};
+use crate::{
+    interface::Serializable,
+    rand::{RngAlgorithm, RNG},
+    util::printbinary,
+};
 
 use super::bigint::RsaBigInt;
 

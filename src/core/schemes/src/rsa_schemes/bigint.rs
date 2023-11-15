@@ -1,36 +1,33 @@
 use core::slice;
-use std::alloc::alloc_zeroed;
-use std::mem::{MaybeUninit, self};
-use std::ops::{Add, Sub, Mul, Div};
-use std::ptr::{null, null_mut};
+use std::mem::MaybeUninit;
+use std::ops::{Add, Div, Mul, Sub};
+use std::ptr::null_mut;
 
-use gmp_mpfr_sys::gmp::{mpz_t, self};
-use hex::FromHex;
+use gmp_mpfr_sys::gmp::{self};
 use mcore::rand::RAND;
-use rasn::types::BitString;
-use rasn::{Encode, AsnType, Encoder, Decode};
 use rug::integer::IsPrime;
-use rug::ops::{Pow, MulFrom};
-use rug::rand::{MutRandState, RandState};
-use rug::{Integer, Assign};
-use std::ffi::{CStr, c_void};
-use std::fmt::Write;
+use rug::ops::{MulFrom, Pow};
+use rug::{Assign, Integer};
+use std::ffi::c_void;
 
 use crate::rand::RNG;
 
-#[macro_export] macro_rules! BIGINT {
+#[macro_export]
+macro_rules! BIGINT {
     ($x:expr) => {
         RsaBigInt::new_int($x as isize)
     };
 }
 
-#[macro_export] macro_rules! ZERO {
+#[macro_export]
+macro_rules! ZERO {
     () => {
         RsaBigInt::new_int(0)
     };
 }
 
-#[macro_export] macro_rules! ONE {
+#[macro_export]
+macro_rules! ONE {
     () => {
         RsaBigInt::new_int(1)
     };
@@ -38,7 +35,7 @@ use crate::rand::RNG;
 
 #[derive(Debug)]
 pub struct RsaBigInt {
-    value: Integer
+    value: Integer,
 }
 
 impl PartialEq for RsaBigInt {
@@ -50,17 +47,23 @@ impl PartialEq for RsaBigInt {
 impl RsaBigInt {
     /* create new integer (initialized to 0) */
     pub fn new() -> Self {
-        Self {value: Integer::new() }
+        Self {
+            value: Integer::new(),
+        }
     }
 
     /* create new integer and initialize with i */
     pub fn new_int(i: isize) -> Self {
-        Self { value:Integer::from(i) }
+        Self {
+            value: Integer::from(i),
+        }
     }
 
     /* returns a copy of x */
     pub fn new_copy(x: &Self) -> Self {
-        Self { value:x.value.clone() }
+        Self {
+            value: x.value.clone(),
+        }
     }
 
     /* returns a random integer of bit size bits */
@@ -72,10 +75,8 @@ impl RsaBigInt {
 
     /* assigns a random value of bit size bits to self */
     pub fn rand(&mut self, rng: &mut RNG, bits: usize) {
-        let bytelen = f64::floor(bits as f64/8 as f64) as usize;
-        let rem = bits%8;
-
-        let mut s = String::with_capacity(bytelen + rem + 1);
+        let bytelen = f64::floor(bits as f64 / 8 as f64) as usize;
+        let rem = bits % 8;
         let mut bytes = Vec::new();
 
         if rem != 0 {
@@ -84,28 +85,26 @@ impl RsaBigInt {
             for i in 0..rem {
                 mask += 1 << i;
 
-                if i == rem-1 {
+                if i == rem - 1 {
                     byte |= 1 << i;
                 }
-            }   
-            
+            }
+
             byte &= mask;
             bytes.push(byte);
         }
 
         for i in 0..bytelen {
             let mut byte = rng.getbyte();
-            if i == 0 && rem == 0{
+            if i == 0 && rem == 0 {
                 byte |= 1 << 7;
             }
             bytes.push(byte);
         }
 
-        
         unsafe {
             self.value.assign_bytes_radix_unchecked(&bytes, 256, false);
         }
-        
     }
 
     /* generates a new random prime of bit length len */
@@ -118,8 +117,8 @@ impl RsaBigInt {
             if x.is_prime() {
                 break;
             }
-        } 
-        
+        }
+
         x
     }
 
@@ -134,79 +133,100 @@ impl RsaBigInt {
     }
 
     /* returns self + y */
-    pub fn add(&self, y:&Self) -> Self {
-        Self { value:self.value.clone().add(&y.value) }
+    pub fn add(&self, y: &Self) -> Self {
+        Self {
+            value: self.value.clone().add(&y.value),
+        }
     }
 
     /* returns self + k */
     pub fn inc(&self, k: u64) -> Self {
-        Self { value:self.value.clone().add(k) }
+        Self {
+            value: self.value.clone().add(k),
+        }
     }
 
     /* returns self - y */
-    pub fn sub(&self, y:&Self) -> Self {
-        Self { value:self.value.clone().sub(&y.value) }
+    pub fn sub(&self, y: &Self) -> Self {
+        Self {
+            value: self.value.clone().sub(&y.value),
+        }
     }
 
     /* returns self - k */
     pub fn dec(&self, k: u64) -> Self {
-        Self { value:self.value.clone().sub(k) }
+        Self {
+            value: self.value.clone().sub(k),
+        }
     }
 
     /* returns self*y  */
-    pub fn mul(&self, y:&Self) -> Self {
-        Self { value:self.value.clone().mul(&y.value) }
+    pub fn mul(&self, y: &Self) -> Self {
+        Self {
+            value: self.value.clone().mul(&y.value),
+        }
     }
 
     /* returns self % m */
-    pub fn rmod(&self, m:&Self) -> Self {
+    pub fn rmod(&self, m: &Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
             gmp::mpz_mod(z.as_mut_ptr(), self.value.as_raw(), m.value.as_raw());
-            Self { value: Integer::from_raw(z.assume_init()) }
+            Self {
+                value: Integer::from_raw(z.assume_init()),
+            }
         }
-
     }
 
     /* returns (self * y) % m */
-    pub fn mul_mod(&self, y:&Self, m:&Self) -> Self {
+    pub fn mul_mod(&self, y: &Self, m: &Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
-            gmp::mpz_mul(z.as_mut_ptr(), self.value.as_raw(), y.value.as_raw()); 
+            gmp::mpz_mul(z.as_mut_ptr(), self.value.as_raw(), y.value.as_raw());
             gmp::mpz_mod(z.as_mut_ptr(), z.as_ptr(), m.value.as_raw());
-            Self { value: Integer::from_raw(z.assume_init()) }
+            Self {
+                value: Integer::from_raw(z.assume_init()),
+            }
         }
     }
 
     /* returns self^y */
     pub fn pow(&self, y: u32) -> Self {
-        Self { value:self.value.clone().pow(y) }
+        Self {
+            value: self.value.clone().pow(y),
+        }
     }
 
     /* returns self^e % m */
-    pub fn pow_mod(&self, e:&Self, m:&Self) -> Self {
-        Self { value:self.value.clone().pow_mod(&e.value, &m.value).unwrap() }
+    pub fn pow_mod(&self, e: &Self, m: &Self) -> Self {
+        Self {
+            value: self.value.clone().pow_mod(&e.value, &m.value).unwrap(),
+        }
     }
 
     /* returns the n-th root of self */
     pub fn root(&mut self, n: u32) -> Self {
-        Self { value:self.value.clone().root(n) }
+        Self {
+            value: self.value.clone().root(n),
+        }
     }
 
     /* returns self^(-1) % m */
-    pub fn inv_mod(&self, m:&Self) -> Self {
+    pub fn inv_mod(&self, m: &Self) -> Self {
         unsafe {
             let mut z = MaybeUninit::uninit();
             gmp::mpz_init(z.as_mut_ptr());
             gmp::mpz_invert(z.as_mut_ptr(), self.value.as_raw(), m.value.as_raw());
-            Self { value: Integer::from_raw(z.assume_init())  }
+            Self {
+                value: Integer::from_raw(z.assume_init()),
+            }
         }
     }
 
     /* returns true if self == y, false otherwise */
-    pub fn equals(&self, y:&Self) -> bool {
+    pub fn equals(&self, y: &Self) -> bool {
         self.cmp(&y).is_eq()
     }
 
@@ -228,27 +248,25 @@ impl RsaBigInt {
     }
 
     /* returns the jacobi symbol (x/y) */
-    pub fn jacobi(x: &Self, y:&Self) -> isize {
+    pub fn jacobi(x: &Self, y: &Self) -> isize {
         x.value.jacobi(&y.value) as isize
     }
 
     /* returns true if self is coprime to i, false otherwise */
-    pub fn coprime(&self, i:isize) -> bool {
+    pub fn coprime(&self, i: isize) -> bool {
         !self.value.is_divisible(&Integer::from(i))
-
     }
 
     /* returns self/y */
     pub fn div(&self, y: &Self) -> Self {
-        Self { value:self.value.clone().div(&y.value) }
+        Self {
+            value: self.value.clone().div(&y.value),
+        }
     }
 
     /* returns the legendre symbol  */
     pub fn legendre(&self, y: &Self) -> isize {
-        unsafe {
-            gmp::mpz_legendre(self.value.as_raw(), y.value.as_raw()) as isize
-        }
-
+        unsafe { gmp::mpz_legendre(self.value.as_raw(), y.value.as_raw()) as isize }
     }
 
     /* convert value to string */
@@ -258,12 +276,20 @@ impl RsaBigInt {
 
     /* serializes value to bytes and returns byte vector */
     pub fn to_bytes(&self) -> Vec<u8> {
-        let size:usize = 0;
+        let size: usize = 0;
         let size_ptr = &size as *const usize;
 
         unsafe {
-            let bytes_ptr = gmp::mpz_export(null_mut(), size_ptr as *mut usize, 1, 1, 1, 0, self.value.as_raw()) as *mut u8;
-            let bytes:Vec<u8> = slice::from_raw_parts(bytes_ptr, size).to_vec();
+            let bytes_ptr = gmp::mpz_export(
+                null_mut(),
+                size_ptr as *mut usize,
+                1,
+                1,
+                1,
+                0,
+                self.value.as_raw(),
+            ) as *mut u8;
+            let bytes: Vec<u8> = slice::from_raw_parts(bytes_ptr, size).to_vec();
             bytes
         }
     }
@@ -273,9 +299,11 @@ impl RsaBigInt {
         unsafe {
             let mut z = MaybeUninit::uninit();
             let op: *const c_void = bytes.as_ptr() as *const c_void;
-            gmp::mpz_init(z.as_mut_ptr()); 
+            gmp::mpz_init(z.as_mut_ptr());
             gmp::mpz_import(z.as_mut_ptr(), bytes.len(), 1, 1, 1, 0, op);
-            Self { value: Integer::from_raw(z.assume_init()) }
+            Self {
+                value: Integer::from_raw(z.assume_init()),
+            }
         }
     }
 }

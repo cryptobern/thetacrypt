@@ -1,8 +1,13 @@
-use std::fmt::{self, Display};
-
-use theta_proto::{scheme_types::{ThresholdScheme, Group}};
-use crate::{dl_schemes::{dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519}, bigint::BigImpl}, group::GroupElement, group_generators};
 use crate::interface::ThresholdCryptoError;
+use crate::{
+    dl_schemes::{
+        bigint::BigImpl,
+        dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
+    },
+    group::GroupElement,
+    group_generators,
+};
+use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 pub trait SchemeDetails {
     fn get_id(&self) -> u8;
@@ -29,14 +34,14 @@ impl SchemeDetails for ThresholdScheme {
             "Cks05" => Ok(Self::Cks05),
             "Frost" => Ok(Self::Frost),
             "Sh00" => Ok(Self::Sh00),
-            _ => Err(ThresholdCryptoError::UnknownScheme)
-        } 
+            _ => Err(ThresholdCryptoError::UnknownScheme),
+        }
     }
 
     fn is_interactive(&self) -> bool {
         match self {
             Self::Frost => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -48,7 +53,6 @@ impl SchemeDetails for ThresholdScheme {
             Self::Frost => group.is_dl(),
             Self::Sg02 => group.is_dl(),
             Self::Sh00 => !group.is_dl(),
-            _ => false
         }
     }
 }
@@ -99,7 +103,7 @@ impl GroupDetails for Group {
             4 => Ok(Self::Rsa1024),
             5 => Ok(Self::Rsa2048),
             6 => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroup)
+            _ => Err(ThresholdCryptoError::UnknownGroup),
         }
     }
 
@@ -112,7 +116,7 @@ impl GroupDetails for Group {
             "rsa1024" => Ok(Self::Rsa1024),
             "rsa2048" => Ok(Self::Rsa2048),
             "rsa4096" => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroupString)
+            _ => Err(ThresholdCryptoError::UnknownGroupString),
         }
     }
 
@@ -122,7 +126,7 @@ impl GroupDetails for Group {
             Self::Bls12381 => Bls12381::get_order(),
             Self::Bn254 => Bn254::get_order(),
             Self::Ed25519 => Ed25519::get_order(),
-            _ => panic!("not applicable")
+            _ => panic!("not applicable"),
         }
     }
 
@@ -143,9 +147,17 @@ impl GroupDetails for Group {
     // for this cyclic group.
     fn get_alternate_generator(&self) -> GroupElement {
         match self {
-            Self::Bls12381 => GroupElement::from_bytes(&group_generators::BLS12381_ALTERNATE_GENERATOR_BYTES, &self, None),
-            Self::Bn254 => GroupElement::from_bytes(&group_generators::BN254_ALTERNATE_GENERATOR_BYTES, &self, None),
-            _ => panic!("no alternate generator available")
+            Self::Bls12381 => GroupElement::from_bytes(
+                &group_generators::BLS12381_ALTERNATE_GENERATOR_BYTES,
+                &self,
+                None,
+            ),
+            Self::Bn254 => GroupElement::from_bytes(
+                &group_generators::BN254_ALTERNATE_GENERATOR_BYTES,
+                &self,
+                None,
+            ),
+            _ => panic!("no alternate generator available"),
         }
     }
 }
