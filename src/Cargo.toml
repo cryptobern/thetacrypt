@@ -5,7 +5,8 @@ members = [
     "core/schemes",
     "core/protocols",
     "core/orchestration",
-    "utils"
+    "utils",
+    "thetacrypt_blockchain_stub"
     ]
 
 [package]
@@ -56,3 +57,7 @@ path = "bin/proxy_server.rs"
 [[bin]]
 name = "server"
 path = "bin/server.rs"
+
+[[bin]]
+name = "theta_blockchain_stub"
+path = "bin/theta_blockchain_stub.rs"

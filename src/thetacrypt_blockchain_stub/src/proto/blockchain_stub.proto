@@ -1,0 +1,12 @@
+syntax = "proto3";
+package blockchain_stub;
+
+service BlockchainStub {
+    rpc forward_share(ForwardShareRequest) returns (ForwardShareResponse);
+};
+
+// See if we can add some sort of authentication
+message ForwardShareRequest {
+    bytes data=1;
+};
+message ForwardShareResponse {};

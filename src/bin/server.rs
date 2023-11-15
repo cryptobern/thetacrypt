@@ -71,13 +71,8 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
     };
 
-    //To remove when the RPC doesn't have config as input parameter anymore
-    let handler_cfg = net_cfg.clone();
-
     // Network to protocol communication
     let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
-    // And a dedicated  copy for the RPC server
-    let net_to_prot_sender_rpc = net_to_prot_sender.clone();
 
     // Protocol to network communication
     let (prot_to_net_sender, prot_to_net_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
@@ -93,6 +88,8 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         "Starting Gossipsub P2P network on {}:{}",
         config.listen_address, my_p2p_port
     );
+
+    // TODO: Here we can have an init() function for the network (that gives back the id) and then a run() function to run it on a different thread
     tokio::spawn(async move {
         theta_network::p2p::gossipsub_setup::static_net::init(prot_to_net_receiver, net_to_prot_sender, net_cfg, my_id)
             .await;
@@ -106,7 +103,7 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     info!(
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
-    );
+    ); 
     tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,

@@ -71,19 +71,8 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         proxy_addr: config.proxy_node_ip(),
     };
 
-    let local_cfg2 = static_net::deserialize::Config {
-        ids: vec![],
-        ips: vec![],
-        p2p_ports: vec![],
-        rpc_ports: vec![config.my_rpc_port()],
-        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
-    };
-
-
     // Network to protocol communication
     let (n2p_sender, n2p_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
-    // And a dedicated  copy for the RPC server
-    let n2p_sender_rpc = n2p_sender.clone();
 
     // Protocol to network communication
     let (p2n_sender, p2n_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
@@ -92,7 +81,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
     info!("Starting server with ID {}", my_id);
 
     info!(
-        "Starting connection to the local instance of Tendermit to forward messages to the P2P network on {}",
+        "Starting connection to the local instance of the target platform forward messages to the P2P network on {}",
         config.proxy_node_ip()
     );
     tokio::spawn(async move {
@@ -113,9 +102,6 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
             keychain,
             n2p_receiver,
             p2n_sender,
-            n2p_sender_rpc,
-            local_cfg2,
-            my_id
         )
         .await
     });
