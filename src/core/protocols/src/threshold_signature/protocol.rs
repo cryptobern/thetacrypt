@@ -158,6 +158,12 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                             result.unwrap_err(),
                                         ));
                                     }
+
+                                    let event = Event::FinishedSigningInstance {
+                                        timestamp: Utc::now(),
+                                        instance_id: self.instance_id.clone(),
+                                    };
+                                    self.event_emitter_sender.send(event).await.unwrap();
                                     return Ok(result.unwrap());
                                 }
                             }
