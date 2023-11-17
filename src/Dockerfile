@@ -41,5 +41,6 @@ FROM debian:12-slim AS runtime
 
 WORKDIR /app
 COPY --from=builder /app/target/release/server /usr/local/bin/
+COPY log4rs.yaml /app/
 
 ENTRYPOINT ["/usr/local/bin/server"]
