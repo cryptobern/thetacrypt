@@ -1,5 +1,9 @@
 use core::panic;
-use std::{collections::HashMap, sync::Arc, thread, time};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+    thread, time,
+};
 
 use log::{error, info};
 use mcore::hash256::HASH256;
@@ -22,13 +26,58 @@ use crate::{
     types::Key,
 };
 
+const DEFAULT_INSTANCE_CACHE_SIZE: usize = 1024;
+
+/// InstanceCache implements a first-in-first-out store for instances.
+///
+/// It is configured with an upper bound on the number of instances it will store. If a new
+/// instance is added while at capacity, the oldest stored instance is ejected.
+struct InstanceCache {
+    instance_data: HashMap<String, Instance>,
+    capacity: usize,
+    stored_instances: VecDeque<String>,
+}
+
+impl InstanceCache {
+    fn new(capacity: Option<usize>) -> InstanceCache {
+        InstanceCache {
+            instance_data: HashMap::new(),
+            capacity: capacity.unwrap_or(DEFAULT_INSTANCE_CACHE_SIZE),
+            stored_instances: VecDeque::new(),
+        }
+    }
+
+    fn get(&self, instance_id: &String) -> Option<&Instance> {
+        self.instance_data.get(instance_id)
+    }
+
+    fn get_mut(&mut self, instance_id: &String) -> Option<&mut Instance> {
+        self.instance_data.get_mut(instance_id)
+    }
+
+    fn insert(&mut self, instance_id: String, instance: Instance) {
+        if self.stored_instances.len() == self.capacity {
+            // At capacity, eject oldest element
+            let oldest_instance = self.stored_instances.pop_front().unwrap();
+            self.instance_data.remove(&oldest_instance);
+        }
+
+        self.stored_instances.push_back(instance_id.clone());
+        self.instance_data.insert(instance_id, instance);
+    }
+
+    fn contains_key(&self, instance_id: &str) -> bool {
+        self.instance_data.contains_key(instance_id)
+    }
+}
+
 pub struct InstanceManager {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
     instance_command_receiver: tokio::sync::mpsc::Receiver<InstanceManagerCommand>,
     instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
     incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
-    instances: HashMap<String, Instance>,
+    instances: InstanceCache,
     backlog: HashMap<String, BacklogData>,
     backlog_interval: tokio::time::Interval,
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
@@ -129,7 +178,7 @@ impl InstanceManager {
             instance_command_sender,
             outgoing_p2p_sender,
             incoming_p2p_receiver,
-            instances: HashMap::new(),
+            instances: InstanceCache::new(None),
             backlog: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
