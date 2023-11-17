@@ -11,12 +11,13 @@ use theta_network::{config::static_net, types::message::NetMessage};
 
 #[tokio::main]
 async fn main() {
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+    let server_cli = ServerCli::parse();
+
+    log4rs::init_file(server_cli.log4rs_config, Default::default())
+        .expect("Unable to access supplied log4rs configuration file");
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
-
-    let server_cli = ServerCli::parse();
 
     info!(
         "Loading configuration from file: {}",
