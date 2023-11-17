@@ -35,7 +35,7 @@ fn main() -> Result<(), Error> {
     let args = ThetaCliArgs::parse();
 
     match args.command {
-        Commands::KeyGen(key_gen_args) => {
+        Commands::Keygen(key_gen_args) => {
             return keygen(
                 key_gen_args.k,
                 key_gen_args.n,

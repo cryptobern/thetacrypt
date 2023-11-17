@@ -1,6 +1,7 @@
 use clap::Parser;
 use log::{error, info};
 use std::process::exit;
+use theta_events::event::emitter::start_null_emitter;
 use theta_network::{proxy::proxyp2p::ProxyConfig, types::message::NetMessage};
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
@@ -94,14 +95,33 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
-    tokio::spawn(async move {
+
+    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = start_null_emitter();
+    let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
             my_rpc_port.into(), // RPC handler expects u32, which makes little sense for a port
             keychain,
             n2p_receiver,
             p2n_sender,
+            emitter_tx,
         )
         .await
     });
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Threshold server received ctrl-c, shutting down");
+
+            info!("Notifying event emitter of shutdown");
+            emitter_shutdown_tx.send(true).unwrap();
+            // Now that it's shutting down we can await its handle to ensure it has shut down.
+            emitter_handle.await.unwrap().unwrap();
+
+            info!("Killing RPC server");
+            rpc_handle.abort();
+
+            info!("Shutdown complete");
+        }
+    }
 }

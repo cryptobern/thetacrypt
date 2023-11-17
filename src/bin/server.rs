@@ -1,6 +1,6 @@
 use clap::Parser;
 use log::{error, info};
-use std::{path::PathBuf, process::exit};
+use std::process::exit;
 use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
