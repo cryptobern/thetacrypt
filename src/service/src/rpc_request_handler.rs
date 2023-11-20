@@ -85,7 +85,6 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         info!("Received a signature request");
-        let start = Utc::now();
         let event = Event::ReceivedSigningRequest {
             timestamp: Utc::now(),
         };

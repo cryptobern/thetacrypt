@@ -93,7 +93,6 @@ impl StateManager {
                         StateManagerCommand::PushFrostPrecomputation { instance } => {
                             self.keychain.push_precompute_result(instance);
                         }
-                        _ => unimplemented!()
                     }
                 }
             }
