@@ -29,7 +29,7 @@ struct ThetacryptBlockchainStub {
 impl BlockchainStub for ThetacryptBlockchainStub {
     async fn forward_share(&self, request: Request<ForwardShareRequest>) -> Result<Response<ForwardShareResponse>, Status> {
         println!("[BlockchainStubServer] Received forward_share request: {:?}", request.into_inner().data);
-        Ok((Response::new(ForwardShareResponse{})))
+        Ok(Response::new(ForwardShareResponse{}))
     }
 }
 

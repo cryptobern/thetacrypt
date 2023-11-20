@@ -1,6 +1,5 @@
 
 use std::io;
-use log::debug;
 use std::str::FromStr;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -9,8 +8,9 @@ use tokio::net::{TcpStream, TcpListener};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use thetacrypt_blockchain_stub::proto::blockchain_stub::{blockchain_stub_client::BlockchainStubClient, ForwardShareRequest};
+
 // Thetacrypt
-use crate::config::static_net::config_service::*;
 use crate::types::message::NetMessage;
 
 use serde::{Deserialize, Serialize};
@@ -47,7 +47,7 @@ pub async fn init(
     println!("[Connection-proxy] Start outgoing message forwarder");
     let cloned_config = config.clone();
     tokio::spawn(async move {
-        outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await; //the receiver can't be cloned
+        outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await //the receiver can't be cloned
     });
     
 }
@@ -59,17 +59,31 @@ pub async fn outgoing_message_forwarder(mut receiver: Receiver<NetMessage>, conf
         tokio::spawn(async move {
             let Some(data) = msg else { return };
             println!("[Proxy]: Receiving message from outgoing_channel");
-            //here goes the tendermint ip
-            match TcpStream::connect(addr+":8080").await{
-                Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
-                Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
+            //here goes the target_platform ip
+            // match TcpStream::connect(addr+":60000").await{
+            //     Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
+            //     Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
+            // }
+            match  BlockchainStubClient::connect("http://localhost:50000").await{
+                Ok(client) => {
+                    let request = ForwardShareRequest{
+                        data: "Hello World".to_owned().into_bytes(),
+                    };
+                
+                    tokio::spawn(async move {
+                        client.forward_share(request).await
+                    });
+                },
+                Err(e) => println!("Error in opening the connection!"),   
             }
         }); 
     }
 }
 
+
+//TODO: change this in the interface of the stub
 pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<()> {
-    println!("[Connection-proxy Sender] Successfully connected to server, port 8080");
+    println!("[Connection-proxy Sender] Successfully connected to server, port 60000");
 
     connection.write_all(data.as_slice()).await?;
     println!("[connection-proxy Sender] sent the share to Tendermint...");
@@ -77,13 +91,13 @@ pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<
     Ok(())
 }
 
-//Methods to handle the receving from thetacrypt 
+// Methods to handle the receving from the target platform acting as an external network 
 pub async fn proxy_handler(listener: TcpListener, sender: Sender<NetMessage>) -> io::Result<()> {
     loop {
-        let (socket, remote_addr) = listener.accept().await.unwrap();
+        let (socket, _) = listener.accept().await.unwrap();
         let sender_cloned = sender.clone();
         tokio::spawn(async move {
-            receive_share(socket, sender_cloned).await;    //multiple threads need to read from here
+            receive_share(socket, sender_cloned).await    //multiple threads need to read from here
         });
     }
 }
