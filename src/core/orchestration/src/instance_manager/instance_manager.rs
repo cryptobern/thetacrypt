@@ -26,7 +26,7 @@ use crate::{
     types::Key,
 };
 
-const DEFAULT_INSTANCE_CACHE_SIZE: usize = 1024;
+const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
 
 /// InstanceCache implements a first-in-first-out store for instances.
 ///
