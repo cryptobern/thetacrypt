@@ -102,10 +102,7 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
                 "Starting event emitter with output file {}",
                 f.to_str().unwrap_or("<cannot print path>")
             );
-            let emitter = match emitter::new(&f) {
-                Ok(emitter) => emitter,
-                Err(e) => panic!("Unable to instantiate event emitter: {}", e),
-            };
+            let emitter = emitter::new(&f);
 
             emitter::start(emitter)
         }

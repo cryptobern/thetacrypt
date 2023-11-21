@@ -121,20 +121,10 @@ pub mod emitter {
     }
 
     /// New initializes a new emitter.
-    ///
-    /// An error is returned if opening its output file failed.
-    pub fn new(outfile: &PathBuf) -> Result<Emitter, BenchmarkingError> {
-        let emitter = {
-            let fh = File::create(outfile.clone()).map_err(|e| BenchmarkingError::IOError(e))?;
-            // We only care about the side-effect of creating (or truncating) the output file.
-            drop(fh);
-
-            Emitter {
-                outfile: outfile.clone(),
-            }
-        };
-
-        Ok(emitter)
+    pub fn new(outfile: &PathBuf) -> Emitter {
+        Emitter {
+            outfile: outfile.clone(),
+        }
     }
 
     pub struct Emitter {
@@ -151,6 +141,7 @@ pub mod emitter {
         ) -> Result<(), BenchmarkingError> {
             // We re-open the file such that we can move the file handle into the thread.
             let mut fh = File::options()
+                .create(true)
                 .append(true)
                 .open(self.outfile.clone())
                 .map_err(|e| BenchmarkingError::IOError(e))?;
