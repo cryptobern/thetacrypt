@@ -40,8 +40,8 @@ fn connect_to_all_local(config: ClientConfig) -> Vec<TcpStream> {
     for peer in config.peers.iter() {
         let ip = peer.ip.clone();
         let port = peer.p2p_port;
-        let addr = format!("http://[{ip}]:{port}");
-        let stream = TcpStream::connect(addr).unwrap();
+        let address = SocketAddr::new(IpAddr::V4(<Ipv4Addr>::from_str(&ip).unwrap()), port);
+        let stream = TcpStream::connect(address).expect("Failed to connect");
         connections.push(stream);
     }
     println!(">> Established connection to network.");
@@ -99,22 +99,22 @@ async fn main() -> io::Result<()> {
     // TODO: read these information from a config file
     let p2p_info_1 = PeerP2PInfo {
         id: 1,
-        ip: "localhost".to_string(),
+        ip: "127.0.0.1".to_string(),
         p2p_port: 50000,
     };
     let p2p_info_2 = PeerP2PInfo {
         id: 2,
-        ip: "localhost".to_string(),
+        ip: "127.0.0.1".to_string(),
         p2p_port: 50001,
     };
     let p2p_info_3 = PeerP2PInfo {
         id: 3,
-        ip: "localhost".to_string(),
+        ip: "127.0.0.1".to_string(),
         p2p_port: 50002,
     };
     let p2p_info_4 = PeerP2PInfo {
         id: 4,
-        ip: "localhost".to_string(),
+        ip: "127.0.0.1".to_string(),
         p2p_port: 50003,
     };
 

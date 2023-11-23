@@ -21,6 +21,7 @@ theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
 theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
 theta_network = {path = "network", version = "0.1.0"}
+thetacrypt_blockchain_stub = {path = "thetacrypt_blockchain_stub", version = "0.1.0"}
 
 tonic = "0.8"
 
