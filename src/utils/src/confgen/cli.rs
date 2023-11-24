@@ -54,7 +54,7 @@ pub struct ConfgenCli {
     pub integration_file: Option<PathBuf>,
     #[arg(short,
         long, 
-        help = "Integration with a target blockchain platform.")]
+        help = "Flag for stub file generation")]
     pub stub: bool,
 }
 

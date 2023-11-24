@@ -86,44 +86,32 @@ fn main() {
     }
 }
 
-pub fn run_stub_config(outdir: PathBuf, peers: Vec<PeerP2PInfo>) -> Result<(), String> {
+pub fn create_and_save_stub_config(outdir: PathBuf, peers: Vec<PeerP2PInfo>) -> Result<(), String> {
 
 
     info!("Writing stub configuration file to disk");
-    let mut outfile = outdir.clone();
-    outfile.push("stub.json");
-
     let stub_config = P2PConfig::new(peers).unwrap();
 
-    let data = match serde_json::to_string(&stub_config) {
-        Ok(s) => s,
-        Err(e) => return Err(format!("JSON serialization failed: {}", e)),
-    };
-
-    match fs::write(outfile, data) {
-        Ok(_) => {}
-        Err(e) => {
-            return Err(format!("Failed to write to file: {}", e));
-        }
-    }
+    info!("Writing client configuration to disk");
+    save_config_on_file(outdir, &stub_config, "stub.json".to_string()).expect("Error writing on stub config on file!");
 
     Ok(())
 }
 
-fn save_config_on_file<T: Serialize>(outdir: PathBuf, config: &T) -> Result<(), String>{
+fn save_config_on_file<T: ?Sized + Serialize>(outdir: PathBuf, config: &T, filename: String) -> Result<(), String>{
     info!("Writing client configuration to disk");
     let mut outfile = outdir.clone();
-    outfile.push("client.json");
+    outfile.push(filename);
 
     let data = match serde_json::to_string(config) {
         Ok(s) => s,
         Err(e) => return Err(format!("JSON serialization failed: {}", e)),
     };
 
-    match fs::write(outfile, data) {
+    match fs::write(outfile.clone(), data) {
         Ok(_) => {}
         Err(e) => {
-            return Err(format!("Failed to write to file: {}", e));
+            return Err(format!("Failed to write to file: {}, {:?}", e, outfile.to_str()));
         }
     }
     Ok(())
@@ -219,38 +207,11 @@ fn run(
 
     info!("Writing configurations to disk");
     for cfg in configs {
-        let mut outfile = outdir.clone();
-        outfile.push(format!("server_{:?}.json", cfg.id));
-
-        let data = match serde_json::to_string(&cfg) {
-            Ok(s) => s,
-            Err(e) => return Err(format!("JSON serialization failed: {}", e)),
-        };
-
-        match fs::write(outfile, data) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!("Failed to write to file: {}", e));
-            }
-        }
+        let outfile = outdir.clone();
+        save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
     }
-
     info!("Writing client configuration to disk");
-    let mut outfile = outdir.clone();
-    outfile.push("client.json");
-
-    let data = match serde_json::to_string(&client_config) {
-        Ok(s) => s,
-        Err(e) => return Err(format!("JSON serialization failed: {}", e)),
-    };
-
-    match fs::write(outfile, data) {
-        Ok(_) => {}
-        Err(e) => {
-            return Err(format!("Failed to write to file: {}", e));
-        }
-    }
-
+    save_config_on_file(outdir, &client_config, "client.json".to_string()).expect("Error writing on client config on file!");
     Ok(())
 }
 
@@ -269,7 +230,7 @@ fn run_integration(
         .iter()
         .enumerate()
         .map(|(i, ip)| {
-            let (_, p2p_port) = match port_strategy {
+            let (rpc_port, p2p_port) = match port_strategy {
                 PortStrategy::Consecutive => (
                     // More than 2^16 peers? What are we, an ISP?
                     rpc_port + u16::try_from(i).unwrap(),
@@ -318,19 +279,8 @@ fn run_integration(
     info!("Writing configurations to disk");
     for cfg in configs {
         let mut outfile = outdir.clone();
-        outfile.push(format!("server_{:?}.json", cfg.id));
-
-        let data = match serde_json::to_string(&cfg) {
-            Ok(s) => s,
-            Err(e) => return Err(format!("JSON serialization failed: {}", e)),
-        };
-
-        match fs::write(outfile, data) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(format!("Failed to write to file: {}", e));
-            }
-        }
+        info!("Writing client configuration to disk");
+        save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
     }
 
     let p2p_peers: Vec<PeerP2PInfo> = peers.clone()
@@ -347,10 +297,11 @@ fn run_integration(
     .collect();
 
     if stub {
-        match run_stub_config(outdir.clone(), p2p_peers){
+        let mut outfile = outdir.clone();
+        match create_and_save_stub_config(outfile, p2p_peers){
             Ok(_) => {},
             Err(e) => {
-                return Err(format!("Failed to call run_stub_config. Error: {}", e));
+                return Err(format!("Failed to call create_and_save_stub_config. Error: {}", e));
             }
         }
     }
@@ -374,20 +325,7 @@ fn run_integration(
     let client_config = ClientConfig::new(public_peers).unwrap();
 
     info!("Writing client configuration to disk");
-    let mut outfile = outdir.clone();
-    outfile.push("client.json");
-
-    let data = match serde_json::to_string(&client_config) {
-        Ok(s) => s,
-        Err(e) => return Err(format!("JSON serialization failed: {}", e)),
-    };
-
-    match fs::write(outfile, data) {
-        Ok(_) => {}
-        Err(e) => {
-            return Err(format!("Failed to write to file: {}", e));
-        }
-    }
+    save_config_on_file(outdir, &client_config, "client.json".to_string()).expect("Error writing on client config on file!");
 
     Ok(())
 }
