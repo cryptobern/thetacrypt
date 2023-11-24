@@ -1,11 +1,11 @@
 // Tokio
-use log::info;
-use std::io;
+use log::{error, info};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::str::FromStr;
+use std::io;
+use std::process::exit;
 
-use serde::{Deserialize, Serialize};
 use thetacrypt_blockchain_stub::proto::blockchain_stub::blockchain_stub_server::{
     BlockchainStub, BlockchainStubServer,
 };
@@ -14,19 +14,9 @@ use thetacrypt_blockchain_stub::proto::blockchain_stub::{
 };
 use tonic::{transport::Server, Request, Response, Status};
 
-/// PublicInfo to reach the server and its RPC endpoint.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PeerP2PInfo {
-    pub id: u32,
-    pub ip: String,
-    pub p2p_port: u16,
-}
-
-/// Configuration of the server binary.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClientConfig {
-    pub peers: Vec<PeerP2PInfo>,
-}
+use thetacrypt_blockchain_stub::cli::cli::P2PCli;
+use thetacrypt_blockchain_stub::cli::types::{P2PConfig, PeerP2PInfo};
+use clap::Parser;
 
 #[derive(Clone)]
 struct ThetacryptBlockchainStub {
@@ -35,7 +25,7 @@ struct ThetacryptBlockchainStub {
     // broadcast_channel_receiver: mpsc::Receiver<T>,
 }
 
-fn connect_to_all_local(config: ClientConfig) -> Vec<TcpStream> {
+fn connect_to_all_local(config: P2PConfig) -> Vec<TcpStream> {
     let mut connections = Vec::new();
     for peer in config.peers.iter() {
         let ip = peer.ip.clone();
@@ -55,7 +45,9 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         request: Request<ForwardShareRequest>,
     ) -> Result<Response<ForwardShareResponse>, Status> {
         //Forward to the other parties
-        let peers_config = ClientConfig { peers: self.peers.clone() };
+        let peers_config = P2PConfig {
+            peers: self.peers.clone(),
+        };
         let streams = connect_to_all_local(peers_config);
 
         let binding = request.into_inner();
@@ -95,6 +87,24 @@ async fn main() -> io::Result<()> {
     let port: u16 = 60000;
     let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
+    // loading the configuration about the peer from file
+    let client_cli = P2PCli::parse();
+
+    info!(
+        "Loading configuration from file: {}",
+        client_cli
+            .config_file
+            .to_str()
+            .unwrap_or("Unable to print path, was not valid UTF-8"),
+    );
+    let config = match P2PConfig::from_file(&client_cli.config_file) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("{}", e);
+            exit(1);
+        }
+    };
+
     // Hardcoded addresses of the peers just for test
     // TODO: read these information from a config file
     let p2p_info_1 = PeerP2PInfo {
@@ -118,8 +128,10 @@ async fn main() -> io::Result<()> {
         p2p_port: 50003,
     };
 
-    let peers = vec![p2p_info_1, p2p_info_2, p2p_info_3, p2p_info_4];
-    let service = ThetacryptBlockchainStub { peers: peers };
+    let _peers = vec![p2p_info_1, p2p_info_2, p2p_info_3, p2p_info_4];
+
+    // Here now we use the PeerInfo coming from config file
+    let service = ThetacryptBlockchainStub { peers: config.peers };
 
     tokio::spawn(async move {
         println!("Server is starting");

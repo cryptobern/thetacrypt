@@ -52,6 +52,10 @@ pub struct ConfgenCli {
     #[arg(long,
         help = "Path to file containing IPs of nodes of blockchain target platform, one per line.")]
     pub integration_file: Option<PathBuf>,
+    #[arg(short,
+        long, 
+        help = "Integration with a target blockchain platform.")]
+    pub stub: bool,
 }
 
 /// Enum representing how ports are assigned to servers. Static uses the same port for all servers,
