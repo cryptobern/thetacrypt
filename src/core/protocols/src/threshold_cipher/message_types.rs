@@ -8,7 +8,7 @@ pub struct DecryptionShareMessage {
 impl DecryptionShareMessage {
     // Deserialize message from bytes
     pub fn try_from_bytes(bytes: &Vec<u8>) -> Option<DecryptionShareMessage> {
-        match DecryptionShare::deserialize(bytes) {
+        match DecryptionShare::from_bytes(bytes) {
             Ok(share) => Some(DecryptionShareMessage { share }),
             Err(_tc_error) => None,
         }
@@ -20,7 +20,7 @@ impl DecryptionShareMessage {
     ) -> NetMessage {
         // Serialize message to bytes
         let message_data: Vec<u8> = share
-            .serialize()
+            .to_bytes()
             .expect("Error in serializing decryption share.");
         // and wrap it into a NetMessage struct.
         NetMessage {

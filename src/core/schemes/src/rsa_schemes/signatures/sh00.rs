@@ -2,9 +2,9 @@
 
 use crate::{
     interface::{
-        Serializable, ThresholdCryptoError, ThresholdScheme, ThresholdSignature,
-        ThresholdSignatureParams,
+        SchemeError, Serializable, ThresholdScheme, ThresholdSignature, ThresholdSignatureParams,
     },
+    keys::keys::calc_key_id,
     rsa_schemes::{
         bigint::RsaBigInt,
         common::{ext_euclid, interpolate},
@@ -19,6 +19,7 @@ use theta_proto::scheme_types::Group;
 
 #[derive(Clone, Debug)]
 pub struct Sh00PublicKey {
+    id: String,
     t: u16,
     n: u16,
     N: RsaBigInt,
@@ -26,6 +27,17 @@ pub struct Sh00PublicKey {
     verification_key: Sh00VerificationKey,
     delta: usize,
     modbits: usize,
+    group: Group,
+}
+
+fn mb2group(modbits: usize) -> Group {
+    return match modbits {
+        512 => Group::Rsa512,
+        1024 => Group::Rsa1024,
+        2048 => Group::Rsa2048,
+        4096 => Group::Rsa4096,
+        _ => panic!("invalid modbits value"),
+    };
 }
 
 impl Sh00PublicKey {
@@ -38,7 +50,10 @@ impl Sh00PublicKey {
         delta: usize,
         modbits: usize,
     ) -> Self {
-        Self {
+        let group = mb2group(modbits);
+
+        let mut k = Self {
+            id: String::from(""),
             t,
             n,
             N,
@@ -46,7 +61,17 @@ impl Sh00PublicKey {
             verification_key: verification_key,
             delta,
             modbits,
-        }
+            group,
+        };
+
+        let bytes = k.to_bytes().unwrap();
+        let id = calc_key_id(&bytes);
+        k.id = id;
+        k
+    }
+
+    pub fn get_key_id(&self) -> &str {
+        &self.id
     }
 
     pub fn get_threshold(&self) -> u16 {
@@ -61,19 +86,13 @@ impl Sh00PublicKey {
         return self.modbits;
     }
 
-    pub fn get_group(&self) -> Group {
-        match self.modbits {
-            512 => Group::Rsa512,
-            1024 => Group::Rsa1024,
-            2048 => Group::Rsa2048,
-            4096 => Group::Rsa4096,
-            _ => panic!("invalid modbits value"),
-        }
+    pub fn get_group(&self) -> &Group {
+        &self.group
     }
 }
 
 impl Serializable for Sh00PublicKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.n as u64))?;
@@ -81,7 +100,7 @@ impl Serializable for Sh00PublicKey {
                 w.write_element(&self.N.to_bytes().as_slice())?;
                 w.write_element(&self.e.to_bytes().as_slice())?;
 
-                let bytes = self.verification_key.serialize();
+                let bytes = self.verification_key.to_bytes();
                 if bytes.is_err() {
                     return Err(WriteError::AllocationError);
                 }
@@ -94,13 +113,13 @@ impl Serializable for Sh00PublicKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let n = d.read_element::<u64>()? as u16;
@@ -113,7 +132,7 @@ impl Serializable for Sh00PublicKey {
                 let e = RsaBigInt::from_bytes(&mut bytes);
 
                 let verify_bytes = d.read_element::<&[u8]>()?;
-                let res = Sh00VerificationKey::deserialize(&verify_bytes.to_vec());
+                let res = Sh00VerificationKey::from_bytes(&verify_bytes.to_vec());
                 if res.is_err() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault {}));
                 }
@@ -123,7 +142,10 @@ impl Serializable for Sh00PublicKey {
                 let delta = d.read_element::<u64>()? as usize;
                 let modbits = d.read_element::<u64>()? as usize;
 
+                let group = mb2group(modbits);
+
                 return Ok(Self {
+                    id: calc_key_id(bytes),
                     n,
                     t,
                     N,
@@ -131,13 +153,14 @@ impl Serializable for Sh00PublicKey {
                     verification_key,
                     delta,
                     modbits,
+                    group,
                 });
             });
         });
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -172,32 +195,36 @@ impl Sh00PrivateKey {
         }
     }
 
-    pub fn get_public_key(&self) -> Sh00PublicKey {
-        return self.pubkey.clone();
+    pub fn get_public_key(&self) -> &Sh00PublicKey {
+        &self.pubkey
     }
 
-    pub fn get_id(&self) -> u16 {
-        return self.id;
+    pub fn get_share_id(&self) -> u16 {
+        self.id
+    }
+
+    pub fn get_key_id(&self) -> &str {
+        self.pubkey.get_key_id()
     }
 
     pub fn get_threshold(&self) -> u16 {
-        return self.pubkey.get_threshold();
+        self.pubkey.get_threshold()
     }
 
-    pub fn get_group(&self) -> Group {
-        return self.pubkey.get_group();
+    pub fn get_group(&self) -> &Group {
+        self.pubkey.get_group()
     }
 }
 
 impl Serializable for Sh00PrivateKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
                 w.write_element(&self.m.to_bytes().as_slice())?;
                 w.write_element(&self.si.to_bytes().as_slice())?;
 
-                let bytes = self.pubkey.serialize();
+                let bytes = self.pubkey.to_bytes();
                 if bytes.is_err() {
                     return Err(WriteError::AllocationError);
                 }
@@ -208,20 +235,20 @@ impl Serializable for Sh00PrivateKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
                 let mbytes = d.read_element::<&[u8]>()?;
                 let sibytes = d.read_element::<&[u8]>()?;
                 let pubbytes = d.read_element::<&[u8]>()?;
-                let res = Sh00PublicKey::deserialize(&pubbytes.to_vec());
+                let res = Sh00PublicKey::from_bytes(&pubbytes.to_vec());
                 if res.is_err() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault {}));
                 }
@@ -237,7 +264,7 @@ impl Serializable for Sh00PrivateKey {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -286,11 +313,11 @@ impl Sh00SignatureShare {
 }
 
 impl Serializable for Sh00SignatureShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
-                w.write_element(&(self.group.get_code() as u64))?;
+                w.write_element(&(self.group as i32))?;
                 w.write_element(&self.label.as_slice())?;
                 w.write_element(&self.xi.to_bytes().as_slice())?;
                 w.write_element(&self.z.to_bytes().as_slice())?;
@@ -300,18 +327,18 @@ impl Serializable for Sh00SignatureShare {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -339,7 +366,7 @@ impl Serializable for Sh00SignatureShare {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -369,7 +396,7 @@ impl Sh00Signature {
 }
 
 impl Serializable for Sh00Signature {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&self.sig.to_bytes().as_slice())?;
@@ -378,13 +405,13 @@ impl Serializable for Sh00Signature {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let bytes = d.read_element::<&[u8]>()?;
@@ -396,7 +423,7 @@ impl Serializable for Sh00Signature {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -423,7 +450,7 @@ impl Sh00VerificationKey {
 }
 
 impl Serializable for Sh00VerificationKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&self.v.to_bytes().as_slice())?;
@@ -439,13 +466,13 @@ impl Serializable for Sh00VerificationKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let mut bytes = d.read_element::<&[u8]>()?;
@@ -468,7 +495,7 @@ impl Serializable for Sh00VerificationKey {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -518,8 +545,8 @@ impl Sh00ThresholdSignature {
         let z = si.mul(&c).add(&r); // z = si*c + r
 
         return Sh00SignatureShare {
-            id: sk.get_id(),
-            group: sk.get_group(),
+            id: sk.get_share_id(),
+            group: sk.get_group().clone(),
             label: label.to_vec(),
             xi: xi,
             z: z,

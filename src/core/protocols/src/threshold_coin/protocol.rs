@@ -4,14 +4,14 @@ use std::sync::Arc;
 use log::{error, info, warn};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{CoinShare, Serializable, ThresholdCoin};
-use theta_schemes::keys::PrivateKey;
+use theta_schemes::keys::keys::PrivateKeyShare;
 use theta_schemes::rand::RNG;
 use tonic::async_trait;
 
 use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdCoinProtocol {
-    private_key: Arc<PrivateKey>,
+    private_key: Arc<PrivateKeyShare>,
     name: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -34,7 +34,7 @@ impl ThresholdProtocol for ThresholdCoinProtocol {
         loop {
             match self.chan_in.recv().await {
                 Some(share) => {
-                    match CoinShare::deserialize(&share) {
+                    match CoinShare::from_bytes(&share) {
                         Ok(deserialized_share) => {
                             self.on_receive_coin_share(deserialized_share)?;
                             if self.finished {
@@ -69,7 +69,7 @@ impl ThresholdProtocol for ThresholdCoinProtocol {
 
 impl ThresholdCoinProtocol {
     pub fn new(
-        private_key: Arc<PrivateKey>,
+        private_key: Arc<PrivateKeyShare>,
         name: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -98,7 +98,7 @@ impl ThresholdCoinProtocol {
 
         let message = NetMessage {
             instance_id: self.instance_id.clone(),
-            message_data: share.serialize().unwrap(),
+            message_data: share.to_bytes().unwrap(),
             is_total_order: false,
         };
         self.chan_out.send(message).await.unwrap();

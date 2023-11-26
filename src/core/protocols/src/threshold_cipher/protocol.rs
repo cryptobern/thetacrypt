@@ -6,14 +6,14 @@ use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
     Ciphertext, DecryptionShare, ThresholdCipher, ThresholdCipherParams,
 };
-use theta_schemes::keys::PrivateKey;
+use theta_schemes::keys::keys::PrivateKeyShare;
 use tonic::async_trait;
 
 use crate::interface::{ProtocolError, ThresholdProtocol};
 use crate::threshold_cipher::message_types::DecryptionShareMessage;
 
 pub struct ThresholdCipherProtocol {
-    private_key: Arc<PrivateKey>,
+    private_key: Arc<PrivateKeyShare>,
     ciphertext: Ciphertext,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -78,7 +78,7 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
 
 impl ThresholdCipherProtocol {
     pub fn new(
-        private_key: Arc<PrivateKey>,
+        private_key: Arc<PrivateKeyShare>,
         ciphertext: Ciphertext,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,

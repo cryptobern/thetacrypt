@@ -9,7 +9,7 @@ use std::fmt::Write;
 use theta_proto::scheme_types::Group;
 use theta_schemes::interface::ThresholdScheme;
 use theta_schemes::interface::{ThresholdCipher, ThresholdCipherParams};
-use theta_schemes::keys::KeyGenerator;
+use theta_schemes::keys::key_generator::KeyGenerator;
 use theta_schemes::rand::{RngAlgorithm, RNG};
 use theta_schemes::util::{hex2string, printbinary};
 

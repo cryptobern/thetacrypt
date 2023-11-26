@@ -26,10 +26,11 @@ service ThresholdCryptoLibrary {
 // ---------- Keys ----------
 message PublicKeyEntry {
     string id = 1;
-    scheme_types.ThresholdScheme scheme = 2;
-    scheme_types.Group group = 3;
+    scheme_types.ThresholdOperation operation = 2;
+    scheme_types.ThresholdScheme scheme = 3;
+    scheme_types.Group group = 4;
     // bool is_default = 3;
-    bytes key = 4;
+    bytes key = 5;
 }
 
 message KeyRequest {

@@ -1,34 +1,31 @@
+use std::sync::Arc;
+
 use theta_orchestration::instance_manager::instance_manager::{
-    InstanceManager, InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
+    InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
-use theta_orchestration::state_manager::{StateManagerMsg, StateManagerResponse};
+use theta_orchestration::key_manager::key_manager::KeyManagerCommand;
 use theta_proto::protocol_types::{
     CoinRequest, CoinResponse, KeyRequest, KeyResponse, PublicKeyEntry, StatusRequest,
     StatusResponse,
 };
 use theta_proto::scheme_types::Group;
+use theta_schemes::keys::key_chain::KeyEntry;
+use theta_schemes::scheme_types_impl::SchemeDetails;
 use tokio::sync::oneshot;
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
 use log::{self, error, info};
 
-use theta_network::types::message::NetMessage;
 use theta_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
     DecryptRequest, DecryptResponse, SignRequest, SignResponse,
 };
-use theta_schemes::interface::{Ciphertext, Serializable, ThresholdCryptoError, ThresholdScheme};
-
-use theta_orchestration::{
-    keychain::KeyChain,
-    state_manager::{StateManager, StateManagerCommand},
-};
+use theta_schemes::interface::{Ciphertext, SchemeError, Serializable, ThresholdScheme};
 
 pub struct RpcRequestHandler {
-    state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
+    key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
 }
 
 #[tonic::async_trait]
@@ -40,7 +37,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         info!(">> REQH: Received a decrypt request.");
 
         // Deserialize ciphertext
-        let ciphertext = match Ciphertext::deserialize(&request.get_ref().ciphertext) {
+        let ciphertext = match Ciphertext::from_bytes(&request.get_ref().ciphertext) {
             Ok(ctxt) => ctxt,
             Err(_) => {
                 error!("Invalid ciphertext");
@@ -49,7 +46,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         };
 
         let (response_sender, response_receiver) =
-            oneshot::channel::<Result<String, ThresholdCryptoError>>();
+            oneshot::channel::<Result<String, SchemeError>>();
         self.instance_manager_command_sender
             .send(InstanceManagerCommand::CreateInstance {
                 request: StartInstanceRequest::Decryption { ciphertext },
@@ -92,7 +89,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let group = group.unwrap();
 
         let (response_sender, response_receiver) =
-            oneshot::channel::<Result<String, ThresholdCryptoError>>();
+            oneshot::channel::<Result<String, SchemeError>>();
         self.instance_manager_command_sender
             .send(InstanceManagerCommand::CreateInstance {
                 request: StartInstanceRequest::Signature {
@@ -143,7 +140,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let group = group.unwrap();
 
         let (response_sender, response_receiver) =
-            oneshot::channel::<Result<String, ThresholdCryptoError>>();
+            oneshot::channel::<Result<String, SchemeError>>();
         self.instance_manager_command_sender
             .send(InstanceManagerCommand::CreateInstance {
                 request: StartInstanceRequest::Coin {
@@ -177,41 +174,37 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         _request: Request<KeyRequest>,
     ) -> Result<Response<KeyResponse>, Status> {
-        info!("Received a get_public_keys_for_encryption request.");
-        let (response_sender, response_receiver) = oneshot::channel::<StateManagerResponse>();
+        info!("Received a get_public_keys request.");
 
-        let cmd = StateManagerMsg {
-            command: StateManagerCommand::GetEncryptionKeys {},
-            responder: Some(response_sender),
+        let (response_sender, response_receiver) = oneshot::channel::<Arc<Vec<KeyEntry>>>();
+
+        let cmd = KeyManagerCommand::ListAvailableKeys {
+            responder: response_sender,
         };
 
-        self.state_command_sender
+        self.key_manager_command_sender
             .send(cmd)
             .await
-            .expect("Receiver for state_command_sender closed.");
-        let res = response_receiver
+            .expect("Receiver for key_manager_command_sender closed.");
+        let key_entries = response_receiver
             .await
             .expect("response_receiver.await returned Err");
 
-        if let StateManagerResponse::KeyVec(key_entries) = res {
-            let mut public_keys: Vec<PublicKeyEntry> = Vec::new();
-            for entry in key_entries {
-                let e = PublicKeyEntry {
-                    id: entry.id.clone(),
-                    scheme: entry.sk.get_scheme() as i32,
-                    group: entry.sk.get_group() as i32,
-                    key: match entry.sk.get_public_key().serialize() {
-                        Ok(key_ser) => key_ser,
-                        Err(err) => return Err(Status::new(Code::Internal, err.to_string())),
-                    },
-                };
-                public_keys.push(e);
-            }
-            return Ok(Response::new(KeyResponse { keys: public_keys }));
+        let mut public_keys: Vec<PublicKeyEntry> = Vec::new();
+        for entry in key_entries.as_ref() {
+            let e = PublicKeyEntry {
+                id: entry.id.clone(),
+                operation: entry.pk.get_scheme().get_operation() as i32,
+                scheme: entry.pk.get_scheme() as i32,
+                group: *entry.pk.get_group() as i32,
+                key: match entry.pk.to_bytes() {
+                    Ok(key_ser) => key_ser,
+                    Err(err) => return Err(Status::new(Code::Internal, err.to_string())),
+                },
+            };
+            public_keys.push(e);
         }
-
-        error!("Error getting keys");
-        Err(Status::aborted("Error getting keys"))
+        return Ok(Response::new(KeyResponse { keys: public_keys }));
     }
 
     async fn get_status(
@@ -261,54 +254,14 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 pub async fn init(
     rpc_listen_address: String,
     rpc_listen_port: u16,
-    keychain: KeyChain,
-    incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
+    key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
 ) {
-    // Channel to send commands to the StateManager.
-    // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
-    // The channel must never be closed.
-    let (state_command_sender, state_command_receiver) =
-        tokio::sync::mpsc::channel::<StateManagerMsg>(32);
-
-    // Spawn StateManager.
-    // Takes ownerhsip of keychain and state_command_receiver
-    info!("Initiating the state manager.");
-    tokio::spawn(async move {
-        let mut sm = StateManager::new(keychain, state_command_receiver);
-        sm.run().await;
-    });
-
-    // Channel to send commands to the InstanceManager.
-    // The sender end is owned by the RpcRequestHandler and must never be closed.
-    let (instance_manager_sender, instance_manager_receiver) =
-        tokio::sync::mpsc::channel::<InstanceManagerCommand>(32);
-
-    // Spawn InstanceManager
-    // Takes ownershiip of instance_manager_receiver, incoming_message_receiver, state_command_sender
-    info!("Initiating InstanceManager.");
-
-    let state_cmd_sender = state_command_sender.clone();
-    let inst_cmd_sender = instance_manager_sender.clone();
-    let outgoing_p2p_sender = outgoing_message_sender.clone();
-
-    tokio::spawn(async move {
-        let mut mfw = InstanceManager::new(
-            state_cmd_sender,
-            instance_manager_receiver,
-            inst_cmd_sender,
-            outgoing_p2p_sender,
-            incoming_message_receiver,
-        );
-        mfw.run().await;
-    });
-
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     let service = RpcRequestHandler {
-        state_command_sender: state_command_sender,
-        instance_manager_command_sender: instance_manager_sender,
-        outgoing_message_sender: outgoing_message_sender,
+        key_manager_command_sender: key_manager_command_sender,
+        instance_manager_command_sender: instance_manager_command_sender,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

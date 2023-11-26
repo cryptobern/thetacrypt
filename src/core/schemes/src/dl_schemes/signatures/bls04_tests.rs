@@ -1,14 +1,14 @@
-use theta_proto::scheme_types::Group;
-
+use crate::keys::key_generator::KeyGenerator;
 use crate::{
     dl_schemes::dl_groups::bls12381::Bls12381,
     interface::{
         Serializable, Signature, SignatureShare, ThresholdScheme, ThresholdSignature,
         ThresholdSignatureParams,
     },
-    keys::{KeyGenerator, PrivateKey, PublicKey},
+    keys::keys::{PrivateKeyShare, PublicKey},
     rand::{RngAlgorithm, RNG},
 };
+use theta_proto::scheme_types::Group;
 
 #[test]
 fn test_key_generation() {
@@ -37,8 +37,8 @@ fn test_public_key_serialization() {
     .unwrap();
     let secret_key = keys[0].clone();
     let public_key = secret_key.get_public_key();
-    let public_key_encoded = public_key.serialize().unwrap();
-    let public_key_decoded = PublicKey::deserialize(&public_key_encoded).unwrap();
+    let public_key_encoded = public_key.to_bytes().unwrap();
+    let public_key_decoded = PublicKey::from_bytes(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
 }
 
@@ -54,8 +54,8 @@ fn test_secret_key_serialization() {
     )
     .unwrap();
     let secret_key = keys[0].clone();
-    let secret_key_encoded = secret_key.serialize().unwrap();
-    let secret_key_decoded = PrivateKey::deserialize(&secret_key_encoded).unwrap();
+    let secret_key_encoded = secret_key.to_bytes().unwrap();
+    let secret_key_decoded = PrivateKeyShare::from_bytes(&secret_key_encoded).unwrap();
     assert!(secret_key.eq(&secret_key_decoded));
 }
 
@@ -92,8 +92,8 @@ fn test_share_serialization() {
     let msg: Vec<u8> = String::from("plaintext message").as_bytes().to_vec();
     let label = b"Label";
     let sig_share = ThresholdSignature::partial_sign(&msg, label, &keys[0], &mut params).unwrap();
-    let sig_share_encoded = sig_share.serialize().unwrap();
-    let sig_share_decoded = SignatureShare::deserialize(&sig_share_encoded).unwrap();
+    let sig_share_encoded = sig_share.to_bytes().unwrap();
+    let sig_share_decoded = SignatureShare::from_bytes(&sig_share_encoded).unwrap();
     assert!(sig_share.eq(&sig_share_decoded));
 }
 
@@ -160,8 +160,8 @@ fn test_signature_serialization() {
     }
 
     let sig = ThresholdSignature::assemble(&shares, &message, &keys[0].get_public_key()).unwrap();
-    let sig_encoded = sig.serialize().unwrap();
-    let sig_decoded = Signature::deserialize(&sig_encoded).unwrap();
+    let sig_encoded = sig.to_bytes().unwrap();
+    let sig_decoded = Signature::from_bytes(&sig_encoded).unwrap();
     assert!(sig.eq(&sig_decoded));
 }
 

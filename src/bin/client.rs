@@ -12,7 +12,8 @@ use rand::Rng;
 
 use theta_schemes::interface::Serializable;
 use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
-use theta_schemes::keys::PublicKey;
+use theta_schemes::keys::key_chain::KeyChain;
+use theta_schemes::keys::keys::PublicKey;
 use theta_schemes::scheme_types_impl::{GroupDetails, SchemeDetails};
 use theta_schemes::util::printbinary;
 
@@ -20,14 +21,15 @@ use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCrypt
 use theta_proto::protocol_types::{CoinRequest, DecryptRequest, SignRequest, StatusRequest};
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 
-use theta_orchestration::keychain::KeyChain;
-
 use utils::client::cli::ClientCli;
 use utils::client::types::ClientConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Ok");
     init();
+
+    println!("Ok");
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
@@ -126,11 +128,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
 
     let mut connections = connect_to_all_local(config).await;
 
@@ -181,11 +183,11 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
 }
 
 async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let _pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
 
     let mut connections = connect_to_all_local(config).await;
 
@@ -232,11 +234,11 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
 }
 
 async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
+    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bn254)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
     let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter name of coin: ");
@@ -296,7 +298,7 @@ fn create_decryption_request(pk: &PublicKey, msg_string: String) -> (DecryptRequ
     let ciphertext = ThresholdCipher::encrypt(&msg, &label, pk, &mut params).unwrap();
 
     let req = DecryptRequest {
-        ciphertext: ciphertext.serialize().unwrap(),
+        ciphertext: ciphertext.to_bytes().unwrap(),
         key_id: None,
     };
     (req, ciphertext)
@@ -307,7 +309,7 @@ fn create_coin_flip_request(_pk: &PublicKey, name: String) -> CoinRequest {
         name: name.into_bytes(),
         key_id: None,
         scheme: ThresholdScheme::Cks05.get_id() as i32,
-        group: Group::Bn254.get_code() as i32,
+        group: Group::Bn254 as i32,
     };
     req
 }
@@ -324,7 +326,7 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
         label,
         key_id: None,
         scheme: ThresholdScheme::Frost.get_id() as i32,
-        group: Group::Ed25519.get_code() as i32,
+        group: Group::Ed25519 as i32,
     };
 
     req

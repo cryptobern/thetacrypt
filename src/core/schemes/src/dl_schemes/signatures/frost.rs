@@ -7,7 +7,8 @@ use asn1::{ParseError, WriteError};
 use crate::{
     dl_schemes::{bigint::BigImpl, common::lagrange_coeff},
     group::GroupElement,
-    interface::{DlShare, Serializable, ThresholdCryptoError},
+    interface::{DlShare, SchemeError, Serializable},
+    keys::keys::calc_key_id,
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::GroupDetails,
 };
@@ -17,6 +18,7 @@ use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {
+    id: String,
     n: u16,
     k: u16,
     group: Group,
@@ -26,21 +28,31 @@ pub struct FrostPublicKey {
 
 impl FrostPublicKey {
     pub fn new(n: usize, k: usize, group: &Group, y: &GroupElement, h: &Vec<GroupElement>) -> Self {
-        Self {
+        let mut k = Self {
+            id: String::from(""),
             n: n as u16,
             k: k as u16,
             group: group.clone(),
             y: y.clone(),
             h: h.clone(),
-        }
+        };
+
+        let bytes = k.to_bytes().unwrap();
+        let id = calc_key_id(&bytes);
+        k.id = id;
+        k
     }
 
-    pub fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_key_id(&self) -> &str {
+        &self.id
     }
 
-    pub fn get_verification_key(&self, id: u16) -> GroupElement {
-        self.h[(id - 1) as usize].clone()
+    pub fn get_group(&self) -> &Group {
+        &self.group
+    }
+
+    pub fn get_verification_key(&self, id: u16) -> &GroupElement {
+        &self.h[(id - 1) as usize]
     }
 
     pub fn get_n(&self) -> u16 {
@@ -53,10 +65,10 @@ impl FrostPublicKey {
 }
 
 impl Serializable for FrostPublicKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
-                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&(self.get_group().clone() as i32))?;
                 w.write_element(&(self.n as u64))?;
                 w.write_element(&(self.k as u64))?;
                 w.write_element(&self.y.to_bytes().as_slice())?;
@@ -70,20 +82,20 @@ impl Serializable for FrostPublicKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let g = Group::from_code(d.read_element::<u8>()?);
+                let g = Group::from_i32(d.read_element::<i32>()?);
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                if g.is_err() {
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -98,13 +110,20 @@ impl Serializable for FrostPublicKey {
                     h.push(GroupElement::from_bytes(&bytes, &group, Option::None));
                 }
 
-                Ok(Self { n, k, group, y, h })
+                Ok(Self {
+                    id: calc_key_id(bytes),
+                    n,
+                    k,
+                    group,
+                    y,
+                    h,
+                })
             });
         });
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -127,11 +146,11 @@ impl FrostPrivateKey {
         }
     }
 
-    pub fn get_id(&self) -> u16 {
+    pub fn get_share_id(&self) -> u16 {
         self.id
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         self.pubkey.get_group()
     }
 
@@ -139,19 +158,23 @@ impl FrostPrivateKey {
         self.pubkey.get_threshold()
     }
 
-    pub fn get_public_key(&self) -> FrostPublicKey {
-        self.pubkey.clone()
+    pub fn get_public_key(&self) -> &FrostPublicKey {
+        &self.pubkey
+    }
+
+    pub fn get_key_id(&self) -> &str {
+        self.pubkey.get_key_id()
     }
 }
 
 impl Serializable for FrostPrivateKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
                 w.write_element(&self.x.to_bytes().as_slice())?;
 
-                let bytes = self.pubkey.serialize();
+                let bytes = self.pubkey.to_bytes();
                 if bytes.is_err() {
                     return Err(WriteError::AllocationError);
                 }
@@ -162,19 +185,19 @@ impl Serializable for FrostPrivateKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
                 let bytes = d.read_element::<&[u8]>()?;
                 let pubbytes = d.read_element::<&[u8]>()?;
-                let res = FrostPublicKey::deserialize(&pubbytes.to_vec());
+                let res = FrostPublicKey::from_bytes(&pubbytes.to_vec());
                 if res.is_err() {
                     error!("Error deserializing frost public key");
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault {}));
@@ -190,7 +213,7 @@ impl Serializable for FrostPrivateKey {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -223,11 +246,11 @@ impl PublicCommitment {
 }
 
 impl Serializable for PublicCommitment {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
-                w.write_element(&(self.hiding_nonce_commitment.get_group().get_code() as u64))?;
+                w.write_element(&(self.hiding_nonce_commitment.get_group().clone() as i32))?;
                 w.write_element(&self.hiding_nonce_commitment.to_bytes().as_slice())?;
                 w.write_element(&self.binding_nonce_commitment.to_bytes().as_slice())?;
                 Ok(())
@@ -235,18 +258,18 @@ impl Serializable for PublicCommitment {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -267,7 +290,7 @@ impl Serializable for PublicCommitment {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -281,10 +304,10 @@ pub struct Nonce {
 }
 
 impl Serializable for Nonce {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
-                w.write_element(&(self.hiding_nonce.get_group().get_code() as u64))?;
+                w.write_element(&(self.hiding_nonce.get_group().clone() as i32))?;
                 w.write_element(&self.hiding_nonce.to_bytes().as_slice())?;
                 w.write_element(&self.binding_nonce.to_bytes().as_slice())?;
                 Ok(())
@@ -292,17 +315,17 @@ impl Serializable for Nonce {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -321,7 +344,7 @@ impl Serializable for Nonce {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -371,29 +394,29 @@ impl DlShare for FrostSignatureShare {
 }
 
 impl Serializable for FrostSignatureShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
-                w.write_element(&self.data.get_group().get_code())?;
+                w.write_element(&(self.data.get_group().clone() as i32))?;
                 w.write_element(&self.data.to_bytes().as_slice())?;
                 Ok(())
             }))
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -406,7 +429,7 @@ impl Serializable for FrostSignatureShare {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -421,10 +444,10 @@ pub struct FrostSignature {
 }
 
 impl Serializable for FrostSignature {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
-                w.write_element(&self.R.get_group().get_code())?;
+                w.write_element(&(self.R.get_group().clone() as i32))?;
                 w.write_element(&self.R.to_bytes().as_slice())?;
                 w.write_element(&self.z.to_bytes().as_slice())?;
                 Ok(())
@@ -432,17 +455,17 @@ impl Serializable for FrostSignature {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -460,7 +483,7 @@ impl Serializable for FrostSignature {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -513,15 +536,15 @@ impl<'a> FrostThresholdSignature {
         self.commitment = Some(comm.clone());
     }
 
-    pub fn set_msg(&mut self, msg: &'a [u8]) -> Result<(), ThresholdCryptoError> {
+    pub fn set_msg(&mut self, msg: &'a [u8]) -> Result<(), SchemeError> {
         if self.msg.is_some() {
-            return Err(ThresholdCryptoError::MessageAlreadySpecified);
+            return Err(SchemeError::MessageAlreadySpecified);
         }
         self.msg = Some(msg.to_vec());
         Ok(())
     }
 
-    pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), ThresholdCryptoError> {
+    pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), SchemeError> {
         match round_result {
             FrostRoundResult::RoundOne(result) => {
                 self.commitment_list.push(result.clone());
@@ -567,9 +590,9 @@ impl<'a> FrostThresholdSignature {
         }
     }
 
-    pub fn get_signature(&self) -> Result<FrostSignature, ThresholdCryptoError> {
+    pub fn get_signature(&self) -> Result<FrostSignature, SchemeError> {
         if self.signature.is_none() {
-            return Err(ThresholdCryptoError::ProtocolNotFinished);
+            return Err(SchemeError::ProtocolNotFinished);
         }
 
         Ok(self.signature.clone().unwrap())
@@ -579,7 +602,7 @@ impl<'a> FrostThresholdSignature {
         self.round == 2 && self.signature.is_some()
     }
 
-    pub fn do_round(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
+    pub fn do_round(&mut self) -> Result<FrostRoundResult, SchemeError> {
         if self.round == 0 {
             let res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
             if res.is_ok() {
@@ -598,21 +621,21 @@ impl<'a> FrostThresholdSignature {
             return Err(res.unwrap_err());
         }
 
-        Err(ThresholdCryptoError::InvalidRound)
+        Err(SchemeError::InvalidRound)
     }
 
-    fn partial_sign(&mut self) -> Result<FrostRoundResult, ThresholdCryptoError> {
+    fn partial_sign(&mut self) -> Result<FrostRoundResult, SchemeError> {
         let group = self.key.get_group();
         let order = group.get_order();
 
         if self.get_nonce().is_none() {
             error!("No nonce set");
-            return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
+            return Err(SchemeError::PreviousRoundNotExecuted);
         }
 
         if self.msg.is_none() {
             error!("Message not set");
-            return Err(ThresholdCryptoError::MessageNotSpecified);
+            return Err(SchemeError::MessageNotSpecified);
         }
 
         let msg = self.msg.as_ref().unwrap();
@@ -644,7 +667,7 @@ impl<'a> FrostThresholdSignature {
         let group_commitment = group_commitment.unwrap();
 
         let participant_list = participants_from_commitment_list(commitment_list);
-        let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_id() as i32);
+        let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_share_id() as i32);
         let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), msg);
 
         let share = nonce
@@ -662,12 +685,12 @@ impl<'a> FrostThresholdSignature {
         self.group_commitment = Option::Some(group_commitment);
 
         Ok(FrostRoundResult::RoundTwo(FrostSignatureShare {
-            id: self.key.get_id(),
+            id: self.key.get_share_id(),
             data: share,
         }))
     }
 
-    fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, ThresholdCryptoError> {
+    fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, SchemeError> {
         let hiding_nonce = nonce_generate(&self.key.x, rng);
         let binding_nonce = nonce_generate(&self.key.x, rng);
         let hiding_nonce_commitment =
@@ -679,7 +702,7 @@ impl<'a> FrostThresholdSignature {
             binding_nonce,
         };
         let comm = PublicCommitment {
-            id: self.key.get_id(),
+            id: self.key.get_share_id(),
             hiding_nonce_commitment,
             binding_nonce_commitment,
         };
@@ -691,12 +714,12 @@ impl<'a> FrostThresholdSignature {
         Ok(FrostRoundResult::RoundOne(comm))
     }
 
-    fn assemble(&self) -> Result<FrostSignature, ThresholdCryptoError> {
+    fn assemble(&self) -> Result<FrostSignature, SchemeError> {
         let group_commitment;
         if let Some(group_commit) = &self.group_commitment {
             group_commitment = group_commit;
         } else {
-            return Err(ThresholdCryptoError::WrongState);
+            return Err(SchemeError::WrongState);
         }
 
         let mut z = BigImpl::new_int(&group_commitment.get_group(), 0);
@@ -712,16 +735,16 @@ impl<'a> FrostThresholdSignature {
         })
     }
 
-    fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, ThresholdCryptoError> {
+    fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, SchemeError> {
         let commitment_list = self.get_commitment_list();
         let pk = &self.key.pubkey;
         let msg = self.msg.as_ref().unwrap();
         if self.get_commitment().is_none() {
-            return Err(ThresholdCryptoError::PreviousRoundNotExecuted);
+            return Err(SchemeError::PreviousRoundNotExecuted);
         }
 
         if self.msg.is_none() {
-            return Err(ThresholdCryptoError::MessageNotSpecified);
+            return Err(SchemeError::MessageNotSpecified);
         }
 
         let commitment = commitment_for_participant(&self.commitment_list, share.get_id());
@@ -798,14 +821,14 @@ pub enum FrostRoundResult {
 }
 
 impl Serializable for FrostRoundResult {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 match self {
                     Self::RoundOne(rr) => {
                         w.write_element(&(1 as u64))?;
 
-                        let bytes = rr.serialize();
+                        let bytes = rr.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -815,7 +838,7 @@ impl Serializable for FrostRoundResult {
                     Self::RoundTwo(rr) => {
                         w.write_element(&(2 as u64))?;
 
-                        let bytes = rr.serialize();
+                        let bytes = rr.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -828,13 +851,13 @@ impl Serializable for FrostRoundResult {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let round = d.read_element::<u64>()? as u8;
@@ -842,7 +865,7 @@ impl Serializable for FrostRoundResult {
                 match round {
                     1 => {
                         let bytes = d.read_element::<&[u8]>()?.to_vec();
-                        let a = PublicCommitment::deserialize(&bytes);
+                        let a = PublicCommitment::from_bytes(&bytes);
                         if a.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
                         }
@@ -851,7 +874,7 @@ impl Serializable for FrostRoundResult {
                     }
                     2 => {
                         let bytes = d.read_element::<&[u8]>()?.to_vec();
-                        let b = FrostSignatureShare::deserialize(&bytes);
+                        let b = FrostSignatureShare::from_bytes(&bytes);
                         if b.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
                         }
@@ -867,18 +890,16 @@ impl Serializable for FrostRoundResult {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
     }
 }
 
-pub fn get_share(
-    instance: &FrostThresholdSignature,
-) -> Result<FrostSignatureShare, ThresholdCryptoError> {
+pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, SchemeError> {
     if instance.share.is_none() {
-        return Err(ThresholdCryptoError::WrongState);
+        return Err(SchemeError::WrongState);
     }
 
     Ok(instance.share.clone().unwrap())
@@ -922,7 +943,7 @@ fn compute_group_commitment(
     commitment_list: &[PublicCommitment],
     binding_factor_list: &Vec<BindingFactor>,
     group: &Group,
-) -> Result<GroupElement, ThresholdCryptoError> {
+) -> Result<GroupElement, SchemeError> {
     let mut group_commitment = GroupElement::identity(group);
     for i in 0..commitment_list.len() {
         let binding_factor;
@@ -931,7 +952,7 @@ fn compute_group_commitment(
         {
             binding_factor = factor.factor;
         } else {
-            return Err(ThresholdCryptoError::IdNotFound);
+            return Err(SchemeError::IdNotFound);
         }
 
         let binding_nonce = commitment_list[i]
@@ -970,27 +991,27 @@ fn encode_group_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u8>
 fn binding_factor_for_participant(
     binding_factor_list: &Vec<BindingFactor>,
     identifier: u16,
-) -> Result<BindingFactor, ThresholdCryptoError> {
+) -> Result<BindingFactor, SchemeError> {
     for i in 0..binding_factor_list.len() {
         if identifier as u16 == binding_factor_list[i].id {
             return Ok(binding_factor_list[i].clone());
         }
     }
 
-    Err(ThresholdCryptoError::IdNotFound)
+    Err(SchemeError::IdNotFound)
 }
 
 fn commitment_for_participant(
     commitment_list: &[PublicCommitment],
     identifier: u16,
-) -> Result<PublicCommitment, ThresholdCryptoError> {
+) -> Result<PublicCommitment, SchemeError> {
     for i in 0..commitment_list.len() {
         if identifier as u16 == commitment_list[i].id {
             return Ok(commitment_list[i].clone());
         }
     }
 
-    Err(ThresholdCryptoError::IdNotFound)
+    Err(SchemeError::IdNotFound)
 }
 
 fn participants_from_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u16> {

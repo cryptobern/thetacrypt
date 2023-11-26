@@ -4,17 +4,17 @@ use std::sync::Arc;
 use log::{error, info, warn};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
-    InteractiveThresholdSignature, RoundResult, Serializable, Signature, SignatureShare,
-    ThresholdCryptoError, ThresholdScheme, ThresholdSignature, ThresholdSignatureParams,
+    InteractiveThresholdSignature, RoundResult, SchemeError, Serializable, Signature,
+    SignatureShare, ThresholdScheme, ThresholdSignature, ThresholdSignatureParams,
 };
-use theta_schemes::keys::PrivateKey;
+use theta_schemes::keys::keys::PrivateKeyShare;
 use theta_schemes::scheme_types_impl::SchemeDetails;
 use tonic::async_trait;
 
 use crate::interface::{ProtocolError, ThresholdProtocol};
 
 pub struct ThresholdSignatureProtocol {
-    private_key: Arc<PrivateKey>,
+    private_key: Arc<PrivateKeyShare>,
     message: Option<Vec<u8>>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
@@ -30,7 +30,7 @@ pub struct ThresholdSignatureProtocol {
 }
 
 pub struct ThresholdSignaturePrecomputation {
-    private_key: Arc<PrivateKey>,
+    private_key: Arc<PrivateKeyShare>,
     label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -63,7 +63,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
             match self.chan_in.recv().await {
                 Some(msg) => {
                     if self.private_key.get_scheme().is_interactive() {
-                        match RoundResult::deserialize(&msg) {
+                        match RoundResult::from_bytes(&msg) {
                             Ok(round_result) => {
                                 if self
                                     .instance
@@ -88,7 +88,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
 
                                         info!("<{:?}>: Calculated signature.", &self.instance_id);
 
-                                        let result = self.signature.as_ref().unwrap().serialize();
+                                        let result = self.signature.as_ref().unwrap().to_bytes();
                                         if result.is_err() {
                                             return Err(ProtocolError::SchemeError(
                                                 result.unwrap_err(),
@@ -113,7 +113,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
 
                                         let message = NetMessage {
                                             instance_id: self.instance_id.clone(),
-                                            message_data: rr.serialize().unwrap(),
+                                            message_data: rr.to_bytes().unwrap(),
                                             is_total_order: false,
                                         };
                                         self.chan_out.send(message).await.unwrap();
@@ -129,13 +129,13 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                             }
                         }
                     } else {
-                        match SignatureShare::deserialize(&msg) {
+                        match SignatureShare::from_bytes(&msg) {
                             Ok(deserialized_share) => {
                                 self.on_receive_signature_share(deserialized_share)?;
                                 if self.finished {
                                     self.terminate().await?;
 
-                                    let result = self.signature.as_ref().unwrap().serialize();
+                                    let result = self.signature.as_ref().unwrap().to_bytes();
                                     if result.is_err() {
                                         return Err(ProtocolError::SchemeError(
                                             result.unwrap_err(),
@@ -170,7 +170,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
 
 impl<'a> ThresholdSignatureProtocol {
     pub fn new(
-        private_key: Arc<PrivateKey>,
+        private_key: Arc<PrivateKeyShare>,
         message: Option<&Vec<u8>>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
@@ -210,7 +210,7 @@ impl<'a> ThresholdSignatureProtocol {
 
     pub fn from_instance(
         instance: &InteractiveThresholdSignature,
-        private_key: Arc<PrivateKey>,
+        private_key: Arc<PrivateKeyShare>,
         message: &Vec<u8>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
@@ -240,7 +240,7 @@ impl<'a> ThresholdSignatureProtocol {
             let _ = self.instance.as_mut().unwrap().update(&rr);
             let message = NetMessage {
                 instance_id: self.instance_id.clone(),
-                message_data: rr.serialize().unwrap(),
+                message_data: rr.to_bytes().unwrap(),
                 is_total_order: false,
             };
             self.chan_out.send(message).await.unwrap();
@@ -257,7 +257,7 @@ impl<'a> ThresholdSignatureProtocol {
 
             let message = NetMessage {
                 instance_id: self.instance_id.clone(),
-                message_data: share.serialize().unwrap(),
+                message_data: share.to_bytes().unwrap(),
                 is_total_order: false,
             };
             self.chan_out.send(message).await.unwrap();
@@ -332,7 +332,7 @@ impl<'a> ThresholdSignatureProtocol {
 
 impl<'a> ThresholdSignaturePrecomputation {
     pub fn new(
-        private_key: Arc<PrivateKey>,
+        private_key: Arc<PrivateKeyShare>,
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
@@ -365,9 +365,7 @@ impl<'a> ThresholdSignaturePrecomputation {
                 "<{:?}>: trying to use precompute on scheme other than Frost",
                 &self.instance_id
             );
-            return Err(ProtocolError::SchemeError(
-                ThresholdCryptoError::WrongScheme,
-            ));
+            return Err(ProtocolError::SchemeError(SchemeError::WrongScheme));
         }
 
         info!("<{:?}>: Instance starting.", &self.instance_id);
@@ -375,7 +373,7 @@ impl<'a> ThresholdSignaturePrecomputation {
         let rr = self.instance.do_round()?;
         let message = NetMessage {
             instance_id: self.instance_id.clone(),
-            message_data: rr.serialize().unwrap(),
+            message_data: rr.to_bytes().unwrap(),
             is_total_order: false,
         };
 
@@ -395,7 +393,7 @@ impl<'a> ThresholdSignaturePrecomputation {
             match self.chan_in.recv().await {
                 Some(msg) => {
                     if self.private_key.get_scheme() == ThresholdScheme::Frost {
-                        match RoundResult::deserialize(&msg) {
+                        match RoundResult::from_bytes(&msg) {
                             Ok(round_result) => {
                                 info!(
                                     "<{:?}>: Precomputation round result received",

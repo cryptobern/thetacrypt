@@ -214,7 +214,7 @@ pub fn derive_big_impl(input: TokenStream) -> TokenStream {
                     BIG::comp(&self.value, &v.value)
                 } else {
                     panic!("Incompatible big integer implementation!");
-                }  
+                }
             }
         }
 
@@ -244,9 +244,9 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
         use crate::group::GroupData;
 
         impl #name {
-            pub fn pair(g1: &Self, g2: &Self) -> Result<Self, ThresholdCryptoError> {
+            pub fn pair(g1: &Self, g2: &Self) -> Result<Self, SchemeError> {
                 if g1.i != 1 || g2.i != 0 {
-                    return Err(ThresholdCryptoError::WrongGroup);
+                    return Err(SchemeError::WrongGroup);
                 }
 
                 unsafe {
@@ -257,16 +257,16 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
-            pub fn ddh(g1: &Self, g2: &Self, g3:&Self, g4:&Self) -> Result<bool, ThresholdCryptoError> {
+            pub fn ddh(g1: &Self, g2: &Self, g3:&Self, g4:&Self) -> Result<bool, SchemeError> {
                 if g1.i != 1 || g2.i != 0 || g3.i != 1 || g4.i != 0 {
-                    return Err(ThresholdCryptoError::WrongGroup);
+                    return Err(SchemeError::WrongGroup);
                 }
 
                 let p1 = Self::pair(g1, g2);
                 let p2 = Self::pair(g3, g4);
 
                 if p1.is_err() || p2.is_err() {
-                    return Err(ThresholdCryptoError::WrongGroup);
+                    return Err(SchemeError::WrongGroup);
                 }
 
                 Ok(p1.unwrap().equals(&p2.unwrap()))
@@ -449,10 +449,12 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
+            // TODO: convert to reference
             pub fn get_order() -> BigImpl {
                 #big_impl_name::new_ints(&rom::CURVE_ORDER)
             }
 
+            // TODO: precompute
             pub fn nbytes() -> usize {
                 2*MODBYTES
             }

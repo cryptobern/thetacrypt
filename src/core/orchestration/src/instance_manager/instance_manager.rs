@@ -11,18 +11,17 @@ use theta_protocols::{
     threshold_coin::protocol::ThresholdCoinProtocol,
     threshold_signature::protocol::ThresholdSignatureProtocol,
 };
-use theta_schemes::interface::{Ciphertext, ThresholdCryptoError};
+use theta_schemes::{
+    interface::{Ciphertext, SchemeError},
+    keys::{key_chain::KeyEntry, keys::PrivateKeyShare},
+};
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
 
-use crate::instance_manager::instance::Instance;
-use crate::{
-    state_manager::{StateManagerCommand, StateManagerMsg, StateManagerResponse},
-    types::Key,
-};
+use crate::{instance_manager::instance::Instance, key_manager::key_manager::KeyManagerCommand};
 
 pub struct InstanceManager {
-    state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
+    key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
     instance_command_receiver: tokio::sync::mpsc::Receiver<InstanceManagerCommand>,
     instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
@@ -73,7 +72,7 @@ pub struct InstanceStatus {
 pub enum InstanceManagerCommand {
     CreateInstance {
         request: StartInstanceRequest,
-        responder: tokio::sync::oneshot::Sender<Result<String, ThresholdCryptoError>>,
+        responder: tokio::sync::oneshot::Sender<Result<String, SchemeError>>,
     },
 
     GetInstanceStatus {
@@ -92,36 +91,16 @@ pub enum InstanceManagerCommand {
     },
 }
 
-#[macro_export]
-macro_rules! call_state_manager {
-    ( $self:ident, $cmd:expr, $rtype:path ) => {{
-        let _tmp = $self.call_state_manager($cmd).await;
-
-        if _tmp.is_none() {
-            info!("Got no response from state manager");
-            return Err(Status::aborted(
-                "Could not get a response from state manager",
-            ));
-        }
-
-        if let Option::Some($rtype(s)) = _tmp {
-            Option::Some(s)
-        } else {
-            Option::None
-        }
-    }};
-}
-
 impl InstanceManager {
     pub fn new(
-        state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
+        key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
         instance_command_receiver: tokio::sync::mpsc::Receiver<InstanceManagerCommand>,
         instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
         outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
         incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
     ) -> Self {
         return Self {
-            state_command_sender,
+            key_manager_command_sender,
             instance_command_receiver,
             instance_command_sender,
             outgoing_p2p_sender,
@@ -242,7 +221,7 @@ impl InstanceManager {
     pub async fn start<'a>(
         &mut self,
         instance_request: StartInstanceRequest,
-    ) -> Result<String, ThresholdCryptoError> {
+    ) -> Result<String, SchemeError> {
         // Create a unique instance_id for this instance
         let instance_id = assign_instance_id(&instance_request);
 
@@ -258,10 +237,10 @@ impl InstanceManager {
                     .await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted(String::from("key not found")));
+                    return Err(SchemeError::Aborted(String::from("key not found")));
                 }
 
-                let key = Arc::new(key.unwrap().sk.clone());
+                let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
@@ -303,12 +282,10 @@ impl InstanceManager {
                     .await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted(
-                        key.as_ref().unwrap_err().to_string(),
-                    ));
+                    return Err(SchemeError::Aborted(key.as_ref().unwrap_err().to_string()));
                 }
 
-                let key = Arc::new(key.unwrap().sk.clone());
+                let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
@@ -345,12 +322,12 @@ impl InstanceManager {
                     .await;
 
                 if key.is_err() {
-                    return Err(ThresholdCryptoError::Aborted(
+                    return Err(SchemeError::Aborted(
                         key.as_ref().unwrap_err().message().to_string(),
                     ));
                 }
 
-                let key = Arc::new(key.unwrap().sk.clone());
+                let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
@@ -426,38 +403,57 @@ impl InstanceManager {
         self.backlog.remove(&instance_id);
     }
 
-    async fn call_state_manager(
+    async fn get_key_by_id(&self, key_id: &str) -> Result<Arc<KeyEntry>, String> {
+        let (response_sender, response_receiver) =
+            oneshot::channel::<Result<Arc<KeyEntry>, String>>();
+
+        if self
+            .key_manager_command_sender
+            .send(KeyManagerCommand::GetKeyById {
+                id: String::from(key_id),
+                responder: response_sender,
+            })
+            .await
+            .is_err()
+        {
+            return Err(String::from("Could not contact key manager"));
+        }
+
+        let response = response_receiver.await;
+        if response.is_ok() {
+            return response.unwrap();
+        }
+
+        return Err(String::from("Got no response from key manager"));
+    }
+
+    async fn get_key_by_scheme_and_group(
         &self,
-        command: StateManagerCommand,
-    ) -> Option<StateManagerResponse> {
-        let (response_sender, response_receiver) = oneshot::channel::<StateManagerResponse>();
+        scheme: &ThresholdScheme,
+        group: &Group,
+    ) -> Result<Arc<KeyEntry>, String> {
+        let (response_sender, response_receiver) =
+            oneshot::channel::<Result<Arc<KeyEntry>, String>>();
 
-        let msg = if command.will_respond() {
-            StateManagerMsg {
-                command,
-                responder: Option::Some(response_sender),
-            }
-        } else {
-            StateManagerMsg {
-                command,
-                responder: Option::None,
-            }
-        };
-
-        let wait_for_response = msg.responder.is_some();
-
-        if self.state_command_sender.send(msg).await.is_err() {
-            return None;
+        if self
+            .key_manager_command_sender
+            .send(KeyManagerCommand::GetKeyBySchemeAndGroup {
+                scheme: scheme.clone(),
+                group: group.clone(),
+                responder: response_sender,
+            })
+            .await
+            .is_err()
+        {
+            return Err(String::from("Could not contact key manager"));
         }
 
-        if wait_for_response {
-            let response = response_receiver.await;
-            if response.is_ok() {
-                return Some(response.unwrap());
-            }
+        let response = response_receiver.await;
+        if response.is_ok() {
+            return response.unwrap();
         }
 
-        None
+        return Err(String::from("Got no response from key manager"));
     }
 
     async fn setup_instance<'a>(
@@ -466,7 +462,7 @@ impl InstanceManager {
         group: &Group,
         instance_id: &str,
         key_id: Option<String>,
-    ) -> Result<Arc<Key>, Status> {
+    ) -> Result<Arc<PrivateKeyShare>, Status> {
         if self.instances.contains_key(instance_id) {
             error!(
                 "A request with the same id '{:?}' already exists.",
@@ -479,27 +475,18 @@ impl InstanceManager {
         }
 
         // Retrieve private key for this instance
-        let key: Arc<Key>;
-        if let Some(_) = key_id {
-            unimplemented!("Using specific key by specifying its id not yet supported.");
+        let key: Arc<KeyEntry>;
+        if let Some(kid) = key_id {
+            let key_result = self.get_key_by_id(&kid).await;
+
+            match key_result {
+                Ok(key_entry) => key = key_entry,
+                Err(err) => return Err(Status::new(Code::InvalidArgument, err)),
+            };
         } else {
-            let key_result = call_state_manager!(
-                self,
-                StateManagerCommand::GetPrivateKeyByType {
-                    scheme,
-                    group: group.clone(),
-                },
-                StateManagerResponse::Key
-            );
+            let key_result = self.get_key_by_scheme_and_group(&scheme, group).await;
 
-            if key_result.is_none() {
-                error!("Got no response from state manager");
-                return Err(Status::aborted(
-                    "Could not get a response from state manager",
-                ));
-            }
-
-            match key_result.unwrap() {
+            match key_result {
                 Ok(key_entry) => key = key_entry,
                 Err(err) => return Err(Status::new(Code::InvalidArgument, err)),
             };
@@ -508,6 +495,13 @@ impl InstanceManager {
             "Using key with id: {:?} for request {:?}",
             key.id, &instance_id
         );
+
+        let key = key.sk.clone();
+
+        if key.is_none() {
+            return Err(Status::new(Code::InvalidArgument, "private key not found"));
+        }
+        let key = Arc::new(key.unwrap());
 
         Ok(key)
     }

@@ -19,3 +19,9 @@ enum Group {
     Rsa2048 = 5;
     Rsa4096 = 6;
 }
+
+enum ThresholdOperation {
+    Encryption = 0;
+    Signature = 1;
+    Coin = 2;
+}

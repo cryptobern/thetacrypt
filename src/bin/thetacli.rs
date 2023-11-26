@@ -11,10 +11,10 @@ use std::fs;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_schemes::{
     interface::{
-        Serializable, Signature, ThresholdCipher, ThresholdCipherParams, ThresholdCryptoError,
+        SchemeError, Serializable, Signature, ThresholdCipher, ThresholdCipherParams,
         ThresholdSignature,
     },
-    keys::{KeyGenerator, PublicKey},
+    keys::{key_generator::KeyGenerator, keys::PublicKey},
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::SchemeDetails,
 };
@@ -26,7 +26,7 @@ enum Error {
     #[error("file error: {0}")]
     File(#[from] std::io::Error),
     #[error("download error: {0}")]
-    Threshold(#[from] ThresholdCryptoError),
+    Threshold(#[from] SchemeError),
     #[error("download error: {0}")]
     Serde(#[from] serde_json::Error),
 }
@@ -71,7 +71,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     if fs::create_dir_all(dir).is_err() {
         println!("Error: could not create directory");
-        return Err(Error::Threshold(ThresholdCryptoError::IOError));
+        return Err(Error::Threshold(SchemeError::IOError));
     }
 
     let mut default_key_set: Vec<String>;
@@ -93,25 +93,25 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         let scheme_str = s.next();
         if scheme_str.is_none() {
             println!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let scheme = ThresholdScheme::from_str_name(scheme_str.unwrap());
         if scheme.is_none() {
             println!("Invalid scheme '{}' selected", scheme_str.unwrap());
-            return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let group_str = s.next();
         if group_str.is_none() {
             println!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
             println!("Invalid group '{}' selected", group_str.unwrap());
-            return Err(Error::Threshold(ThresholdCryptoError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         // Creation of the id (name) given to a certain key. For now the name is based on scheme_group info.
@@ -131,11 +131,11 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         .expect("Failed to generate keys");
 
         // Extraction of the public key and creation of a .pub file
-        let pubkey = key[0].get_public_key().serialize().unwrap();
+        let pubkey = key[0].get_public_key().to_bytes().unwrap();
         let file = File::create(format!("{}/{}.pub", dir, part));
         if let Err(e) = file.unwrap().write_all(&pubkey) {
             println!("Error storing public key: {}", e.to_string());
-            return Err(Error::Threshold(ThresholdCryptoError::IOError));
+            return Err(Error::Threshold(SchemeError::IOError));
         }
 
         keys.insert(name.clone(), key);
@@ -192,18 +192,14 @@ fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<
 
     if let Err(e) = contents {
         println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
-    let key = PublicKey::deserialize(&contents.unwrap());
+    let key = PublicKey::from_bytes(&contents.unwrap());
 
     if let Err(e) = key {
         println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let key = key.unwrap();
@@ -211,15 +207,13 @@ fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<
 
     if let Err(e) = msg {
         println!("Error reading input file: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let file = File::create(outfile);
     if let Err(e) = file {
         println!("Error creating output file: {}", e.to_string());
-        return Err(Error::Threshold(ThresholdCryptoError::IOError));
+        return Err(Error::Threshold(SchemeError::IOError));
     }
 
     let msg = msg.unwrap();
@@ -232,7 +226,7 @@ fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<
         return Err(Error::Threshold(e));
     }
 
-    let ct = ct.unwrap().serialize();
+    let ct = ct.unwrap().to_bytes();
 
     if let Err(e) = ct {
         println!("Error serializing ciphertext: {}", e.to_string());
@@ -243,7 +237,7 @@ fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<
 
     if let Err(e) = file.unwrap().write_all(&ct) {
         println!("Error storing ciphertext: {}", e.to_string());
-        return Err(Error::Threshold(ThresholdCryptoError::IOError));
+        return Err(Error::Threshold(SchemeError::IOError));
     }
 
     return Ok(());
@@ -254,18 +248,14 @@ fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<()
 
     if let Err(e) = contents {
         println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
-    let key = PublicKey::deserialize(&contents.unwrap());
+    let key = PublicKey::from_bytes(&contents.unwrap());
 
     if let Err(e) = key {
         println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let key = key.unwrap();
@@ -273,18 +263,14 @@ fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<()
 
     if let Err(e) = msg {
         println!("Error reading mesage file: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let hex_signature = fs::read_to_string(signature_path);
 
     if let Err(e) = hex_signature {
         println!("Error decoding hex encoded signature: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let hex_signature = hex_signature.unwrap();
@@ -295,17 +281,13 @@ fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<()
 
     if let Err(e) = signature {
         println!("Error decoding hex encoded signature: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
-    let signature = Signature::deserialize(&signature.unwrap());
+    let signature = Signature::from_bytes(&signature.unwrap());
     if let Err(e) = signature {
         println!("Error decoding hex encoded signature: {}", e.to_string());
-        return Err(Error::Threshold(
-            ThresholdCryptoError::DeserializationFailed,
-        ));
+        return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     if let Ok(b) = ThresholdSignature::verify(&signature.unwrap(), &key, &msg.unwrap()) {
@@ -317,7 +299,7 @@ fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<()
 
     println!("Invalid signature");
 
-    Err(Error::Threshold(ThresholdCryptoError::InvalidRound))
+    Err(Error::Threshold(SchemeError::InvalidRound))
 }
 
 fn generate_valid_scheme_group_pairs() -> Vec<String> {
