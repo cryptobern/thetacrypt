@@ -5,7 +5,7 @@ use std::{
     thread, time,
 };
 
-use log::{error, info};
+use log::{debug, error, info};
 use mcore::hash256::HASH256;
 use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
@@ -26,12 +26,18 @@ use crate::{
     types::Key,
 };
 
+/// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
+/// Number of instances which to look at when trying to find ones to eject.
+const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = DEFAULT_INSTANCE_CACHE_SIZE / 100;
 
 /// InstanceCache implements a first-in-first-out store for instances.
 ///
-/// It is configured with an upper bound on the number of instances it will store. If a new
-/// instance is added while at capacity, the oldest stored instance is ejected.
+/// It is configured with an upper bound on the number of finished instances it will store. If a
+/// new instance is added while at capacity, the oldest terminated instance is ejected.
+///
+/// Due to only evicting stored instances, there is no actual upper bound on its size. There could
+/// well be an unbounded number of running instances.
 struct InstanceCache {
     instance_data: HashMap<String, Instance>,
     capacity: usize,
@@ -56,14 +62,48 @@ impl InstanceCache {
     }
 
     fn insert(&mut self, instance_id: String, instance: Instance) {
-        if self.stored_instances.len() == self.capacity {
-            // At capacity, eject oldest element
-            let oldest_instance = self.stored_instances.pop_front().unwrap();
-            self.instance_data.remove(&oldest_instance);
+        if self.stored_instances.len() >= self.capacity {
+            self.attempt_eject();
         }
 
         self.stored_instances.push_back(instance_id.clone());
         self.instance_data.insert(instance_id, instance);
+    }
+
+    /// Attempts to remove terminated instances from the store to get back to the desired capacity.
+    /// Returns the number of ejected instances.
+    fn attempt_eject(&mut self) -> usize {
+        let mut ejected = 0;
+
+        let mut current_iteration = 0;
+        let max_iterations = {
+            if self.instance_data.len() < INSTANCE_CACHE_CLEANUP_SCAN_LENGTH {
+                self.instance_data.len()
+            } else {
+                INSTANCE_CACHE_CLEANUP_SCAN_LENGTH
+            }
+        };
+
+        debug!("Attempting to eject terminated instances from instance store");
+
+        while current_iteration < max_iterations && self.instance_data.len() > self.capacity {
+            let candidate_id = self.stored_instances.pop_front().unwrap();
+            let candidate = &self.instance_data[&candidate_id];
+            if candidate.is_finished() {
+                debug!("Found terminated instance to eject: {}", candidate_id);
+                self.instance_data.remove(&candidate_id);
+                ejected += 1;
+            } else {
+                // Instance did not terminate yet, push back
+                self.stored_instances.push_back(candidate_id);
+            }
+
+            current_iteration += 1;
+        }
+
+        debug!("Ejected {} instances from instance store", ejected);
+
+        ejected
     }
 
     fn contains_key(&self, instance_id: &str) -> bool {
