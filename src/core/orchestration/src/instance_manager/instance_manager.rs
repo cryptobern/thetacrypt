@@ -29,7 +29,7 @@ use crate::{
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
 /// Number of instances which to look at when trying to find ones to eject.
-const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = DEFAULT_INSTANCE_CACHE_SIZE / 100;
+const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = 10;
 
 /// InstanceCache implements a first-in-first-out store for instances.
 ///
@@ -41,7 +41,7 @@ const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = DEFAULT_INSTANCE_CACHE_SIZE / 
 struct InstanceCache {
     instance_data: HashMap<String, Instance>,
     capacity: usize,
-    stored_instances: VecDeque<String>,
+    terminated_instances: VecDeque<String>,
 }
 
 impl InstanceCache {
@@ -49,7 +49,7 @@ impl InstanceCache {
         InstanceCache {
             instance_data: HashMap::new(),
             capacity: capacity.unwrap_or(DEFAULT_INSTANCE_CACHE_SIZE),
-            stored_instances: VecDeque::new(),
+            terminated_instances: VecDeque::new(),
         }
     }
 
@@ -62,48 +62,59 @@ impl InstanceCache {
     }
 
     fn insert(&mut self, instance_id: String, instance: Instance) {
-        if self.stored_instances.len() >= self.capacity {
+        if self.instance_data.len() >= self.capacity {
             self.attempt_eject();
         }
 
-        self.stored_instances.push_back(instance_id.clone());
         self.instance_data.insert(instance_id, instance);
+    }
+
+    /// Inform the instance cache that an instance has terminated, and is elligible for eviction if
+    /// space is required.
+    fn inform_of_termination(&mut self, instance_id: String) {
+        if self.instance_data.contains_key(&instance_id) {
+            self.terminated_instances.push_back(instance_id);
+        } else {
+            error!(
+                "Got informed that instance ID {} terminated, but no such instance was found",
+                instance_id
+            );
+        }
     }
 
     /// Attempts to remove terminated instances from the store to get back to the desired capacity.
     /// Returns the number of ejected instances.
     fn attempt_eject(&mut self) -> usize {
-        let mut ejected = 0;
-
         let mut current_iteration = 0;
         let max_iterations = {
-            if self.instance_data.len() < INSTANCE_CACHE_CLEANUP_SCAN_LENGTH {
-                self.instance_data.len()
+            if self.terminated_instances.len() < INSTANCE_CACHE_CLEANUP_SCAN_LENGTH {
+                self.terminated_instances.len()
             } else {
                 INSTANCE_CACHE_CLEANUP_SCAN_LENGTH
             }
         };
 
-        debug!("Attempting to eject terminated instances from instance store");
+        debug!(
+            "Cleaning up instance store by ejecting up to {} terminated instances.",
+            max_iterations
+        );
 
         while current_iteration < max_iterations && self.instance_data.len() > self.capacity {
-            let candidate_id = self.stored_instances.pop_front().unwrap();
-            let candidate = &self.instance_data[&candidate_id];
-            if candidate.is_finished() {
-                debug!("Found terminated instance to eject: {}", candidate_id);
-                self.instance_data.remove(&candidate_id);
-                ejected += 1;
-            } else {
-                // Instance did not terminate yet, push back
-                self.stored_instances.push_back(candidate_id);
-            }
+            let candidate_id = self.terminated_instances.pop_front().unwrap();
+            debug!("Ejecting terminated instance {}", candidate_id);
+            self.instance_data.remove(&candidate_id);
 
             current_iteration += 1;
         }
 
-        debug!("Ejected {} instances from instance store", ejected);
+        debug!(
+            "Ejected {} instance(s) from instance store. Size (current / target): {} / {}",
+            current_iteration,
+            self.instance_data.len(),
+            self.capacity
+        );
 
-        ejected
+        current_iteration
     }
 
     fn contains_key(&self, instance_id: &str) -> bool {
@@ -264,7 +275,10 @@ impl InstanceManager {
                             let instance = self.instances.get_mut(&instance_id);
 
                             match instance {
-                                Some(_instance) => _instance.set_result(result),
+                                Some(_instance) => {
+                                    _instance.set_result(result);
+                                    self.instances.inform_of_termination(instance_id.clone());
+                                },
                                 None => info!("Error storing instance result for instance {}", instance_id)
                             }
                         },
