@@ -1,5 +1,6 @@
 // Tokio
 use log::{error, info};
+use std::collections::VecDeque;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::str::FromStr;
@@ -10,7 +11,7 @@ use thetacrypt_blockchain_stub::proto::blockchain_stub::blockchain_stub_server::
     BlockchainStub, BlockchainStubServer,
 };
 use thetacrypt_blockchain_stub::proto::blockchain_stub::{
-    ForwardShareRequest, ForwardShareResponse,
+    ForwardShareRequest, ForwardShareResponse, AtomicBroadcastRequest, AtomicBroadcastResponse,
 };
 use tonic::{transport::Server, Request, Response, Status};
 
@@ -18,9 +19,12 @@ use thetacrypt_blockchain_stub::cli::cli::P2PCli;
 use thetacrypt_blockchain_stub::cli::types::{P2PConfig, PeerP2PInfo};
 use clap::Parser;
 
+
+const MAX_BLOCKCHAIN_CAPACITY: usize = 100;
 #[derive(Clone)]
-struct ThetacryptBlockchainStub {
+struct ThetacryptBlockchainStub<'a> {
     peers: Vec<PeerP2PInfo>,
+    blockchain: VecDeque<&'a [u8]>,
     // blockchain: Vec<T>, //queue
     // broadcast_channel_receiver: mpsc::Receiver<T>,
 }
@@ -39,7 +43,7 @@ fn connect_to_all_local(config: P2PConfig) -> Vec<TcpStream> {
 }
 
 #[tonic::async_trait] // needed to allow async function in the trait
-impl BlockchainStub for ThetacryptBlockchainStub {
+impl<'a> BlockchainStub for ThetacryptBlockchainStub<'a> {
     async fn forward_share(
         &self,
         request: Request<ForwardShareRequest>,
@@ -61,6 +65,33 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         );
 
         Ok(Response::new(ForwardShareResponse {}))
+    }
+
+    async fn atomic_broadcast(&self, request: Request<AtomicBroadcastRequest>) -> Result<Response<AtomicBroadcastResponse>, Status> {
+        
+        // extracting the message from the response 
+        let binding = request.into_inner();
+        let msg = binding.data.as_slice();
+
+        //Adding the msg into to the queue (TODO: handle a lock situation where I'm sure I send the msg(ses) in the same order)
+        self.blockchain.push_back(msg);
+        
+        //Forward to the other parties
+        let peers_config = P2PConfig {
+            peers: self.peers.clone(),
+        };
+        let streams = connect_to_all_local(peers_config);
+
+        
+        for mut stream in streams {
+            let _write_all = stream.write_all(msg);
+        }
+
+        println!(
+            "[BlockchainStubServer] Received forward_share request and send it to the other thetacrypt nodes!"
+        );
+        Ok((Response::new(AtomicBroadcastResponse {})))
+
     }
 }
 
@@ -131,7 +162,7 @@ async fn main() -> io::Result<()> {
     let _peers = vec![p2p_info_1, p2p_info_2, p2p_info_3, p2p_info_4];
 
     // Here now we use the PeerInfo coming from config file
-    let service = ThetacryptBlockchainStub { peers: config.peers };
+    let service = ThetacryptBlockchainStub { peers: config.peers, blockchain: VecDeque::with_capacity(MAX_BLOCKCHAIN_CAPACITY)};
 
     tokio::spawn(async move {
         println!("Server is starting");
