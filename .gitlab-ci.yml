@@ -1,0 +1,20 @@
+docker-build:
+  stage: build
+
+  tags:
+    - has-docker-access
+
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+
+  script:
+    - cd src
+    # We create two images, one tagged with the (short) commit ID, one with the sanitized branch name.
+    - commit_image="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+    - branch_image="${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_SLUG}"
+
+    - docker build --pull -t "${commit_image}" .
+    - docker tag "${commit_image}" "${branch_image}"
+    - docker push "${commit_image}"
+    - docker push "${branch_image}"
+
