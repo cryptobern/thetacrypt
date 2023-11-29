@@ -2,23 +2,26 @@ use clap::Parser;
 use log::{error, info};
 use log4rs;
 use std::{path::PathBuf, process::exit};
+use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
 };
 use theta_service::rpc_request_handler;
+
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};
 
 #[tokio::main]
 async fn main() {
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+    let server_cli = ServerCli::parse();
+
+    log4rs::init_file(server_cli.log4rs_config, Default::default())
+        .expect("Unable to access supplied log4rs configuration file");
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
-
-    let server_cli = ServerCli::parse();
 
     info!(
         "Loading configuration from file: {}",
@@ -115,9 +118,27 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     // Takes ownership of instance_manager_receiver, incoming_message_receiver, state_command_sender
     info!("Initiating InstanceManager.");
 
+    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
+        Some(f) => {
+            info!(
+                "Starting event emitter with output file {}",
+                f.to_str().unwrap_or("<cannot print path>")
+            );
+            let emitter = emitter::new(&f);
+
+            emitter::start(emitter)
+        }
+        None => {
+            info!("Starting null-emitter, which will discard all benchmarking events");
+
+            start_null_emitter()
+        }
+    };
+
     let inst_cmd_sender = instance_manager_sender.clone();
     let key_mgr_sender = key_manager_command_sender.clone();
 
+    let emitter_tx2 = emitter_tx.clone();
     tokio::spawn(async move {
         let mut mfw = InstanceManager::new(
             key_mgr_sender,
@@ -125,6 +146,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
             inst_cmd_sender,
             prot_to_net_sender,
             net_to_prot_receiver,
+            emitter_tx,
         );
         mfw.run().await;
     });
@@ -138,13 +160,30 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
-    tokio::spawn(async move {
+    let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
             my_rpc_port,
             instance_manager_sender,
             key_manager_command_sender,
+            emitter_tx2,
         )
         .await
     });
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Threshold server received ctrl-c, shutting down");
+
+            info!("Notifying event emitter of shutdown");
+            emitter_shutdown_tx.send(true).unwrap();
+            // Now that it's shutting down we can await its handle to ensure it has shut down.
+            emitter_handle.await.unwrap().unwrap();
+
+            info!("Killing RPC server");
+            rpc_handle.abort();
+
+            info!("Shutdown complete");
+        }
+    }
 }

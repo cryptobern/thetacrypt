@@ -9,6 +9,13 @@ pub struct ServerCli {
     #[arg(long, help = "Path to JSON-encoded configuration.")]
     pub config_file: PathBuf,
 
+    #[arg(
+        long,
+        help = "Path to log4rs configuration file.",
+        default_value = "log4rs.yaml"
+    )]
+    pub log4rs_config: String,
+
     #[arg(long, help = "Path to JSON-encoded keychain.")]
     pub key_file: Option<PathBuf>,
 }

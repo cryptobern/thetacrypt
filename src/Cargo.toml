@@ -5,7 +5,8 @@ members = [
     "core/schemes",
     "core/protocols",
     "core/orchestration",
-    "utils"
+    "utils",
+    "events",
     ]
 
 [package]
@@ -21,6 +22,7 @@ theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
 theta_network = {path = "network", version = "0.1.0"}
 terminal-menu = "2.0.6"
+theta_events = {path = "events", version = "0.1.0"}
 
 tonic = "0.8"
 

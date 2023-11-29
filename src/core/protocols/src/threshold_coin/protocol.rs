@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::Utc;
 use log::{error, info, warn};
+use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{CoinShare, Serializable, ThresholdCoin};
 use theta_schemes::keys::keys::PrivateKeyShare;
@@ -20,6 +22,7 @@ pub struct ThresholdCoinProtocol {
     finished: bool,
     coin: Option<u8>,
     received_share_ids: HashSet<u16>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 #[async_trait]
@@ -29,6 +32,12 @@ impl ThresholdProtocol for ThresholdCoinProtocol {
             "<{:?}>: Starting threshold coin instance",
             &self.instance_id
         );
+
+        let event = Event::StartedCoinInstance {
+            timestamp: Utc::now(),
+            instance_id: self.instance_id.clone(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
 
         self.on_init().await?;
         loop {
@@ -41,6 +50,13 @@ impl ThresholdProtocol for ThresholdCoinProtocol {
                                 self.terminate().await?;
                                 let mut result = Vec::new();
                                 result.push(self.coin.as_ref().unwrap().clone());
+
+                                let event = Event::FinishedCoinInstance {
+                                    timestamp: Utc::now(),
+                                    instance_id: self.instance_id.clone(),
+                                };
+                                self.event_emitter_sender.send(event).await.unwrap();
+
                                 return Ok(result);
                             }
                         }
@@ -73,6 +89,7 @@ impl ThresholdCoinProtocol {
         name: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
         instance_id: String,
     ) -> Self {
         ThresholdCoinProtocol {
@@ -85,6 +102,7 @@ impl ThresholdCoinProtocol {
             finished: false,
             coin: Option::None,
             received_share_ids: HashSet::new(),
+            event_emitter_sender,
         }
     }
 

@@ -52,12 +52,10 @@ The steps to generate the configuration files are the following, assuming `src\p
 1. Create a file with the IP addresses of the servers. For example you can use:
 
 ```
-cat > conf/server_ips << EOF
+echo "127.0.0.1
 127.0.0.1
 127.0.0.1
-127.0.0.1
-127.0.0.1
-EOF
+127.0.0.1" > conf/server_ips
 ```
 
 2. Generate configuration files:
