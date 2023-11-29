@@ -18,3 +18,16 @@ docker-build:
     - docker push "${commit_image}"
     - docker push "${branch_image}"
 
+
+test:
+  stage: test
+
+  image: rust:1.70
+
+  script:
+    - apt-get update && apt-get install -yqq build-essential cmake protobuf-compiler
+    - cd src
+    - cargo check --workspace
+    - cargo build --workspace
+    # We skip the two 'unit tests' which require a local setup to be running to pass.
+    - cargo test --workspace --no-fail-fast -- --skip test_local_servers --skip test_local_servers_backlog
