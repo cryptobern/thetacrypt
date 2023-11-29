@@ -25,3 +25,11 @@ enum ThresholdOperation {
     Signature = 1;
     Coin = 2;
 }
+
+message PublicKeyEntry {
+    string id = 1;
+    scheme_types.ThresholdOperation operation = 2;
+    scheme_types.ThresholdScheme scheme = 3;
+    scheme_types.Group group = 4;
+    bytes key = 5;
+}

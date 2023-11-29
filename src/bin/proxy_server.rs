@@ -6,7 +6,7 @@ use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
 };
-use theta_schemes::keys::key_chain::KeyChain;
+
 use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerProxyConfig};
 

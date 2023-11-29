@@ -119,18 +119,18 @@ impl Serializable for Sg02PublicKey {
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+                let mut b = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&b, &group, Option::None);
 
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
-                    let bytes = d.read_element::<&[u8]>()?;
-                    verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                    b = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&b, &group, Option::None));
                 }
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let g_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
+                b = d.read_element::<&[u8]>()?;
+                let g_bar = GroupElement::from_bytes(&b, &group, Option::None);
 
                 Ok(Self {
                     id: calc_key_id(bytes),
@@ -255,6 +255,7 @@ pub struct Sg02Ciphertext {
     e: BigImpl,
     f: BigImpl,
     c_k: Vec<u8>,
+    key_id: String,
 }
 
 impl Serializable for Sg02Ciphertext {
@@ -269,6 +270,7 @@ impl Serializable for Sg02Ciphertext {
                 w.write_element(&self.e.to_bytes().as_slice())?;
                 w.write_element(&self.f.to_bytes().as_slice())?;
                 w.write_element(&self.c_k.as_slice())?;
+                w.write_element(&self.key_id.as_bytes())?;
                 Ok(())
             }))
         });
@@ -304,6 +306,13 @@ impl Serializable for Sg02Ciphertext {
                 let f = BigImpl::from_bytes(&group, &bytes);
 
                 let c_k = d.read_element::<&[u8]>()?.to_vec();
+                let key_id = String::from_utf8(d.read_element::<&[u8]>()?.to_vec());
+
+                if key_id.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                }
+
+                let key_id = key_id.unwrap();
 
                 return Ok(Sg02Ciphertext {
                     label,
@@ -313,6 +322,7 @@ impl Serializable for Sg02Ciphertext {
                     e,
                     f,
                     c_k,
+                    key_id,
                 });
             });
         });
@@ -335,6 +345,7 @@ impl Sg02Ciphertext {
         e: BigImpl,
         f: BigImpl,
         c_k: Vec<u8>,
+        key_id: String,
     ) -> Self {
         Self {
             ctxt,
@@ -344,6 +355,7 @@ impl Sg02Ciphertext {
             e,
             f,
             c_k,
+            key_id,
         }
     }
     pub fn get_ctxt(&self) -> &[u8] {
@@ -360,6 +372,9 @@ impl Sg02Ciphertext {
     }
     pub fn get_group(&self) -> &Group {
         self.e.get_group()
+    }
+    pub fn get_key_id(&self) -> &str {
+        &self.key_id
     }
 }
 
@@ -483,6 +498,7 @@ impl Sg02ThresholdCipher {
             u_bar: u_bar,
             e: e,
             f: f,
+            key_id: pk.id.clone(),
         };
         c
     }
@@ -538,17 +554,21 @@ impl Sg02ThresholdCipher {
         share.ei.equals(&ei2)
     }
 
-    pub fn assemble(shares: &Vec<Sg02DecryptionShare>, ct: &Sg02Ciphertext) -> Vec<u8> {
+    pub fn assemble(
+        shares: &Vec<Sg02DecryptionShare>,
+        ct: &Sg02Ciphertext,
+    ) -> Result<Vec<u8>, SchemeError> {
         let ry = interpolate(shares);
         let k = xor(h(&ry), ct.c_k.clone());
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
-        let msg = cipher
-            .decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.ctxt.as_ref())
-            .expect(
-                "Failed to decrypt ciphertext. Make sure you have enough valid decryption shares",
-            );
-        msg
+        let msg = cipher.decrypt(Nonce::from_slice(&ry.to_bytes()[0..12]), ct.ctxt.as_ref());
+
+        if msg.is_err() {
+            return Err(SchemeError::MacFailure);
+        }
+
+        Ok(msg.unwrap())
     }
 }
 

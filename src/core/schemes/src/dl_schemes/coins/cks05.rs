@@ -111,14 +111,14 @@ impl Serializable for Cks05PublicKey {
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+                let mut b = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&b, &group, Option::None);
 
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
-                    let bytes = d.read_element::<&[u8]>()?;
-                    verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                    b = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&b, &group, Option::None));
                 }
 
                 Ok(Self {
@@ -217,7 +217,7 @@ impl Serializable for Cks05PrivateKey {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
+                let b = d.read_element::<&[u8]>()?;
                 let pubbytes = d.read_element::<&[u8]>()?;
                 let res = Cks05PublicKey::from_bytes(&pubbytes.to_vec());
                 if res.is_err() {
@@ -226,7 +226,7 @@ impl Serializable for Cks05PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let xi = BigImpl::from_bytes(&pubkey.get_group(), &b);
 
                 return Ok(Self { id, xi, pubkey });
             });

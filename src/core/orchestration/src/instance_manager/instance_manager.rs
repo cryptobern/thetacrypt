@@ -18,7 +18,10 @@ use theta_schemes::{
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
 
-use crate::{instance_manager::instance::Instance, key_manager::key_manager::KeyManagerCommand};
+use crate::{
+    instance_manager::instance::{self, Instance},
+    key_manager::key_manager::KeyManagerCommand,
+};
 
 pub struct InstanceManager {
     key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
@@ -50,11 +53,13 @@ pub enum StartInstanceRequest {
         label: Vec<u8>,
         scheme: ThresholdScheme,
         group: Group,
+        key_id: Option<String>,
     },
     Coin {
         name: Vec<u8>,
         scheme: ThresholdScheme,
         group: Group,
+        key_id: Option<String>,
     },
 }
 
@@ -232,11 +237,16 @@ impl InstanceManager {
                         ciphertext.get_scheme(),
                         ciphertext.get_group(),
                         &instance_id,
-                        Option::None,
+                        Some(ciphertext.get_key_id().to_string()),
                     )
                     .await;
 
                 if key.is_err() {
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
                     return Err(SchemeError::Aborted(String::from("key not found")));
                 }
 
@@ -276,13 +286,19 @@ impl InstanceManager {
                 label,
                 scheme,
                 group,
+                key_id,
             } => {
                 let key = self
-                    .setup_instance(scheme, &group, &instance_id, Option::None)
+                    .setup_instance(scheme, &group, &instance_id, key_id)
                     .await;
 
                 if key.is_err() {
-                    return Err(SchemeError::Aborted(key.as_ref().unwrap_err().to_string()));
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
+                    return Err(SchemeError::Aborted(String::from("key not found")));
                 }
 
                 let key = key.unwrap();
@@ -316,15 +332,19 @@ impl InstanceManager {
                 name,
                 scheme,
                 group,
+                key_id,
             } => {
                 let key = self
-                    .setup_instance(scheme, &group, &instance_id, Option::None)
+                    .setup_instance(scheme, &group, &instance_id, key_id)
                     .await;
 
                 if key.is_err() {
-                    return Err(SchemeError::Aborted(
-                        key.as_ref().unwrap_err().message().to_string(),
-                    ));
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
+                    return Err(SchemeError::Aborted(String::from("key not found")));
                 }
 
                 let key = key.unwrap();
@@ -519,13 +539,15 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
         }
         StartInstanceRequest::Signature {
             message,
-            label: _,
+            label,
             scheme: _,
             group: _,
+            key_id,
         } => {
             /* PROBLEM: Hashing the whole
             message might become a bottleneck for big messages */
             digest.process_array(&message);
+            digest.process_array(&label);
             let h: &[u8] = &digest.hash()[..8];
             return hex::encode(h);
         }
@@ -533,6 +555,7 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             name,
             scheme: _,
             group: _,
+            key_id,
         } => {
             /* PROBLEM: Hashing the whole
             name might become a bottleneck for long names */

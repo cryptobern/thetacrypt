@@ -1,7 +1,10 @@
 use std::{path::PathBuf, sync::Arc};
 
 use log::{error, info};
-use theta_proto::scheme_types::{Group, ThresholdScheme};
+use theta_proto::{
+    scheme_types::PublicKeyEntry,
+    scheme_types::{Group, ThresholdScheme},
+};
 use theta_schemes::{
     interface::InteractiveThresholdSignature,
     keys::key_chain::{KeyChain, KeyEntry},
@@ -17,7 +20,7 @@ pub struct KeyManager {
 pub enum KeyManagerCommand {
     // Returns a list of keys
     ListAvailableKeys {
-        responder: tokio::sync::oneshot::Sender<Arc<Vec<KeyEntry>>>,
+        responder: tokio::sync::oneshot::Sender<Vec<Arc<PublicKeyEntry>>>,
     },
     // Returns key matching the id
     GetKeyById {
@@ -52,6 +55,10 @@ impl KeyManager {
             );
         };
 
+        info!("Keychain loaded successfully");
+
+        info!("{}", &keychain.to_string());
+
         Self {
             command_receiver,
             keychain,
@@ -68,7 +75,8 @@ impl KeyManager {
                         KeyManagerCommand::ListAvailableKeys{
                             responder
                         } => {
-                           //responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
+                            let result = self.keychain.list_public_keys();
+                            responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
                         },
                         KeyManagerCommand::PopFrostPrecomputation {
                             responder
@@ -83,10 +91,24 @@ impl KeyManager {
                             self.push_precompute_result(instance);
                         },
                         KeyManagerCommand::GetKeyById {id, responder} => {
+                            info!("Searching for key with id {}", &id);
                             let result = self.keychain.get_key_by_id(&id);
-                            responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+
+                            if result.is_ok() {
+                                responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                            } else {
+                                responder.send(Err(result.unwrap_err())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                            }
+                        },
+                        KeyManagerCommand::GetKeyBySchemeAndGroup { scheme, group, responder } => {
+                            let result = self.keychain.get_key_by_scheme_and_group(scheme, group);
+
+                            if result.is_ok() {
+                                responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                            } else {
+                                responder.send(Err(result.unwrap_err())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                            }
                         }
-                        _ => unimplemented!()
                     }
                 }
             }

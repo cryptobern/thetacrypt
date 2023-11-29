@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::{Read, Write},
-};
+use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 
 use clap::Parser;
 use hex::FromHex;
@@ -14,7 +10,7 @@ use theta_schemes::{
         SchemeError, Serializable, Signature, ThresholdCipher, ThresholdCipherParams,
         ThresholdSignature,
     },
-    keys::{key_generator::KeyGenerator, keys::PublicKey},
+    keys::{key_chain::KeyChain, key_generator::KeyGenerator, keys::PublicKey},
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::SchemeDetails,
 };
@@ -115,7 +111,6 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         }
 
         // Creation of the id (name) given to a certain key. For now the name is based on scheme_group info.
-        // TODO: decide a way to create unique identifiers to have multiple keys of the same type.
         let mut name = String::from(group_str.unwrap());
         name.insert_str(0, "-");
         name.insert_str(0, scheme_str.unwrap());
@@ -130,57 +125,26 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         )
         .expect("Failed to generate keys");
 
-        // Extraction of the public key and creation of a .pub file
-        let pubkey = key[0].get_public_key().to_bytes().unwrap();
-        let file = File::create(format!("{}/{}.pub", dir, part));
-        if let Err(e) = file.unwrap().write_all(&pubkey) {
-            println!("Error storing public key: {}", e.to_string());
-            return Err(Error::Threshold(SchemeError::IOError));
-        }
-
         keys.insert(name.clone(), key);
     }
 
     for node_id in 0..n {
-        // Define the expected internal structure of the dictionary of keys
-        // TODO: this can be a defined struct
-        let mut node_keys: HashMap<String, String> = HashMap::new();
-
         // Define the name of the key file based on the node
         let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
+        let mut kc = KeyChain::new();
 
         if !new {
-            // Open the file, or create it before opening
-            let mut file = File::options()
-                .write(true)
-                .read(true)
-                .create(true)
-                .open(keyfile.clone())?;
-
-            // Read if there are already key in it. If the file has just been created the file will simply be empty
-            let mut data = String::new();
-            file.read_to_string(&mut data)?;
-
-            // Check if there was something already written, read in order to append, and write again.
-            // Not optimal, but this is just a set up phase.
-            if !data.is_empty() {
-                node_keys = serde_json::from_str(&mut data)?
-            }
+            let _ = kc.load(&PathBuf::from(keyfile.clone()));
         }
 
         // each value in keys is a vector of secret key share (related to the same pk) that needs to be distributed among the right key file (parties)
         for k in keys.clone() {
-            //create the base64 key encoding for writing on file
-            // let key_b64 = general_purpose::STANDARD.encode(k.1[node_id as usize].clone());
-            // println!("{}", key_b64);
-            // the node_id refers to the index of a specific party and it is used to index the right share for the party
-            node_keys.insert(k.0.clone(), k.1[node_id as usize].pem().unwrap());
+            let _ = kc.insert_private_key(k.1[node_id as usize].clone());
         }
 
         // Here the information about the keys of a specific party are actually being written on file
         // TODO: eventually here there could be a protocol for an online phase to send the information to the Thetacrypt instances.
-        let write_file = File::create(&keyfile)?;
-        serde_json::to_writer(write_file, &node_keys)?;
+        let _ = kc.to_file(&keyfile);
     }
 
     println!("Keys successfully generated.");
@@ -330,6 +294,10 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
             }
 
             j += 1;
+
+            if j > 3 {
+                break;
+            }
         }
 
         i += 1;

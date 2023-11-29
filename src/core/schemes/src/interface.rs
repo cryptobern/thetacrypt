@@ -222,6 +222,13 @@ impl Ciphertext {
             Ciphertext::Bz03(ct) => ct.get_label(),
         }
     }
+
+    pub fn get_key_id(&self) -> &str {
+        match self {
+            Ciphertext::Sg02(ct) => ct.get_key_id(),
+            Ciphertext::Bz03(ct) => ct.get_key_id(),
+        }
+    }
 }
 
 impl Serializable for Ciphertext {
@@ -411,7 +418,7 @@ impl ThresholdCipher {
                     unwrap_enum_vec!(shares, DecryptionShare::Sg02, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
-                    return Ok(Sg02ThresholdCipher::assemble(&shares.unwrap(), ct));
+                    return Sg02ThresholdCipher::assemble(&shares.unwrap(), ct);
                 }
 
                 Err(shares.err().unwrap())
@@ -421,7 +428,7 @@ impl ThresholdCipher {
                     unwrap_enum_vec!(shares, DecryptionShare::Bz03, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
-                    return Ok(Bz03ThresholdCipher::assemble(&shares.unwrap(), ct));
+                    return Bz03ThresholdCipher::assemble(&shares.unwrap(), ct);
                 }
 
                 Err(shares.err().unwrap())
@@ -1180,6 +1187,7 @@ pub enum SchemeError {
     InvalidParams,
     Aborted(String),
     KeyNotFound,
+    MacFailure,
 }
 
 impl Error for SchemeError {}

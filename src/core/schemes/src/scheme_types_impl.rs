@@ -7,6 +7,7 @@ use crate::{
     group::GroupElement,
     group_generators,
 };
+use theta_proto::scheme_types::PublicKeyEntry;
 use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
 
 pub trait SchemeDetails {
@@ -51,7 +52,7 @@ impl SchemeDetails for ThresholdScheme {
             Self::Bls04 => group.is_dl() && group.supports_pairings(),
             Self::Bz03 => group.is_dl() && group.supports_pairings(),
             Self::Cks05 => group.is_dl(),
-            Self::Frost => group.is_dl(),
+            Self::Frost => [Group::Ed25519].contains(&group),
             Self::Sg02 => group.is_dl(),
             Self::Sh00 => !group.is_dl(),
         }
@@ -143,5 +144,29 @@ impl GroupDetails for Group {
             ),
             _ => panic!("no alternate generator available"),
         }
+    }
+}
+
+pub trait PublicKeyEntryDetails {
+    fn to_string(&self) -> String;
+}
+
+impl PublicKeyEntryDetails for PublicKeyEntry {
+    fn to_string(&self) -> String {
+        let scheme = ThresholdScheme::from_i32(self.scheme);
+        let group = Group::from_i32(self.group);
+        let details;
+
+        if scheme.is_none() || group.is_none() {
+            details = String::from("[invalid]");
+        } else {
+            details = format!(
+                "[{}/{}]",
+                scheme.unwrap().as_str_name(),
+                group.unwrap().as_str_name()
+            );
+        }
+
+        format!("{} {}\n", &self.id, details)
     }
 }

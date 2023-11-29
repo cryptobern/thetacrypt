@@ -69,7 +69,7 @@ fn test_interface() {
 }
 
 #[test]
-fn test_serialization() {
+fn test_private_key_serialization() {
     let keys = KeyGenerator::generate_keys(
         3,
         5,

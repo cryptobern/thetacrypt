@@ -7,7 +7,6 @@ use theta_orchestration::{
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
 };
 use theta_service::rpc_request_handler;
-use tonic::server;
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};

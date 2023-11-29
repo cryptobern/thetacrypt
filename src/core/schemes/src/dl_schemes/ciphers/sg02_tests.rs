@@ -68,7 +68,9 @@ fn test_public_key_serialization() {
 
     /* Serialisation usage */
     let public_key_encoded = public_key.to_bytes().unwrap();
+    println!("{}", public_key.get_key_id());
     let public_key_decoded = PublicKey::from_bytes(&public_key_encoded).unwrap();
+    println!("{}", public_key_decoded.get_key_id());
     assert!(public_key.eq(&public_key_decoded));
 }
 

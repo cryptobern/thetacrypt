@@ -20,6 +20,7 @@ theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
 theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
 theta_network = {path = "network", version = "0.1.0"}
+terminal-menu = "2.0.6"
 
 tonic = "0.8"
 
@@ -57,3 +58,7 @@ path = "bin/proxy_server.rs"
 [[bin]]
 name = "server"
 path = "bin/server.rs"
+
+[[bin]]
+name = "key_example"
+path = "bin/key_example.rs"

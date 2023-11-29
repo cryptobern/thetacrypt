@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
+use mcore::ed25519::ecdh::public_key_validate;
 use theta_orchestration::instance_manager::instance_manager::{
     InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
 use theta_orchestration::key_manager::key_manager::KeyManagerCommand;
 use theta_proto::protocol_types::{
-    CoinRequest, CoinResponse, KeyRequest, KeyResponse, PublicKeyEntry, StatusRequest,
-    StatusResponse,
+    CoinRequest, CoinResponse, KeyRequest, KeyResponse, StatusRequest, StatusResponse,
 };
-use theta_proto::scheme_types::Group;
+use theta_proto::scheme_types::{Group, PublicKeyEntry};
 use theta_schemes::keys::key_chain::KeyEntry;
 use theta_schemes::scheme_types_impl::SchemeDetails;
 use tokio::sync::oneshot;
@@ -34,7 +34,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<DecryptRequest>,
     ) -> Result<Response<DecryptResponse>, Status> {
-        info!(">> REQH: Received a decrypt request.");
+        info!("Received a decrypt request.");
 
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::from_bytes(&request.get_ref().ciphertext) {
@@ -44,6 +44,8 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 return Err(Status::aborted("Invalid ciphertext"));
             }
         };
+
+        println!("User wants to use key {}", ciphertext.get_key_id());
 
         let (response_sender, response_receiver) =
             oneshot::channel::<Result<String, SchemeError>>();
@@ -61,7 +63,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
         if result.is_err() {
             error!(
-                "Eror creating instance: {}",
+                "Error creating instance: {}",
                 result.as_ref().unwrap_err().to_string()
             );
             return Err(Status::aborted(result.unwrap_err().to_string()));
@@ -97,6 +99,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                     label: req.label.clone(),
                     group,
                     scheme,
+                    key_id: req.key_id.clone(),
                 },
                 responder: response_sender,
             })
@@ -147,6 +150,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                     name: req.name.clone(),
                     scheme,
                     group,
+                    key_id: req.key_id.clone(),
                 },
                 responder: response_sender,
             })
@@ -176,7 +180,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<KeyResponse>, Status> {
         info!("Received a get_public_keys request.");
 
-        let (response_sender, response_receiver) = oneshot::channel::<Arc<Vec<KeyEntry>>>();
+        let (response_sender, response_receiver) = oneshot::channel::<Vec<Arc<PublicKeyEntry>>>();
 
         let cmd = KeyManagerCommand::ListAvailableKeys {
             responder: response_sender,
@@ -190,20 +194,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             .await
             .expect("response_receiver.await returned Err");
 
-        let mut public_keys: Vec<PublicKeyEntry> = Vec::new();
-        for entry in key_entries.as_ref() {
-            let e = PublicKeyEntry {
-                id: entry.id.clone(),
-                operation: entry.pk.get_scheme().get_operation() as i32,
-                scheme: entry.pk.get_scheme() as i32,
-                group: *entry.pk.get_group() as i32,
-                key: match entry.pk.to_bytes() {
-                    Ok(key_ser) => key_ser,
-                    Err(err) => return Err(Status::new(Code::Internal, err.to_string())),
-                },
-            };
-            public_keys.push(e);
+        let mut public_keys = Vec::new();
+        for key in &key_entries {
+            public_keys.push((**key).clone());
         }
+
         return Ok(Response::new(KeyResponse { keys: public_keys }));
     }
 

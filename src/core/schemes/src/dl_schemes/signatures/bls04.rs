@@ -118,18 +118,14 @@ impl Serializable for Bls04PublicKey {
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+                let mut b = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&b, &group, Option::None);
 
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
-                    let bytes = d.read_element::<&[u8]>()?;
-                    verification_key.push(GroupElement::from_bytes(
-                        &bytes,
-                        &group,
-                        Option::Some(0),
-                    ));
+                    b = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&b, &group, Option::Some(0)));
                 }
 
                 Ok(Self {

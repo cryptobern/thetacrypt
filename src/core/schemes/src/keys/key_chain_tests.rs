@@ -10,7 +10,11 @@ use crate::{
     rand::{RngAlgorithm, RNG},
 };
 
-use super::{key_chain::KeyChain, key_generator::KeyGenerator, keys::PrivateKeyShare};
+use super::{
+    key_chain::KeyChain,
+    key_generator::KeyGenerator,
+    keys::{calc_key_id, key2id, PrivateKeyShare},
+};
 
 #[test]
 pub fn test_adding_and_retrieving_keys() {
@@ -79,11 +83,11 @@ fn test_keychain_serialization() {
     let (key_chain, keys) = fill_key_chain();
 
     key_chain
-        .to_file("tests/test_keychain_ser.txt")
+        .to_file("test_keychain_ser.txt")
         .expect("KeyChain::to_file returned Err");
-    let key_chain_unser = KeyChain::from_file(&PathBuf::from("tests/test_keychain_ser.txt"))
+    let key_chain_unser = KeyChain::from_file(&PathBuf::from("test_keychain_ser.txt"))
         .expect("KeyChain::from_file returned Err");
-    let _ = remove_file("tests/test_keychain_ser.txt");
+    let _ = remove_file("test_keychain_ser.txt");
 
     assert_eq!(key_chain, key_chain_unser);
 }
@@ -99,8 +103,7 @@ fn test_get_encryption_keys() {
         let key = encryption_keys
             .iter()
             .find(|&e| e.id == *key_id)
-            .expect("Key with id {key_id} should be found.")
-            .clone();
+            .expect("Key with id {key_id} should be found.");
         assert!(key.sk.as_ref().unwrap().get_scheme() == ThresholdScheme::Sg02);
         assert!(Group::Bls12381.eq(key.sk.as_ref().unwrap().get_group()));
         assert!(private_key.eq(key.sk.as_ref().unwrap()));
@@ -121,10 +124,7 @@ fn fill_key_chain() -> (KeyChain, HashMap<String, PrivateKeyShare>) {
         )
         .expect("KeyGenerator::generate_keys returned Err");
 
-        let pub_bytes = sk_sg02_bls12381[0].get_public_key().to_bytes().unwrap();
-        let mut hash = HASH256::new();
-        hash.process_array(&pub_bytes);
-        let key_id = general_purpose::URL_SAFE.encode(hash.hash());
+        let key_id = key2id(&sk_sg02_bls12381[0].get_public_key());
 
         keys.insert(key_id.clone(), sk_sg02_bls12381[0].clone());
         key_chain

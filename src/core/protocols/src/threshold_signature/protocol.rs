@@ -25,20 +25,15 @@ pub struct ThresholdSignatureProtocol {
     signature: Option<Signature>,
     instance: Option<InteractiveThresholdSignature>,
     received_share_ids: HashSet<u16>,
-    round_results: Vec<RoundResult>,
-    precomputed: bool,
+    precompute: bool,
 }
 
 pub struct ThresholdSignaturePrecomputation {
     private_key: Arc<PrivateKeyShare>,
-    label: Vec<u8>,
     chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
     chan_out: tokio::sync::mpsc::Sender<NetMessage>,
     instance_id: String,
-    finished: bool,
     instance: InteractiveThresholdSignature,
-    received_share_ids: HashSet<u16>,
-    round_results: Vec<RoundResult>,
 }
 
 #[async_trait]
@@ -49,7 +44,7 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
             &self.instance_id
         );
 
-        if !self.precomputed {
+        if !self.precompute && self.instance.is_some() {
             let _ = self
                 .instance
                 .as_mut()
@@ -99,7 +94,6 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
 
                                     let rr = self.instance.as_mut().unwrap().do_round();
                                     self.received_share_ids.clear();
-                                    self.round_results.clear();
 
                                     if rr.is_err() {
                                         error!(
@@ -203,8 +197,7 @@ impl<'a> ThresholdSignatureProtocol {
             signature: Option::None,
             received_share_ids: HashSet::new(),
             instance,
-            round_results: Vec::new(),
-            precomputed: false,
+            precompute: false,
         }
     }
 
@@ -229,8 +222,7 @@ impl<'a> ThresholdSignatureProtocol {
             signature: Option::None,
             received_share_ids: HashSet::new(),
             instance: Option::Some(instance.clone()),
-            round_results: Vec::new(),
-            precomputed: true,
+            precompute: true,
         };
     }
 
@@ -348,14 +340,10 @@ impl<'a> ThresholdSignaturePrecomputation {
 
         ThresholdSignaturePrecomputation {
             private_key,
-            label: label.clone(),
             chan_in,
             chan_out,
             instance_id,
-            finished: false,
-            received_share_ids: HashSet::new(),
             instance,
-            round_results: Vec::new(),
         }
     }
 

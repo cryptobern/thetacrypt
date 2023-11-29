@@ -109,14 +109,14 @@ impl Serializable for Bz03PublicKey {
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let y = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
+                let mut b = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&b, &group, Option::Some(1));
 
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
-                    let bytes = d.read_element::<&[u8]>()?;
-                    verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                    b = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&b, &group, Option::None));
                 }
 
                 Ok(Self {
@@ -331,6 +331,7 @@ pub struct Bz03Ciphertext {
     c_k: Vec<u8>,
     u: GroupElement, //ECP2
     hr: GroupElement,
+    key_id: String,
 }
 
 impl Bz03Ciphertext {
@@ -349,6 +350,9 @@ impl Bz03Ciphertext {
     pub fn get_group(&self) -> &Group {
         self.u.get_group()
     }
+    pub fn get_key_id(&self) -> &str {
+        &self.key_id
+    }
 }
 
 impl Serializable for Bz03Ciphertext {
@@ -361,6 +365,7 @@ impl Serializable for Bz03Ciphertext {
                 w.write_element(&self.u.to_bytes().as_slice())?;
                 w.write_element(&self.hr.to_bytes().as_slice())?;
                 w.write_element(&self.c_k.as_slice())?;
+                w.write_element(&self.key_id.as_bytes())?;
 
                 Ok(())
             }))
@@ -384,13 +389,20 @@ impl Serializable for Bz03Ciphertext {
                 let label = d.read_element::<&[u8]>()?.to_vec();
                 let msg = d.read_element::<&[u8]>()?.to_vec();
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let u = GroupElement::from_bytes(&bytes, &group, Option::Some(1));
+                let mut b = d.read_element::<&[u8]>()?;
+                let u = GroupElement::from_bytes(&b, &group, Option::Some(1));
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let hr = GroupElement::from_bytes(&bytes, &group, Option::Some(0));
+                b = d.read_element::<&[u8]>()?;
+                let hr = GroupElement::from_bytes(&b, &group, Option::Some(0));
 
                 let c_k = d.read_element::<&[u8]>()?.to_vec();
+
+                let key_id = String::from_utf8(d.read_element::<&[u8]>()?.to_vec());
+                if key_id.is_err() {
+                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
+                }
+
+                let key_id = key_id.unwrap();
 
                 return Ok(Self {
                     label,
@@ -398,6 +410,7 @@ impl Serializable for Bz03Ciphertext {
                     u,
                     c_k,
                     hr,
+                    key_id,
                 });
             });
         });
@@ -460,6 +473,7 @@ impl Bz03ThresholdCipher {
             c_k: c_k.to_vec(),
             u: u,
             hr: hr,
+            key_id: pk.id.clone(),
         };
         c
     }
@@ -506,17 +520,22 @@ impl Bz03ThresholdCipher {
         }
     }
 
-    pub fn assemble(shares: &Vec<Bz03DecryptionShare>, ct: &Bz03Ciphertext) -> Vec<u8> {
+    pub fn assemble(
+        shares: &Vec<Bz03DecryptionShare>,
+        ct: &Bz03Ciphertext,
+    ) -> Result<Vec<u8>, SchemeError> {
         let rY = interpolate(shares);
 
         let k = xor(g(&rY), ct.c_k.clone());
         let key = Key::from_slice(&k);
         let cipher = ChaCha20Poly1305::new(key);
-        let msg = cipher
-            .decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.ctxt.as_ref())
-            .expect("decryption failure");
+        let msg = cipher.decrypt(Nonce::from_slice(&rY.to_bytes()[0..12]), ct.ctxt.as_ref());
 
-        msg
+        if msg.is_err() {
+            return Err(SchemeError::MacFailure);
+        }
+
+        Ok(msg.unwrap())
     }
 }
 

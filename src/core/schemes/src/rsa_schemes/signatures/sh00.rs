@@ -125,11 +125,11 @@ impl Serializable for Sh00PublicKey {
                 let n = d.read_element::<u64>()? as u16;
                 let t = d.read_element::<u64>()? as u16;
 
-                let mut bytes = d.read_element::<&[u8]>()?;
-                let N = RsaBigInt::from_bytes(&mut bytes);
+                let mut b = d.read_element::<&[u8]>()?;
+                let N = RsaBigInt::from_bytes(&mut b);
 
-                let mut bytes = d.read_element::<&[u8]>()?;
-                let e = RsaBigInt::from_bytes(&mut bytes);
+                b = d.read_element::<&[u8]>()?;
+                let e = RsaBigInt::from_bytes(&mut b);
 
                 let verify_bytes = d.read_element::<&[u8]>()?;
                 let res = Sh00VerificationKey::from_bytes(&verify_bytes.to_vec());

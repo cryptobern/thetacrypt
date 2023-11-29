@@ -15,10 +15,9 @@ use theta_schemes::{
 use theta_proto::protocol_types::DecryptRequest;
 use theta_proto::{
     protocol_types::{
-        threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest, PublicKeyEntry,
-        StatusRequest,
+        threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest, StatusRequest,
     },
-    scheme_types::{Group, ThresholdScheme},
+    scheme_types::{Group, PublicKeyEntry, ThresholdScheme},
 };
 
 // test_local_servers() tests basic communication for nodes that run on localhost.

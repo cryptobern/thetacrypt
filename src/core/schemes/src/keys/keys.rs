@@ -743,3 +743,17 @@ pub fn calc_key_id(bytes: &[u8]) -> String {
     hash.process_array(&bytes);
     general_purpose::URL_SAFE.encode(hash.hash())
 }
+
+pub fn key2id(key: &PublicKey) -> String {
+    let bytes = key.to_bytes().unwrap();
+    let inner_bytes: Result<Vec<u8>, ParseError> = asn1::parse(&bytes, |d| {
+        return d.read_element::<asn1::Sequence>()?.parse(|d| {
+            d.read_element::<u8>()?;
+            let bytes = d.read_element::<&[u8]>()?.to_vec();
+
+            return Ok(bytes);
+        });
+    });
+
+    calc_key_id(&inner_bytes.unwrap())
+}
