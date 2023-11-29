@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::Utc;
 use log::{error, info, warn};
+use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
     InteractiveThresholdSignature, RoundResult, Serializable, Signature, SignatureShare,
@@ -27,6 +29,7 @@ pub struct ThresholdSignatureProtocol {
     received_share_ids: HashSet<u16>,
     round_results: Vec<RoundResult>,
     precomputed: bool,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 pub struct ThresholdSignaturePrecomputation {
@@ -49,12 +52,19 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
             &self.instance_id
         );
 
+        let event = Event::StartedSigningInstance {
+            timestamp: Utc::now(),
+            instance_id: self.instance_id.clone(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         if !self.precomputed {
-            let _ = self
-                .instance
-                .as_mut()
-                .unwrap()
-                .set_msg(&(&self.message).clone().unwrap());
+            if self.private_key.get_scheme().is_interactive() {
+                self.instance
+                    .as_mut()
+                    .unwrap()
+                    .set_msg(&(&self.message).clone().unwrap());
+            }
         }
 
         self.on_init().await?;
@@ -94,6 +104,13 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                                 result.unwrap_err(),
                                             ));
                                         }
+
+                                        let event = Event::FinishedSigningInstance {
+                                            timestamp: Utc::now(),
+                                            instance_id: self.instance_id.clone(),
+                                        };
+                                        self.event_emitter_sender.send(event).await.unwrap();
+
                                         return Ok(result.unwrap());
                                     }
 
@@ -141,6 +158,12 @@ impl ThresholdProtocol for ThresholdSignatureProtocol {
                                             result.unwrap_err(),
                                         ));
                                     }
+
+                                    let event = Event::FinishedSigningInstance {
+                                        timestamp: Utc::now(),
+                                        instance_id: self.instance_id.clone(),
+                                    };
+                                    self.event_emitter_sender.send(event).await.unwrap();
                                     return Ok(result.unwrap());
                                 }
                             }
@@ -175,6 +198,7 @@ impl<'a> ThresholdSignatureProtocol {
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
         instance_id: String,
     ) -> Self {
         let mut instance = Option::None;
@@ -205,6 +229,7 @@ impl<'a> ThresholdSignatureProtocol {
             instance,
             round_results: Vec::new(),
             precomputed: false,
+            event_emitter_sender,
         }
     }
 
@@ -215,6 +240,7 @@ impl<'a> ThresholdSignatureProtocol {
         label: &Vec<u8>,
         chan_in: tokio::sync::mpsc::Receiver<Vec<u8>>,
         chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
         instance_id: String,
     ) -> Self {
         return ThresholdSignatureProtocol {
@@ -231,6 +257,7 @@ impl<'a> ThresholdSignatureProtocol {
             instance: Option::Some(instance.clone()),
             round_results: Vec::new(),
             precomputed: true,
+            event_emitter_sender,
         };
     }
 

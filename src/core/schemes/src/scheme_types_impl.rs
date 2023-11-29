@@ -88,9 +88,9 @@ impl GroupDetails for Group {
             Self::Bn254 => 1,
             Self::Ed25519 => 2,
             Self::Rsa512 => 3,
-            Self::Rsa1024 => 3,
-            Self::Rsa2048 => 4,
-            Self::Rsa4096 => 5,
+            Self::Rsa1024 => 4,
+            Self::Rsa2048 => 5,
+            Self::Rsa4096 => 6,
         }
     }
 

@@ -193,7 +193,10 @@ impl KeyChain {
             .filter(|&entry| entry.1.sk.get_scheme() == scheme && entry.1.sk.get_group() == group)
             .collect();
         return match matching_key_entries.len() {
-            0 => Err(String::from("No key matches the given scheme and group.")),
+            0 => Err(String::from(format!(
+                "No key matches the given scheme and group ({:?} / {:?}).",
+                scheme, group
+            ))),
             1 => Ok(Arc::clone(&matching_key_entries[0].1)),
             _ => {
                 let default_key_entries: Vec<(&String, &Arc<Key>)> = matching_key_entries

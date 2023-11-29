@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-
 /// A single peer of this server.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Peer {
@@ -24,6 +23,9 @@ pub struct ServerConfig {
     pub listen_address: String,
     /// Vector of peers this server will connect to. Must also contain itself as a peer.
     pub peers: Vec<Peer>,
+    /// Path to file in which to store benchmarking events.
+    /// If not set, benchmarking events will be discarded.
+    pub event_file: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -45,7 +47,6 @@ pub struct ServerProxyConfig {
 }
 
 impl ServerProxyConfig {
-
     /// Read a server's configuration from a JSON encoding on disk.
     pub fn from_file(file: &PathBuf) -> Result<ServerProxyConfig, String> {
         let data = match fs::read_to_string(file) {
@@ -66,22 +67,32 @@ impl ServerProxyConfig {
             Err(e) => return Err(format!("Invalid JSON: {}", e)),
         };
 
-        ServerProxyConfig::new(cfg.id, cfg.listen_address, cfg.p2p_port, cfg.rpc_port, cfg.proxy_node)
+        ServerProxyConfig::new(
+            cfg.id,
+            cfg.listen_address,
+            cfg.p2p_port,
+            cfg.rpc_port,
+            cfg.proxy_node,
+        )
     }
 
     /// Initialize a new config struct. Performs a sanity check of passed values.
-    pub fn new(id: u32, listen_address: String, p2p_port: u16, rpc_port: u16, proxy_node: ProxyNode) -> Result<ServerProxyConfig, String> {
+    pub fn new(
+        id: u32,
+        listen_address: String,
+        p2p_port: u16,
+        rpc_port: u16,
+        proxy_node: ProxyNode,
+    ) -> Result<ServerProxyConfig, String> {
         match IpAddr::from_str(&listen_address) {
             Ok(_) => {}
             Err(e) => return Err(format!("Invalid value for LISTEN_ADDRESS: {}", e)),
         }
 
-        
         match IpAddr::from_str(&proxy_node.ip) {
             Ok(_) => {}
             Err(e) => return Err(format!("Invalid IP for peer {}: {}", id, e)),
         }
-        
 
         Ok(ServerProxyConfig {
             id,
@@ -93,25 +104,24 @@ impl ServerProxyConfig {
     }
 
     pub fn my_p2p_port(&self) -> u16 {
-        return self.p2p_port
+        return self.p2p_port;
     }
 
     /// Get this server's RPC port. Returns an error if this server is not found in the list of peers.
     pub fn my_rpc_port(&self) -> u16 {
-        return self.rpc_port
+        return self.rpc_port;
     }
 
-    pub fn proxy_node_ip(&self) -> String{
-        return self.proxy_node.ip.clone()
+    pub fn proxy_node_ip(&self) -> String {
+        return self.proxy_node.ip.clone();
     }
 
-    pub fn get_listen_addr(&self) -> String{
-        return self.listen_address.clone()
+    pub fn get_listen_addr(&self) -> String {
+        return self.listen_address.clone();
     }
 }
 
 impl ServerConfig {
-
     /// Read a server's configuration from a JSON encoding on disk.
     pub fn from_file(file: &PathBuf) -> Result<ServerConfig, String> {
         let data = match fs::read_to_string(file) {
@@ -132,11 +142,16 @@ impl ServerConfig {
             Err(e) => return Err(format!("Invalid JSON: {}", e)),
         };
 
-        ServerConfig::new(cfg.id, cfg.listen_address, cfg.peers)
+        ServerConfig::new(cfg.id, cfg.listen_address, cfg.peers, cfg.event_file)
     }
 
     /// Initialize a new config struct. Performs a sanity check of passed values.
-    pub fn new(id: u32, listen_address: String, peers: Vec<Peer>) -> Result<ServerConfig, String> {
+    pub fn new(
+        id: u32,
+        listen_address: String,
+        peers: Vec<Peer>,
+        event_file: Option<PathBuf>,
+    ) -> Result<ServerConfig, String> {
         match IpAddr::from_str(&listen_address) {
             Ok(_) => {}
             Err(e) => return Err(format!("Invalid value for LISTEN_ADDRESS: {}", e)),
@@ -153,6 +168,7 @@ impl ServerConfig {
             id,
             listen_address,
             peers,
+            event_file,
         })
     }
 

@@ -692,6 +692,15 @@ impl PublicKey {
         }
         Err(r.unwrap_err())
     }
+
+    pub fn from_pem(pem: &str) -> Result<Self, ThresholdCryptoError> {
+        let r = general_purpose::URL_SAFE.decode(pem);
+        if let Ok(bytes) = r {
+            return PublicKey::deserialize(&bytes);
+        }
+
+        Err(ThresholdCryptoError::DeserializationFailed)
+    }
 }
 
 pub struct KeyGenerator {}

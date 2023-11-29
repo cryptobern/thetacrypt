@@ -1,21 +1,23 @@
 use clap::Parser;
 use log::{error, info};
-use log4rs;
 use std::process::exit;
+use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::keychain::KeyChain;
 use theta_service::rpc_request_handler;
+
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{config::static_net, types::message::NetMessage};
 
 #[tokio::main]
 async fn main() {
-    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
+    let server_cli = ServerCli::parse();
+
+    log4rs::init_file(server_cli.log4rs_config, Default::default())
+        .expect("Unable to access supplied log4rs configuration file");
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
-
-    let server_cli = ServerCli::parse();
 
     info!(
         "Loading configuration from file: {}",
@@ -54,14 +56,6 @@ async fn main() {
     }
 
     start_server(&cfg, keychain).await;
-
-    info!("Server is running");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received interrupt signal, shutting down");
-            return;
-        }
-    }
 }
 
 /// Start main event loop of server.
@@ -104,6 +98,23 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         .await;
     });
 
+    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
+        Some(f) => {
+            info!(
+                "Starting event emitter with output file {}",
+                f.to_str().unwrap_or("<cannot print path>")
+            );
+            let emitter = emitter::new(&f);
+
+            emitter::start(emitter)
+        }
+        None => {
+            info!("Starting null-emitter, which will discard all benchmarking events");
+
+            start_null_emitter()
+        }
+    };
+
     let my_listen_address = config.listen_address.clone();
     let my_rpc_port = match config.my_rpc_port() {
         Ok(port) => port,
@@ -112,15 +123,32 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
     info!(
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
-    ); 
-    tokio::spawn(async move {
+    );
+    let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
             my_rpc_port,
             keychain,
             net_to_prot_receiver,
             prot_to_net_sender,
+            emitter_tx,
         )
         .await
     });
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Threshold server received ctrl-c, shutting down");
+
+            info!("Notifying event emitter of shutdown");
+            emitter_shutdown_tx.send(true).unwrap();
+            // Now that it's shutting down we can await its handle to ensure it has shut down.
+            emitter_handle.await.unwrap().unwrap();
+
+            info!("Killing RPC server");
+            rpc_handle.abort();
+
+            info!("Shutdown complete");
+        }
+    }
 }

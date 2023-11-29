@@ -4,9 +4,11 @@ use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
 pub struct ConfgenCli {
-    #[arg(long, 
-        help = "Port to use for listening for RPC requests.", 
-        default_value_t = 51000)]
+    #[arg(
+        long,
+        help = "Port to use for listening for RPC requests.",
+        default_value_t = 51000
+    )]
     pub rpc_port: u16,
     #[arg(
         long,
@@ -28,8 +30,10 @@ pub struct ConfgenCli {
     )]
     pub port_strategy: PortStrategy,
 
-    #[arg(long,
-        help = "Path to file containing IPs of servers, one per line. Required.")]
+    #[arg(
+        long,
+        help = "Path to file containing IPs of servers, one per line. Required."
+    )]
     pub ip_file: PathBuf,
 
     #[arg(
@@ -40,17 +44,23 @@ pub struct ConfgenCli {
     pub shuffle_peers: bool,
 
     #[arg(
+        long,
+        help = "Path to file into which to have server store benchmarking events. If unset, benchmarking events are discarded."
+    )]
+    pub event_file: Option<PathBuf>,
+
+    #[arg(
         short,
         long,
         help = "Directory in which to place generated config files. Required. Path up to output directory must exist."
     )]
     pub outdir: PathBuf,
-    #[arg(short,
-        long, 
-        help = "Integration with a target blockchain platform.")]
+    #[arg(short, long, help = "Integration with a target blockchain platform.")]
     pub integration: bool,
-    #[arg(long,
-        help = "Path to file containing IPs of nodes of blockchain target platform, one per line.")]
+    #[arg(
+        long,
+        help = "Path to file containing IPs of nodes of blockchain target platform, one per line."
+    )]
     pub integration_file: Option<PathBuf>,
     #[arg(short,
         long, 
@@ -74,4 +84,3 @@ impl Display for PortStrategy {
         }
     }
 }
-

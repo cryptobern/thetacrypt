@@ -74,6 +74,7 @@ fn main() {
             confgen_cli.shuffle_peers,
             confgen_cli.listen_address,
             confgen_cli.outdir,
+            confgen_cli.event_file,
         ) {
             Ok(_) => {
                 info!("Config generation successful, all config files saved to disk");
@@ -151,6 +152,7 @@ fn run(
     shuffle_peers: bool,
     listen_address: String,
     outdir: PathBuf,
+    event_file: Option<PathBuf>,
 ) -> Result<(), String> {
     info!("Generating configuration structs");
     let peers: Vec<Peer> = ips
@@ -186,7 +188,13 @@ fn run(
                 my_peers.shuffle(&mut rng);
             }
 
-            ServerConfig::new(u32::try_from(i).unwrap(), listen_address.clone(), my_peers).unwrap()
+            ServerConfig::new(
+                u32::try_from(i).unwrap(),
+                listen_address.clone(),
+                my_peers,
+                event_file.clone(),
+            )
+            .unwrap()
         })
         .collect();
 

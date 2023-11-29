@@ -1,8 +1,13 @@
 use core::panic;
-use std::{collections::HashMap, sync::Arc, thread, time};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+    thread, time,
+};
 
-use log::{error, info};
+use log::{debug, error, info};
 use mcore::hash256::HASH256;
+use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
@@ -15,11 +20,107 @@ use theta_schemes::interface::{Ciphertext, ThresholdCryptoError};
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
 
-use crate::instance_manager::instance::Instance;
 use crate::{
+    instance_manager::instance::Instance,
     state_manager::{StateManagerCommand, StateManagerMsg, StateManagerResponse},
     types::Key,
 };
+
+/// Upper bound on the number of finished instances which to store.
+const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
+/// Number of instances which to look at when trying to find ones to eject.
+const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = 10;
+
+/// InstanceCache implements a first-in-first-out store for instances.
+///
+/// It is configured with an upper bound on the number of finished instances it will store. If a
+/// new instance is added while at capacity, the oldest terminated instance is ejected.
+///
+/// Due to only evicting stored instances, there is no actual upper bound on its size. There could
+/// well be an unbounded number of running instances.
+struct InstanceCache {
+    instance_data: HashMap<String, Instance>,
+    capacity: usize,
+    terminated_instances: VecDeque<String>,
+}
+
+impl InstanceCache {
+    fn new(capacity: Option<usize>) -> InstanceCache {
+        InstanceCache {
+            instance_data: HashMap::new(),
+            capacity: capacity.unwrap_or(DEFAULT_INSTANCE_CACHE_SIZE),
+            terminated_instances: VecDeque::new(),
+        }
+    }
+
+    fn get(&self, instance_id: &String) -> Option<&Instance> {
+        self.instance_data.get(instance_id)
+    }
+
+    fn get_mut(&mut self, instance_id: &String) -> Option<&mut Instance> {
+        self.instance_data.get_mut(instance_id)
+    }
+
+    fn insert(&mut self, instance_id: String, instance: Instance) {
+        if self.instance_data.len() >= self.capacity {
+            self.attempt_eject();
+        }
+
+        self.instance_data.insert(instance_id, instance);
+    }
+
+    /// Inform the instance cache that an instance has terminated, and is elligible for eviction if
+    /// space is required.
+    fn inform_of_termination(&mut self, instance_id: String) {
+        if self.instance_data.contains_key(&instance_id) {
+            self.terminated_instances.push_back(instance_id);
+        } else {
+            error!(
+                "Got informed that instance ID {} terminated, but no such instance was found",
+                instance_id
+            );
+        }
+    }
+
+    /// Attempts to remove terminated instances from the store to get back to the desired capacity.
+    /// Returns the number of ejected instances.
+    fn attempt_eject(&mut self) -> usize {
+        let mut current_iteration = 0;
+        let max_iterations = {
+            if self.terminated_instances.len() < INSTANCE_CACHE_CLEANUP_SCAN_LENGTH {
+                self.terminated_instances.len()
+            } else {
+                INSTANCE_CACHE_CLEANUP_SCAN_LENGTH
+            }
+        };
+
+        debug!(
+            "Cleaning up instance store by ejecting up to {} terminated instances.",
+            max_iterations
+        );
+
+        while current_iteration < max_iterations && self.instance_data.len() > self.capacity {
+            let candidate_id = self.terminated_instances.pop_front().unwrap();
+            debug!("Ejecting terminated instance {}", candidate_id);
+            self.instance_data.remove(&candidate_id);
+
+            current_iteration += 1;
+        }
+
+        debug!(
+            "Ejected {} instance(s) from instance store. Size (current / target): {} / {}",
+            current_iteration,
+            self.instance_data.len(),
+            self.capacity
+        );
+
+        current_iteration
+    }
+
+    fn contains_key(&self, instance_id: &str) -> bool {
+        self.instance_data.contains_key(instance_id)
+    }
+}
 
 pub struct InstanceManager {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
@@ -27,9 +128,10 @@ pub struct InstanceManager {
     instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
     incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
-    instances: HashMap<String, Instance>,
+    instances: InstanceCache,
     backlog: HashMap<String, BacklogData>,
     backlog_interval: tokio::time::Interval,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 const BACKLOG_CHECK_INTERVAL: u64 = 600;
@@ -119,6 +221,7 @@ impl InstanceManager {
         instance_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
         outgoing_p2p_sender: tokio::sync::mpsc::Sender<NetMessage>,
         incoming_p2p_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
     ) -> Self {
         return Self {
             state_command_sender,
@@ -126,11 +229,12 @@ impl InstanceManager {
             instance_command_sender,
             outgoing_p2p_sender,
             incoming_p2p_receiver,
-            instances: HashMap::new(),
+            instances: InstanceCache::new(None),
             backlog: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
             )),
+            event_emitter_sender,
         };
     }
 
@@ -171,7 +275,10 @@ impl InstanceManager {
                             let instance = self.instances.get_mut(&instance_id);
 
                             match instance {
-                                Some(_instance) => _instance.set_result(result),
+                                Some(_instance) => {
+                                    _instance.set_result(result);
+                                    self.instances.inform_of_termination(instance_id.clone());
+                                },
                                 None => info!("Error storing instance result for instance {}", instance_id)
                             }
                         },
@@ -278,6 +385,7 @@ impl InstanceManager {
                     ciphertext,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 
@@ -321,6 +429,7 @@ impl InstanceManager {
                     &label,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 
@@ -362,6 +471,7 @@ impl InstanceManager {
                     &name,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
+                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 

@@ -1,3 +1,4 @@
+use chrono::Utc;
 use theta_orchestration::instance_manager::instance_manager::{
     InstanceManager, InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
@@ -25,10 +26,12 @@ use theta_orchestration::{
     state_manager::{StateManager, StateManagerCommand},
 };
 
+use theta_events::event::Event;
+
 pub struct RpcRequestHandler {
     state_command_sender: tokio::sync::mpsc::Sender<StateManagerMsg>,
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
-    outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
 #[tonic::async_trait]
@@ -38,6 +41,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         request: Request<DecryptRequest>,
     ) -> Result<Response<DecryptResponse>, Status> {
         info!(">> REQH: Received a decrypt request.");
+
+        let event = Event::ReceivedDecryptionRequest {
+            timestamp: Utc::now(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
 
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::deserialize(&request.get_ref().ciphertext) {
@@ -77,6 +85,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         info!("Received a signature request");
+        let event = Event::ReceivedSigningRequest {
+            timestamp: Utc::now(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         let req: &SignRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -128,6 +141,12 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         request: Request<CoinRequest>,
     ) -> Result<Response<CoinResponse>, Status> {
         info!("Received a coin flip request.");
+
+        let event = Event::ReceivedCoinRequest {
+            timestamp: Utc::now(),
+        };
+        self.event_emitter_sender.send(event).await.unwrap();
+
         let req: &CoinRequest = request.get_ref();
 
         let scheme = ThresholdScheme::from_i32(req.scheme);
@@ -264,6 +283,7 @@ pub async fn init(
     keychain: KeyChain,
     incoming_message_receiver: tokio::sync::mpsc::Receiver<NetMessage>,
     outgoing_message_sender: tokio::sync::mpsc::Sender<NetMessage>,
+    event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 ) {
     // Channel to send commands to the StateManager.
     // Used by the RpcRequestHandler, when a new request is received (it takes ownership state_command_sender)
@@ -292,6 +312,7 @@ pub async fn init(
     let inst_cmd_sender = instance_manager_sender.clone();
     let outgoing_p2p_sender = outgoing_message_sender.clone();
 
+    let instance_manager_event_tx = event_emitter_sender.clone();
     tokio::spawn(async move {
         let mut mfw = InstanceManager::new(
             state_cmd_sender,
@@ -299,6 +320,7 @@ pub async fn init(
             inst_cmd_sender,
             outgoing_p2p_sender,
             incoming_message_receiver,
+            instance_manager_event_tx,
         );
         mfw.run().await;
     });
@@ -306,9 +328,9 @@ pub async fn init(
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     let service = RpcRequestHandler {
-        state_command_sender: state_command_sender,
+        state_command_sender,
         instance_manager_command_sender: instance_manager_sender,
-        outgoing_message_sender: outgoing_message_sender,
+        event_emitter_sender,
     };
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))

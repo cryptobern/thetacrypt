@@ -901,7 +901,10 @@ impl ThresholdSignature {
             )),
             PrivateKey::Sh00(s) => Result::Ok(SignatureShare::Sh00(
                 Sh00ThresholdSignature::partial_sign(msg, label, s, params),
-            )),
+            )), /*
+            PrivateKey::Frost(s) => {
+            Result::Ok(SignatureShare::Frost(FrostThresholdSignature::partial_sign(s, msg, label,s, params)))
+            },*/
             _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
         }
     }
@@ -1210,8 +1213,30 @@ impl Error for ThresholdCryptoError {}
 impl Display for ThresholdCryptoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::WrongGroup => write!(f, ""),
-            _ => write!(f, ""),
+            Self::WrongGroup => write!(f, "Wrong group"),
+            Self::WrongScheme => write!(f, "Wrong scheme"),
+            Self::WrongKeyProvided => write!(f, "Wrong key provided"),
+            Self::SerializationFailed => write!(f, "Serialization failed"),
+            Self::DeserializationFailed => write!(f, "Deseialization failed"),
+            Self::CurveDoesNotSupportPairings => write!(f, "Curve does not support pairings"),
+            Self::ParamsNotSet => write!(f, "Parameters not set"),
+            Self::IdNotFound => write!(f, "ID not found"),
+            Self::IncompatibleGroup => write!(f, "Incompatible group"),
+            Self::WrongState => write!(f, "Wrong state"),
+            Self::PreviousRoundNotExecuted => write!(f, "Previous round not executed"),
+            Self::InvalidRound => write!(f, "Invalid round"),
+            Self::InvalidShare => write!(f, "Invalid share"),
+            Self::ProtocolNotFinished => write!(f, "Protocol not finished"),
+            Self::NotReadyForNextRound => write!(f, "Not ready for next round"),
+            Self::MessageNotSpecified => write!(f, "Message not specified"),
+            Self::MessageAlreadySpecified => write!(f, "Message already specified"),
+            Self::SerializationError(s) => write!(f, "Serialization error: {}", s),
+            Self::UnknownScheme => write!(f, "Unknown scheme"),
+            Self::UnknownGroupString => write!(f, "Unknown group string"),
+            Self::UnknownGroup => write!(f, "Unknown group"),
+            Self::IOError => write!(f, "I/O error"),
+            Self::InvalidParams => write!(f, "Invalid parameters"),
+            Self::Aborted(s) => write!(f, "Protocol aborted: {}", s),
         }
     }
 }

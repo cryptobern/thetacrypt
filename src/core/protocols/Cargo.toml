@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+theta_events = {path = "../../events", version = "0.1.0"}
 theta_schemes = {path = "../schemes", version = "0.1.0"}
 theta_proto = {path = "../../proto", version = "0.1.0"}
 theta_network = {path="../../network"}
 
+chrono = { version = "0.4.31", features = ["serde"] }
 tonic = "0.8"
 prost = "0.11"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
