@@ -57,8 +57,6 @@ impl KeyManager {
 
         info!("Keychain loaded successfully");
 
-        info!("{}", &keychain.to_string());
-
         Self {
             command_receiver,
             keychain,

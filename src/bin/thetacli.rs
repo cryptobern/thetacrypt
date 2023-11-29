@@ -294,10 +294,6 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
             }
 
             j += 1;
-
-            if j > 3 {
-                break;
-            }
         }
 
         i += 1;
