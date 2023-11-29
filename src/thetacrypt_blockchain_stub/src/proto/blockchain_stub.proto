@@ -12,7 +12,8 @@ message ForwardShareRequest {
 };
 
 message AtomicBroadcastRequest{
-    bytes data=1;
+    string id=1;
+    bytes data=2;
 }
 
 message AtomicBroadcastResponse{};

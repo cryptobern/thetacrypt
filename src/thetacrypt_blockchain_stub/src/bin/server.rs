@@ -1,6 +1,6 @@
 // Tokio
 use log::{error, info};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::io;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
@@ -24,25 +24,36 @@ const MAX_BLOCKCHAIN_CAPACITY: usize = 100;
 #[derive(Clone)]
 struct ThetacryptBlockchainStub {
     peers: Vec<PeerP2PInfo>,
-    broadcast_channel_sender: mpsc::Sender<Vec<u8>>,
+    broadcast_channel_sender: mpsc::Sender<(String, Vec<u8>)>,
 }
 
 struct Blockchain {
     chain: VecDeque<Vec<u8>>,
-    broadcast_channel_receiver: mpsc::Receiver<Vec<u8>>,
+    registry: HashSet<String>,
+    broadcast_channel_receiver: mpsc::Receiver<(String, Vec<u8>)>,
 }
 
 impl Blockchain {
-    async fn start_and_run(&mut self, channel_receiver: mpsc::Receiver<Vec<u8>>) {
-        self.chain = VecDeque::new();
-        self.broadcast_channel_receiver = channel_receiver;
-
+    pub fn new(channel_receiver: mpsc::Receiver<(String, Vec<u8>)>) -> Self {
+        return Self {
+            chain: VecDeque::new(),
+            registry: HashSet::new(),
+            broadcast_channel_receiver: channel_receiver,
+        };
+    }
+    pub async fn start_and_run(&mut self) {
         loop {
             tokio::select! {
                 incoming_block = self.broadcast_channel_receiver.recv() => {
                     match incoming_block {
-                        Some(msg) => {
-                            todo!();
+                        Some(data) => {
+                            let (id, msg) = data;
+                            if !(self.registry.contains(&id)){
+                                println!("Id of the msg {}",id);
+                                self.registry.insert(id);
+                                self.chain.push_back(msg);
+                                println!("New message added to the chain. Current length: {}", self.chain.len());
+                            }
                         },
                         None => {
                             todo!();
@@ -100,8 +111,12 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         // extracting the message from the response
         let binding = request.into_inner();
         let msg = binding.data.as_slice();
+        let id = binding.id;
 
-        //Adding the msg into to the queue (TODO: handle a lock situation where I'm sure I send the msg(ses) in the same order)
+        //Adding the msg into to the queue (TODO: implement the solution with a second channel and a dedicated function for deliver the TOB msg)
+        if let Err(e) = self.broadcast_channel_sender.send((id, msg.to_vec())).await {
+            println!("Error occurred during send(): {}", e);
+        }
 
         //Forward to the other parties
         let peers_config = P2PConfig {
@@ -120,7 +135,9 @@ impl BlockchainStub for ThetacryptBlockchainStub {
     }
 }
 
-impl ThetacryptBlockchainStub {}
+impl ThetacryptBlockchainStub {
+    async fn deliver_TOB_message() {}
+}
 
 async fn start_and_run(service: ThetacryptBlockchainStub, address: SocketAddr) -> io::Result<()> {
     println!("[BlockchainStubServer]: Request handler is starting. Listening for RPC on address: {address}");
@@ -146,7 +163,7 @@ async fn main() -> io::Result<()> {
     // loading the configuration about the peer from file
     let client_cli = P2PCli::parse();
 
-    info!(
+    println!(
         "Loading configuration from file: {}",
         client_cli
             .config_file
@@ -157,6 +174,7 @@ async fn main() -> io::Result<()> {
         Ok(cfg) => cfg,
         Err(e) => {
             error!("{}", e);
+            println!("Error {}", e);
             exit(1);
         }
     };
@@ -186,11 +204,19 @@ async fn main() -> io::Result<()> {
 
     let _peers = vec![p2p_info_1, p2p_info_2, p2p_info_3, p2p_info_4];
 
-    // Here now we use the PeerInfo coming from config file
+    let (channel_sender, channel_receiver) = tokio::sync::mpsc::channel::<(String, Vec<u8>)>(100);
+    let mut blockchain = Blockchain::new(channel_receiver);
+
     let service = ThetacryptBlockchainStub {
-        peers: config.peers,
-        blockchain: VecDeque::with_capacity(MAX_BLOCKCHAIN_CAPACITY),
+        peers: config.peers, //We now here pass the peers coming from the config file. TODO: remove the hard coded ones.
+        broadcast_channel_sender: channel_sender,
     };
+
+    //We need a separate process to handle the Blockchain
+    tokio::spawn(async move {
+        println!("Blockchain is starting");
+        blockchain.start_and_run().await
+    });
 
     tokio::spawn(async move {
         println!("Server is starting");
@@ -198,6 +224,7 @@ async fn main() -> io::Result<()> {
     });
 
     info!("Server is running");
+
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             println!("Received interrupt signal, shutting down");

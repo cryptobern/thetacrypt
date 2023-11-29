@@ -2,6 +2,7 @@ use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
+use thetacrypt_blockchain_stub::proto::blockchain_stub::AtomicBroadcastRequest;
 // Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -71,11 +72,13 @@ pub async fn outgoing_message_forwarder(
             // }
             match BlockchainStubClient::connect("http://localhost:60000").await {
                 Ok(mut client) => {
-                    let request = ForwardShareRequest {
+                    println!("Id of the msg {}", data.instance_id.clone());
+                    let request = AtomicBroadcastRequest {
+                        id: data.instance_id.clone(),
                         data: Vec::from(data),
                     };
 
-                    tokio::spawn(async move { client.forward_share(request).await });
+                    tokio::spawn(async move { client.atomic_broadcast(request).await });
                 }
                 Err(e) => println!("Error in opening the connection!"),
             }

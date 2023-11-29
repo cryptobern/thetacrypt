@@ -85,7 +85,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain: KeyChain) {
         config.proxy_node_ip()
     );
     tokio::spawn(async move {
-        theta_network::proxy::proxyp2p::init(p2n_receiver, n2p_sender, net_config, my_id).await;
+        theta_network::proxy::proxyp2p::init(p2n_receiver, n2p_sender, net_config, my_id).await
     });
 
     let my_listen_address = config.listen_address.clone();
