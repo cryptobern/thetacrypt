@@ -105,7 +105,7 @@ For more information run the binary with `--help` option.
 
 To setup the network of servers with all possible available schemes you can run `thetacli` script with the `--subjects` flag set to "*all*":
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf --new
 ```
 
 ### Starting the server binary
@@ -118,6 +118,8 @@ cargo run --bin server -- --config-file conf/server_1.json --key-file conf/keys_
 cargo run --bin server -- --config-file conf/server_2.json --key-file conf/keys_2.json
 cargo run --bin server -- --config-file conf/server_3.json --key-file conf/keys_3.json
 ```
+
+Or use the supplied `start_network.sh` script to start four instances in a single terminal.
 
 The server prints info messages, to see them set the following environment variable: `RUST_LOG=info`
 (or see here for more possibilities: https://docs.rs/env_logger/latest/env_logger/).
