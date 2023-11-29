@@ -41,7 +41,7 @@ impl Blockchain {
             broadcast_channel_receiver: channel_receiver,
         };
     }
-    pub async fn start_and_run(&mut self) {
+    pub async fn start_and_run(&mut self, config: P2PConfig) {
         loop {
             tokio::select! {
                 incoming_block = self.broadcast_channel_receiver.recv() => {
@@ -51,8 +51,11 @@ impl Blockchain {
                             if !(self.registry.contains(&id)){
                                 println!("Id of the msg {}",id);
                                 self.registry.insert(id);
-                                self.chain.push_back(msg);
+                                self.chain.push_back(msg.clone());
                                 println!("New message added to the chain. Current length: {}", self.chain.len());
+
+                                let streams = connect_to_all_local(config.clone());
+                                forward_message_to_peers(msg.as_slice(), streams);
                             }
                         },
                         None => {
@@ -79,6 +82,17 @@ fn connect_to_all_local(config: P2PConfig) -> Vec<TcpStream> {
     connections
 }
 
+fn forward_message_to_peers(msg: &[u8], streams: Vec<TcpStream>) {
+    for mut stream in streams {
+        let _write_all = stream.write_all(msg);
+    }
+
+    println!(
+        "[BlockchainStubServer] Received forward_share request and send it to the other thetacrypt nodes!"
+    );
+
+}
+
 #[tonic::async_trait] // needed to allow async function in the trait
 impl BlockchainStub for ThetacryptBlockchainStub {
     async fn forward_share(
@@ -93,13 +107,8 @@ impl BlockchainStub for ThetacryptBlockchainStub {
 
         let binding = request.into_inner();
         let msg = binding.data.as_slice();
-        for mut stream in streams {
-            let _write_all = stream.write_all(msg);
-        }
-
-        println!(
-            "[BlockchainStubServer] Received forward_share request and send it to the other thetacrypt nodes!"
-        );
+        
+        forward_message_to_peers(msg, streams);
 
         Ok(Response::new(ForwardShareResponse {}))
     }
@@ -117,26 +126,12 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         if let Err(e) = self.broadcast_channel_sender.send((id, msg.to_vec())).await {
             println!("Error occurred during send(): {}", e);
         }
-
-        //Forward to the other parties
-        let peers_config = P2PConfig {
-            peers: self.peers.clone(),
-        };
-        let streams = connect_to_all_local(peers_config);
-
-        for mut stream in streams {
-            let _write_all = stream.write_all(msg);
-        }
-
-        println!(
-            "[BlockchainStubServer] Received forward_share request and send it to the other thetacrypt nodes!"
-        );
         Ok((Response::new(AtomicBroadcastResponse {})))
     }
 }
 
 impl ThetacryptBlockchainStub {
-    async fn deliver_TOB_message() {}
+
 }
 
 async fn start_and_run(service: ThetacryptBlockchainStub, address: SocketAddr) -> io::Result<()> {
@@ -208,14 +203,14 @@ async fn main() -> io::Result<()> {
     let mut blockchain = Blockchain::new(channel_receiver);
 
     let service = ThetacryptBlockchainStub {
-        peers: config.peers, //We now here pass the peers coming from the config file. TODO: remove the hard coded ones.
+        peers: config.peers.clone(), //We now here pass the peers coming from the config file. TODO: remove the hard coded ones.
         broadcast_channel_sender: channel_sender,
     };
 
     //We need a separate process to handle the Blockchain
     tokio::spawn(async move {
         println!("Blockchain is starting");
-        blockchain.start_and_run().await
+        blockchain.start_and_run(config.clone()).await
     });
 
     tokio::spawn(async move {
