@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
-use log::{error, info};
+use log::{debug, error, info};
 use mcore::hash256::HASH256;
 use serde::{Deserialize, Serialize};
 use std::borrow::BorrowMut;
@@ -176,7 +176,7 @@ impl KeyChain {
                     return Err(String::from("Error importing public key"));
                 }
 
-                println!("Imported public key {}", id.unwrap());
+                debug!("Imported public key {}", id.unwrap());
             } else {
                 return Err(String::from("Error importing public key"));
             }
