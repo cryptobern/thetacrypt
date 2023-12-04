@@ -13,7 +13,8 @@ use mcore::hash256::HASH256;
 use rasn::AsnType;
 
 use crate::dl_schemes::bigint::BigImpl;
-use crate::interface::{DlShare, Serializable, ThresholdCryptoError};
+use crate::interface::{DlShare, SchemeError, Serializable};
+use crate::keys::keys::calc_key_id;
 use crate::scheme_types_impl::GroupDetails;
 use crate::{dl_schemes::common::interpolate, group::GroupElement, rand::RNG};
 use theta_proto::scheme_types::{Group, ThresholdScheme};
@@ -24,6 +25,7 @@ pub struct Cks05ThresholdCoin {
 
 #[derive(AsnType, Debug, Clone)]
 pub struct Cks05PublicKey {
+    id: String,
     group: Group,
     n: u16,
     k: u16,
@@ -32,12 +34,16 @@ pub struct Cks05PublicKey {
 }
 
 impl Cks05PublicKey {
+    pub fn get_key_id(&self) -> &str {
+        &self.id
+    }
+
     pub fn get_order(&self) -> BigImpl {
         self.y.get_order()
     }
 
-    pub fn get_group(&self) -> Group {
-        self.group.clone()
+    pub fn get_group(&self) -> &Group {
+        &self.group
     }
 
     pub fn get_threshold(&self) -> u16 {
@@ -55,21 +61,27 @@ impl Cks05PublicKey {
         y: &GroupElement,
         verification_key: &Vec<GroupElement>,
     ) -> Self {
-        Self {
+        let mut k = Self {
+            id: String::from(""),
             group: group.clone(),
             n: n as u16,
             k: k as u16,
             y: y.clone(),
             verification_key: verification_key.clone(),
-        }
+        };
+
+        let bytes = k.to_bytes().unwrap();
+        let id = calc_key_id(&bytes);
+        k.id = id;
+        k
     }
 }
 
 impl Serializable for Cks05PublicKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
-                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&(*self.get_group() as i32))?;
                 w.write_element(&(self.n as u64))?;
                 w.write_element(&(self.k as u64))?;
                 w.write_element(&self.y.to_bytes().as_slice())?;
@@ -82,34 +94,35 @@ impl Serializable for Cks05PublicKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
                 let n = d.read_element::<u64>()? as u16;
                 let k = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
-                let y = GroupElement::from_bytes(&bytes, &group, Option::None);
+                let mut b = d.read_element::<&[u8]>()?;
+                let y = GroupElement::from_bytes(&b, &group, Option::None);
 
                 let mut verification_key = Vec::new();
 
                 for _i in 0..n {
-                    let bytes = d.read_element::<&[u8]>()?;
-                    verification_key.push(GroupElement::from_bytes(&bytes, &group, Option::None));
+                    b = d.read_element::<&[u8]>()?;
+                    verification_key.push(GroupElement::from_bytes(&b, &group, Option::None));
                 }
 
                 Ok(Self {
+                    id: calc_key_id(bytes),
                     n,
                     k,
                     group,
@@ -121,7 +134,7 @@ impl Serializable for Cks05PublicKey {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -154,31 +167,35 @@ impl Cks05PrivateKey {
         self.pubkey.get_order()
     }
 
-    pub fn get_id(&self) -> u16 {
+    pub fn get_share_id(&self) -> u16 {
         self.id
+    }
+
+    pub fn get_key_id(&self) -> &str {
+        self.pubkey.get_key_id()
     }
 
     pub fn get_threshold(&self) -> u16 {
         self.pubkey.k
     }
 
-    pub fn get_group(&self) -> Group {
+    pub fn get_group(&self) -> &Group {
         self.pubkey.get_group()
     }
 
-    pub fn get_public_key(&self) -> Cks05PublicKey {
-        self.pubkey.clone()
+    pub fn get_public_key(&self) -> &Cks05PublicKey {
+        &self.pubkey
     }
 }
 
 impl Serializable for Cks05PrivateKey {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
                 w.write_element(&self.xi.to_bytes().as_slice())?;
 
-                let bytes = self.pubkey.serialize();
+                let bytes = self.pubkey.to_bytes();
                 if bytes.is_err() {
                     return Err(WriteError::AllocationError);
                 }
@@ -189,27 +206,27 @@ impl Serializable for Cks05PrivateKey {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
 
-                let bytes = d.read_element::<&[u8]>()?;
+                let b = d.read_element::<&[u8]>()?;
                 let pubbytes = d.read_element::<&[u8]>()?;
-                let res = Cks05PublicKey::deserialize(&pubbytes.to_vec());
+                let res = Cks05PublicKey::from_bytes(&pubbytes.to_vec());
                 if res.is_err() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault {}));
                 }
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let xi = BigImpl::from_bytes(&pubkey.get_group(), &b);
 
                 return Ok(Self { id, xi, pubkey });
             });
@@ -217,7 +234,7 @@ impl Serializable for Cks05PrivateKey {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())
@@ -245,11 +262,11 @@ impl Cks05CoinShare {
 }
 
 impl Serializable for Cks05CoinShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 w.write_element(&(self.id as u64))?;
-                w.write_element(&self.get_group().get_code())?;
+                w.write_element(&(self.get_group().clone() as i32))?;
                 w.write_element(&self.data.to_bytes().as_slice())?;
                 w.write_element(&self.c.to_bytes().as_slice())?;
                 w.write_element(&self.z.to_bytes().as_slice())?;
@@ -258,18 +275,18 @@ impl Serializable for Cks05CoinShare {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::SerializationFailed);
+            return Err(SchemeError::SerializationFailed);
         }
 
         Ok(result.unwrap())
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let id = d.read_element::<u64>()? as u16;
-                let g = Group::from_code(d.read_element::<u8>()?);
-                if g.is_err() {
+                let g = Group::from_i32(d.read_element::<i32>()?);
+                if g.is_none() {
                     return Err(ParseError::new(asn1::ParseErrorKind::EncodedDefault));
                 }
                 let group = g.unwrap();
@@ -289,7 +306,7 @@ impl Serializable for Cks05CoinShare {
 
         if result.is_err() {
             error!("{}", result.err().unwrap().to_string());
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         Ok(result.unwrap())

@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display};
 
+use crate::keys::keys::{PrivateKeyShare, PublicKey};
 use crate::scheme_types_impl::SchemeDetails;
 use crate::{
     dl_schemes::{
@@ -17,7 +18,6 @@ use crate::{
         },
     },
     group::GroupElement,
-    keys::{PrivateKey, PublicKey},
     rand::{RngAlgorithm, RNG},
     rsa_schemes::signatures::sh00::{Sh00Signature, Sh00SignatureShare, Sh00ThresholdSignature},
     unwrap_enum_vec,
@@ -27,8 +27,8 @@ use rasn::AsnType;
 pub use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 pub trait Serializable: Sized + Clone + PartialEq {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError>;
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError>;
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError>;
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError>;
 }
 
 pub trait DlShare {
@@ -72,14 +72,14 @@ impl CoinShare {
 }
 
 impl Serializable for CoinShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Cks05(share) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Cks05.get_id())?;
 
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -89,7 +89,7 @@ impl Serializable for CoinShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -97,7 +97,7 @@ impl Serializable for CoinShare {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_i32(d.read_element::<u8>()? as i32);
@@ -110,7 +110,7 @@ impl Serializable for CoinShare {
                 let share;
                 match scheme.unwrap() {
                     ThresholdScheme::Cks05 => {
-                        let r = Cks05CoinShare::deserialize(&bytes);
+                        let r = Cks05CoinShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -127,7 +127,7 @@ impl Serializable for CoinShare {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -139,16 +139,16 @@ pub struct ThresholdCoin {}
 impl ThresholdCoin {
     pub fn create_share(
         name: &[u8],
-        private_key: &PrivateKey,
+        private_key: &PrivateKeyShare,
         rng: &mut RNG,
-    ) -> Result<CoinShare, ThresholdCryptoError> {
+    ) -> Result<CoinShare, SchemeError> {
         match private_key {
-            PrivateKey::Cks05(sk) => {
+            PrivateKeyShare::Cks05(sk) => {
                 return Ok(CoinShare::Cks05(Cks05ThresholdCoin::create_share(
                     name, sk, rng,
                 )));
             }
-            _ => return Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => return Err(SchemeError::WrongKeyProvided),
         }
     }
 
@@ -156,20 +156,19 @@ impl ThresholdCoin {
         share: &CoinShare,
         name: &[u8],
         public_key: &PublicKey,
-    ) -> Result<bool, ThresholdCryptoError> {
+    ) -> Result<bool, SchemeError> {
         match public_key {
             PublicKey::Cks05(pk) => match share {
                 CoinShare::Cks05(s) => {
                     return Ok(Cks05ThresholdCoin::verify_share(s, name, pk));
                 }
             },
-            _ => return Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => return Err(SchemeError::WrongKeyProvided),
         }
     }
 
-    pub fn assemble(shares: &Vec<CoinShare>) -> Result<u8, ThresholdCryptoError> {
-        let share_vec =
-            unwrap_enum_vec!(shares, CoinShare::Cks05, ThresholdCryptoError::WrongScheme);
+    pub fn assemble(shares: &Vec<CoinShare>) -> Result<u8, SchemeError> {
+        let share_vec = unwrap_enum_vec!(shares, CoinShare::Cks05, SchemeError::WrongScheme);
 
         if share_vec.is_ok() {
             return Ok(Cks05ThresholdCoin::assemble(&share_vec.unwrap()));
@@ -223,17 +222,24 @@ impl Ciphertext {
             Ciphertext::Bz03(ct) => ct.get_label(),
         }
     }
+
+    pub fn get_key_id(&self) -> &str {
+        match self {
+            Ciphertext::Sg02(ct) => ct.get_key_id(),
+            Ciphertext::Bz03(ct) => ct.get_key_id(),
+        }
+    }
 }
 
 impl Serializable for Ciphertext {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Sg02(ct) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Sg02.get_id())?;
 
-                        let bytes = ct.serialize();
+                        let bytes = ct.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -243,7 +249,7 @@ impl Serializable for Ciphertext {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -252,7 +258,7 @@ impl Serializable for Ciphertext {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Bz03.get_id())?;
-                        let bytes = ct.serialize();
+                        let bytes = ct.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -262,7 +268,7 @@ impl Serializable for Ciphertext {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -270,7 +276,7 @@ impl Serializable for Ciphertext {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
@@ -283,7 +289,7 @@ impl Serializable for Ciphertext {
                 let ct;
                 match scheme.unwrap() {
                     ThresholdScheme::Sg02 => {
-                        let r = Sg02Ciphertext::deserialize(&bytes);
+                        let r = Sg02Ciphertext::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -292,7 +298,7 @@ impl Serializable for Ciphertext {
                     }
 
                     ThresholdScheme::Bz03 => {
-                        let r = Bz03Ciphertext::deserialize(&bytes);
+                        let r = Bz03Ciphertext::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -309,7 +315,7 @@ impl Serializable for Ciphertext {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -331,7 +337,7 @@ impl ThresholdCipher {
         label: &[u8],
         pubkey: &PublicKey,
         params: &mut ThresholdCipherParams,
-    ) -> Result<Ciphertext, ThresholdCryptoError> {
+    ) -> Result<Ciphertext, SchemeError> {
         match pubkey {
             PublicKey::Sg02(key) => Ok(Ciphertext::Sg02(Sg02ThresholdCipher::encrypt(
                 msg, label, key, params,
@@ -339,23 +345,20 @@ impl ThresholdCipher {
             PublicKey::Bz03(key) => Ok(Ciphertext::Bz03(Bz03ThresholdCipher::encrypt(
                 msg, label, key, params,
             ))),
-            _ => Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => Err(SchemeError::WrongKeyProvided),
         }
     }
 
-    pub fn verify_ciphertext(
-        ct: &Ciphertext,
-        pubkey: &PublicKey,
-    ) -> Result<bool, ThresholdCryptoError> {
+    pub fn verify_ciphertext(ct: &Ciphertext, pubkey: &PublicKey) -> Result<bool, SchemeError> {
         match ct {
             Ciphertext::Sg02(ct) => match pubkey {
                 PublicKey::Sg02(key) => Ok(Sg02ThresholdCipher::verify_ciphertext(ct, key)),
-                _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Err(SchemeError::WrongKeyProvided),
             },
 
             Ciphertext::Bz03(ct) => match pubkey {
                 PublicKey::Bz03(key) => Bz03ThresholdCipher::verify_ciphertext(ct, key),
-                _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Err(SchemeError::WrongKeyProvided),
             },
         }
     }
@@ -364,43 +367,43 @@ impl ThresholdCipher {
         share: &DecryptionShare,
         ct: &Ciphertext,
         pubkey: &PublicKey,
-    ) -> Result<bool, ThresholdCryptoError> {
+    ) -> Result<bool, SchemeError> {
         match ct {
             Ciphertext::Sg02(ct) => match share {
                 DecryptionShare::Sg02(s) => match pubkey {
                     PublicKey::Sg02(key) => Ok(Sg02ThresholdCipher::verify_share(s, ct, key)),
-                    _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                    _ => Err(SchemeError::WrongKeyProvided),
                 },
-                _ => Err(ThresholdCryptoError::WrongScheme),
+                _ => Err(SchemeError::WrongScheme),
             },
 
             Ciphertext::Bz03(ct) => match share {
                 DecryptionShare::Bz03(s) => match pubkey {
                     PublicKey::Bz03(key) => Bz03ThresholdCipher::verify_share(s, ct, key),
-                    _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                    _ => Err(SchemeError::WrongKeyProvided),
                 },
-                _ => Err(ThresholdCryptoError::WrongScheme),
+                _ => Err(SchemeError::WrongScheme),
             },
         }
     }
 
     pub fn partial_decrypt(
         ct: &Ciphertext,
-        privkey: &PrivateKey,
+        privkey: &PrivateKeyShare,
         params: &mut ThresholdCipherParams,
-    ) -> Result<DecryptionShare, ThresholdCryptoError> {
+    ) -> Result<DecryptionShare, SchemeError> {
         match ct {
             Ciphertext::Sg02(ct) => match privkey {
-                PrivateKey::Sg02(key) => Ok(DecryptionShare::Sg02(
+                PrivateKeyShare::Sg02(key) => Ok(DecryptionShare::Sg02(
                     Sg02ThresholdCipher::partial_decrypt(ct, key, params),
                 )),
-                _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Err(SchemeError::WrongKeyProvided),
             },
             Ciphertext::Bz03(ct) => match privkey {
-                PrivateKey::Bz03(key) => Ok(DecryptionShare::Bz03(
+                PrivateKeyShare::Bz03(key) => Ok(DecryptionShare::Bz03(
                     Bz03ThresholdCipher::partial_decrypt(ct, key, params),
                 )),
-                _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Err(SchemeError::WrongKeyProvided),
             },
         }
     }
@@ -408,30 +411,24 @@ impl ThresholdCipher {
     pub fn assemble(
         shares: &Vec<DecryptionShare>,
         ct: &Ciphertext,
-    ) -> Result<Vec<u8>, ThresholdCryptoError> {
+    ) -> Result<Vec<u8>, SchemeError> {
         match ct {
             Ciphertext::Sg02(ct) => {
-                let shares = unwrap_enum_vec!(
-                    shares,
-                    DecryptionShare::Sg02,
-                    ThresholdCryptoError::WrongScheme
-                );
+                let shares =
+                    unwrap_enum_vec!(shares, DecryptionShare::Sg02, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
-                    return Ok(Sg02ThresholdCipher::assemble(&shares.unwrap(), ct));
+                    return Sg02ThresholdCipher::assemble(&shares.unwrap(), ct);
                 }
 
                 Err(shares.err().unwrap())
             }
             Ciphertext::Bz03(ct) => {
-                let shares = unwrap_enum_vec!(
-                    shares,
-                    DecryptionShare::Bz03,
-                    ThresholdCryptoError::WrongScheme
-                );
+                let shares =
+                    unwrap_enum_vec!(shares, DecryptionShare::Bz03, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
-                    return Ok(Bz03ThresholdCipher::assemble(&shares.unwrap(), ct));
+                    return Bz03ThresholdCipher::assemble(&shares.unwrap(), ct);
                 }
 
                 Err(shares.err().unwrap())
@@ -478,14 +475,14 @@ impl DecryptionShare {
 }
 
 impl Serializable for DecryptionShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Sg02(share) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Sg02.get_id())?;
 
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -495,7 +492,7 @@ impl Serializable for DecryptionShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -504,7 +501,7 @@ impl Serializable for DecryptionShare {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Bz03.get_id())?;
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -514,7 +511,7 @@ impl Serializable for DecryptionShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -522,7 +519,7 @@ impl Serializable for DecryptionShare {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
@@ -535,7 +532,7 @@ impl Serializable for DecryptionShare {
                 let share;
                 match scheme.unwrap() {
                     ThresholdScheme::Sg02 => {
-                        let r = Sg02DecryptionShare::deserialize(&bytes);
+                        let r = Sg02DecryptionShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -544,7 +541,7 @@ impl Serializable for DecryptionShare {
                     }
 
                     ThresholdScheme::Bz03 => {
-                        let r = Bz03DecryptionShare::deserialize(&bytes);
+                        let r = Bz03DecryptionShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -561,7 +558,7 @@ impl Serializable for DecryptionShare {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -621,14 +618,14 @@ impl SignatureShare {
 }
 
 impl Serializable for SignatureShare {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Bls04(share) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Bls04.get_id())?;
 
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -638,7 +635,7 @@ impl Serializable for SignatureShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -647,7 +644,7 @@ impl Serializable for SignatureShare {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Frost.get_id())?;
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -657,7 +654,7 @@ impl Serializable for SignatureShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -666,7 +663,7 @@ impl Serializable for SignatureShare {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Sh00.get_id())?;
-                        let bytes = share.serialize();
+                        let bytes = share.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -676,7 +673,7 @@ impl Serializable for SignatureShare {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -684,7 +681,7 @@ impl Serializable for SignatureShare {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
@@ -697,7 +694,7 @@ impl Serializable for SignatureShare {
                 let share;
                 match scheme.unwrap() {
                     ThresholdScheme::Bls04 => {
-                        let r = Bls04SignatureShare::deserialize(&bytes);
+                        let r = Bls04SignatureShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -706,7 +703,7 @@ impl Serializable for SignatureShare {
                     }
 
                     ThresholdScheme::Frost => {
-                        let r = FrostSignatureShare::deserialize(&bytes);
+                        let r = FrostSignatureShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -715,7 +712,7 @@ impl Serializable for SignatureShare {
                     }
 
                     ThresholdScheme::Sh00 => {
-                        let r = Sh00SignatureShare::deserialize(&bytes);
+                        let r = Sh00SignatureShare::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -732,7 +729,7 @@ impl Serializable for SignatureShare {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -748,14 +745,14 @@ pub enum Signature {
 }
 
 impl Serializable for Signature {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Bls04(sig) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Bls04.get_id())?;
 
-                        let bytes = sig.serialize();
+                        let bytes = sig.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -765,7 +762,7 @@ impl Serializable for Signature {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -774,7 +771,7 @@ impl Serializable for Signature {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Frost.get_id())?;
-                        let bytes = sig.serialize();
+                        let bytes = sig.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -784,7 +781,7 @@ impl Serializable for Signature {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -793,7 +790,7 @@ impl Serializable for Signature {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Sh00.get_id())?;
-                        let bytes = sig.serialize();
+                        let bytes = sig.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -803,7 +800,7 @@ impl Serializable for Signature {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -811,7 +808,7 @@ impl Serializable for Signature {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
@@ -824,7 +821,7 @@ impl Serializable for Signature {
                 let sig;
                 match scheme.unwrap() {
                     ThresholdScheme::Bls04 => {
-                        let r = Bls04Signature::deserialize(&bytes);
+                        let r = Bls04Signature::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -833,7 +830,7 @@ impl Serializable for Signature {
                     }
 
                     ThresholdScheme::Frost => {
-                        let r = FrostSignature::deserialize(&bytes);
+                        let r = FrostSignature::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -842,7 +839,7 @@ impl Serializable for Signature {
                     }
 
                     ThresholdScheme::Sh00 => {
-                        let r = Sh00Signature::deserialize(&bytes);
+                        let r = Sh00Signature::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -859,7 +856,7 @@ impl Serializable for Signature {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -870,42 +867,35 @@ impl Serializable for Signature {
 pub struct ThresholdSignature {}
 
 impl ThresholdSignature {
-    pub fn verify(
-        sig: &Signature,
-        pubkey: &PublicKey,
-        msg: &[u8],
-    ) -> Result<bool, ThresholdCryptoError> {
+    pub fn verify(sig: &Signature, pubkey: &PublicKey, msg: &[u8]) -> Result<bool, SchemeError> {
         match sig {
             Signature::Bls04(s) => match pubkey {
                 PublicKey::Bls04(key) => Bls04ThresholdSignature::verify(s, key, msg),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Result::Err(SchemeError::WrongKeyProvided),
             },
 
             Signature::Sh00(s) => match pubkey {
                 PublicKey::Sh00(key) => Ok(Sh00ThresholdSignature::verify(s, key, msg)),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Result::Err(SchemeError::WrongKeyProvided),
             },
-            _ => Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => Err(SchemeError::WrongKeyProvided),
         }
     }
 
     pub fn partial_sign(
         msg: &[u8],
         label: &[u8],
-        secret: &PrivateKey,
+        secret: &PrivateKeyShare,
         params: &mut ThresholdSignatureParams,
-    ) -> Result<SignatureShare, ThresholdCryptoError> {
+    ) -> Result<SignatureShare, SchemeError> {
         match secret {
-            PrivateKey::Bls04(s) => Result::Ok(SignatureShare::Bls04(
+            PrivateKeyShare::Bls04(s) => Result::Ok(SignatureShare::Bls04(
                 Bls04ThresholdSignature::partial_sign(msg, label, s, params),
             )),
-            PrivateKey::Sh00(s) => Result::Ok(SignatureShare::Sh00(
+            PrivateKeyShare::Sh00(s) => Result::Ok(SignatureShare::Sh00(
                 Sh00ThresholdSignature::partial_sign(msg, label, s, params),
-            )), /*
-            PrivateKey::Frost(s) => {
-            Result::Ok(SignatureShare::Frost(FrostThresholdSignature::partial_sign(s, msg, label,s, params)))
-            },*/
-            _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
+            )),
+            _ => Result::Err(SchemeError::WrongKeyProvided),
         }
     }
 
@@ -913,18 +903,18 @@ impl ThresholdSignature {
         share: &SignatureShare,
         msg: &[u8],
         pubkey: &PublicKey,
-    ) -> Result<bool, ThresholdCryptoError> {
+    ) -> Result<bool, SchemeError> {
         match share {
             SignatureShare::Bls04(s) => match pubkey {
                 PublicKey::Bls04(key) => Bls04ThresholdSignature::verify_share(s, msg, key),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Result::Err(SchemeError::WrongKeyProvided),
             },
 
             SignatureShare::Sh00(s) => match pubkey {
                 PublicKey::Sh00(key) => Ok(Sh00ThresholdSignature::verify_share(s, msg, key)),
-                _ => Result::Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Result::Err(SchemeError::WrongKeyProvided),
             },
-            _ => return Err(ThresholdCryptoError::WrongScheme),
+            _ => return Err(SchemeError::WrongScheme),
         }
     }
 
@@ -932,14 +922,11 @@ impl ThresholdSignature {
         shares: &Vec<SignatureShare>,
         msg: &[u8],
         pubkey: &PublicKey,
-    ) -> Result<Signature, ThresholdCryptoError> {
+    ) -> Result<Signature, SchemeError> {
         match pubkey {
             PublicKey::Bls04(key) => {
-                let shares = unwrap_enum_vec!(
-                    shares,
-                    SignatureShare::Bls04,
-                    ThresholdCryptoError::WrongScheme
-                );
+                let shares =
+                    unwrap_enum_vec!(shares, SignatureShare::Bls04, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
                     return Ok(Signature::Bls04(Bls04ThresholdSignature::assemble(
@@ -953,11 +940,8 @@ impl ThresholdSignature {
             }
 
             PublicKey::Sh00(key) => {
-                let shares = unwrap_enum_vec!(
-                    shares,
-                    SignatureShare::Sh00,
-                    ThresholdCryptoError::WrongScheme
-                );
+                let shares =
+                    unwrap_enum_vec!(shares, SignatureShare::Sh00, SchemeError::WrongScheme);
 
                 if shares.is_ok() {
                     return Ok(Signature::Sh00(Sh00ThresholdSignature::assemble(
@@ -969,7 +953,7 @@ impl ThresholdSignature {
 
                 Err(shares.err().unwrap())
             }
-            _ => Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => Err(SchemeError::WrongKeyProvided),
         }
     }
 }
@@ -992,14 +976,14 @@ impl RoundResult {
 }
 
 impl Serializable for RoundResult {
-    fn serialize(&self) -> Result<Vec<u8>, ThresholdCryptoError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         match self {
             Self::Frost(rr) => {
                 let result = asn1::write(|w| {
                     w.write_element(&asn1::SequenceWriter::new(&|w| {
                         w.write_element(&ThresholdScheme::Frost.get_id())?;
 
-                        let bytes = rr.serialize();
+                        let bytes = rr.to_bytes();
                         if bytes.is_err() {
                             return Err(WriteError::AllocationError);
                         }
@@ -1009,7 +993,7 @@ impl Serializable for RoundResult {
                 });
 
                 if result.is_err() {
-                    return Err(ThresholdCryptoError::SerializationFailed);
+                    return Err(SchemeError::SerializationFailed);
                 }
 
                 return Ok(result.unwrap());
@@ -1017,7 +1001,7 @@ impl Serializable for RoundResult {
         }
     }
 
-    fn deserialize(bytes: &Vec<u8>) -> Result<Self, ThresholdCryptoError> {
+    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
@@ -1030,7 +1014,7 @@ impl Serializable for RoundResult {
                 let sig;
                 match scheme.unwrap() {
                     ThresholdScheme::Frost => {
-                        let r = FrostRoundResult::deserialize(&bytes);
+                        let r = FrostRoundResult::from_bytes(&bytes);
                         if r.is_err() {
                             return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
                         }
@@ -1047,7 +1031,7 @@ impl Serializable for RoundResult {
         });
 
         if result.is_err() {
-            return Err(ThresholdCryptoError::DeserializationFailed);
+            return Err(SchemeError::DeserializationFailed);
         }
 
         return Ok(result.unwrap());
@@ -1060,16 +1044,16 @@ pub enum InteractiveThresholdSignature {
 }
 
 impl InteractiveThresholdSignature {
-    pub fn new(key: &PrivateKey) -> Result<Self, ThresholdCryptoError> {
+    pub fn new(key: &PrivateKeyShare) -> Result<Self, SchemeError> {
         match key {
-            PrivateKey::Frost(sk) => {
+            PrivateKeyShare::Frost(sk) => {
                 return Ok(Self::Frost(FrostThresholdSignature::new(&sk)));
             }
-            _ => Err(ThresholdCryptoError::WrongScheme),
+            _ => Err(SchemeError::WrongScheme),
         }
     }
 
-    pub fn set_label(&mut self, label: &[u8]) -> Result<(), ThresholdCryptoError> {
+    pub fn set_label(&mut self, label: &[u8]) -> Result<(), SchemeError> {
         match self {
             Self::Frost(instance) => {
                 instance.set_label(label);
@@ -1078,7 +1062,7 @@ impl InteractiveThresholdSignature {
         }
     }
 
-    pub fn set_msg(&mut self, msg: &[u8]) -> Result<(), ThresholdCryptoError> {
+    pub fn set_msg(&mut self, msg: &[u8]) -> Result<(), SchemeError> {
         match self {
             Self::Frost(instance) => {
                 return instance.set_msg(msg);
@@ -1106,7 +1090,7 @@ impl InteractiveThresholdSignature {
         }
     }
 
-    pub fn update(&mut self, rr: &RoundResult) -> Result<(), ThresholdCryptoError> {
+    pub fn update(&mut self, rr: &RoundResult) -> Result<(), SchemeError> {
         match self {
             Self::Frost(inst) => {
                 if let RoundResult::Frost(round_result) = rr {
@@ -1118,27 +1102,23 @@ impl InteractiveThresholdSignature {
                     return Err(rs.unwrap_err());
                 }
 
-                return Err(ThresholdCryptoError::WrongKeyProvided);
+                return Err(SchemeError::WrongKeyProvided);
             }
         }
     }
 
-    pub fn verify(
-        sig: &Signature,
-        pubkey: &PublicKey,
-        msg: &[u8],
-    ) -> Result<bool, ThresholdCryptoError> {
+    pub fn verify(sig: &Signature, pubkey: &PublicKey, msg: &[u8]) -> Result<bool, SchemeError> {
         match sig {
             Signature::Frost(s) => match pubkey {
                 PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
-                _ => Err(ThresholdCryptoError::WrongKeyProvided),
+                _ => Err(SchemeError::WrongKeyProvided),
             },
 
-            _ => Err(ThresholdCryptoError::WrongKeyProvided),
+            _ => Err(SchemeError::WrongKeyProvided),
         }
     }
 
-    pub fn do_round(&mut self) -> Result<RoundResult, ThresholdCryptoError> {
+    pub fn do_round(&mut self) -> Result<RoundResult, SchemeError> {
         match self {
             Self::Frost(instance) => {
                 let res = instance.do_round();
@@ -1151,7 +1131,7 @@ impl InteractiveThresholdSignature {
         }
     }
 
-    pub fn get_signature(&self) -> Result<Signature, ThresholdCryptoError> {
+    pub fn get_signature(&self) -> Result<Signature, SchemeError> {
         match self {
             Self::Frost(instance) => {
                 let res = instance.get_signature();
@@ -1181,7 +1161,7 @@ impl ThresholdSignatureParams {
 }
 
 #[derive(Clone, Debug)]
-pub enum ThresholdCryptoError {
+pub enum SchemeError {
     WrongGroup,
     WrongScheme,
     WrongKeyProvided,
@@ -1206,11 +1186,13 @@ pub enum ThresholdCryptoError {
     IOError,
     InvalidParams,
     Aborted(String),
+    KeyNotFound,
+    MacFailure,
 }
 
-impl Error for ThresholdCryptoError {}
+impl Error for SchemeError {}
 
-impl Display for ThresholdCryptoError {
+impl Display for SchemeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::WrongGroup => write!(f, "Wrong group"),
@@ -1237,6 +1219,8 @@ impl Display for ThresholdCryptoError {
             Self::IOError => write!(f, "I/O error"),
             Self::InvalidParams => write!(f, "Invalid parameters"),
             Self::Aborted(s) => write!(f, "Protocol aborted: {}", s),
+            Self::MacFailure => write!(f, "MAC Failure"),
+            Self::KeyNotFound => write!(f, "Key not found"),
         }
     }
 }

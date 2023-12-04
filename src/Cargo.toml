@@ -22,6 +22,7 @@ theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
 theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
 theta_network = {path = "network", version = "0.1.0"}
+terminal-menu = "2.0.6"
 thetacrypt_blockchain_stub = {path = "thetacrypt_blockchain_stub", version = "0.1.0"}
 theta_events = {path = "events", version = "0.1.0"}
 
@@ -63,7 +64,3 @@ path = "bin/proxy_server.rs"
 [[bin]]
 name = "server"
 path = "bin/server.rs"
-
-[[bin]]
-name = "theta_blockchain_stub"
-path = "bin/theta_blockchain_stub.rs"

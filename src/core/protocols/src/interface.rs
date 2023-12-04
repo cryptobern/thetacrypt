@@ -1,17 +1,17 @@
-use theta_schemes::interface::ThresholdCryptoError;
+use theta_schemes::interface::SchemeError;
 use tonic::async_trait;
 
 #[derive(Clone, Debug)]
 pub enum ProtocolError {
-    SchemeError(ThresholdCryptoError),
+    SchemeError(SchemeError),
     InvalidCiphertext,
     InstanceNotFound,
     InternalError,
-    NotFinished
+    NotFinished,
 }
 
-impl From<ThresholdCryptoError> for ProtocolError{
-    fn from(tc_error: ThresholdCryptoError) -> Self {
+impl From<SchemeError> for ProtocolError {
+    fn from(tc_error: SchemeError) -> Self {
         ProtocolError::SchemeError(tc_error)
     }
 }

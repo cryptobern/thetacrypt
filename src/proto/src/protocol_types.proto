@@ -24,19 +24,11 @@ service ThresholdCryptoLibrary {
 }
 
 // ---------- Keys ----------
-message PublicKeyEntry {
-    string id = 1;
-    scheme_types.ThresholdScheme scheme = 2;
-    scheme_types.Group group = 3;
-    // bool is_default = 3;
-    bytes key = 4;
-}
-
 message KeyRequest {
 }
 
 message KeyResponse {
-    repeated PublicKeyEntry keys = 1;
+    repeated scheme_types.PublicKeyEntry keys = 1;
 }
 
 

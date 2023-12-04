@@ -1,4 +1,4 @@
-use crate::interface::ThresholdCryptoError;
+use crate::interface::SchemeError;
 use crate::{
     dl_schemes::{
         bigint::BigImpl,
@@ -7,14 +7,16 @@ use crate::{
     group::GroupElement,
     group_generators,
 };
-use theta_proto::scheme_types::{Group, ThresholdScheme};
+use theta_proto::scheme_types::PublicKeyEntry;
+use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
 
 pub trait SchemeDetails {
     fn get_id(&self) -> u8;
     fn from_id(id: u8) -> Option<ThresholdScheme>;
-    fn parse_string(scheme: &str) -> Result<ThresholdScheme, ThresholdCryptoError>;
+    fn parse_string(scheme: &str) -> Result<ThresholdScheme, SchemeError>;
     fn is_interactive(&self) -> bool;
     fn check_valid_group(&self, group: Group) -> bool;
+    fn get_operation(&self) -> ThresholdOperation;
 }
 
 impl SchemeDetails for ThresholdScheme {
@@ -26,7 +28,7 @@ impl SchemeDetails for ThresholdScheme {
         ThresholdScheme::from_i32(id as i32)
     }
 
-    fn parse_string(scheme: &str) -> Result<Self, ThresholdCryptoError> {
+    fn parse_string(scheme: &str) -> Result<Self, SchemeError> {
         match scheme {
             "Bz03" => Ok(Self::Bz03),
             "Sg02" => Ok(Self::Sg02),
@@ -34,7 +36,7 @@ impl SchemeDetails for ThresholdScheme {
             "Cks05" => Ok(Self::Cks05),
             "Frost" => Ok(Self::Frost),
             "Sh00" => Ok(Self::Sh00),
-            _ => Err(ThresholdCryptoError::UnknownScheme),
+            _ => Err(SchemeError::UnknownScheme),
         }
     }
 
@@ -50,18 +52,27 @@ impl SchemeDetails for ThresholdScheme {
             Self::Bls04 => group.is_dl() && group.supports_pairings(),
             Self::Bz03 => group.is_dl() && group.supports_pairings(),
             Self::Cks05 => group.is_dl(),
-            Self::Frost => group.is_dl(),
+            Self::Frost => [Group::Ed25519].contains(&group),
             Self::Sg02 => group.is_dl(),
             Self::Sh00 => !group.is_dl(),
+        }
+    }
+
+    fn get_operation(&self) -> ThresholdOperation {
+        match self {
+            Self::Bz03 => ThresholdOperation::Encryption,
+            Self::Sg02 => ThresholdOperation::Encryption,
+            Self::Bls04 => ThresholdOperation::Signature,
+            Self::Cks05 => ThresholdOperation::Coin,
+            Self::Frost => ThresholdOperation::Signature,
+            Self::Sh00 => ThresholdOperation::Signature,
         }
     }
 }
 
 pub trait GroupDetails {
     fn is_dl(&self) -> bool;
-    fn get_code(&self) -> u8;
-    fn from_code(code: u8) -> Result<Group, ThresholdCryptoError>;
-    fn parse_string(name: &str) -> Result<Group, ThresholdCryptoError>;
+    fn parse_string(name: &str) -> Result<Group, SchemeError>;
     fn get_order(&self) -> BigImpl;
     fn supports_pairings(&self) -> bool;
     fn get_alternate_generator(&self) -> GroupElement;
@@ -81,33 +92,7 @@ impl GroupDetails for Group {
         }
     }
 
-    /* returns group identifier */
-    fn get_code(&self) -> u8 {
-        match self {
-            Self::Bls12381 => 0,
-            Self::Bn254 => 1,
-            Self::Ed25519 => 2,
-            Self::Rsa512 => 3,
-            Self::Rsa1024 => 4,
-            Self::Rsa2048 => 5,
-            Self::Rsa4096 => 6,
-        }
-    }
-
-    fn from_code(code: u8) -> Result<Self, ThresholdCryptoError> {
-        match code {
-            0 => Ok(Self::Bls12381),
-            1 => Ok(Self::Bn254),
-            2 => Ok(Self::Ed25519),
-            3 => Ok(Self::Rsa512),
-            4 => Ok(Self::Rsa1024),
-            5 => Ok(Self::Rsa2048),
-            6 => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroup),
-        }
-    }
-
-    fn parse_string(name: &str) -> Result<Self, ThresholdCryptoError> {
+    fn parse_string(name: &str) -> Result<Self, SchemeError> {
         match name {
             "bls12381" => Ok(Self::Bls12381),
             "bn254" => Ok(Self::Bn254),
@@ -116,7 +101,7 @@ impl GroupDetails for Group {
             "rsa1024" => Ok(Self::Rsa1024),
             "rsa2048" => Ok(Self::Rsa2048),
             "rsa4096" => Ok(Self::Rsa4096),
-            _ => Err(ThresholdCryptoError::UnknownGroupString),
+            _ => Err(SchemeError::UnknownGroupString),
         }
     }
 
@@ -159,5 +144,29 @@ impl GroupDetails for Group {
             ),
             _ => panic!("no alternate generator available"),
         }
+    }
+}
+
+pub trait PublicKeyEntryDetails {
+    fn to_string(&self) -> String;
+}
+
+impl PublicKeyEntryDetails for PublicKeyEntry {
+    fn to_string(&self) -> String {
+        let scheme = ThresholdScheme::from_i32(self.scheme);
+        let group = Group::from_i32(self.group);
+        let details;
+
+        if scheme.is_none() || group.is_none() {
+            details = String::from("[invalid]");
+        } else {
+            details = format!(
+                "[{}/{}]",
+                scheme.unwrap().as_str_name(),
+                group.unwrap().as_str_name()
+            );
+        }
+
+        format!("{} {}\n", &self.id, details)
     }
 }

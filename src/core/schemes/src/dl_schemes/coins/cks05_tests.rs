@@ -1,8 +1,9 @@
 use super::cks05::*;
+use crate::keys::key_generator::KeyGenerator;
 use crate::{
     dl_schemes::dl_groups::bls12381::Bls12381,
     interface::{CoinShare, Serializable, ThresholdCoin},
-    keys::{KeyGenerator, PublicKey},
+    keys::keys::PublicKey,
     rand::{RngAlgorithm, RNG},
     util::printbinary,
 };
@@ -36,8 +37,8 @@ fn test_public_key_serialization() {
     let public_key = private_keys[0].get_public_key();
     assert!(private_keys.len() == 5);
 
-    let public_key_encoded = public_key.serialize().unwrap();
-    let public_key_decoded = PublicKey::deserialize(&public_key_encoded).unwrap();
+    let public_key_encoded = public_key.to_bytes().unwrap();
+    let public_key_decoded = PublicKey::from_bytes(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
 }
 
@@ -77,8 +78,8 @@ fn test_share_serialization() {
         ThresholdCoin::create_share(name, &private_keys[0], &mut RNG::new(RngAlgorithm::OsRng))
             .unwrap();
 
-    let share_encoded = share.serialize().unwrap();
-    let share_decoded = CoinShare::deserialize(&share_encoded).unwrap();
+    let share_encoded = share.to_bytes().unwrap();
+    let share_decoded = CoinShare::from_bytes(&share_encoded).unwrap();
 
     assert!(share.eq(&share_decoded));
 }

@@ -1,8 +1,12 @@
 use clap::Parser;
 use log::{error, info};
-use std::process::exit;
+use log4rs;
+use std::{path::PathBuf, process::exit};
 use theta_events::event::emitter::{self, start_null_emitter};
-use theta_orchestration::keychain::KeyChain;
+use theta_orchestration::{
+    instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
+    key_manager::key_manager::{KeyManager, KeyManagerCommand},
+};
 use theta_service::rpc_request_handler;
 
 use utils::server::{cli::ServerCli, types::ServerConfig};
@@ -34,32 +38,28 @@ async fn main() {
         }
     };
 
-    // Here we create an empty keychain and initialize it only if a key file has been provided
-    let mut keychain = KeyChain::new();
-    if server_cli.key_file.is_some() {
-        keychain = match KeyChain::from_config_file(&server_cli.key_file.clone().unwrap()) {
-            Ok(key_chain) => key_chain,
-            Err(e) => {
-                error!("{}", e);
-                exit(1);
-            }
-        };
-
-        info!(
-            "Loading keychain from file: {}",
-            server_cli
-                .key_file
-                .unwrap()
-                .to_str()
-                .unwrap_or("Unable to print path, was not valid UTF-8")
-        );
+    if server_cli.key_file.is_none() {
+        error!("Please specify the keychain location");
+        exit(-1);
     }
 
-    start_server(&cfg, keychain).await;
+    let keychain_path = server_cli.key_file.unwrap();
+
+    info!("Keychain location: {}", keychain_path.display());
+
+    start_server(&cfg, keychain_path).await;
+
+    info!("Server is running");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Received interrupt signal, shutting down");
+            return;
+        }
+    }
 }
 
 /// Start main event loop of server.
-pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
+pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     // Build local-net config required by provided static-network implementation.
     let net_cfg = static_net::deserialize::Config {
         ids: config.peer_ids(),
@@ -98,6 +98,28 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         .await;
     });
 
+    // Channel to send commands to the KeyManager.
+    // Used by the InstanceManager and RpcRequestHandler
+    // The channel is owned by the server and must never be closed.
+    let (key_manager_command_sender, key_manager_command_receiver) =
+        tokio::sync::mpsc::channel::<KeyManagerCommand>(32);
+
+    info!("Initiating the key manager.");
+    tokio::spawn(async move {
+        let mut sm = KeyManager::new(keychain_path, key_manager_command_receiver);
+        sm.run().await;
+    });
+
+    /* Starting instance manager */
+    // Channel to send commands to the InstanceManager.
+    // The sender end is owned by the server and must never be closed.
+    let (instance_manager_sender, instance_manager_receiver) =
+        tokio::sync::mpsc::channel::<InstanceManagerCommand>(32);
+
+    // Spawn InstanceManager
+    // Takes ownership of instance_manager_receiver, incoming_message_receiver, state_command_sender
+    info!("Initiating InstanceManager.");
+
     let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
         Some(f) => {
             info!(
@@ -115,6 +137,22 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         }
     };
 
+    let inst_cmd_sender = instance_manager_sender.clone();
+    let key_mgr_sender = key_manager_command_sender.clone();
+
+    let emitter_tx2 = emitter_tx.clone();
+    tokio::spawn(async move {
+        let mut mfw = InstanceManager::new(
+            key_mgr_sender,
+            instance_manager_receiver,
+            inst_cmd_sender,
+            prot_to_net_sender,
+            net_to_prot_receiver,
+            emitter_tx,
+        );
+        mfw.run().await;
+    });
+
     let my_listen_address = config.listen_address.clone();
     let my_rpc_port = match config.my_rpc_port() {
         Ok(port) => port,
@@ -128,10 +166,9 @@ pub async fn start_server(config: &ServerConfig, keychain: KeyChain) {
         rpc_request_handler::init(
             my_listen_address,
             my_rpc_port,
-            keychain,
-            net_to_prot_receiver,
-            prot_to_net_sender,
-            emitter_tx,
+            instance_manager_sender,
+            key_manager_command_sender,
+            emitter_tx2,
         )
         .await
     });

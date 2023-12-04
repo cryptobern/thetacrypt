@@ -56,6 +56,7 @@ fn main() {
             confgen_cli.listen_address,
             confgen_cli.outdir,
             confgen_cli.stub,
+            confgen_cli.event_file,
         ) {
             Ok(_) => {
                 info!("Config generation successful, all config files saved to disk");
@@ -232,6 +233,7 @@ fn run_integration(
     listen_address: String,
     outdir: PathBuf,
     stub: bool,
+    event_file: Option<PathBuf>,
 ) -> Result<(), String> {
     info!("Generating configuration structs");
     let peers: Vec<Peer> = ips
@@ -279,6 +281,7 @@ fn run_integration(
                 p2p_port,
                 rpc_port,
                 ProxyNode { ip: ip.to_string() },
+                event_file.clone(),
             )
             .unwrap()
         })

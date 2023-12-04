@@ -7,7 +7,7 @@ use theta_proto::scheme_types::Group;
 use crate::dl_schemes::bigint::BigImpl;
 use crate::{
     dl_schemes::dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
-    interface::ThresholdCryptoError,
+    interface::SchemeError,
     rand::RNG,
     scheme_types_impl::GroupDetails,
 };
@@ -233,7 +233,7 @@ impl GroupElement {
         y: &GroupElement,
         z: &GroupElement,
         w: &GroupElement,
-    ) -> Result<bool, ThresholdCryptoError> {
+    ) -> Result<bool, SchemeError> {
         if !x.get_group().supports_pairings() {
             panic!("group does not support pairings");
         }

@@ -1,26 +1,25 @@
 use std::io::Write;
-use std::path::PathBuf;
 use std::process::exit;
 use std::{io, thread, time};
 
 use clap::Parser;
 use env_logger::init;
 use hex::encode;
-use log::{error, info};
+use log::error;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
+use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 use theta_schemes::interface::Serializable;
 use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
-use theta_schemes::keys::PublicKey;
-use theta_schemes::scheme_types_impl::{GroupDetails, SchemeDetails};
+use theta_schemes::keys::key_chain::KeyChain;
+use theta_schemes::keys::keys::PublicKey;
 use theta_schemes::util::printbinary;
 
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
-use theta_proto::protocol_types::{CoinRequest, DecryptRequest, SignRequest, StatusRequest};
-use theta_proto::scheme_types::{Group, ThresholdScheme};
-
-use theta_orchestration::keychain::KeyChain;
+use theta_proto::protocol_types::{
+    CoinRequest, DecryptRequest, KeyRequest, SignRequest, StatusRequest,
+};
 
 use utils::client::cli::ClientCli;
 use utils::client::types::ClientConfig;
@@ -30,11 +29,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init();
 
     let version = env!("CARGO_PKG_VERSION");
-    info!("Starting server, version: {}", version);
+    println!("Starting server, version: {}", version);
 
     let client_cli = ClientCli::parse();
+    let mut keychain = KeyChain::new();
 
-    info!(
+    println!(
         "Loading configuration from file: {}",
         client_cli
             .config_file
@@ -49,89 +49,108 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let mut running = true;
-    while running {
-        _ = std::process::Command::new("clear")
-            .status()
-            .unwrap()
-            .success();
+    println!("Connecting to network");
+    let mut connections = connect_to_all_local(&config).await;
+    let response = connections[0].get_public_keys(KeyRequest {}).await;
+    if response.is_err() {
+        println!("Error fetching public keys!");
+        exit(1);
+    }
 
-        println!("\n--------------");
-        println!("Thetacrypt Demo");
-        println!("---------------");
-        println!("0 - Quit");
-        println!("1 - Threshold Decryption");
-        println!("2 - Threshold Signature");
-        println!("3 - Threshold Coin");
-        println!("---------------");
-        print!("Your choice: ");
+    let response = response.unwrap();
+    let keys = &response.get_ref().keys;
+    if keychain.import_public_keys(keys).is_ok() {
+        println!("Successfully imported public keys from server.");
+    }
 
-        io::stdout().flush().expect("error flushing stdout");
+    // clear screen
+    print!("\x1B[2J\x1B[1;1H");
 
-        let mut choice = String::new();
+    println!("\n--------------");
+    println!("  ThetaCrypt");
+    println!("--------------");
 
-        io::stdin()
-            .read_line(&mut choice)
-            .expect("Failed to read line");
-        let x: i32 = choice.trim().parse().expect("Input not an integer");
+    let mut main_menu_items = Vec::new();
+    if keychain.get_encryption_keys().len() > 0 {
+        main_menu_items.push(button("Threshold Decryption"))
+    }
 
-        match x {
-            0 => {
-                running = false; //return
-            }
-            1 => {
-                let result = threshold_decryption(config.clone()).await;
-                if result.is_err() {
-                    println!(
-                        "Error while running decryption protocol: {}",
-                        result.unwrap_err().to_string()
-                    );
-                }
+    if keychain.get_signing_keys().len() > 0 {
+        main_menu_items.push(button("Threshold Signature"))
+    }
 
-                println!("---------------\n\n");
-            }
-            2 => {
-                let result = threshold_signature(config.clone()).await;
-                if result.is_err() {
-                    println!(
-                        "Error while running signature protocol: {}",
-                        result.unwrap_err().to_string()
-                    );
-                }
+    if keychain.get_coin_keys().len() > 0 {
+        main_menu_items.push(button("Threshold Coin"))
+    }
 
-                println!("---------------\n\n");
-            }
-            3 => {
-                let result = threshold_coin(config.clone()).await;
-                if result.is_err() {
-                    println!(
-                        "Error while running coin protocol: {}",
-                        result.unwrap_err().to_string()
-                    );
-                }
+    main_menu_items.push(button("Exit"));
 
-                println!("---------------\n\n");
-            }
-            _ => {
-                println!("Invalid input");
-            }
+    let main_menu = menu(main_menu_items);
+
+    run(&main_menu);
+    {
+        let mm = mut_menu(&main_menu);
+
+        if mm.selected_item_name() == "Exit" {
+            exit(0);
         }
 
-        print!("Press [RETURN] to continue...");
-        io::stdout().flush().expect("error flushing stdout");
-        io::stdin().read_line(&mut choice)?;
+        let keys;
+
+        match mm.selected_item_name() {
+            "Threshold Decryption" => {
+                keys = keychain.get_encryption_keys();
+            }
+            "Threshold Signature" => {
+                keys = keychain.get_signing_keys();
+            }
+            "Threshold Coin" => {
+                keys = keychain.get_coin_keys();
+            }
+            _ => unimplemented!("not implemented"),
+        }
+
+        let mut key_menu_items: Vec<TerminalMenuItem> =
+            keys.iter().map(|x| button(x.to_string())).collect();
+        key_menu_items.insert(0, label("Select Key:"));
+        let key_menu = menu(key_menu_items);
+
+        run(&key_menu);
+        {
+            let km = mut_menu(&key_menu);
+            let key = keys
+                .iter()
+                .find(|k| km.selected_item_name().contains(&k.id));
+
+            if key.is_none() {
+                println!("Error importing key");
+                exit(-1);
+            }
+
+            let key = &(key.unwrap().pk);
+
+            match mm.selected_item_name() {
+                "Threshold Decryption" => {
+                    let _ = threshold_decryption(&config, key).await;
+                }
+                "Threshold Signature" => {
+                    let _ = threshold_signature(&config, key).await;
+                }
+                "Threshold Coin" => {
+                    let _ = threshold_coin(&config, key).await;
+                }
+                _ => unimplemented!("not implemented"),
+            }
+        }
     }
 
     Ok(())
 }
 
-async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
-    let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
-        .sk
-        .get_public_key();
-
+async fn threshold_decryption(
+    config: &ClientConfig,
+    pk: &PublicKey,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter message to encrypt: ");
@@ -140,19 +159,19 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
-    let (request, _ct) = create_decryption_request(&pk, input);
+    let (request, _ct) = create_decryption_request(pk, input);
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
 
     let mut i = 0;
     let mut instance_id = String::new();
     for conn in connections.iter_mut() {
-        println!(">> Sending decryption request to server {i}.");
+        print!("\n[Server {i}]: ");
         let result = conn.decrypt(request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!(">> OK");
+            println!("OK");
         } else {
-            println!("! ERR: {}", result.unwrap_err().to_string());
+            println!("ERR: {}", result.unwrap_err().to_string());
         }
 
         i += 1;
@@ -180,13 +199,10 @@ async fn threshold_decryption(config: ClientConfig) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
-    let _pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Frost, Group::Ed25519)?
-        .sk
-        .get_public_key();
-
+async fn threshold_signature(
+    config: &ClientConfig,
+    pk: &PublicKey,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter message to sign: ");
@@ -195,19 +211,19 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
 
-    let sign_request = create_signing_request(input.into_bytes());
+    let sign_request = create_signing_request(pk, input.into_bytes());
 
     let mut i = 0;
     let mut instance_id = String::new();
 
     for conn in connections.iter_mut() {
-        println!(">> Sending sign request to server {i}.");
+        print!("[Server {i}]: ");
         let result = conn.sign(sign_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!(">> OK");
+            println!("OK");
         } else {
-            println!("! ERR: {}", result.unwrap_err().to_string());
+            println!("ERR: {}", result.unwrap_err().to_string());
         }
 
         i += 1;
@@ -231,12 +247,10 @@ async fn threshold_signature(config: ClientConfig) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_config_file(&PathBuf::from("conf/keys_1.json"))?;
-    let pk = key_chain_1
-        .get_key_by_scheme_and_group(ThresholdScheme::Cks05, Group::Bn254)?
-        .sk
-        .get_public_key();
+async fn threshold_coin(
+    config: &ClientConfig,
+    pk: &PublicKey,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut connections = connect_to_all_local(config).await;
 
     print!(">> Enter name of coin: ");
@@ -250,19 +264,17 @@ async fn threshold_coin(config: ClientConfig) -> Result<(), Box<dyn std::error::
     let mut i = 0;
     let mut instance_id = String::new();
     for conn in connections.iter_mut() {
-        println!(">> Sending coin flip request to server {i}.");
+        print!("[Server {i}]: ");
         let result = conn.flip_coin(coin_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!(">> OK");
+            println!("OK");
         } else {
-            println!("! ERR: {}", result.unwrap_err().to_string());
+            println!("ERR: {}", result.unwrap_err().message());
         }
 
         i += 1;
     }
-
-    println!("Started instance '{}'", &instance_id);
 
     let req = StatusRequest { instance_id };
     let mut status = connections[0].get_status(req.clone()).await?;
@@ -296,23 +308,23 @@ fn create_decryption_request(pk: &PublicKey, msg_string: String) -> (DecryptRequ
     let ciphertext = ThresholdCipher::encrypt(&msg, &label, pk, &mut params).unwrap();
 
     let req = DecryptRequest {
-        ciphertext: ciphertext.serialize().unwrap(),
-        key_id: None,
+        ciphertext: ciphertext.to_bytes().unwrap(),
+        key_id: Some(pk.get_key_id().to_string()),
     };
     (req, ciphertext)
 }
 
-fn create_coin_flip_request(_pk: &PublicKey, name: String) -> CoinRequest {
+fn create_coin_flip_request(pk: &PublicKey, name: String) -> CoinRequest {
     let req = CoinRequest {
         name: name.into_bytes(),
         key_id: None,
-        scheme: ThresholdScheme::Cks05.get_id() as i32,
-        group: Group::Bn254.get_code() as i32,
+        scheme: pk.get_scheme() as i32,
+        group: *pk.get_group() as i32,
     };
     req
 }
 
-fn create_signing_request(message: Vec<u8>) -> SignRequest {
+fn create_signing_request(pk: &PublicKey, message: Vec<u8>) -> SignRequest {
     let s: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(8)
@@ -323,15 +335,15 @@ fn create_signing_request(message: Vec<u8>) -> SignRequest {
         message,
         label,
         key_id: None,
-        scheme: ThresholdScheme::Frost.get_id() as i32,
-        group: Group::Ed25519.get_code() as i32,
+        scheme: pk.get_scheme() as i32,
+        group: *pk.get_group() as i32,
     };
 
     req
 }
 
 async fn connect_to_all_local(
-    config: ClientConfig,
+    config: &ClientConfig,
 ) -> Vec<ThresholdCryptoLibraryClient<tonic::transport::Channel>> {
     let mut connections = Vec::new();
     for peer in config.peers.iter() {
@@ -344,6 +356,6 @@ async fn connect_to_all_local(
                 .unwrap(),
         );
     }
-    println!(">> Established connection to network.");
+    println!("Established connection to network.");
     connections
 }

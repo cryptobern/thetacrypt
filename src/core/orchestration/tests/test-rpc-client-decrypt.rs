@@ -6,17 +6,18 @@ use std::{
 use tonic::Code;
 
 use mcore::hash256::HASH256;
-use theta_orchestration::keychain::KeyChain;
-use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
-use theta_schemes::{interface::Serializable, keys::PublicKey};
+use theta_schemes::{interface::Serializable, keys::key_chain::KeyChain};
+use theta_schemes::{
+    interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
+    keys::keys::PublicKey,
+};
 
 use theta_proto::protocol_types::DecryptRequest;
 use theta_proto::{
     protocol_types::{
-        threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest, PublicKeyEntry,
-        StatusRequest,
+        threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest, StatusRequest,
     },
-    scheme_types::{Group, ThresholdScheme},
+    scheme_types::{Group, PublicKeyEntry, ThresholdScheme},
 };
 
 // test_local_servers() tests basic communication for nodes that run on localhost.
@@ -28,8 +29,8 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
     let (request, _) = create_decryption_request(1, &pk);
     let (request2, _) = create_decryption_request(2, &pk);
 
@@ -140,8 +141,8 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
     let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
     let (request, _) = create_decryption_request(10, &pk);
     let (request2, _) = create_decryption_request(11, &pk);
 
@@ -195,8 +196,8 @@ async fn test_servers_dockerized() -> Result<(), Box<dyn std::error::Error>> {
     let key_chain: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
-        .sk
-        .get_public_key();
+        .pk
+        .clone();
     let (request, ciphertext) = create_decryption_request(20, &pk);
     let (request2, ciphertext2) = create_decryption_request(21, &pk);
 
@@ -303,7 +304,7 @@ async fn abci_app_emulation() -> Result<(), Box<dyn std::error::Error>> {
         ">> Using public key with id {:?} to encrypt.",
         advertised_key_entry.id
     );
-    let public_key = PublicKey::deserialize(&advertised_key_entry.key).unwrap();
+    let public_key = PublicKey::from_bytes(&advertised_key_entry.key).unwrap();
     // todo: Do the following over an Rpc endpoint
     let (request, _) = create_decryption_request(30, (&public_key));
 
@@ -372,7 +373,7 @@ async fn connect_to_all_dockerized() -> Vec<ThresholdCryptoLibraryClient<tonic::
 fn create_decryption_request(sn: u32, pk: &PublicKey) -> (DecryptRequest, Ciphertext) {
     let ciphertext = create_ciphertext(sn, pk);
     let req = DecryptRequest {
-        ciphertext: ciphertext.serialize().unwrap(),
+        ciphertext: ciphertext.to_bytes().unwrap(),
         key_id: None,
     };
     (req, ciphertext)

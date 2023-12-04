@@ -5,7 +5,10 @@ use crate::{
         Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
         ThresholdScheme,
     },
-    keys::{KeyGenerator, PrivateKey, PublicKey},
+    keys::{
+        key_generator::KeyGenerator,
+        keys::{PrivateKeyShare, PublicKey},
+    },
     rand::{RngAlgorithm, RNG},
 };
 
@@ -23,8 +26,8 @@ fn test_public_key_serialization() {
     let public_key = private_keys[0].get_public_key();
     assert!(private_keys.len() == 5);
 
-    let public_key_encoded = public_key.serialize().unwrap();
-    let public_key_decoded = PublicKey::deserialize(&public_key_encoded).unwrap();
+    let public_key_encoded = public_key.to_bytes().unwrap();
+    let public_key_decoded = PublicKey::from_bytes(&public_key_encoded).unwrap();
     assert!(public_key.eq(&public_key_decoded));
 }
 
@@ -79,8 +82,8 @@ fn test_secret_key_serialization() {
     )
     .unwrap();
     let secret_key = private_keys[0].clone();
-    let secret_key_encoded = secret_key.serialize().unwrap();
-    let secret_key_decoded = PrivateKey::deserialize(&secret_key_encoded).unwrap();
+    let secret_key_encoded = secret_key.to_bytes().unwrap();
+    let secret_key_decoded = PrivateKeyShare::from_bytes(&secret_key_encoded).unwrap();
     assert!(secret_key.eq(&secret_key_decoded));
 }
 
@@ -100,8 +103,8 @@ fn test_ciphertext_serialization() {
     let label = b"Label";
     let ciphertext =
         ThresholdCipher::encrypt(&msg, label, &keys[0].get_public_key(), &mut params).unwrap();
-    let ciphertext_encoded = ciphertext.serialize().unwrap();
-    let ciphertext_decoded = Ciphertext::deserialize(&ciphertext_encoded).unwrap();
+    let ciphertext_encoded = ciphertext.to_bytes().unwrap();
+    let ciphertext_decoded = Ciphertext::from_bytes(&ciphertext_encoded).unwrap();
     assert!(ciphertext.eq(&ciphertext_decoded));
 }
 
@@ -157,8 +160,8 @@ fn test_share_serialization() {
     let ciphertext =
         ThresholdCipher::encrypt(&msg, label, &keys[0].get_public_key(), &mut params).unwrap();
     let share = ThresholdCipher::partial_decrypt(&ciphertext, &keys[0], &mut params).unwrap();
-    let share_encoded = share.serialize().unwrap();
-    let share_decoded = DecryptionShare::deserialize(&share_encoded).unwrap();
+    let share_encoded = share.to_bytes().unwrap();
+    let share_decoded = DecryptionShare::from_bytes(&share_encoded).unwrap();
     assert!(share.eq(&share_decoded));
 }
 

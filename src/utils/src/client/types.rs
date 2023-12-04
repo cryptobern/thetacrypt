@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -6,7 +5,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-/// PublicInfo to reach the server and its RPC endpoint. 
+/// PublicInfo to reach the server and its RPC endpoint.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PeerPublicInfo {
     pub id: u32,
@@ -16,12 +15,11 @@ pub struct PeerPublicInfo {
 
 /// Configuration of the server binary.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClientConfig{
-    pub peers: Vec<PeerPublicInfo>
+pub struct ClientConfig {
+    pub peers: Vec<PeerPublicInfo>,
 }
 
 impl ClientConfig {
-
     /// Read a server's configuration from a JSON encoding on disk.
     pub fn from_file(file: &PathBuf) -> Result<ClientConfig, String> {
         let data = match fs::read_to_string(file) {
@@ -47,7 +45,6 @@ impl ClientConfig {
 
     /// Initialize a new config struct. Performs a sanity check of passed values.
     pub fn new(peers: Vec<PeerPublicInfo>) -> Result<ClientConfig, String> {
-
         for peer in &peers {
             match IpAddr::from_str(&peer.ip) {
                 Ok(_) => {}
@@ -55,9 +52,7 @@ impl ClientConfig {
             }
         }
 
-        Ok(ClientConfig {
-            peers,
-        })
+        Ok(ClientConfig { peers })
     }
 
     /// Get list of all peers' IDs, sorted by the order in which they appear in the config file.
@@ -75,5 +70,4 @@ impl ClientConfig {
     pub fn peer_rpc_ports(&self) -> Vec<u16> {
         self.peers.iter().map(|p| p.rpc_port).collect()
     }
-
 }

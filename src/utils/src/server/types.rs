@@ -44,6 +44,7 @@ pub struct ServerProxyConfig {
     pub rpc_port: u16,
     /// Proxy node for forwarding the messages into a blockchian platform
     pub proxy_node: ProxyNode,
+    pub event_file: Option<PathBuf>,
 }
 
 impl ServerProxyConfig {
@@ -73,6 +74,7 @@ impl ServerProxyConfig {
             cfg.p2p_port,
             cfg.rpc_port,
             cfg.proxy_node,
+            cfg.event_file,
         )
     }
 
@@ -83,6 +85,7 @@ impl ServerProxyConfig {
         p2p_port: u16,
         rpc_port: u16,
         proxy_node: ProxyNode,
+        event_file: Option<PathBuf>,
     ) -> Result<ServerProxyConfig, String> {
         match IpAddr::from_str(&listen_address) {
             Ok(_) => {}
@@ -100,6 +103,7 @@ impl ServerProxyConfig {
             p2p_port,
             rpc_port,
             proxy_node,
+            event_file,
         })
     }
 
