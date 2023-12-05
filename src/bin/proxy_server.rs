@@ -7,18 +7,21 @@ use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
 };
+use log4rs;
 
 use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerProxyConfig};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
 
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting server, version: {}", version);
 
     let server_cli = ServerCli::parse();
+
+    log4rs::init_file(server_cli.log4rs_config, Default::default())
+    .expect("Unable to access supplied log4rs configuration file");
 
     info!(
         "Loading configuration from file: {}",
@@ -44,15 +47,11 @@ async fn main() {
 
     info!("Keychain location: {}", keychain_path.display());
 
+    info!("Server is running");
+
     start_server(&cfg, keychain_path).await;
 
-    info!("Server is running");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received interrupt signal, shutting down");
-            return;
-        }
-    }
+
 }
 
 /// Start main event loop of server.
@@ -62,6 +61,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain_path: PathBuf) {
         listen_addr: config.get_listen_addr(),
         p2p_port: config.my_p2p_port(),
         proxy_addr: config.proxy_node_ip(),
+        proxy_port: config.proxy_node_port(),
     };
 
     // Network to protocol communication

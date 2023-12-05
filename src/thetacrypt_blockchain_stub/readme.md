@@ -46,7 +46,7 @@ Here the proxy IPs are all localhost (or all the same) because we are using the 
 2. Generate configuration files:
 
 ```
-cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf -i --integration-file conf/proxy_ips.txt --stub
+cargo run --bin confgen -- --ip-file conf/server_ips.txt --port-strategy consecutive --outdir=conf -i --integration-file conf/proxy_ips.txt --stub
 ```
 
 The option `--port-strategy` can be `static` or `consecutive`. The first uses the same port for each IP (suited for a distributed deployment), and the latter assigns incremental values of the port to the IPs (suited for a local deployment).

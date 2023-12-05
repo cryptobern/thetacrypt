@@ -31,6 +31,7 @@ pub struct ServerConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProxyNode {
     pub ip: String,
+    pub port: u16,
 }
 
 /// Configuration of the server binary.
@@ -118,6 +119,10 @@ impl ServerProxyConfig {
 
     pub fn proxy_node_ip(&self) -> String {
         return self.proxy_node.ip.clone();
+    }
+
+    pub fn proxy_node_port(&self) -> u16 {
+        return self.proxy_node.port.clone();
     }
 
     pub fn get_listen_addr(&self) -> String {

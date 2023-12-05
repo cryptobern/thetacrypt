@@ -22,7 +22,7 @@ pub struct ProxyConfig {
     pub listen_addr: String,
     pub p2p_port: u16,
     pub proxy_addr: String,
-    // add proxy port
+    pub proxy_port: u16,
 }
 
 pub async fn init(
@@ -66,41 +66,43 @@ pub async fn outgoing_message_forwarder(
             let Some(data) = msg else { return };
             println!("[Proxy]: Receiving message from outgoing_channel");
             //here goes the target_platform ip
-            // match TcpStream::connect(addr+":60000").await{
-            //     Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
-            //     Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
-            // }
-            match BlockchainStubClient::connect("http://localhost:60000").await {
-                Ok(mut client) => {
-                    println!("Id of the msg {}", data.instance_id.clone());
-
-                    if data.is_total_order {
-                        let request = AtomicBroadcastRequest {
-                            id: data.instance_id.clone(),
-                            data: Vec::from(data),
-                        };
-
-                        tokio::spawn(async move { client.atomic_broadcast(request).await });
-                    } else {
-                        let request = ForwardShareRequest {
-                            data: Vec::from(data),
-                        };
-
-                        tokio::spawn(async move { client.forward_share(request).await });
-                    }
-                }
-                Err(e) => println!("Error in opening the connection!: {}", e),
+            let mut address = addr.to_owned();
+            address.push_str(&config.proxy_port.to_string());
+            match TcpStream::connect(address).await{
+                Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
+                Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
             }
+
+            // match BlockchainStubClient::connect(address).await {
+            //     Ok(mut client) => {
+            //         println!("Id of the msg {}", data.instance_id.clone());
+
+            //         if data.is_total_order {
+            //             let request = AtomicBroadcastRequest {
+            //                 id: data.instance_id.clone(),
+            //                 data: Vec::from(data),
+            //             };
+
+            //             tokio::spawn(async move { client.atomic_broadcast(request).await });
+            //         } else {
+            //             let request = ForwardShareRequest {
+            //                 data: Vec::from(data),
+            //             };
+
+            //             tokio::spawn(async move { client.forward_share(request).await });
+            //         }
+            //     }
+            //     Err(e) => println!("Error in opening the connection!: {}", e),
+            // }
         });
     }
 }
 
-//TODO: change this in the interface of the stub
 pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<()> {
-    println!("[Connection-proxy Sender] Successfully connected to server, port 60000");
+    println!("[Connection-proxy Sender] Successfully connected to server");
 
     connection.write_all(data.as_slice()).await?;
-    println!("[connection-proxy Sender] sent the share to Tendermint...");
+    println!("[connection-proxy Sender] sent the share to Blockchain...");
 
     Ok(())
 }

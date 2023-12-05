@@ -62,6 +62,11 @@ pub struct ConfgenCli {
         help = "Path to file containing IPs of nodes of blockchain target platform, one per line."
     )]
     pub integration_file: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Port to use for connecting to the proxy. Generally the proxy is a blockchain validator."
+    )]
+    pub proxy_port: Option<u16>,
     #[arg(short,
         long, 
         help = "Flag for stub file generation")]

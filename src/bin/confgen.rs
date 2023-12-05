@@ -1,3 +1,4 @@
+use std::ops::Add;
 use std::{convert::TryFrom, fs, net::IpAddr, path::PathBuf, process::exit, str::FromStr};
 
 use clap::{Parser, Error};
@@ -27,6 +28,7 @@ fn main() {
     };
 
     let mut ips_proxy_nodes = Vec::new();
+    let mut proxy_port: u16 = 0;
 
     if let Some(path) = confgen_cli.integration_file {
         ips_proxy_nodes = match ips_from_file(&path) {
@@ -36,6 +38,10 @@ fn main() {
                 exit(1);
             }
         };
+    }
+
+    if let Some(port) = confgen_cli.proxy_port {
+        proxy_port = port;
     }
 
     match dirutil::ensure_sane_output_directory(&confgen_cli.outdir, false) {
@@ -52,6 +58,7 @@ fn main() {
             ips_proxy_nodes,
             confgen_cli.rpc_port,
             confgen_cli.p2p_port,
+            proxy_port,
             confgen_cli.port_strategy,
             confgen_cli.listen_address,
             confgen_cli.outdir,
@@ -229,6 +236,7 @@ fn run_integration(
     ips_proxy_nodes: Vec<String>,
     rpc_port: u16,
     p2p_port: u16,
+    proxy_port: u16,
     port_strategy: PortStrategy,
     listen_address: String,
     outdir: PathBuf,
@@ -280,7 +288,7 @@ fn run_integration(
                 listen_address.clone(),
                 p2p_port,
                 rpc_port,
-                ProxyNode { ip: ip.to_string() },
+                ProxyNode { ip: ip.to_string(), port: proxy_port.add(u16::try_from(i).unwrap()) }, //TODO: consider also for the proxy_port the PortStrategy 
                 event_file.clone(),
             )
             .unwrap()
@@ -291,7 +299,7 @@ fn run_integration(
     for cfg in configs {
         let mut outfile = outdir.clone();
         info!("Writing client configuration to disk");
-        save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
+        save_config_on_file(outfile, &cfg, format!("server_{:?}.json", cfg.id)).expect("Error writing server config on file!");
     }
 
     let p2p_peers: Vec<PeerP2PInfo> = peers.clone()

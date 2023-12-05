@@ -161,6 +161,7 @@ async fn threshold_decryption(
 
     let (request, _ct) = create_decryption_request(pk, input);
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
+    println!("{:?}", request.ciphertext);
 
     let mut i = 0;
     let mut instance_id = String::new();

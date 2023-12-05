@@ -1,1 +1,1 @@
-{"id":3,"listen_address":"0.0.0.0","p2p_port":50003,"rpc_port":51003,"proxy_node":{"ip":"127.0.0.1"}}
+{"id":3,"listen_address":"0.0.0.0","p2p_port":50003,"rpc_port":51003,"proxy_node":{"ip":"127.0.0.1","port":30003},"event_file":null}
