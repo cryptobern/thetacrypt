@@ -67,10 +67,12 @@ pub async fn outgoing_message_forwarder(
             println!("[Proxy]: Receiving message from outgoing_channel");
             //here goes the target_platform ip
             let mut address = addr.to_owned();
+            address.push(':');
             address.push_str(&config.proxy_port.to_string());
+            println!("[Proxy] Connecting to remote address: {}", address);
             match TcpStream::connect(address).await{
                 Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
-                Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
+                Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to blockchain node: {e}"),
             }
 
             // match BlockchainStubClient::connect(address).await {
