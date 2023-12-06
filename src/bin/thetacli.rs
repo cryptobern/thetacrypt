@@ -1,16 +1,17 @@
-use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, fs::File, io::Write, os::fd::AsFd, path::PathBuf};
 
 use clap::Parser;
 use hex::FromHex;
+use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 
 use std::fs;
-use theta_proto::scheme_types::{Group, ThresholdScheme};
+use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
 use theta_schemes::{
     interface::{
         SchemeError, Serializable, Signature, ThresholdCipher, ThresholdCipherParams,
         ThresholdSignature,
     },
-    keys::{key_chain::KeyChain, key_generator::KeyGenerator, keys::PublicKey},
+    keys::{key_generator::KeyGenerator, key_store::KeyStore, keys::PublicKey},
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::SchemeDetails,
 };
@@ -38,7 +39,7 @@ fn main() -> Result<(), Error> {
                 key_gen_args.k,
                 key_gen_args.n,
                 &key_gen_args.subjects,
-                &key_gen_args.dir,
+                &key_gen_args.output,
                 key_gen_args.new,
             );
         }
@@ -46,7 +47,7 @@ fn main() -> Result<(), Error> {
             return encrypt(
                 &enc_args.infile,
                 enc_args.label.as_bytes(),
-                &enc_args.outfile,
+                &enc_args.output,
                 &enc_args.pubkey,
                 &enc_args.keystore,
                 &enc_args.key_id,
@@ -74,16 +75,23 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         return Err(Error::Threshold(SchemeError::IOError));
     }
 
+    if new {
+        let _ = fs::remove_dir_all(dir.to_owned() + "/pub");
+    }
+
+    if fs::create_dir_all(dir.to_owned() + "/pub/").is_err() {
+        println!("Error: could not create directory");
+        return Err(Error::Threshold(SchemeError::IOError));
+    }
+
     let mut default_key_set: Vec<String>;
+
+    println!("Generating keys...");
 
     if a == "all" {
         default_key_set = generate_valid_scheme_group_pairs();
-        for string in default_key_set.clone() {
-            println!("{}", string)
-        }
         default_key_set = vec![default_key_set.join(",")];
         let str_list = default_key_set[0].as_str();
-        println!("{}", str_list);
         parts = str_list.split(',');
     }
 
@@ -114,6 +122,8 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
             return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
+        println!("Generating {}...", part);
+
         // Creation of the id (name) given to a certain key. For now the name is based on scheme_group info.
         let mut name = String::from(group_str.unwrap());
         name.insert_str(0, "-");
@@ -131,7 +141,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
         // Extraction of the public key and creation of a .pub file
         let pubkey = key[0].get_public_key().to_bytes().unwrap();
-        let file = File::create(format!("{}/{}.pub", dir, part));
+        let file = File::create(format!("{}/pub/{}_{}.pub", dir, part, key[0].get_key_id()));
         if let Err(e) = file.unwrap().write_all(&pubkey) {
             println!("Error storing public key: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::IOError));
@@ -142,8 +152,8 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     for node_id in 0..n {
         // Define the name of the key file based on the node
-        let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
-        let mut kc = KeyChain::new();
+        let keyfile = format!("{}/node{:?}.keystore", dir, node_id);
+        let mut kc = KeyStore::new();
 
         if !new {
             let _ = kc.load(&PathBuf::from(keyfile.clone()));
@@ -157,6 +167,8 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         // Here the information about the keys of a specific party are actually being written on file
         // TODO: eventually here there could be a protocol for an online phase to send the information to the Thetacrypt instances.
         let _ = kc.to_file(&keyfile);
+
+        println!("Created {}", keyfile);
     }
 
     println!("Keys successfully generated.");
@@ -171,26 +183,42 @@ fn encrypt(
     keystore_path: &str,
     key_id: &str,
 ) -> Result<(), Error> {
-    let key = load_key(key_path, keystore_path, key_id);
+    let key = load_key(
+        key_path,
+        keystore_path,
+        key_id,
+        ThresholdOperation::Encryption,
+    );
     if key.is_err() {
         return Err(key.unwrap_err());
     }
     let key = key.unwrap();
 
-    let msg = fs::read(infile);
+    let msg;
 
-    if let Err(e) = msg {
-        println!("Error reading input file: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::DeserializationFailed));
+    if infile.is_empty() {
+        let stdin = std::io::stdin();
+        let mut buf = String::new();
+
+        if atty::isnt(atty::Stream::Stdin) {
+            let _ = stdin.read_line(&mut buf);
+        }
+
+        if buf.is_empty() {
+            return Err(Error::String(String::from("No message specified")));
+        }
+
+        msg = buf.as_bytes().to_vec();
+    } else {
+        let tmp = fs::read(infile);
+
+        if let Err(e) = tmp {
+            println!("Error reading input file: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::DeserializationFailed));
+        }
+
+        msg = tmp.unwrap();
     }
-
-    let file = File::create(outfile);
-    if let Err(e) = file {
-        println!("Error creating output file: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::IOError));
-    }
-
-    let msg = msg.unwrap();
 
     let mut params = ThresholdCipherParams::new();
     let ct = ThresholdCipher::encrypt(&msg, label, &key, &mut params);
@@ -211,9 +239,21 @@ fn encrypt(
 
     let ct = ct.unwrap();
 
-    if let Err(e) = file.unwrap().write_all(&ct) {
-        println!("Error storing ciphertext: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::IOError));
+    if outfile == "-" {
+        if std::io::stdout().write(&ct).is_err() {
+            return Err(Error::Threshold(SchemeError::IOError));
+        }
+    } else {
+        let file = File::create(outfile);
+        if let Err(e) = file {
+            println!("Error creating output file: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::IOError));
+        }
+
+        if let Err(e) = file.unwrap().write_all(&ct) {
+            println!("Error storing ciphertext: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::IOError));
+        }
     }
 
     return Ok(());
@@ -226,7 +266,12 @@ fn verify(
     keystore_path: &str,
     key_id: &str,
 ) -> Result<(), Error> {
-    let key = load_key(key_path, keystore_path, key_id);
+    let key = load_key(
+        key_path,
+        keystore_path,
+        key_id,
+        ThresholdOperation::Signature,
+    );
     if key.is_err() {
         return Err(key.unwrap_err());
     }
@@ -310,7 +355,12 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
     return scheme_group_vec;
 }
 
-fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicKey, Error> {
+fn load_key(
+    key_path: &str,
+    keystore_path: &str,
+    key_id: &str,
+    operation: ThresholdOperation,
+) -> Result<PublicKey, Error> {
     let key;
 
     if !key_path.is_empty() {
@@ -330,26 +380,58 @@ fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicK
 
         key = tmp.unwrap();
     } else if !keystore_path.is_empty() {
+        let keystore = KeyStore::from_file(&PathBuf::from(keystore_path));
+
+        if keystore.is_err() {
+            return Err(Error::String(String::from("Could not read keystore")));
+        }
+
+        let keystore = keystore.unwrap();
+
         if key_id.is_empty() {
-            println!("No key id specified");
-            return Err(Error::String(String::from("No key id specified")));
+            let entries;
+
+            match operation {
+                ThresholdOperation::Coin => {
+                    entries = keystore.get_coin_keys();
+                }
+                ThresholdOperation::Encryption => {
+                    entries = keystore.get_encryption_keys();
+                }
+                ThresholdOperation::Signature => {
+                    entries = keystore.get_signing_keys();
+                }
+            }
+
+            let mut key_menu_items: Vec<TerminalMenuItem> =
+                entries.iter().map(|x| button(x.to_string())).collect();
+            key_menu_items.insert(0, label("Select Key:"));
+            let key_menu = menu(key_menu_items);
+
+            run(&key_menu);
+            {
+                let km = mut_menu(&key_menu);
+                let tmp = entries
+                    .iter()
+                    .find(|k| km.selected_item_name().contains(&k.id));
+
+                if tmp.is_none() {
+                    println!("Error importing key");
+                    return Err(Error::String(String::from("Error loading public key")));
+                }
+
+                key = tmp.unwrap().pk.clone();
+            }
+        } else {
+            let tmp = keystore.get_key_by_id(key_id);
+
+            if let Err(e) = tmp {
+                println!("Error loading public key: {}", e.to_string());
+                return Err(Error::Threshold(SchemeError::DeserializationFailed));
+            }
+
+            key = tmp.unwrap().pk;
         }
-
-        let keychain = KeyChain::from_file(&PathBuf::from(keystore_path));
-
-        if keychain.is_err() {
-            return Err(Error::String(String::from("Could not read keychain")));
-        }
-
-        let keychain = keychain.unwrap();
-        let tmp = keychain.get_key_by_id(key_id);
-
-        if let Err(e) = tmp {
-            println!("Error reading public key: {}", e.to_string());
-            return Err(Error::Threshold(SchemeError::DeserializationFailed));
-        }
-
-        key = tmp.unwrap().pk;
     } else {
         println!("Either pubkey or keystore need to be specified");
         return Err(Error::String(String::from(
@@ -358,4 +440,33 @@ fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicK
     }
 
     return Ok(key);
+}
+
+fn list_keys(keystore_path: &str, operation: Option<ThresholdOperation>) -> Result<(), Error> {
+    let keystore = KeyStore::from_file(&PathBuf::from(keystore_path));
+
+    if keystore.is_err() {
+        return Err(Error::String(String::from("Could not read keystore")));
+    }
+
+    let keystore = keystore.unwrap();
+
+    if operation.is_none() {
+        println!("{}", keystore.to_string());
+    } else {
+        let entries;
+        match operation.unwrap() {
+            ThresholdOperation::Coin => {
+                entries = keystore.get_coin_keys();
+            }
+            ThresholdOperation::Encryption => {
+                entries = keystore.get_encryption_keys();
+            }
+            ThresholdOperation::Signature => {
+                entries = keystore.get_signing_keys();
+            }
+        }
+    }
+
+    Ok(())
 }

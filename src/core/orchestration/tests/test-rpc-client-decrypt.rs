@@ -6,7 +6,7 @@ use std::{
 use tonic::Code;
 
 use mcore::hash256::HASH256;
-use theta_schemes::{interface::Serializable, keys::key_chain::KeyChain};
+use theta_schemes::{interface::Serializable, keys::key_store::KeyStore};
 use theta_schemes::{
     interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams},
     keys::keys::PublicKey,
@@ -26,7 +26,7 @@ use theta_proto::{
 // They should be able to connect to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
+    let key_chain_1: KeyStore = KeyStore::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .pk
@@ -138,7 +138,7 @@ async fn test_local_servers() -> Result<(), Box<dyn std::error::Error>> {
 // To run it, start *four* server instances with peer ids 1-4, listening on localhost ports 51000-51003. They should be able to connect to each other.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain_1: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
+    let key_chain_1: KeyStore = KeyStore::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain_1
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .pk
@@ -193,7 +193,7 @@ async fn test_local_servers_backlog() -> Result<(), Box<dyn std::error::Error>> 
 // To run it, start *four* threshold-library server instances with peer ids 1--4,
 // istening on ips 192.167.10.2--4 and port 51000.
 async fn test_servers_dockerized() -> Result<(), Box<dyn std::error::Error>> {
-    let key_chain: KeyChain = KeyChain::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
+    let key_chain: KeyStore = KeyStore::from_file(&PathBuf::from("../../conf/keys_1.json"))?;
     let pk = key_chain
         .get_key_by_scheme_and_group(ThresholdScheme::Sg02, Group::Bls12381)?
         .pk

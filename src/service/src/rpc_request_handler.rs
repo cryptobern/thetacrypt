@@ -10,7 +10,7 @@ use theta_proto::protocol_types::{
     CoinRequest, CoinResponse, KeyRequest, KeyResponse, StatusRequest, StatusResponse,
 };
 use theta_proto::scheme_types::{Group, PublicKeyEntry};
-use theta_schemes::keys::key_chain::KeyEntry;
+use theta_schemes::keys::key_store::KeyEntry;
 use theta_schemes::scheme_types_impl::SchemeDetails;
 use tokio::sync::oneshot;
 use tonic::Code;

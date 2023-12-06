@@ -16,6 +16,6 @@ pub struct ServerCli {
     )]
     pub log4rs_config: String,
 
-    #[arg(long, help = "Path to JSON-encoded keychain.")]
+    #[arg(long, help = "Path to JSON-encoded keystore.")]
     pub key_file: Option<PathBuf>,
 }

@@ -49,16 +49,16 @@ the instance is started (because the actual request was delayed).
 
 ## Key management
 
-Notice that by *key* we always refer to a **private key (share)**. The `KeyChain` always returns private keys. The corresponding public key is accessible through the private.
+Notice that by *key* we always refer to a **private key (share)**. The `KeyStore` always returns private keys. The corresponding public key is accessible through the private.
 
 Keys are represented by `struct Key` in `types.rs`.
 It contains the public fields `id`, which uniquely represents a key entry, and `sk`, which contains the actual secret key
-of type `schemes::keys::PrivateKey` (through which we have access to the corresponding public key as `sk.get_public_key()`), and some private metadata used internally by `KeyChain`.
+of type `schemes::keys::PrivateKey` (through which we have access to the corresponding public key as `sk.get_public_key()`), and some private metadata used internally by `KeyStore`.
 
-The logic for handling keys is encapsulated in `struct KeyChain` in `keychain.rs`.
+The logic for handling keys is encapsulated in `struct KeyStore` in `keystore.rs`.
 It exposes methods for creating, (de)serializing, and retrieving keys, such as `get_key_by_id()` and `get_key_by_scheme_and_group()`.
 There is a certain logic regarding which keys are returned each time and which are considered default.
-This is documented in comments in `keychain.rs`.
+This is documented in comments in `keystore.rs`.
 
 ### Reading from a file upon server initialization
 

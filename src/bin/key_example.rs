@@ -3,7 +3,7 @@ use std::process::exit;
 use clap::Parser;
 use env_logger::init;
 use log::{error, info};
-use theta_schemes::keys::key_chain::KeyChain;
+use theta_schemes::keys::key_store::KeyStore;
 
 use theta_proto::protocol_types::threshold_crypto_library_client::ThresholdCryptoLibraryClient;
 use theta_proto::protocol_types::KeyRequest;
@@ -12,7 +12,7 @@ use utils::client::types::ClientConfig;
 
 /*
 Short example program that retrieves all available public keys from the network
-and imports them to a local keychain.
+and imports them to a local keystore.
 */
 
 #[tokio::main]
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting server, version: {}", version);
 
     let client_cli = ClientCli::parse();
-    let mut keychain = KeyChain::new();
+    let mut keystore = KeyStore::new();
 
     info!(
         "Loading configuration from file: {}",
@@ -45,9 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if response.is_ok() {
         let response = response.unwrap();
         let keys = &response.get_ref().keys;
-        if keychain.import_public_keys(keys).is_ok() {
+        if keystore.import_public_keys(keys).is_ok() {
             println!(">> Successfully imported public keys from server.");
-            println!("{}", keychain.to_string());
+            println!("{}", keystore.to_string());
         }
     } else {
         println!("Error fetching public keys!");

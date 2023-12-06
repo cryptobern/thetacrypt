@@ -18,7 +18,7 @@ use theta_protocols::{
 };
 use theta_schemes::{
     interface::{Ciphertext, SchemeError},
-    keys::{key_chain::KeyEntry, keys::PrivateKeyShare},
+    keys::{key_store::KeyEntry, keys::PrivateKeyShare},
 };
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
