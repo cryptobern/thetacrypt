@@ -304,7 +304,7 @@ impl KeyChain {
     }
 
     // Return the matching key with the given key_id, or an error if no key with key_id exists.
-    pub fn get_key_by_id(&self, id: &String) -> Result<KeyEntry, String> {
+    pub fn get_key_by_id(&self, id: &str) -> Result<KeyEntry, String> {
         if self.key_entries.contains_key(id) == false {
             error!("No entry for id {}", &id);
             return Err(format!(

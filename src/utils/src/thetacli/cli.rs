@@ -43,8 +43,25 @@ pub struct KeyGenArgs {
 pub struct EncArgs {
     #[arg(short, long, help = "The path to the input file")]
     pub infile: String,
-    #[arg(short, long, help = "The path to the key file")]
-    pub key_path: String,
+    #[arg(
+        long,
+        help = "The path to the public key file",
+        default_value_t = String::from("")
+    )]
+    pub pubkey: String,
+    #[arg(
+        long,
+        help = "The path to the keystore",
+        default_value_t = String::from("")
+    )]
+    pub keystore: String,
+    #[arg(
+        short,
+        long,
+        help = "The key id",
+        default_value_t = String::from("")
+    )]
+    pub key_id: String,
     #[arg(short, long, help = "The encryption label")]
     pub label: String,
     #[arg(short, long, help = "The output path")]
@@ -53,10 +70,27 @@ pub struct EncArgs {
 
 #[derive(Args, Debug)]
 pub struct VerifyArgs {
-    #[arg(short, long, help = "The path to the public key file")]
-    pub key_path: String,
     #[arg(short, long, help = "The path to the file containing the message")]
     pub message_path: String,
     #[arg(short, long, help = "The path to the file containing the signature")]
     pub signature_path: String,
+    #[arg(
+        long,
+        help = "The path to the public key file",
+        default_value_t = String::from("")
+    )]
+    pub pubkey: String,
+    #[arg(
+        long,
+        help = "The path to the keystore",
+        default_value_t = String::from("")
+    )]
+    pub keystore: String,
+    #[arg(
+        short,
+        long,
+        help = "The key id",
+        default_value_t = String::from("")
+    )]
+    pub key_id: String,
 }
