@@ -16,7 +16,7 @@ use tokio::sync::oneshot;
 use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
-use log::{self, error, info};
+use log::{self, error, info, debug};
 
 use theta_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
@@ -48,8 +48,8 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::from_bytes(&request.get_ref().ciphertext) {
             Ok(ctxt) => ctxt,
-            Err(_) => {
-                error!("Invalid ciphertext");
+            Err(e) => {
+                error!("Invalid ciphertext: {}", e);
                 return Err(Status::aborted("Invalid ciphertext"));
             }
         };
@@ -226,7 +226,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         &self,
         request: Request<StatusRequest>,
     ) -> Result<Response<StatusResponse>, Status> {
-        info!("Received a result request.");
+        debug!("Received a result request.");
         let req: &StatusRequest = request.get_ref();
 
         // Get status of the instance by contacting the state manager

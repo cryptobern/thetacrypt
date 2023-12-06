@@ -207,6 +207,8 @@ fn encrypt(
         return Err(Error::Threshold(e));
     }
 
+    println!("Size of the ciphertext: {}", ct.clone().unwrap().capacity());
+
     let ct = ct.unwrap();
 
     if let Err(e) = file.unwrap().write_all(&ct) {
