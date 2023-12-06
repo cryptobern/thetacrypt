@@ -7,12 +7,12 @@ use theta_proto::{
 };
 use theta_schemes::{
     interface::InteractiveThresholdSignature,
-    keys::key_chain::{KeyChain, KeyEntry},
+    keys::key_store::{KeyEntry, KeyStore},
 };
 
 pub struct KeyManager {
     command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
-    keychain: KeyChain,
+    keystore: KeyStore,
     frost_precomputes: Vec<InteractiveThresholdSignature>,
 }
 
@@ -46,10 +46,10 @@ impl KeyManager {
         keychain_path: PathBuf,
         command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
     ) -> Self {
-        let mut keychain = KeyChain::new();
-        if let Err(e) = keychain.load(&keychain_path) {
+        let mut keystore = KeyStore::new();
+        if let Err(e) = keystore.load(&keychain_path) {
             error!(
-                "Error loading keychain '{}': {}",
+                "Error loading keystore '{}': {}",
                 keychain_path.display(),
                 e.to_string()
             );
@@ -59,7 +59,7 @@ impl KeyManager {
 
         Self {
             command_receiver,
-            keychain,
+            keystore,
             frost_precomputes: Vec::new(),
         }
     }
@@ -73,7 +73,7 @@ impl KeyManager {
                         KeyManagerCommand::ListAvailableKeys{
                             responder
                         } => {
-                            let result = self.keychain.list_public_keys();
+                            let result = self.keystore.list_public_keys();
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
                         },
                         KeyManagerCommand::PopFrostPrecomputation {
@@ -90,7 +90,7 @@ impl KeyManager {
                         },
                         KeyManagerCommand::GetKeyById {id, responder} => {
                             info!("Searching for key with id {}", &id);
-                            let result = self.keychain.get_key_by_id(&id);
+                            let result = self.keystore.get_key_by_id(&id);
 
                             if result.is_ok() {
                                 responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
@@ -99,7 +99,7 @@ impl KeyManager {
                             }
                         },
                         KeyManagerCommand::GetKeyBySchemeAndGroup { scheme, group, responder } => {
-                            let result = self.keychain.get_key_by_scheme_and_group(scheme, group);
+                            let result = self.keystore.get_key_by_scheme_and_group(scheme, group);
 
                             if result.is_ok() {
                                 responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");

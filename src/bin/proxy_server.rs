@@ -36,7 +36,7 @@ async fn main() {
     };
 
     if server_cli.key_file.is_none() {
-        error!("Please specify the keychain location");
+        error!("Please specify the keystore location");
         exit(-1);
     }
 

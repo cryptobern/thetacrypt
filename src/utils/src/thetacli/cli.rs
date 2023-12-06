@@ -31,7 +31,7 @@ pub struct KeyGenArgs {
     )]
     pub subjects: String,
     #[arg(short, long, help = "Directory to store the generated keys in")]
-    pub dir: String,
+    pub output: String,
     #[arg(
         long,
         help = "Option to create a completely new set of keys, overwriting the chosen keyfile if it already existed",
@@ -41,7 +41,12 @@ pub struct KeyGenArgs {
 }
 #[derive(Args, Debug)]
 pub struct EncArgs {
-    #[arg(short, long, help = "The path to the input file")]
+    #[arg(
+        short, 
+        long, 
+        help = "The path to the input file", 
+        default_value_t = String::from("")
+    )]
     pub infile: String,
     #[arg(
         long,
@@ -65,7 +70,7 @@ pub struct EncArgs {
     #[arg(short, long, help = "The encryption label")]
     pub label: String,
     #[arg(short, long, help = "The output path")]
-    pub outfile: String,
+    pub output: String,
 }
 
 #[derive(Args, Debug)]

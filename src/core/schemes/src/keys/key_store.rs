@@ -45,7 +45,7 @@ impl KeyEntry {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub struct KeyChain {
+pub struct KeyStore {
     key_entries: HashMap<String, KeyEntry>,
     filename: Option<PathBuf>,
 }
@@ -60,7 +60,7 @@ struct SerializedKeyEntry {
     pub key: String,
 }
 
-impl From<Vec<SerializedKeyEntry>> for KeyChain {
+impl From<Vec<SerializedKeyEntry>> for KeyStore {
     fn from(value: Vec<SerializedKeyEntry>) -> Self {
         let mut kc = Self::new();
         let secret_string = String::from("secret");
@@ -113,9 +113,9 @@ impl From<Vec<SerializedKeyEntry>> for KeyChain {
     }
 }
 
-impl KeyChain {
+impl KeyStore {
     pub fn new() -> Self {
-        KeyChain {
+        KeyStore {
             key_entries: HashMap::new(),
             filename: Option::None,
         }
@@ -124,7 +124,7 @@ impl KeyChain {
     pub fn load(&mut self, filename: &PathBuf) -> std::io::Result<()> {
         let key_chain_str = fs::read_to_string(filename)?;
         let ks: Vec<SerializedKeyEntry> = serde_json::from_str(&key_chain_str)?;
-        let k: KeyChain = ks.into();
+        let k: KeyStore = ks.into();
         self.key_entries = k.key_entries;
         self.filename = Some(filename.clone());
         Ok(())
@@ -133,7 +133,7 @@ impl KeyChain {
     pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
         let key_chain_str = fs::read_to_string(filename)?;
         let ks: Vec<SerializedKeyEntry> = serde_json::from_str(&key_chain_str)?;
-        let k: KeyChain = ks.into();
+        let k: KeyStore = ks.into();
         Ok(k)
     }
 
@@ -216,7 +216,7 @@ impl KeyChain {
     }
 
     // Inserts a key to the key_chain and returns the unique id of the key
-    // The function, and eventually the KeyChain, gets ownership of the key.
+    // The function, and eventually the KeyStore, gets ownership of the key.
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group.
     // A key is_default_for_operation if it is the first key created for its operation.
     pub fn insert_private_key(&mut self, key: PrivateKeyShare) -> Result<String, String> {

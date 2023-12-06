@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    key_chain::KeyChain,
     key_generator::KeyGenerator,
+    key_store::KeyStore,
     keys::{calc_key_id, key2id, PrivateKeyShare},
 };
 
@@ -28,8 +28,8 @@ pub fn test_adding_and_retrieving_keys() {
     )
     .unwrap();
 
-    let mut keychain: KeyChain = KeyChain::new();
-    let result = keychain.insert_private_key(keypair0[0].clone());
+    let mut keystore: KeyStore = KeyStore::new();
+    let result = keystore.insert_private_key(keypair0[0].clone());
     assert!(result.is_ok(), "could not add key pair");
     let id = result.unwrap();
 
@@ -43,10 +43,10 @@ pub fn test_adding_and_retrieving_keys() {
     )
     .unwrap();
 
-    let result = keychain.insert_private_key(keypair1[0].clone());
+    let result = keystore.insert_private_key(keypair1[0].clone());
     assert!(result.is_ok(), "could not add second key pair");
 
-    let retrieved_key = keychain.get_key_by_id(&id);
+    let retrieved_key = keystore.get_key_by_id(&id);
     assert!(retrieved_key.is_ok());
     assert_eq!(
         retrieved_key.as_ref().unwrap().sk.as_ref().unwrap(),
@@ -67,11 +67,11 @@ pub fn test_cannot_add_multiple_private_key_ids() {
     )
     .unwrap();
 
-    let mut keychain: KeyChain = KeyChain::new();
-    let result = keychain.insert_private_key(keypair[0].clone());
+    let mut keystore: KeyStore = KeyStore::new();
+    let result = keystore.insert_private_key(keypair[0].clone());
     assert!(result.is_ok());
     let key_id = result.unwrap();
-    let result = keychain.insert_private_key(keypair[1].clone());
+    let result = keystore.insert_private_key(keypair[1].clone());
     assert!(
         result.is_err(),
         "could add second private key share to existing public key"
@@ -84,9 +84,9 @@ fn test_keychain_serialization() {
 
     key_chain
         .to_file("test_keychain_ser.txt")
-        .expect("KeyChain::to_file returned Err");
-    let key_chain_unser = KeyChain::from_file(&PathBuf::from("test_keychain_ser.txt"))
-        .expect("KeyChain::from_file returned Err");
+        .expect("KeyStore::to_file returned Err");
+    let key_chain_unser = KeyStore::from_file(&PathBuf::from("test_keychain_ser.txt"))
+        .expect("KeyStore::from_file returned Err");
     let _ = remove_file("test_keychain_ser.txt");
 
     assert_eq!(key_chain, key_chain_unser);
@@ -110,8 +110,8 @@ fn test_get_encryption_keys() {
     }
 }
 
-fn fill_key_chain() -> (KeyChain, HashMap<String, PrivateKeyShare>) {
-    let mut key_chain = KeyChain::new();
+fn fill_key_chain() -> (KeyStore, HashMap<String, PrivateKeyShare>) {
+    let mut key_chain = KeyStore::new();
     let mut keys: HashMap<String, PrivateKeyShare> = HashMap::new();
     for i in 0..2 {
         let sk_sg02_bls12381 = KeyGenerator::generate_keys(

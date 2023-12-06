@@ -12,7 +12,7 @@ use rand::Rng;
 use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 use theta_schemes::interface::Serializable;
 use theta_schemes::interface::{Ciphertext, ThresholdCipher, ThresholdCipherParams};
-use theta_schemes::keys::key_chain::KeyChain;
+use theta_schemes::keys::key_store::KeyStore;
 use theta_schemes::keys::keys::PublicKey;
 use theta_schemes::util::printbinary;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting server, version: {}", version);
 
     let client_cli = ClientCli::parse();
-    let mut keychain = KeyChain::new();
+    let mut keystore = KeyStore::new();
 
     println!(
         "Loading configuration from file: {}",
@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = response.unwrap();
     let keys = &response.get_ref().keys;
-    if keychain.import_public_keys(keys).is_ok() {
+    if keystore.import_public_keys(keys).is_ok() {
         println!("Successfully imported public keys from server.");
     }
 
@@ -71,15 +71,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("--------------");
 
     let mut main_menu_items = Vec::new();
-    if keychain.get_encryption_keys().len() > 0 {
+    if keystore.get_encryption_keys().len() > 0 {
         main_menu_items.push(button("Threshold Decryption"))
     }
 
-    if keychain.get_signing_keys().len() > 0 {
+    if keystore.get_signing_keys().len() > 0 {
         main_menu_items.push(button("Threshold Signature"))
     }
 
-    if keychain.get_coin_keys().len() > 0 {
+    if keystore.get_coin_keys().len() > 0 {
         main_menu_items.push(button("Threshold Coin"))
     }
 
@@ -99,13 +99,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match mm.selected_item_name() {
             "Threshold Decryption" => {
-                keys = keychain.get_encryption_keys();
+                keys = keystore.get_encryption_keys();
             }
             "Threshold Signature" => {
-                keys = keychain.get_signing_keys();
+                keys = keystore.get_signing_keys();
             }
             "Threshold Coin" => {
-                keys = keychain.get_coin_keys();
+                keys = keystore.get_coin_keys();
             }
             _ => unimplemented!("not implemented"),
         }

@@ -1,7 +1,7 @@
-pub mod key_chain;
 pub mod key_generator;
+pub mod key_store;
+mod key_store_tests;
 pub mod keys;
-mod key_chain_tests;
 
 #[macro_export]
 macro_rules! unwrap_enum_vec {
