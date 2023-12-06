@@ -25,6 +25,8 @@ enum Error {
     Threshold(#[from] SchemeError),
     #[error("download error: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("download error: {0}")]
+    String(String),
 }
 
 fn main() -> Result<(), Error> {
@@ -45,14 +47,18 @@ fn main() -> Result<(), Error> {
                 &enc_args.infile,
                 enc_args.label.as_bytes(),
                 &enc_args.outfile,
-                &enc_args.key_path,
+                &enc_args.pubkey,
+                &enc_args.keystore,
+                &enc_args.key_id,
             );
         }
         Commands::Verify(verify_args) => {
             return verify(
-                &verify_args.key_path,
                 &verify_args.message_path,
                 &verify_args.signature_path,
+                &verify_args.pubkey,
+                &verify_args.keystore,
+                &verify_args.key_id,
             );
         }
     }
@@ -123,6 +129,14 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         )
         .expect("Failed to generate keys");
 
+        // Extraction of the public key and creation of a .pub file
+        let pubkey = key[0].get_public_key().to_bytes().unwrap();
+        let file = File::create(format!("{}/{}.pub", dir, part));
+        if let Err(e) = file.unwrap().write_all(&pubkey) {
+            println!("Error storing public key: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::IOError));
+        }
+
         keys.insert(name.clone(), key);
     }
 
@@ -149,22 +163,20 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
     return Ok(());
 }
 
-fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<(), Error> {
-    let contents = fs::read(key_path);
-
-    if let Err(e) = contents {
-        println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::DeserializationFailed));
+fn encrypt(
+    infile: &str,
+    label: &[u8],
+    outfile: &str,
+    key_path: &str,
+    keystore_path: &str,
+    key_id: &str,
+) -> Result<(), Error> {
+    let key = load_key(key_path, keystore_path, key_id);
+    if key.is_err() {
+        return Err(key.unwrap_err());
     }
-
-    let key = PublicKey::from_bytes(&contents.unwrap());
-
-    if let Err(e) = key {
-        println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::DeserializationFailed));
-    }
-
     let key = key.unwrap();
+
     let msg = fs::read(infile);
 
     if let Err(e) = msg {
@@ -205,22 +217,19 @@ fn encrypt(infile: &str, label: &[u8], outfile: &str, key_path: &str) -> Result<
     return Ok(());
 }
 
-fn verify(key_path: &str, message_path: &str, signature_path: &str) -> Result<(), Error> {
-    let contents = fs::read(key_path);
-
-    if let Err(e) = contents {
-        println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::DeserializationFailed));
+fn verify(
+    message_path: &str,
+    signature_path: &str,
+    key_path: &str,
+    keystore_path: &str,
+    key_id: &str,
+) -> Result<(), Error> {
+    let key = load_key(key_path, keystore_path, key_id);
+    if key.is_err() {
+        return Err(key.unwrap_err());
     }
-
-    let key = PublicKey::from_bytes(&contents.unwrap());
-
-    if let Err(e) = key {
-        println!("Error reading public key: {}", e.to_string());
-        return Err(Error::Threshold(SchemeError::DeserializationFailed));
-    }
-
     let key = key.unwrap();
+
     let msg = fs::read(message_path);
 
     if let Err(e) = msg {
@@ -297,4 +306,54 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
         i += 1;
     }
     return scheme_group_vec;
+}
+
+fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicKey, Error> {
+    let key;
+
+    if !key_path.is_empty() {
+        let contents = fs::read(key_path);
+
+        if let Err(e) = contents {
+            println!("Error reading public key: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::DeserializationFailed));
+        }
+
+        let tmp = PublicKey::from_bytes(&contents.unwrap());
+
+        if let Err(e) = tmp {
+            println!("Error reading public key: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::DeserializationFailed));
+        }
+
+        key = tmp.unwrap();
+    } else if !keystore_path.is_empty() {
+        if key_id.is_empty() {
+            println!("No key id specified");
+            return Err(Error::String(String::from("No key id specified")));
+        }
+
+        let keychain = KeyChain::from_file(&PathBuf::from(keystore_path));
+
+        if keychain.is_err() {
+            return Err(Error::String(String::from("Could not read keychain")));
+        }
+
+        let keychain = keychain.unwrap();
+        let tmp = keychain.get_key_by_id(key_id);
+
+        if let Err(e) = tmp {
+            println!("Error reading public key: {}", e.to_string());
+            return Err(Error::Threshold(SchemeError::DeserializationFailed));
+        }
+
+        key = tmp.unwrap().pk;
+    } else {
+        println!("Either pubkey or keystore need to be specified");
+        return Err(Error::String(String::from(
+            "Either pubkey or keystore need to be specified",
+        )));
+    }
+
+    return Ok(key);
 }
