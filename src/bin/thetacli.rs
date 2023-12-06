@@ -2,9 +2,10 @@ use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 
 use clap::Parser;
 use hex::FromHex;
+use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 
 use std::fs;
-use theta_proto::scheme_types::{Group, ThresholdScheme};
+use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
 use theta_schemes::{
     interface::{
         SchemeError, Serializable, Signature, ThresholdCipher, ThresholdCipherParams,
@@ -142,7 +143,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     for node_id in 0..n {
         // Define the name of the key file based on the node
-        let keyfile = format!("{}/keys_{:?}.json", dir, node_id);
+        let keyfile = format!("{}/node{:?}.keystore", dir, node_id);
         let mut kc = KeyChain::new();
 
         if !new {
@@ -171,7 +172,12 @@ fn encrypt(
     keystore_path: &str,
     key_id: &str,
 ) -> Result<(), Error> {
-    let key = load_key(key_path, keystore_path, key_id);
+    let key = load_key(
+        key_path,
+        keystore_path,
+        key_id,
+        ThresholdOperation::Encryption,
+    );
     if key.is_err() {
         return Err(key.unwrap_err());
     }
@@ -224,7 +230,12 @@ fn verify(
     keystore_path: &str,
     key_id: &str,
 ) -> Result<(), Error> {
-    let key = load_key(key_path, keystore_path, key_id);
+    let key = load_key(
+        key_path,
+        keystore_path,
+        key_id,
+        ThresholdOperation::Signature,
+    );
     if key.is_err() {
         return Err(key.unwrap_err());
     }
@@ -308,7 +319,12 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
     return scheme_group_vec;
 }
 
-fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicKey, Error> {
+fn load_key(
+    key_path: &str,
+    keystore_path: &str,
+    key_id: &str,
+    operation: ThresholdOperation,
+) -> Result<PublicKey, Error> {
     let key;
 
     if !key_path.is_empty() {
@@ -328,11 +344,6 @@ fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicK
 
         key = tmp.unwrap();
     } else if !keystore_path.is_empty() {
-        if key_id.is_empty() {
-            println!("No key id specified");
-            return Err(Error::String(String::from("No key id specified")));
-        }
-
         let keychain = KeyChain::from_file(&PathBuf::from(keystore_path));
 
         if keychain.is_err() {
@@ -340,14 +351,51 @@ fn load_key(key_path: &str, keystore_path: &str, key_id: &str) -> Result<PublicK
         }
 
         let keychain = keychain.unwrap();
-        let tmp = keychain.get_key_by_id(key_id);
 
-        if let Err(e) = tmp {
-            println!("Error reading public key: {}", e.to_string());
-            return Err(Error::Threshold(SchemeError::DeserializationFailed));
+        if key_id.is_empty() {
+            let entries;
+
+            match operation {
+                ThresholdOperation::Coin => {
+                    entries = keychain.get_coin_keys();
+                }
+                ThresholdOperation::Encryption => {
+                    entries = keychain.get_encryption_keys();
+                }
+                ThresholdOperation::Signature => {
+                    entries = keychain.get_signing_keys();
+                }
+            }
+
+            let mut key_menu_items: Vec<TerminalMenuItem> =
+                entries.iter().map(|x| button(x.to_string())).collect();
+            key_menu_items.insert(0, label("Select Key:"));
+            let key_menu = menu(key_menu_items);
+
+            run(&key_menu);
+            {
+                let km = mut_menu(&key_menu);
+                let tmp = entries
+                    .iter()
+                    .find(|k| km.selected_item_name().contains(&k.id));
+
+                if tmp.is_none() {
+                    println!("Error importing key");
+                    return Err(Error::String(String::from("Error loading public key")));
+                }
+
+                key = tmp.unwrap().pk.clone();
+            }
+        } else {
+            let tmp = keychain.get_key_by_id(key_id);
+
+            if let Err(e) = tmp {
+                println!("Error loading public key: {}", e.to_string());
+                return Err(Error::Threshold(SchemeError::DeserializationFailed));
+            }
+
+            key = tmp.unwrap().pk;
         }
-
-        key = tmp.unwrap().pk;
     } else {
         println!("Either pubkey or keystore need to be specified");
         return Err(Error::String(String::from(
