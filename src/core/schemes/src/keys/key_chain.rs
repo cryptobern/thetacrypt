@@ -1,18 +1,14 @@
-use base64::{engine::general_purpose, Engine as _};
-use log::{error, info};
-use mcore::hash256::HASH256;
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
-use std::borrow::BorrowMut;
+
 use std::collections::HashMap;
-use std::fmt::format;
-use std::fs::{self, File};
-use std::io::{Error, ErrorKind};
+use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 use theta_proto::scheme_types::PublicKeyEntry;
 use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
 
-use crate::interface::{InteractiveThresholdSignature, Serializable};
+use crate::interface::Serializable;
 use crate::scheme_types_impl::SchemeDetails;
 
 use super::keys::{key2id, PrivateKeyShare, PublicKey};
@@ -176,7 +172,7 @@ impl KeyChain {
                     return Err(String::from("Error importing public key"));
                 }
 
-                println!("Imported public key {}", id.unwrap());
+                debug!("Imported public key {}", id.unwrap());
             } else {
                 return Err(String::from("Error importing public key"));
             }
