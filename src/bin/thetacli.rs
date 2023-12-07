@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fs::File, io::Write, os::fd::AsFd, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use clap::Parser;
 use hex::FromHex;
@@ -197,18 +202,18 @@ fn encrypt(
     let msg;
 
     if infile.is_empty() {
-        let stdin = std::io::stdin();
-        let mut buf = String::new();
+        let mut stdin = std::io::stdin();
+        let mut buf = Vec::new();
 
         if atty::isnt(atty::Stream::Stdin) {
-            let _ = stdin.read_line(&mut buf);
+            let _ = stdin.read_to_end(&mut buf);
         }
 
         if buf.is_empty() {
             return Err(Error::String(String::from("No message specified")));
         }
 
-        msg = buf.as_bytes().to_vec();
+        msg = buf.to_vec();
     } else {
         let tmp = fs::read(infile);
 
