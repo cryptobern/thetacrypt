@@ -7,6 +7,7 @@ use std::{
 
 use clap::Parser;
 use hex::FromHex;
+use log::{error, info, debug};
 use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 
 use std::fs;
@@ -76,7 +77,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
     let mut rng = RNG::new(RngAlgorithm::OsRng);
 
     if fs::create_dir_all(dir).is_err() {
-        println!("Error: could not create directory");
+        error!("Error: could not create directory");
         return Err(Error::Threshold(SchemeError::IOError));
     }
 
@@ -85,13 +86,13 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
     }
 
     if fs::create_dir_all(dir.to_owned() + "/pub/").is_err() {
-        println!("Error: could not create directory");
+        error!("Error: could not create directory");
         return Err(Error::Threshold(SchemeError::IOError));
     }
 
     let mut default_key_set: Vec<String>;
 
-    println!("Generating keys...");
+    info!("Generating keys...");
 
     if a == "all" {
         default_key_set = generate_valid_scheme_group_pairs();
@@ -105,29 +106,29 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
         let scheme_str = s.next();
         if scheme_str.is_none() {
-            println!("Invalid format of argument 'subjects'");
+            error!("Invalid format of argument 'subjects'");
             return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let scheme = ThresholdScheme::from_str_name(scheme_str.unwrap());
         if scheme.is_none() {
-            println!("Invalid scheme '{}' selected", scheme_str.unwrap());
+            error!("Invalid scheme '{}' selected", scheme_str.unwrap());
             return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let group_str = s.next();
         if group_str.is_none() {
-            println!("Invalid format of argument 'subjects'");
+            error!("Invalid format of argument 'subjects'");
             return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
-            println!("Invalid group '{}' selected", group_str.unwrap());
+            error!("Invalid group '{}' selected", group_str.unwrap());
             return Err(Error::Threshold(SchemeError::InvalidParams));
         }
 
-        println!("Generating {}...", part);
+        info!("Generating {}...", part);
 
         // Creation of the id (name) given to a certain key. For now the name is based on scheme_group info.
         let mut name = String::from(group_str.unwrap());
@@ -148,7 +149,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         let pubkey = key[0].get_public_key().to_bytes().unwrap();
         let file = File::create(format!("{}/pub/{}_{}.pub", dir, part, key[0].get_key_id()));
         if let Err(e) = file.unwrap().write_all(&pubkey) {
-            println!("Error storing public key: {}", e.to_string());
+            error!("Error storing public key: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::IOError));
         }
 
@@ -173,10 +174,10 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         // TODO: eventually here there could be a protocol for an online phase to send the information to the Thetacrypt instances.
         let _ = kc.to_file(&keyfile);
 
-        println!("Created {}", keyfile);
+        info!("Created {}", keyfile);
     }
 
-    println!("Keys successfully generated.");
+    info!("Keys successfully generated.");
     return Ok(());
 }
 
@@ -218,7 +219,7 @@ fn encrypt(
         let tmp = fs::read(infile);
 
         if let Err(e) = tmp {
-            println!("Error reading input file: {}", e.to_string());
+            error!("Error reading input file: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::DeserializationFailed));
         }
 
@@ -229,18 +230,16 @@ fn encrypt(
     let ct = ThresholdCipher::encrypt(&msg, label, &key, &mut params);
 
     if let Err(e) = ct {
-        println!("Error encrypting message: {}", e.to_string());
+        error!("Error encrypting message: {}", e.to_string());
         return Err(Error::Threshold(e));
     }
 
     let ct = ct.unwrap().to_bytes();
 
     if let Err(e) = ct {
-        println!("Error serializing ciphertext: {}", e.to_string());
+        error!("Error serializing ciphertext: {}", e.to_string());
         return Err(Error::Threshold(e));
     }
-
-    println!("Size of the ciphertext: {}", ct.clone().unwrap().capacity());
 
     let ct = ct.unwrap();
 
@@ -251,12 +250,12 @@ fn encrypt(
     } else {
         let file = File::create(outfile);
         if let Err(e) = file {
-            println!("Error creating output file: {}", e.to_string());
+            error!("Error creating output file: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::IOError));
         }
 
         if let Err(e) = file.unwrap().write_all(&ct) {
-            println!("Error storing ciphertext: {}", e.to_string());
+            error!("Error storing ciphertext: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::IOError));
         }
     }
@@ -285,42 +284,42 @@ fn verify(
     let msg = fs::read(message_path);
 
     if let Err(e) = msg {
-        println!("Error reading mesage file: {}", e.to_string());
+        error!("Error reading mesage file: {}", e.to_string());
         return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let hex_signature = fs::read_to_string(signature_path);
 
     if let Err(e) = hex_signature {
-        println!("Error decoding hex encoded signature: {}", e.to_string());
+        error!("Error decoding hex encoded signature: {}", e.to_string());
         return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let hex_signature = hex_signature.unwrap();
 
-    println!("{}", &hex_signature);
+    debug!("{}", &hex_signature);
 
     let signature = Vec::from_hex(hex_signature);
 
     if let Err(e) = signature {
-        println!("Error decoding hex encoded signature: {}", e.to_string());
+        error!("Error decoding hex encoded signature: {}", e.to_string());
         return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     let signature = Signature::from_bytes(&signature.unwrap());
     if let Err(e) = signature {
-        println!("Error decoding hex encoded signature: {}", e.to_string());
+        error!("Error decoding hex encoded signature: {}", e.to_string());
         return Err(Error::Threshold(SchemeError::DeserializationFailed));
     }
 
     if let Ok(b) = ThresholdSignature::verify(&signature.unwrap(), &key, &msg.unwrap()) {
         if b {
-            println!("Signature valid");
+            info!("Signature valid");
             return Ok(());
         }
     }
 
-    println!("Invalid signature");
+    error!("Invalid signature");
 
     Err(Error::Threshold(SchemeError::InvalidRound))
 }
@@ -372,14 +371,14 @@ fn load_key(
         let contents = fs::read(key_path);
 
         if let Err(e) = contents {
-            println!("Error reading public key: {}", e.to_string());
+            error!("Error reading public key: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::DeserializationFailed));
         }
 
         let tmp = PublicKey::from_bytes(&contents.unwrap());
 
         if let Err(e) = tmp {
-            println!("Error reading public key: {}", e.to_string());
+            error!("Error reading public key: {}", e.to_string());
             return Err(Error::Threshold(SchemeError::DeserializationFailed));
         }
 
@@ -421,7 +420,7 @@ fn load_key(
                     .find(|k| km.selected_item_name().contains(&k.id));
 
                 if tmp.is_none() {
-                    println!("Error importing key");
+                    error!("Error importing key");
                     return Err(Error::String(String::from("Error loading public key")));
                 }
 
@@ -431,14 +430,14 @@ fn load_key(
             let tmp = keystore.get_key_by_id(key_id);
 
             if let Err(e) = tmp {
-                println!("Error loading public key: {}", e.to_string());
+                error!("Error loading public key: {}", e.to_string());
                 return Err(Error::Threshold(SchemeError::DeserializationFailed));
             }
 
             key = tmp.unwrap().pk;
         }
     } else {
-        println!("Either pubkey or keystore need to be specified");
+        error!("Either pubkey or keystore need to be specified");
         return Err(Error::String(String::from(
             "Either pubkey or keystore need to be specified",
         )));
@@ -457,7 +456,7 @@ fn list_keys(keystore_path: &str, operation: Option<ThresholdOperation>) -> Resu
     let keystore = keystore.unwrap();
 
     if operation.is_none() {
-        println!("{}", keystore.to_string());
+        debug!("{}", keystore.to_string());
     } else {
         let entries;
         match operation.unwrap() {

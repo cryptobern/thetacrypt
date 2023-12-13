@@ -180,6 +180,11 @@ impl ThresholdCipherProtocol {
                 ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
             self.decrypted = true;
             info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
+            match String::from_utf8(self.decrypted_plaintext.clone()) {
+                Ok(string) => info!("Decrypted the plaintext: {:?}", string),
+                Err(_) => {},
+            }
+            
             return Ok(());
         }
         return Ok(());

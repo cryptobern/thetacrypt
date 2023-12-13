@@ -79,7 +79,7 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./co
 
 By default, the newly generated key gets appended to the list of keys in the output file specified through `--dir`. To a completely new file and overwrite the previous key is possible to add the `--new` flag at the end. 
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./conf --new
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --output ./conf --new
 ```
 
 To generate the keys, information on the scheme and group is needed. Available schemes are:
@@ -113,10 +113,10 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf --new
 The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
 From the root directory of the `protocols` project start 4 terminals and run, respectively:
 ```
-cargo run --bin server -- --config-file conf/server_0.json --key-file conf/keys_0.json
-cargo run --bin server -- --config-file conf/server_1.json --key-file conf/keys_1.json
-cargo run --bin server -- --config-file conf/server_2.json --key-file conf/keys_2.json
-cargo run --bin server -- --config-file conf/server_3.json --key-file conf/keys_3.json
+cargo run --bin server -- --config-file conf/server_0.json --key-file conf/node0.keystore
+cargo run --bin server -- --config-file conf/server_1.json --key-file conf/node1.keystore
+cargo run --bin server -- --config-file conf/server_2.json --key-file conf/node2.keystore
+cargo run --bin server -- --config-file conf/server_3.json --key-file conf/node3.keystore
 ```
 
 Or use the supplied `start_network.sh` script to start four instances in a single terminal.

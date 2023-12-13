@@ -2,6 +2,7 @@ use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
+use log::{info, error, debug};
 use thetacrypt_blockchain_stub::proto::blockchain_stub::AtomicBroadcastRequest;
 // Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -38,16 +39,16 @@ pub async fn init(
 
     // Start proxy server
     tokio::spawn(async move {
-        println!("[Connection-proxy] Start the server");
+        info!("Start the server");
         let listener = TcpListener::bind(address)
             .await
             .expect("Failed to bind the server");
-        println!("[Connection-proxy] Server started ...");
+        info!("Server started ...");
         proxy_handler(listener, incoming_msg_sender.clone()).await
     });
 
     // Handle Channel Receiver
-    println!("[Connection-proxy] Start outgoing message forwarder");
+    info!("Start outgoing message forwarder");
     let cloned_config = config.clone();
     tokio::spawn(async move {
         outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await //the receiver can't be cloned
@@ -64,15 +65,15 @@ pub async fn outgoing_message_forwarder(
         let msg = receiver.recv().await;
         tokio::spawn(async move {
             let Some(data) = msg else { return };
-            println!("[Proxy]: Receiving message from outgoing_channel");
+            info!("Receiving message from outgoing_channel");
             //here goes the target_platform ip
             let mut address = addr.to_owned();
             address.push(':');
             address.push_str(&config.proxy_port.to_string());
-            println!("[Proxy] Connecting to remote address: {}", address);
+            info!("Connecting to remote address: {}", address);
             match TcpStream::connect(address).await{
                 Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
-                Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to blockchain node: {e}"),
+                Err(e) => error!(">> Error connecting to blockchain node: {e}"),
             }
 
             // match BlockchainStubClient::connect(address).await {
@@ -101,10 +102,10 @@ pub async fn outgoing_message_forwarder(
 }
 
 pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<()> {
-    println!("[Connection-proxy Sender] Successfully connected to server");
+    info!("Successfully connected to server");
 
     connection.write_all(data.as_slice()).await?;
-    println!("[connection-proxy Sender] sent the share to Blockchain...");
+    info!(" >> Share sent to Blockchain...");
 
     Ok(())
 }
@@ -131,7 +132,7 @@ async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) ->
             .expect("failed to read data from socket");
 
         if n == 0 {
-            println!("Buffer read is empty...");
+            debug!("Buffer read is empty...");
             break; //This is needed to exit the loop and terminate this thread
         }
 
@@ -151,11 +152,11 @@ async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) ->
     let msg_received = NetMessage::from(data_cloned);
     let msg = NetMessage::from(data);
     match sender.send(msg).await {
-        Ok(_) => println!(
-            ">> [Sender on the incoming channel] Message sent to the protocol layer: {:?}",
-            msg_received
+        Ok(_) => info!(
+            ">> Message with instance_id {:?} sent to the protocol layer. ",
+            msg_received.instance_id
         ),
-        Err(e) => println!(">> TEST: error send to network {e}"),
+        Err(e) => error!(">> TEST: error send to network {e}"),
     }
     Ok(())
 }
