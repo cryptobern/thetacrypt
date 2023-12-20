@@ -110,13 +110,13 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf --new
 
 ### Starting the server binary
 
-The server is implemented in `src\rpc_request_handler.rs` and can be started using `src\bin\server.rs`.
+The server is implemented in `src\bin\server.rs`.
 From the root directory of the `protocols` project start 4 terminals and run, respectively:
 ```
-cargo run --bin server -- --config-file conf/server_0.json --key-file conf/keys_0.json
-cargo run --bin server -- --config-file conf/server_1.json --key-file conf/keys_1.json
-cargo run --bin server -- --config-file conf/server_2.json --key-file conf/keys_2.json
-cargo run --bin server -- --config-file conf/server_3.json --key-file conf/keys_3.json
+cargo run --bin server -- --config-file conf/server_0.json --key-file conf/node0.keystore
+cargo run --bin server -- --config-file conf/server_1.json --key-file conf/node1.keystore
+cargo run --bin server -- --config-file conf/server_2.json --key-file conf/node2.keystore
+cargo run --bin server -- --config-file conf/server_3.json --key-file conf/node3.keystore
 ```
 
 Or use the supplied `start_network.sh` script to start four instances in a single terminal.
@@ -146,32 +146,47 @@ We already used this application for **generating the keys**, but it has other t
 Usage: `./thetacli [action] [params]`
 available actions:
 
-- `keygen [k] [n] [algorithms] [directory]` \
+- `keygen -k [k] -n [n] --subjects [subjects] --dir [dir]` \
   generates the public/private keys for the specified schemes and groups \
-  `k` = threshold \
-  `n` = number of private keys \
-  `directory` = directory to store generated keys in \
-  `algorithms` = a list of comma separated elements of the format `'scheme-group'`, where <br> `'scheme'` is one of the following: 
+  `-k` = threshold \
+  `-n` = number of private keys \
+  `--dir` = directory to store generated keys in \
+  `--subjects` = a list of comma separated elements of the format `'scheme-group'`, where <br> `'scheme'` is one of the following: 
     - encryption schemes: sg02, bz03
     - signature schemes: bls04, frost, sh00
     - coin schemes: cks05 <br>
-   
   and `'group'` is one of \
     'bls12381', 'bn254', 'ed25519', 'rsa512', 'rsa1024', 'rsa2048'. \
-  example: `./thetacli keygen 3 5 sg02-bls12381,bz03-ed25519 /path/to/keys/` <br><br>
-      
+  `--new` = overwrite existing files \
+  example: `./thetacli keygen 3 5 sg02-bls12381,bz03-ed25519 /path/to/keys/` <br>
 
-- `enc [pubkey] [infile] [label] [outfile]` \
+- `keystore [action] [keystore_location]` \
+    modify / inspect a local keystore file <br>
+    the following actions are available: <br>
+    `ls` = list keys in a given keystore file \
+    `fetch` = fetch public keys from a remote server and store them in a keystore file \
+    &emsp; `--address` specifies the remote thetacrypt node to connect to (format `https://ip:port`) \
+    `add` = add a local key to the keystore \
+    &emsp; `--input` the input key file to add to the keystore (can be private or public) \
+
+- `enc --pubkey [pubkey] --infile [infile] --label [label] --output [output]` \
     encrypt a given infile and store it as outfile \
-    `pubkey` = public key of a threshold encryption scheme \
-    `infile` = path to file to be encrypted \
-    `label` = label for ciphertext \
-    `outfile` = path to file to store the encoded ciphertext in
-- `verify [pubkey] [msg] [signature]` \
+    `--pubkey` = path to a file containing the public key of a threshold encryption scheme \
+    `--keystore` = path to a .keystore file (alternative to providing `pubkey` directly) \
+    `--key-id` = id of the public key to use (only needed when using keystore) \
+    `--infile` = path to the file to be encrypted (alternatively, `stdin` can be used to provide data to be encrypted) \
+    `--label` = label (string) for ciphertext \
+    `--output` = path to a file to store the encoded ciphertext in (use - to print to `stdout`)
+
+- `verify --pubkey [pubkey] --msg [msg] --signature [signature]` \
     verify a given signature for a specific message using the specified public key <br>
-    `pubkey` = public key of a threshold encryption scheme \
-    `msg` = path to message file (bytes) \
-    `signature` = path to signature to verify (hex encoded)
+    `--pubkey` = path to a file containing the public key of a threshold encryption scheme \
+    `--keystore` = path to a .keystore file (alternative to providing `pubkey` directly) \
+    `--key-id` = id of the public key to use (only needed when using keystore) \
+    `--msg` = path to message file (bytes) \
+    `--signature` = path to signature to verify (hex encoded)
+
+
 
 ## About **Tokio** and **async_std**
 

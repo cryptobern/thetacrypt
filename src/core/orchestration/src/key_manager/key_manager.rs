@@ -95,7 +95,7 @@ impl KeyManager {
                             if result.is_ok() {
                                 responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
                             } else {
-                                responder.send(Err(result.unwrap_err())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                responder.send(Err(result.unwrap_err().to_string())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
                             }
                         },
                         KeyManagerCommand::GetKeyBySchemeAndGroup { scheme, group, responder } => {

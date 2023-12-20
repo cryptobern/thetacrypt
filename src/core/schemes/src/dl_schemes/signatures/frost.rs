@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use core::panic;
-
 use asn1::{ParseError, WriteError};
 
 use crate::{

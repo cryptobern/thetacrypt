@@ -10,9 +10,14 @@ pub struct ThetaCliArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Locally generate keys for threshold schemes
     Keygen(KeyGenArgs),
+    /// Encrypt data using threshold encryption
     Enc(EncArgs),
+    /// Verify threshold signatures
     Verify(VerifyArgs),
+    /// Manipulate keystores
+    Keystore(KeystoreArgs),
 }
 
 #[derive(Args, Debug)]
@@ -41,35 +46,17 @@ pub struct KeyGenArgs {
 }
 #[derive(Args, Debug)]
 pub struct EncArgs {
-    #[arg(
-        short, 
-        long, 
-        help = "The path to the input file", 
-        default_value_t = String::from("")
-    )]
-    pub infile: String,
-    #[arg(
-        long,
-        help = "The path to the public key file",
-        default_value_t = String::from("")
-    )]
-    pub pubkey: String,
-    #[arg(
-        long,
-        help = "The path to the keystore",
-        default_value_t = String::from("")
-    )]
-    pub keystore: String,
-    #[arg(
-        short,
-        long,
-        help = "The key id",
-        default_value_t = String::from("")
-    )]
-    pub key_id: String,
+    #[arg(short, long, help = "The path to the input file")]
+    pub infile: Option<String>,
+    #[arg(long, help = "The path to the public key file")]
+    pub pubkey: Option<String>,
+    #[arg(long, help = "The path to the keystore")]
+    pub keystore: Option<String>,
+    #[arg(short, long, help = "The key id")]
+    pub key_id: Option<String>,
     #[arg(short, long, help = "The encryption label")]
     pub label: String,
-    #[arg(short, long, help = "The output path")]
+    #[arg(short, long, help = "The output file (use - for stdout)")]
     pub output: String,
 }
 
@@ -79,23 +66,31 @@ pub struct VerifyArgs {
     pub message_path: String,
     #[arg(short, long, help = "The path to the file containing the signature")]
     pub signature_path: String,
-    #[arg(
-        long,
-        help = "The path to the public key file",
-        default_value_t = String::from("")
-    )]
-    pub pubkey: String,
-    #[arg(
-        long,
-        help = "The path to the keystore",
-        default_value_t = String::from("")
-    )]
+    #[arg(long, help = "The path to the public key file")]
+    pub pubkey: Option<String>,
+    #[arg(long, help = "The path to the keystore")]
+    pub keystore: Option<String>,
+    #[arg(short, long, help = "The key id")]
+    pub key_id: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct KeystoreArgs {
+    #[arg(help = "The action to perform")]
+    pub action: String,
+    #[arg(help = "The path to the keystore")]
     pub keystore: String,
     #[arg(
-        short,
         long,
-        help = "The key id",
-        default_value_t = String::from("")
+        help = "The address of the network node (example https://127.0.0.1:1234)"
     )]
-    pub key_id: String,
+    pub address: Option<String>,
+    #[arg(
+        long,
+        help = "Option to overwrite the existing keystore",
+        default_value_t = false
+    )]
+    pub new: bool,
+    #[arg(long, help = "Path to input key file")]
+    pub input: Option<String>,
 }
