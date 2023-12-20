@@ -9,7 +9,7 @@ build-docker:
 .PHONY: build-docker
 
 config-files: 
-	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/tmp:/target/release/conf:Z rust-threshold-library ./thetacli keygen -k 3 -n 4 --subjects sg02-Bls12381 --dir ./conf; fi
+	@if ! [ -f ./conf/keys_0.json ]; then docker run --rm -v $(CURDIR)/tmp:/target/release/conf:Z rust-threshold-library ./thetacli keygen -k 3 -n 4 --subjects all --dir ./conf --new; fi
 	@if ! [ -f ./conf/server_0.json ]; then docker run --rm -v $(CURDIR)/tmp:/target/release/conf:Z rust-threshold-library ./confgen --ip-file=conf/server_ips.txt --outdir=conf; fi # the outdir here is created under protocols
 .PHONY: config-files
 
