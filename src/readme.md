@@ -146,11 +146,11 @@ We already used this application for **generating the keys**, but it has other t
 Usage: `./thetacli [action] [params]`
 available actions:
 
-- `keygen -k [k] -n [n] --subjects [subjects] --dir [dir]` \
+- `keygen -k [k] -n [n] --subjects [subjects] --output [output_dir]` \
   generates the public/private keys for the specified schemes and groups \
   `-k` = threshold \
   `-n` = number of private keys \
-  `--dir` = directory to store generated keys in \
+  `--output` = directory to store generated keys in \
   `--subjects` = a list of comma separated elements of the format `'scheme-group'`, where <br> `'scheme'` is one of the following: 
     - encryption schemes: sg02, bz03
     - signature schemes: bls04, frost, sh00
