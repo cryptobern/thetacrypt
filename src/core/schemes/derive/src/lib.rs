@@ -88,70 +88,70 @@ pub fn derive_big_impl(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         impl PartialEq for #name {
             fn eq(&self, other: &Self) -> bool {
-                self.equals(&BigImpl::#group_name(other.clone()))
+                self.equals(&SizedBigInt::#group_name(other.clone()))
             }
         }
 
-        impl BigInt for #name {
+        impl FixedSizeInt for #name {
             type DataType = BIG;
 
-            fn new() -> BigImpl {
-                BigImpl::#group_name(Self { value: BIG::new() })
+            fn new() -> SizedBigInt {
+                SizedBigInt::#group_name(Self { value: BIG::new() })
             }
 
-            fn new_copy(y: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = y {
-                    BigImpl::#group_name(Self { value:BIG::new_copy(&v.value) })
+            fn new_copy(y: &SizedBigInt) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = y {
+                    SizedBigInt::#group_name(Self { value:BIG::new_copy(&v.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
 
             }
 
-            fn new_ints(a: &[mcore::arch::Chunk]) -> BigImpl {
-                BigImpl::#group_name(Self { value:BIG::new_ints(a) })
+            fn new_ints(a: &[mcore::arch::Chunk]) -> SizedBigInt {
+                SizedBigInt::#group_name(Self { value:BIG::new_ints(a) })
             }
 
-            fn new_int(i: isize) -> BigImpl {
-                BigImpl::#group_name(Self { value:BIG::new_int(i) })
+            fn new_int(i: isize) -> SizedBigInt {
+                SizedBigInt::#group_name(Self { value:BIG::new_int(i) })
             }
 
-            fn new_rand(q: &BigImpl, rng: &mut RNG) -> BigImpl {
-                if let BigImpl::#group_name(v) = q {
-                    BigImpl::#group_name(Self { value:BIG::randomnum(&v.value, rng) })
+            fn new_rand(q: &SizedBigInt, rng: &mut RNG) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = q {
+                    SizedBigInt::#group_name(Self { value:BIG::randomnum(&v.value, rng) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn from_bytes(bytes: &[u8]) -> BigImpl {
-                BigImpl::#group_name(Self { value:BIG::frombytes(bytes)})
+            fn from_bytes(bytes: &[u8]) -> SizedBigInt {
+                SizedBigInt::#group_name(Self { value:BIG::frombytes(bytes)})
             }
 
-            fn rmod(&self, y: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = y {
+            fn rmod(&self, y: &SizedBigInt) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = y {
                     let mut x = self.clone();
                     x.value.rmod(&v.value);
-                    BigImpl::#group_name(x)
+                    SizedBigInt::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn mul_mod(&self, y: &BigImpl, m: &BigImpl) -> BigImpl {
-                if let (BigImpl::#group_name(v), BigImpl::#group_name(w)) = (y, m) {
-                    BigImpl::#group_name(Self { value:BIG::mul(&self.value, &v.value).dmod(&w.value) })
+            fn mul_mod(&self, y: &SizedBigInt, m: &SizedBigInt) -> SizedBigInt {
+                if let (SizedBigInt::#group_name(v), SizedBigInt::#group_name(w)) = (y, m) {
+                    SizedBigInt::#group_name(Self { value:BIG::mul(&self.value, &v.value).dmod(&w.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
 
             }
 
-            fn add(&self, y: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = y {
+            fn add(&self, y: &SizedBigInt) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = y {
                     let mut x = self.clone();
                     x.value.add(&v.value);
-                    BigImpl::#group_name(x)
+                    SizedBigInt::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
@@ -167,50 +167,50 @@ pub fn derive_big_impl(input: TokenStream) -> TokenStream {
                 self.value.tostring()
             }
 
-            fn pow_mod(&mut self, y: &BigImpl, m: &BigImpl) -> BigImpl {
-                if let (BigImpl::#group_name(v), BigImpl::#group_name(w)) = (y, m) {
-                    BigImpl::#group_name(Self { value:self.value.powmod(&v.value, &w.value) })
+            fn pow_mod(&mut self, y: &SizedBigInt, m: &SizedBigInt) -> SizedBigInt {
+                if let (SizedBigInt::#group_name(v), SizedBigInt::#group_name(w)) = (y, m) {
+                    SizedBigInt::#group_name(Self { value:self.value.powmod(&v.value, &w.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn inv_mod(&self, m: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = m {
+            fn inv_mod(&self, m: &SizedBigInt) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = m {
                     let mut x = self.clone();
                     x.value.invmodp(&v.value);
-                    BigImpl::#group_name(x)
+                    SizedBigInt::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn sub(&self, y: &BigImpl) -> BigImpl {
-                if let BigImpl::#group_name(v) = y {
+            fn sub(&self, y: &SizedBigInt) -> SizedBigInt {
+                if let SizedBigInt::#group_name(v) = y {
                     let mut x = self.clone();
                     x.value.sub(&v.value);
-                    BigImpl::#group_name(x)
+                    SizedBigInt::#group_name(x)
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            fn imul(&self, i: isize) -> BigImpl {
+            fn imul(&self, i: isize) -> SizedBigInt {
                 let mut x = self.clone();
                 x.value.imul(i);
-                BigImpl::#group_name(x)
+                SizedBigInt::#group_name(x)
             }
 
-            fn equals(&self, y: &BigImpl) -> bool {
-                if let BigImpl::#group_name(v) = y {
+            fn equals(&self, y: &SizedBigInt) -> bool {
+                if let SizedBigInt::#group_name(v) = y {
                     BIG::comp(&self.value, &v.value) == 0
                 } else {
                     false
                 }
             }
 
-            fn cmp(&self, y: &BigImpl) -> isize {
-                if let BigImpl::#group_name(v) = y {
+            fn cmp(&self, y: &SizedBigInt) -> isize {
+                if let SizedBigInt::#group_name(v) = y {
                     BIG::comp(&self.value, &v.value)
                 } else {
                     panic!("Incompatible big integer implementation!");
@@ -304,16 +304,16 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                 Self { value: ECPoint{fp12:ManuallyDrop::new(point)}, i:2 }
             }
 
-            pub fn new_pow_big (x: &BigImpl) -> Self {
-                if let BigImpl::#name(v) = x {
+            pub fn new_pow_big (x: &SizedBigInt) -> Self {
+                if let SizedBigInt::#name(v) = x {
                     Self { value:ECPoint{ecp:ManuallyDrop::new(ECP::generator().mul(&v.value))}, i:0}
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
             }
 
-            pub fn new_pow_big_ecp2 (x: &BigImpl) -> Self {
-                if let BigImpl::#name(v) = x {
+            pub fn new_pow_big_ecp2 (x: &SizedBigInt) -> Self {
+                if let SizedBigInt::#name(v) = x {
                     Self { value:ECPoint{ecp2:ManuallyDrop::new(ECP2::generator().mul(&v.value))}, i:1}
                 } else {
                     panic!("Incompatible big integer implementation!");
@@ -321,11 +321,11 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
             }
 
             pub fn new_rand(rng: &mut RNG) -> Self {
-                Self::new_pow_big(&BigImpl::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
+                Self::new_pow_big(&SizedBigInt::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
             }
 
             pub fn new_rand_ecp2(rng: &mut RNG) -> Self {
-                Self::new_pow_big_ecp2(&BigImpl::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
+                Self::new_pow_big_ecp2(&SizedBigInt::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
             }
 
             pub fn new_copy(g: &Self) -> Self {
@@ -366,10 +366,10 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
-            pub fn pow (&self, x: &BigImpl) -> GroupElement {
+            pub fn pow (&self, x: &SizedBigInt) -> GroupElement {
                 unsafe {
                     let result;
-                    if let BigImpl::#name(v) = x {
+                    if let SizedBigInt::#name(v) = x {
                         match self.i {
                             0 => result = Self { value: ECPoint{ ecp:ManuallyDrop::new(self.value.ecp.mul(&v.value)) }, i:0},
                             1 => result = Self { value: ECPoint{ ecp2:ManuallyDrop::new(self.value.ecp2.mul(&v.value)) }, i:1},
@@ -450,7 +450,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
             }
 
             // TODO: convert to reference
-            pub fn get_order() -> BigImpl {
+            pub fn get_order() -> SizedBigInt {
                 #big_impl_name::new_ints(&rom::CURVE_ORDER)
             }
 
@@ -537,8 +537,8 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
                 x
             }
 
-            pub fn new_pow_big (x: &BigImpl) -> Self {
-                if let BigImpl::#name(v) = x {
+            pub fn new_pow_big (x: &SizedBigInt) -> Self {
+                if let SizedBigInt::#name(v) = x {
                     return Self { value:ECP::generator().mul(&v.value) };
                 } else {
                     panic!("Incompatible big integer implementation!");
@@ -546,7 +546,7 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
             }
 
             pub fn new_rand(rng: &mut RNG) -> Self {
-                Self::new_pow_big(&BigImpl::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
+                Self::new_pow_big(&SizedBigInt::#name(#big_impl_name { value:BIG::randomnum(&BIG::new_ints(&rom::CURVE_ORDER), rng) }))
             }
 
             pub fn new_copy(g: &Self) -> Self {
@@ -559,8 +559,8 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
                 GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(Self { value:v })})
             }
 
-            pub fn pow (&self, x: &BigImpl) -> GroupElement {
-                if let BigImpl::#name(v) = x {
+            pub fn pow (&self, x: &SizedBigInt) -> GroupElement {
+                if let SizedBigInt::#name(v) = x {
                     GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: self.value.mul(&v.value) }) })
                 } else {
                     panic!("Incompatible big integer implementation!");
@@ -588,7 +588,7 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
                 self.value.equals(&g.value)
             }
 
-            pub fn get_order() -> BigImpl {
+            pub fn get_order() -> SizedBigInt {
                 #big_impl_name::new_ints(&rom::CURVE_ORDER)
             }
 

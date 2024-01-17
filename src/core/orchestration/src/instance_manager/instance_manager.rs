@@ -644,21 +644,25 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
     match request {
         StartInstanceRequest::Decryption { ciphertext } => {
             digest.process_array(ciphertext.get_ck());
-            let h: &[u8] = &digest.hash()[..8];
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
         StartInstanceRequest::Signature {
             message,
             label,
-            scheme: _,
-            group: _,
+            scheme,
+            group,
             key_id,
         } => {
-            /* PROBLEM: Hashing the whole
-            message might become a bottleneck for big messages */
-            digest.process_array(&message);
             digest.process_array(&label);
-            let h: &[u8] = &digest.hash()[..8];
+            digest.process_array(scheme.as_str_name().as_bytes());
+            digest.process_array(group.as_str_name().as_bytes());
+
+            if key_id.is_some() {
+                digest.process_array(key_id.clone().unwrap().as_bytes())
+            }
+
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
         StartInstanceRequest::Coin {
@@ -670,7 +674,10 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             /* PROBLEM: Hashing the whole
             name might become a bottleneck for long names */
             digest.process_array(&name);
-            let h: &[u8] = &digest.hash()[..8];
+            if key_id.is_some() {
+                digest.process_array(key_id.clone().unwrap().as_bytes())
+            }
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
     }

@@ -8,7 +8,7 @@ use derive::DlShare;
 use log::error;
 use mcore::hash256::HASH256;
 
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::keys::keys::calc_key_id;
 use crate::{
     dl_schemes::common::interpolate,
@@ -54,7 +54,7 @@ impl Bls04PublicKey {
         k
     }
 
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.y.get_order()
     }
 
@@ -151,12 +151,12 @@ impl Serializable for Bls04PublicKey {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bls04PrivateKey {
     id: u16,
-    xi: BigImpl,
+    xi: SizedBigInt,
     pubkey: Bls04PublicKey,
 }
 
 impl Bls04PrivateKey {
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.pubkey.get_order()
     }
 
@@ -176,7 +176,7 @@ impl Bls04PrivateKey {
         self.pubkey.get_group()
     }
 
-    pub fn new(id: u16, xi: &BigImpl, pubkey: &Bls04PublicKey) -> Self {
+    pub fn new(id: u16, xi: &SizedBigInt, pubkey: &Bls04PublicKey) -> Self {
         Self {
             id: id.clone(),
             xi: xi.clone(),
@@ -227,7 +227,7 @@ impl Serializable for Bls04PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let xi = SizedBigInt::from_bytes(&pubkey.get_group(), &bytes);
 
                 return Ok(Self { id, xi, pubkey });
             });
@@ -451,7 +451,7 @@ fn H(m: &[u8], group: &Group) -> GroupElement {
         }
     }
 
-    let mut res = BigImpl::from_bytes(&group, &buf);
+    let mut res = SizedBigInt::from_bytes(&group, &buf);
     res.rmod(&group.get_order());
 
     GroupElement::new_pow_big_ecp2(&group, &res)

@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use crate::dl_schemes::bigint::{BigImpl, BigInt};
+use crate::dl_schemes::bigint::{FixedSizeInt, SizedBigInt};
 use crate::group::GroupElement;
 use crate::{interface::SchemeError, rand::RNG};
 use derive::{BigIntegerImpl, EcPairingGroupImpl};

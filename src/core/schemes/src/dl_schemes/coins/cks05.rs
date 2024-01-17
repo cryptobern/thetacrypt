@@ -12,7 +12,7 @@ use log::error;
 use mcore::hash256::HASH256;
 use rasn::AsnType;
 
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::interface::{DlShare, SchemeError, Serializable};
 use crate::keys::keys::calc_key_id;
 use crate::scheme_types_impl::GroupDetails;
@@ -38,7 +38,7 @@ impl Cks05PublicKey {
         &self.id
     }
 
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.y.get_order()
     }
 
@@ -150,12 +150,12 @@ impl PartialEq for Cks05PublicKey {
 #[derive(AsnType, Debug, Clone)]
 pub struct Cks05PrivateKey {
     id: u16,
-    xi: BigImpl,
+    xi: SizedBigInt,
     pubkey: Cks05PublicKey,
 }
 
 impl Cks05PrivateKey {
-    pub fn new(id: u16, xi: &BigImpl, pubkey: &Cks05PublicKey) -> Self {
+    pub fn new(id: u16, xi: &SizedBigInt, pubkey: &Cks05PublicKey) -> Self {
         Self {
             id,
             xi: xi.clone(),
@@ -163,7 +163,7 @@ impl Cks05PrivateKey {
         }
     }
 
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.pubkey.get_order()
     }
 
@@ -226,7 +226,7 @@ impl Serializable for Cks05PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &b);
+                let xi = SizedBigInt::from_bytes(&pubkey.get_group(), &b);
 
                 return Ok(Self { id, xi, pubkey });
             });
@@ -251,8 +251,8 @@ impl PartialEq for Cks05PrivateKey {
 pub struct Cks05CoinShare {
     id: u16,
     data: GroupElement,
-    c: BigImpl,
-    z: BigImpl,
+    c: SizedBigInt,
+    z: SizedBigInt,
 }
 
 impl Cks05CoinShare {
@@ -295,10 +295,10 @@ impl Serializable for Cks05CoinShare {
                 let data = GroupElement::from_bytes(&bytes, &group, Option::None);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let c = BigImpl::from_bytes(&group, &bytes);
+                let c = SizedBigInt::from_bytes(&group, &bytes);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let z = BigImpl::from_bytes(&group, &bytes);
+                let z = SizedBigInt::from_bytes(&group, &bytes);
 
                 return Ok(Self { id, data, c, z });
             });
@@ -329,7 +329,7 @@ impl Cks05ThresholdCoin {
         let c_bar = H(name, &sk.get_group());
         let data = c_bar.pow(&sk.xi);
 
-        let s = BigImpl::new_rand(&sk.get_group(), &q, rng);
+        let s = SizedBigInt::new_rand(&sk.get_group(), &q, rng);
 
         let h = GroupElement::new(&sk.get_group()).pow(&s);
 
@@ -344,7 +344,7 @@ impl Cks05ThresholdCoin {
             &h_bar,
         );
 
-        let z = s.add(&BigImpl::rmul(&c, &sk.xi, &q)).rmod(&q);
+        let z = s.add(&SizedBigInt::rmul(&c, &sk.xi, &q)).rmod(&q);
 
         Cks05CoinShare {
             id: sk.id,
@@ -406,7 +406,7 @@ fn H(name: &[u8], group: &Group) -> GroupElement {
         }
     }
 
-    let res = BigImpl::from_bytes(&group, &buf);
+    let res = SizedBigInt::from_bytes(&group, &buf);
     res.rmod(&group.get_order());
 
     GroupElement::new_pow_big(&group, &res)
@@ -419,7 +419,7 @@ fn H1(
     g4: &GroupElement,
     g5: &GroupElement,
     g6: &GroupElement,
-) -> BigImpl {
+) -> SizedBigInt {
     let mut buf: Vec<u8> = Vec::new();
     let q = g1.get_order();
 
@@ -449,7 +449,7 @@ fn H1(
         }
     }
 
-    let res = BigImpl::from_bytes(&g1.get_group(), &buf);
+    let res = SizedBigInt::from_bytes(&g1.get_group(), &buf);
     res.rmod(&g1.get_order());
 
     res

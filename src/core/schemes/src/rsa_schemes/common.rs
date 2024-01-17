@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use crate::{rand::RNG, BIGINT, ONE, ZERO};
 
-use super::{bigint::RsaBigInt, signatures::sh00::Sh00SignatureShare};
+use super::{bigint::BigInt, signatures::sh00::Sh00SignatureShare};
 
 const PRIMES: [isize; 1828] = [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
@@ -129,23 +129,23 @@ const PRIMES: [isize; 1828] = [
 const BOUND: usize = 100;
 
 pub fn shamir_share_rsa(
-    d: &RsaBigInt,
+    d: &BigInt,
     k: usize,
     n: usize,
-    N: &RsaBigInt,
-    m: &RsaBigInt,
-    v: &RsaBigInt,
+    N: &BigInt,
+    m: &BigInt,
+    v: &BigInt,
     modsize: usize,
     rng: &mut RNG,
-) -> (Vec<(u16, RsaBigInt)>, Vec<RsaBigInt>) {
-    let mut fk: Vec<RsaBigInt> = Vec::new();
-    let mut di: Vec<(u16, RsaBigInt)> = Vec::new();
-    let mut vk: Vec<RsaBigInt> = Vec::new();
+) -> (Vec<(u16, BigInt)>, Vec<BigInt>) {
+    let mut fk: Vec<BigInt> = Vec::new();
+    let mut di: Vec<(u16, BigInt)> = Vec::new();
+    let mut vk: Vec<BigInt> = Vec::new();
 
     fk.push(d.clone());
 
     for _ in 1..k {
-        let rand = RsaBigInt::new_rand(rng, modsize);
+        let rand = BigInt::new_rand(rng, modsize);
         fk.push(rand);
     }
 
@@ -174,13 +174,7 @@ pub fn shamir_share_rsa(
 //
 // reference: https://gitlab.inf.unibe.ch/crypto/2021.cosmoscrypto/-/blob/Sh00impl/papers/signature_schemes_based_strong_rsa-tissec00.pdf
 //
-pub fn gen_strong_prime(
-    p1: &mut RsaBigInt,
-    p: &mut RsaBigInt,
-    e: &RsaBigInt,
-    rng: &mut RNG,
-    psize: usize,
-) {
+pub fn gen_strong_prime(p1: &mut BigInt, p: &mut BigInt, e: &BigInt, rng: &mut RNG, psize: usize) {
     let mut prime = false;
 
     while prime == false {
@@ -275,7 +269,7 @@ pub fn fac(x: usize) -> usize {
     x * fac(x - 1)
 }
 
-pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &RsaBigInt, delta: usize) -> RsaBigInt {
+pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &BigInt, delta: usize) -> BigInt {
     let slen = shares.len();
     let ids: Vec<u8> = (0..slen).map(|x| shares[x].get_id() as u8).collect();
     let mut w = ONE!();
@@ -291,7 +285,7 @@ pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &RsaBigInt, delta: usize
     w
 }
 
-pub fn lag_coeff(indices: &[u8], i: isize, d: usize) -> RsaBigInt {
+pub fn lag_coeff(indices: &[u8], i: isize, d: usize) -> BigInt {
     let mut ln = BIGINT!(d);
     let mut ld = ONE!();
     let ilen = indices.len();
@@ -309,7 +303,7 @@ pub fn lag_coeff(indices: &[u8], i: isize, d: usize) -> RsaBigInt {
     ln.add(&ln)
 }
 
-pub fn ext_euclid(x: &RsaBigInt, y: &RsaBigInt) -> (RsaBigInt, RsaBigInt) {
+pub fn ext_euclid(x: &BigInt, y: &BigInt) -> (BigInt, BigInt) {
     if x.equals(&ZERO!()) {
         return (ZERO!(), ONE!());
     }
@@ -319,7 +313,7 @@ pub fn ext_euclid(x: &RsaBigInt, y: &RsaBigInt) -> (RsaBigInt, RsaBigInt) {
     let mut a = y.div(&x).mul(&x1);
     y1 = y1.sub(&a);
     a.set(&y1);
-    let b = RsaBigInt::new_copy(&x1);
+    let b = BigInt::new_copy(&x1);
 
     (a, b)
 }

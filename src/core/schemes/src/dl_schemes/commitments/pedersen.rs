@@ -1,14 +1,14 @@
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::group::GroupElement;
 use crate::scheme_types_impl::GroupDetails;
 
 pub struct PedersenCommitmentParams {
-    pub x: BigImpl,
-    pub r: BigImpl,
+    pub x: SizedBigInt,
+    pub r: SizedBigInt,
 }
 
 impl PedersenCommitmentParams {
-    pub fn init(x: BigImpl, r: BigImpl) -> PedersenCommitmentParams {
+    pub fn init(x: SizedBigInt, r: SizedBigInt) -> PedersenCommitmentParams {
         PedersenCommitmentParams { x: x, r: r }
     }
 }

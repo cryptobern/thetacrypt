@@ -5,12 +5,14 @@ use rand::{rngs::OsRng, RngCore};
 
 pub enum RngAlgorithm {
     MarsagliaZaman, // should only be used for testing
+    Static(String), // should only be used for testing
     OsRng,          // use this for production
 }
 
 pub enum RNG {
     MarsagliaZaman(RAND_impl),
     OsRng(OsRng),
+    Static(StaticRNG),
 }
 
 impl RAND for RNG {
@@ -18,6 +20,7 @@ impl RAND for RNG {
         match self {
             RNG::MarsagliaZaman(rng) => rng.seed(rawlen, raw),
             RNG::OsRng(_rng) => {}
+            _ => {}
         }
     }
 
@@ -27,6 +30,7 @@ impl RAND for RNG {
             RNG::OsRng(rng) => {
                 return rng.next_u32().to_be_bytes()[0];
             }
+            RNG::Static(rng) => rng.getbyte(),
         }
     }
 }
@@ -60,6 +64,11 @@ impl RNG {
                 let rng = OsRng::default();
                 return RNG::OsRng(rng);
             }
+
+            RngAlgorithm::Static(seed) => {
+                let rng = StaticRNG::new(seed);
+                return RNG::Static(rng);
+            }
         }
     }
 
@@ -69,5 +78,35 @@ impl RNG {
             result.push(self.getbyte());
         }
         result
+    }
+}
+
+pub struct StaticRNG {
+    seed: Vec<u8>,
+    index: usize,
+}
+
+impl StaticRNG {
+    pub fn new(seed: String) -> Self {
+        let t = hex::decode(seed);
+        let mut seed = Vec::new();
+        if t.is_ok() {
+            seed = t.unwrap();
+        }
+
+        let index = 0;
+
+        return StaticRNG { index, seed };
+    }
+
+    pub fn getbyte(&mut self) -> u8 {
+        let byte = self.seed[self.index].clone();
+
+        self.index += 1;
+        if self.index >= self.seed.len() {
+            self.index = 0;
+        }
+
+        byte
     }
 }

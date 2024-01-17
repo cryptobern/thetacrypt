@@ -4,7 +4,7 @@ use std::{fmt::Debug, mem::ManuallyDrop};
 
 use theta_proto::scheme_types::Group;
 
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::{
     dl_schemes::dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
     interface::SchemeError,
@@ -289,7 +289,7 @@ impl GroupElement {
     }
 
     /* returns g^y where g is the generator of selected group */
-    pub fn new_pow_big(group: &Group, y: &BigImpl) -> Self {
+    pub fn new_pow_big(group: &Group, y: &SizedBigInt) -> Self {
         let data;
 
         match group {
@@ -318,7 +318,7 @@ impl GroupElement {
     }
 
     /* returns g^y where g is the generator of the extension field of selected group */
-    pub fn new_pow_big_ecp2(group: &Group, y: &BigImpl) -> Self {
+    pub fn new_pow_big_ecp2(group: &Group, y: &SizedBigInt) -> Self {
         let data;
 
         match group {
@@ -411,7 +411,7 @@ impl GroupElement {
     }
 
     /* returns self^y */
-    pub fn pow(&self, y: &BigImpl) -> Self {
+    pub fn pow(&self, y: &SizedBigInt) -> Self {
         unsafe {
             match self.group {
                 Group::Bls12381 => (*self.data.bls12381).pow(&y),
@@ -423,7 +423,7 @@ impl GroupElement {
     }
 
     /* get order of group element */
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         match self.group {
             Group::Bls12381 => Bls12381::get_order(),
             Group::Bn254 => Bn254::get_order(),

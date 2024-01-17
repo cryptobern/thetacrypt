@@ -3,11 +3,12 @@
 use asn1::{ParseError, WriteError};
 
 use crate::{
-    dl_schemes::{bigint::BigImpl, common::lagrange_coeff},
+    dl_schemes::{bigint::SizedBigInt, common::lagrange_coeff},
     group::GroupElement,
     interface::{DlShare, SchemeError, Serializable},
     keys::keys::calc_key_id,
     rand::{RngAlgorithm, RNG},
+    rsa_schemes::bigint::BigInt,
     scheme_types_impl::GroupDetails,
 };
 use log::error;
@@ -131,12 +132,12 @@ impl Serializable for FrostPublicKey {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FrostPrivateKey {
     id: u16,
-    x: BigImpl,
+    x: SizedBigInt,
     pubkey: FrostPublicKey,
 }
 
 impl FrostPrivateKey {
-    pub fn new(id: usize, x: &BigImpl, pubkey: &FrostPublicKey) -> Self {
+    pub fn new(id: usize, x: &SizedBigInt, pubkey: &FrostPublicKey) -> Self {
         Self {
             id: id as u16,
             x: x.clone(),
@@ -203,7 +204,7 @@ impl Serializable for FrostPrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let x = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let x = SizedBigInt::from_bytes(&pubkey.get_group(), &bytes);
 
                 return Ok(Self { id, x, pubkey });
             });
@@ -221,8 +222,8 @@ impl Serializable for FrostPrivateKey {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicCommitment {
     id: u16,
-    hiding_nonce_commitment: GroupElement,
-    binding_nonce_commitment: GroupElement,
+    pub(crate) hiding_nonce_commitment: GroupElement,
+    pub(crate) binding_nonce_commitment: GroupElement,
 }
 
 impl PublicCommitment {
@@ -297,8 +298,8 @@ impl Serializable for PublicCommitment {
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Nonce {
-    hiding_nonce: BigImpl,
-    binding_nonce: BigImpl,
+    pub(crate) hiding_nonce: SizedBigInt,
+    pub(crate) binding_nonce: SizedBigInt,
 }
 
 impl Serializable for Nonce {
@@ -329,9 +330,9 @@ impl Serializable for Nonce {
                 let group = g.unwrap();
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let hiding_nonce = BigImpl::from_bytes(&group, bytes);
+                let hiding_nonce = SizedBigInt::from_bytes(&group, bytes);
                 let bytes = d.read_element::<&[u8]>()?;
-                let binding_nonce = BigImpl::from_bytes(&group, bytes);
+                let binding_nonce = SizedBigInt::from_bytes(&group, bytes);
 
                 return Ok(Self {
                     hiding_nonce,
@@ -352,17 +353,17 @@ impl Serializable for Nonce {
 #[derive(Debug, Clone)]
 pub struct BindingFactor {
     id: u16,
-    factor: BigImpl,
+    factor: SizedBigInt,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FrostSignatureShare {
     id: u16,
-    data: BigImpl,
+    data: SizedBigInt,
 }
 
 impl FrostSignatureShare {
-    pub fn get_share(&self) -> BigImpl {
+    pub fn get_share(&self) -> SizedBigInt {
         self.data.clone()
     }
 
@@ -419,7 +420,7 @@ impl Serializable for FrostSignatureShare {
                 }
                 let group = g.unwrap();
                 let bytes = d.read_element::<&[u8]>()?;
-                let data = BigImpl::from_bytes(&group, &bytes);
+                let data = SizedBigInt::from_bytes(&group, &bytes);
 
                 return Ok(Self { id, data });
             });
@@ -438,7 +439,7 @@ impl Serializable for FrostSignatureShare {
 pub struct FrostSignature {
     /* TODO: encode according to standard */
     R: GroupElement,
-    z: BigImpl,
+    z: SizedBigInt,
 }
 
 impl Serializable for FrostSignature {
@@ -473,7 +474,7 @@ impl Serializable for FrostSignature {
                 let R = GroupElement::from_bytes(&bytes, &group, Option::None);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let z = BigImpl::from_bytes(&group, &bytes);
+                let z = SizedBigInt::from_bytes(&group, &bytes);
 
                 return Ok(Self { R, z });
             });
@@ -622,7 +623,7 @@ impl<'a> FrostThresholdSignature {
         Err(SchemeError::InvalidRound)
     }
 
-    fn partial_sign(&mut self) -> Result<FrostRoundResult, SchemeError> {
+    pub(crate) fn partial_sign(&mut self) -> Result<FrostRoundResult, SchemeError> {
         let group = self.key.get_group();
         let order = group.get_order();
 
@@ -688,7 +689,7 @@ impl<'a> FrostThresholdSignature {
         }))
     }
 
-    fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, SchemeError> {
+    pub(crate) fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, SchemeError> {
         let hiding_nonce = nonce_generate(&self.key.x, rng);
         let binding_nonce = nonce_generate(&self.key.x, rng);
         let hiding_nonce_commitment =
@@ -712,7 +713,7 @@ impl<'a> FrostThresholdSignature {
         Ok(FrostRoundResult::RoundOne(comm))
     }
 
-    fn assemble(&self) -> Result<FrostSignature, SchemeError> {
+    pub(crate) fn assemble(&self) -> Result<FrostSignature, SchemeError> {
         let group_commitment;
         if let Some(group_commit) = &self.group_commitment {
             group_commitment = group_commit;
@@ -720,7 +721,7 @@ impl<'a> FrostThresholdSignature {
             return Err(SchemeError::WrongState);
         }
 
-        let mut z = BigImpl::new_int(&group_commitment.get_group(), 0);
+        let mut z = SizedBigInt::new_int(&group_commitment.get_group(), 0);
         for i in 0..self.shares.len() {
             z = z
                 .add(&self.shares[i].data)
@@ -733,7 +734,7 @@ impl<'a> FrostThresholdSignature {
         })
     }
 
-    fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, SchemeError> {
+    pub(crate) fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, SchemeError> {
         let commitment_list = self.get_commitment_list();
         let pk = &self.key.pubkey;
         let msg = self.msg.as_ref().unwrap();
@@ -790,15 +791,15 @@ impl<'a> FrostThresholdSignature {
         Ok(l.eq(&r))
     }
 
-    fn get_nonce(&self) -> &Option<Nonce> {
+    pub(crate) fn get_nonce(&self) -> &Option<Nonce> {
         &self.nonce
     }
 
-    fn get_commitment(&self) -> &Option<PublicCommitment> {
+    pub(crate) fn get_commitment(&self) -> &Option<PublicCommitment> {
         &self.commitment
     }
 
-    fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
+    pub(crate) fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
         &self.commitment_list
     }
 
@@ -903,13 +904,13 @@ pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureSha
     Ok(instance.share.clone().unwrap())
 }
 
-fn nonce_generate(secret: &BigImpl, rng: &mut RNG) -> BigImpl {
-    let k_enc = rng.random_bytes(32);
-    let secret_enc = secret.to_bytes();
-    return h3(&[k_enc, secret_enc].concat(), &secret.get_group());
+pub(crate) fn nonce_generate(secret: &SizedBigInt, rng: &mut RNG) -> SizedBigInt {
+    let random_bytes = rng.random_bytes(32);
+    let secret_bytes = serialize_scalar(secret);
+    return h3(&[random_bytes, secret_bytes].concat(), &secret.get_group());
 }
 
-fn compute_binding_factors(
+pub(crate) fn compute_binding_factors(
     pubkey: &FrostPublicKey,
     commitment_list: &[PublicCommitment],
     msg: &[u8],
@@ -937,7 +938,7 @@ fn compute_binding_factors(
     return binding_factor_list;
 }
 
-fn compute_group_commitment(
+pub(crate) fn compute_group_commitment(
     commitment_list: &[PublicCommitment],
     binding_factor_list: &Vec<BindingFactor>,
     group: &Group,
@@ -964,7 +965,11 @@ fn compute_group_commitment(
     Ok(group_commitment)
 }
 
-fn compute_challenge(group_commitment: &GroupElement, pk: &FrostPublicKey, msg: &[u8]) -> BigImpl {
+fn compute_challenge(
+    group_commitment: &GroupElement,
+    pk: &FrostPublicKey,
+    msg: &[u8],
+) -> SizedBigInt {
     let group_comm_enc = group_commitment.to_bytes();
     let group_public_key_enc = pk.y.to_bytes();
     let challenge_input = [group_comm_enc, group_public_key_enc, msg.to_vec()].concat();
@@ -1026,34 +1031,52 @@ fn encode_uint16(val: u16) -> Vec<u8> {
     val.to_be_bytes().to_vec()
 }
 
-fn h1(bytes: &[u8], group: &Group) -> BigImpl {
+fn h1(bytes: &[u8], group: &Group) -> SizedBigInt {
     // TODO: implement for other ciphersuites
     let msg = [get_context_string(group).unwrap(), b"rho", bytes].concat();
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     let h = hash.hash();
-    let res = BigImpl::from_bytes(group, &h);
+    let res = SizedBigInt::from_bytes(group, &h);
     res.rmod(&group.get_order())
 }
 
-fn h2(bytes: &[u8], group: &Group) -> BigImpl {
+fn h2(bytes: &[u8], group: &Group) -> SizedBigInt {
     // TODO: implement for other ciphersuites
     let mut hash = HASH512::new();
     hash.process_array(&bytes);
     let h = hash.hash();
-    let res = BigImpl::from_bytes(group, &h);
+    let res = SizedBigInt::from_bytes(group, &h);
     res.rmod(&group.get_order())
 }
 
-fn h3(bytes: &[u8], group: &Group) -> BigImpl {
+fn h3(bytes: &[u8], group: &Group) -> SizedBigInt {
     // TODO: implement for other ciphersuites
     let msg = [get_context_string(group).unwrap(), b"nonce", bytes].concat();
     let mut hash = HASH512::new();
     hash.process_array(&msg);
     let h = hash.hash();
-    let res = BigImpl::from_bytes(group, &h);
-    res.rmod(&group.get_order())
+
+    let modulo = BigInt::from_bytes(
+        &hex::decode("1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED").unwrap(),
+    );
+    let r = BigInt::from_bytes(&h).rmod(&modulo).to_bytes();
+
+    println!("{}", hex::encode(r.clone()));
+
+    SizedBigInt::from_bytes(group, &r)
 }
+
+/*
+-   SerializeScalar(s): Implemented by outputting the little-endian
+    32-byte encoding of the Scalar value with the top three bits
+    set to zero.
+
+-   DeserializeScalar(buf): Implemented by attempting to
+    deserialize a Scalar from a little-endian 32-byte string.  This
+    function can fail if the input does not represent a Scalar in
+    the range [0, G.Order() - 1].  Note that this means the top
+    three bits of the input MUST be zero. */
 
 fn h4(bytes: &[u8], group: &Group) -> [u8; 64] {
     // TODO: implement for other ciphersuites
@@ -1076,4 +1099,11 @@ fn get_context_string(group: &Group) -> Result<&[u8], SchemeError> {
         Group::Ed25519 => return Ok(b"FROST-ED25519-SHA512-v1"),
         _ => return Err(SchemeError::IncompatibleGroup),
     }
+}
+
+pub(crate) fn serialize_scalar(scalar: &SizedBigInt) -> Vec<u8> {
+    // only for ed25519 sha512
+    let mut bytes = scalar.to_bytes();
+    bytes[0] &= 0x1f;
+    bytes
 }
