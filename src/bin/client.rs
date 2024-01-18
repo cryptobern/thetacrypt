@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::process::exit;
+use std::thread::sleep;
 use std::{io, thread, time};
 
 use clap::Parser;
@@ -162,10 +163,14 @@ async fn threshold_decryption(
     let (request, _ct) = create_decryption_request(pk, input);
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
 
-    let mut i = 0;
+    let mut i: i32 = 0;
     let mut instance_id = String::new();
     for conn in connections.iter_mut() {
         print!("\n[Server {i}]: ");
+        // Lines to test forwarding messages in the backlog 
+        // if i == 2 {
+        //     sleep(time::Duration::from_millis(1000));
+        // }
         let result = conn.decrypt(request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
