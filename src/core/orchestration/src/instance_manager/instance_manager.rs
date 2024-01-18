@@ -290,7 +290,9 @@ impl InstanceManager {
                     match instance {
                         Some(_instance) => {
                             // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
-                            let _ = _instance.send_message(message_data).await;
+                            if !(_instance.is_finished()){
+                                let _ =  _instance.send_message(message_data).await;
+                            }
                         },
                         None => {
                             // Otherwise, backlog the message. This can happen for two reasons:
