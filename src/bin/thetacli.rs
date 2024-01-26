@@ -21,7 +21,6 @@ use theta_schemes::{
         ThresholdSignature,
     },
     keys::{
-        self,
         key_generator::KeyGenerator,
         key_store::KeyStore,
         keys::{PrivateKeyShare, PublicKey},
@@ -106,6 +105,12 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
     let mut keys = HashMap::new();
     let mut rng = RNG::new(RngAlgorithm::OsRng);
 
+    if k > n {
+        return Err(Error::Threshold(SchemeError::InvalidParams(Some(
+            "Threshold parameter must not exceed number of parties".into(),
+        ))));
+    }
+
     if fs::create_dir_all(dir).is_err() {
         println!("Error: could not create directory");
         return Err(Error::Threshold(SchemeError::IOError));
@@ -137,25 +142,25 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
         let scheme_str = s.next();
         if scheme_str.is_none() {
             println!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let scheme = ThresholdScheme::from_str_name(scheme_str.unwrap());
         if scheme.is_none() {
             println!("Invalid scheme '{}' selected", scheme_str.unwrap());
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let group_str = s.next();
         if group_str.is_none() {
             println!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
             println!("Invalid group '{}' selected", group_str.unwrap());
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         println!("Generating {}...", part);
