@@ -11,7 +11,7 @@ use theta_schemes::interface::{
 use theta_schemes::keys::keys::PrivateKeyShare;
 use tonic::async_trait;
 
-use crate::interface::{ProtocolError, ThresholdProtocol};
+use crate::interface::{ProtocolError, ThresholdProtocol, ThresholdRoundProtocol};
 use crate::threshold_cipher::message_types::DecryptionShareMessage;
 
 pub struct ThresholdCipherProtocol {
@@ -25,6 +25,24 @@ pub struct ThresholdCipherProtocol {
     decrypted_plaintext: Vec<u8>,
     received_share_ids: HashSet<u16>,
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
+}
+
+impl ThresholdRoundProtocol for ThresholdCipherProtocol{
+    fn do_round(&self) -> Result<Vec<u8>, ProtocolError> {
+        todo!()
+    }
+
+    fn is_finished(&self) -> bool {
+        todo!()
+    }
+
+    fn is_ready_for_next_round(&self) -> bool {
+        todo!()
+    }
+
+    fn update(&self, message: theta_schemes::interface::RoundResult) {
+        todo!()
+    }
 }
 
 #[async_trait]

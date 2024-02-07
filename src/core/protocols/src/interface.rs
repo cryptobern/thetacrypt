@@ -1,4 +1,4 @@
-use theta_schemes::interface::SchemeError;
+use theta_schemes::interface::{SchemeError, RoundResult};
 use tonic::async_trait;
 
 #[derive(Clone, Debug)]
@@ -19,4 +19,13 @@ impl From<SchemeError> for ProtocolError {
 #[async_trait]
 pub trait ThresholdProtocol {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>;
+}
+
+
+//ROSE: to move to the protocol
+pub trait ThresholdRoundProtocol {
+    fn do_round(&self) -> Result<Vec<u8>, ProtocolError>;
+    fn is_ready_for_next_round(&self) -> bool;
+    fn is_finished(&self) -> bool;
+    fn update(&self, message: RoundResult);
 }
