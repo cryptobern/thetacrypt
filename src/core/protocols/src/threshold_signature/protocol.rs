@@ -41,6 +41,9 @@ pub struct ThresholdSignaturePrecomputation {
 
 #[async_trait]
 impl ThresholdProtocol for ThresholdSignatureProtocol {
+    async fn terminate(&mut self){
+        todo!()
+    }
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         info!(
             "<{:?}>: Starting threshold signature instance",

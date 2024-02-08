@@ -141,7 +141,7 @@ const BACKLOG_CHECK_INTERVAL: u64 = 60;
 // BacklogData keeps all the messages that are destined for a specific instance,
 // plus a field checked, which is used to detect too old backlog data.
 struct BacklogData {
-    messages: Vec<Vec<u8>>,
+    messages: Vec<NetMessage>,
     checked: bool,
 }
 
@@ -278,39 +278,41 @@ impl InstanceManager {
                 }
 
                 incoming_message = self.incoming_p2p_receiver.recv() => {
-                    let NetMessage {
-                        instance_id,
-                        is_total_order: _,
-                        message_data
-                    } = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
+                    match incoming_message {
+                        Some(net_message) => {
+                            let instance =  self.instances.get(&net_message.instance_id);
 
-                    let instance =  self.instances.get(&instance_id);
-
-                    // First check, if an instance already exists for that message
-                    match instance {
-                        Some(_instance) => {
-                            // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
-                            if !(_instance.is_finished()){
-                                let _ =  _instance.send_message(message_data).await;
+                            // First check, if an instance already exists for that message
+                            match instance {
+                                Some(_instance) => {
+                                    // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
+                                    if !(_instance.is_finished()){
+                                        let _ =  _instance.send_message(net_message).await;
+                                    }
+                                },
+                                None => {
+                                    let instance_id = net_message.instance_id.clone();
+                                    // Otherwise, backlog the message. This can happen for two reasons:
+                                    // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
+                                    // - The instance has not yet started because the corresponding request has not yet arrived.
+                                    // In both cases, we backlog the message. If the instance has already been finished,
+                                    // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
+                                    info!(
+                                        "Backlogging message for instance with id: {:?}",
+                                        &instance_id
+                                    );
+                                    if let Some(backlog_data) =  self.backlog.get_mut(&instance_id) {
+                                        backlog_data.messages.push(net_message);
+                                    } else {
+                                        let mut backlog_data = BacklogData{ messages: Vec::new(), checked: false };
+                                        backlog_data.messages.push(net_message);
+                                        self.backlog.insert(instance_id, backlog_data);
+                                    }
+                                }
                             }
                         },
                         None => {
-                            // Otherwise, backlog the message. This can happen for two reasons:
-                            // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
-                            // - The instance has not yet started because the corresponding request has not yet arrived.
-                            // In both cases, we backlog the message. If the instance has already been finished,
-                            // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
-                            info!(
-                                "Backlogging message for instance with id: {:?}",
-                                &instance_id
-                            );
-                            if let Some(backlog_data) =  self.backlog.get_mut(&instance_id) {
-                                backlog_data.messages.push(message_data);
-                            } else {
-                                let mut backlog_data = BacklogData{ messages: Vec::new(), checked: false };
-                                backlog_data.messages.push(message_data);
-                                self.backlog.insert(instance_id, backlog_data);
-                            }
+                            todo!()
                         }
                     }
                 }
@@ -361,8 +363,9 @@ impl InstanceManager {
 
                 let key = key.unwrap();
 
-                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-
+                let (sender_old, receiver_old) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+                let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
+                
                 let instance = Instance::new(
                     instance_id.clone(),
                     ciphertext.get_scheme(),
@@ -372,9 +375,9 @@ impl InstanceManager {
 
                 // Create the new protocol instance
                 let prot = ThresholdCipherProtocol::new(
-                    key,
+                    key.clone(),
                     ciphertext,
-                    receiver,
+                    receiver_old,
                     self.outgoing_p2p_sender.clone(),
                     self.event_emitter_sender.clone(),
                     instance_id.clone(),
@@ -393,7 +396,7 @@ impl InstanceManager {
 
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
                 self.start_protocol(
-                    prot,
+                    executor,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
                 );
@@ -502,14 +505,14 @@ impl InstanceManager {
 
     fn start_protocol(
         &mut self,
-        mut prot: (impl ThresholdProtocol + std::marker::Send + 'static),
+        mut executor: (impl ThresholdProtocol + std::marker::Send + 'static),
         instance_id: String,
         sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     ) {
         let id = instance_id.clone();
         tokio::spawn(async move {
             
-            let result = prot.run().await;
+            let result = executor.run().await;
 
             // Protocol terminated, update state with the result.
             info!("Instance {:?} finished", instance_id.clone());

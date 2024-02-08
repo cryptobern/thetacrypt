@@ -27,6 +27,9 @@ pub struct ThresholdCoinProtocol {
 
 #[async_trait]
 impl ThresholdProtocol for ThresholdCoinProtocol {
+    async fn terminate(&mut self){
+        todo!()
+    }
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         info!(
             "<{:?}>: Starting threshold coin instance",

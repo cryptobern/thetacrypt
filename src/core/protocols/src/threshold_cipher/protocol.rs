@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::Utc;
+use futures::future::ok;
 use log::{error, info, warn};
 use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
@@ -27,32 +28,133 @@ pub struct ThresholdCipherProtocol {
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
+
+//ROSE: see this function can be NOT async
+// #[async_trait] 
 impl ThresholdRoundProtocol for ThresholdCipherProtocol{
-    fn do_round(&self) -> Result<Vec<u8>, ProtocolError> {
-        todo!()
+    fn do_round(&mut self) -> Result<NetMessage, ProtocolError> {
+
+        // We know that this protocol has just one round, otherwise we need to check the current round here. 
+        let valid_ctxt = ThresholdCipher::verify_ciphertext(
+            &self.ciphertext,
+            &self.private_key.get_public_key(),
+        )?;
+        if !valid_ctxt {
+            error!(
+                "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
+                &self.instance_id
+            );
+            //COMMENT_R: termination flag or something 
+            // Maybe here we want to throw a scheme error?
+            return Err(ProtocolError::InvalidCiphertext);
+        }
+
+        let mut params = ThresholdCipherParams::new();
+        let share =
+            ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
+        let message = DecryptionShareMessage::to_net_message(&share, &self.instance_id);
+        self.received_share_ids.insert(share.get_id());
+        self.valid_shares.push(share);
+        Ok(message)
     }
 
     fn is_finished(&self) -> bool {
-        todo!()
+        return self.decrypted
     }
 
+    //see if the assemble should be here or not. In the sense that it is really the final step and a local computation
     fn is_ready_for_next_round(&self) -> bool {
-        todo!()
+        return self.valid_shares.len() >= self.private_key.get_threshold() as usize
     }
 
-    fn update(&self, message: theta_schemes::interface::RoundResult) {
-        todo!()
+    fn update(&mut self, message: NetMessage) -> Result<(), ProtocolError> {
+        if let Some(decryption_share_message) =
+            DecryptionShareMessage::try_from_bytes(&message.message_data){
+                let share = decryption_share_message.share;
+                info!(
+                    "<{:?}>: Received share with id {:?}.",
+                    &self.instance_id,
+                    share.get_id()
+                );
+
+                //here it can be that we received a share but we already terminated the protocol
+                if self.decrypted {
+                    return Ok(());
+                }
+
+                //check duplicates
+                if self.received_share_ids.contains(&share.get_id()) {
+                    warn!(
+                        "<{:?}>: Found share {:?} to be DUPLICATE. Share will be ignored.",
+                        &self.instance_id,
+                        share.get_id()
+                    );
+                    return Ok(());
+                }
+
+                //update the state
+                self.received_share_ids.insert(share.get_id());
+
+                let verification_result = ThresholdCipher::verify_share(
+                    &share,
+                    &self.ciphertext,
+                    &self.private_key.get_public_key(),
+                );
+                match verification_result {
+                    Ok(is_valid) => {
+                        if !is_valid {
+                            warn!("<{:?}>: Received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
+                            return Ok(());
+                        }
+                    }
+                    Err(err) => {
+                        warn!("<{:?}>: Encountered error when validating share with id {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
+                        return Ok(());
+                    }
+                }
+
+                self.valid_shares.push(share);
+
+                info!(
+                    "<{:?}>: Valid shares: {:?}, needed: {:?}",
+                    &self.instance_id,
+                    self.valid_shares.len(),
+                    self.private_key.get_threshold()
+                );
+
+                //if there are the condition, can do the assemble
+                if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
+                    self.decrypted_plaintext =
+                        ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext).unwrap(); //possible insecure unwrap  
+                    self.decrypted = true;
+                    info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
+                }
+
+                return Ok(());
+        
+        } else {
+            info!(
+                "<{:?}>: Received and ignored unknown message type",
+                &self.instance_id
+            );
+            return Ok(());
+        }
     }
 }
 
 #[async_trait]
 impl ThresholdProtocol for ThresholdCipherProtocol {
+    async fn terminate(&mut self){
+        todo!()
+    }
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         info!(
             "<{:?}>: Starting threshold cipher instance",
             &self.instance_id
         );
 
+        //There is no particular reason why the Events are protocol dependent 
+        //eventually they can be just StartProtocol and FinishProtocol
         let event = Event::StartedDecryptionInstance {
             timestamp: Utc::now(),
             instance_id: self.instance_id.clone(),
@@ -69,7 +171,7 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
                 &self.instance_id
             );
             self.terminate().await?;
-            return Err(ProtocolError::InvalidCiphertext);
+            return Err(ProtocolError::InvalidCiphertext); //understand how to handle the errors. 
         }
         self.on_init().await?;
         loop {

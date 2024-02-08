@@ -1,3 +1,4 @@
+use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{SchemeError, RoundResult};
 use tonic::async_trait;
 
@@ -16,16 +17,22 @@ impl From<SchemeError> for ProtocolError {
     }
 }
 
+//Eventually this interface should be used by the executor. Add the terminate
 #[async_trait]
 pub trait ThresholdProtocol {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>;
+    // async fn terminate(&mut self) -> Result<(), ProtocolError>; to add to close the channels 
+    async fn terminate(&mut self);
 }
 
 
 //ROSE: to move to the protocol
+// #[async_trait]
 pub trait ThresholdRoundProtocol {
-    fn do_round(&self) -> Result<Vec<u8>, ProtocolError>;
+    //add s function to handle checks needed to correctly start the protocol, needed or can be put in do round?
+    fn do_round(&mut self) -> Result<NetMessage, ProtocolError>;
     fn is_ready_for_next_round(&self) -> bool;
     fn is_finished(&self) -> bool;
-    fn update(&self, message: RoundResult);
+    fn update(&mut self, message: NetMessage)-> Result<(), ProtocolError>;
+    //We can add a compute result function
 }
