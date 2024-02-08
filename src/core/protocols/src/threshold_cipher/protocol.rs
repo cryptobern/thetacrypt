@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use chrono::Utc;
+use clap::Error;
 use futures::future::ok;
 use log::{error, info, warn};
 use theta_events::event::Event;
@@ -139,6 +140,13 @@ impl ThresholdRoundProtocol for ThresholdCipherProtocol{
             );
             return Ok(());
         }
+    }
+
+    fn get_result(&self) -> Result<Vec<u8>, ProtocolError> {
+        if self.decrypted{
+            return Ok(self.decrypted_plaintext.clone());
+        }
+        return Err(ProtocolError::NotFinished);
     }
 }
 

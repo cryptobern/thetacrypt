@@ -34,5 +34,6 @@ pub trait ThresholdRoundProtocol {
     fn is_ready_for_next_round(&self) -> bool;
     fn is_finished(&self) -> bool;
     fn update(&mut self, message: NetMessage)-> Result<(), ProtocolError>;
+    fn get_result(&self) -> Result<Vec<u8>, ProtocolError>;
     //We can add a compute result function
 }

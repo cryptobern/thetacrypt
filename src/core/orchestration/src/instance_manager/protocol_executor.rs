@@ -63,7 +63,8 @@ impl<P: ThresholdRoundProtocol + std::marker::Send> ThresholdProtocol for Thresh
                     self.protocol.update(message_data);
                     if self.protocol.is_ready_for_next_round() {
                         if self.protocol.is_finished(){
-                            //get restult
+                            let result = self.protocol.get_result().unwrap(); //TODO: handle the error
+                            return Ok(result) 
                         }else{
                             //go to the next rounds
                             let net_message = self.protocol.do_round().unwrap();
