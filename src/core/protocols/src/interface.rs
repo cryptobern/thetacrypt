@@ -1,5 +1,9 @@
 use theta_network::types::message::NetMessage;
-use theta_schemes::interface::{SchemeError, RoundResult};
+use theta_schemes::interface::SchemeError;
+
+//Here one should import the message types defined for the protoccol
+use crate::threshold_cipher::message_types::DecryptionShareMessage;
+
 use tonic::async_trait;
 
 #[derive(Clone, Debug)]
@@ -10,6 +14,9 @@ pub enum ProtocolError {
     InternalError,
     NotFinished,
 }
+pub enum ProtocolMessage{
+    Decryption(DecryptionShareMessage)
+}
 
 impl From<SchemeError> for ProtocolError {
     fn from(tc_error: SchemeError) -> Self {
@@ -17,13 +24,6 @@ impl From<SchemeError> for ProtocolError {
     }
 }
 
-//Eventually this interface should be used by the executor. Add the terminate
-#[async_trait]
-pub trait ThresholdProtocol {
-    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>;
-    // async fn terminate(&mut self) -> Result<(), ProtocolError>; to add to close the channels 
-    async fn terminate(&mut self);
-}
 
 
 //ROSE: to move to the protocol

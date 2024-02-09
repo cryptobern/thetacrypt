@@ -13,7 +13,8 @@ use theta_schemes::keys::keys::PrivateKeyShare;
 use theta_schemes::scheme_types_impl::SchemeDetails;
 use tonic::async_trait;
 
-use crate::interface::{ProtocolError, ThresholdProtocol};
+use crate::interface::ProtocolError;
+
 
 pub struct ThresholdSignatureProtocol {
     private_key: Arc<PrivateKeyShare>,
@@ -39,154 +40,154 @@ pub struct ThresholdSignaturePrecomputation {
     instance: InteractiveThresholdSignature,
 }
 
-#[async_trait]
-impl ThresholdProtocol for ThresholdSignatureProtocol {
-    async fn terminate(&mut self){
-        todo!()
-    }
-    async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
-        info!(
-            "<{:?}>: Starting threshold signature instance",
-            &self.instance_id
-        );
+// #[async_trait]
+// impl ThresholdProtocol for ThresholdSignatureProtocol {
+//     async fn terminate(&mut self) -> Result<(), ProtocolError>{
+//         todo!()
+//     }
+//     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
+//         info!(
+//             "<{:?}>: Starting threshold signature instance",
+//             &self.instance_id
+//         );
 
-        let event = Event::StartedSigningInstance {
-            timestamp: Utc::now(),
-            instance_id: self.instance_id.clone(),
-        };
+//         let event = Event::StartedInstance {
+//             timestamp: Utc::now(),
+//             instance_id: self.instance_id.clone(),
+//         };
 
-        self.event_emitter_sender.send(event).await.unwrap();
+//         self.event_emitter_sender.send(event).await.unwrap();
 
-        if !self.precompute && self.instance.is_some() {
-            let _ = self
-                .instance
-                .as_mut()
-                .unwrap()
-                .set_msg(&(&self.message).clone().unwrap());
-        }
+//         if !self.precompute && self.instance.is_some() {
+//             let _ = self
+//                 .instance
+//                 .as_mut()
+//                 .unwrap()
+//                 .set_msg(&(&self.message).clone().unwrap());
+//         }
 
-        self.on_init().await?;
+//         self.on_init().await?;
 
-        loop {
-            match self.chan_in.recv().await {
-                Some(msg) => {
-                    if self.private_key.get_scheme().is_interactive() {
-                        match RoundResult::from_bytes(&msg) {
-                            Ok(round_result) => {
-                                if self
-                                    .instance
-                                    .as_mut()
-                                    .unwrap()
-                                    .update(&round_result)
-                                    .is_err()
-                                {
-                                    warn!(
-                                        "<{:?}>: Could not process round result. Will be ignored.",
-                                        &self.instance_id
-                                    );
-                                }
+//         loop {
+//             match self.chan_in.recv().await {
+//                 Some(msg) => {
+//                     if self.private_key.get_scheme().is_interactive() {
+//                         match RoundResult::from_bytes(&msg) {
+//                             Ok(round_result) => {
+//                                 if self
+//                                     .instance
+//                                     .as_mut()
+//                                     .unwrap()
+//                                     .update(&round_result)
+//                                     .is_err()
+//                                 {
+//                                     warn!(
+//                                         "<{:?}>: Could not process round result. Will be ignored.",
+//                                         &self.instance_id
+//                                     );
+//                                 }
 
-                                if self.instance.as_mut().unwrap().is_ready_for_next_round() {
-                                    if self.instance.as_ref().unwrap().is_finished() {
-                                        self.finished = true;
-                                        let sig =
-                                            self.instance.as_mut().unwrap().get_signature()?;
-                                        self.signature = Some(sig);
-                                        self.terminate().await?;
+//                                 if self.instance.as_mut().unwrap().is_ready_for_next_round() {
+//                                     if self.instance.as_ref().unwrap().is_finished() {
+//                                         self.finished = true;
+//                                         let sig =
+//                                             self.instance.as_mut().unwrap().get_signature()?;
+//                                         self.signature = Some(sig);
+//                                         self.terminate().await?;
 
-                                        info!("<{:?}>: Calculated signature.", &self.instance_id);
+//                                         info!("<{:?}>: Calculated signature.", &self.instance_id);
 
-                                        let result = self.signature.as_ref().unwrap().to_bytes();
-                                        if result.is_err() {
-                                            return Err(ProtocolError::SchemeError(
-                                                result.unwrap_err(),
-                                            ));
-                                        }
+//                                         let result = self.signature.as_ref().unwrap().to_bytes();
+//                                         if result.is_err() {
+//                                             return Err(ProtocolError::SchemeError(
+//                                                 result.unwrap_err(),
+//                                             ));
+//                                         }
 
-                                        let event = Event::FinishedSigningInstance {
-                                            timestamp: Utc::now(),
-                                            instance_id: self.instance_id.clone(),
-                                        };
-                                        self.event_emitter_sender.send(event).await.unwrap();
+//                                         let event = Event::FinishedInstance {
+//                                             timestamp: Utc::now(),
+//                                             instance_id: self.instance_id.clone(),
+//                                         };
+//                                         self.event_emitter_sender.send(event).await.unwrap();
 
-                                        return Ok(result.unwrap());
-                                    }
+//                                         return Ok(result.unwrap());
+//                                     }
 
-                                    let rr = self.instance.as_mut().unwrap().do_round();
-                                    self.received_share_ids.clear();
+//                                     let rr = self.instance.as_mut().unwrap().do_round();
+//                                     self.received_share_ids.clear();
 
-                                    if rr.is_err() {
-                                        error!(
-                                            "<{:?}>: Error while doing signature protocol round: {}", 
-                                            &self.instance_id,
-                                            rr.unwrap_err().to_string()
-                                        );
-                                    } else {
-                                        let rr = rr.unwrap();
-                                        let _ = self.instance.as_mut().unwrap().update(&rr);
+//                                     if rr.is_err() {
+//                                         error!(
+//                                             "<{:?}>: Error while doing signature protocol round: {}", 
+//                                             &self.instance_id,
+//                                             rr.unwrap_err().to_string()
+//                                         );
+//                                     } else {
+//                                         let rr = rr.unwrap();
+//                                         let _ = self.instance.as_mut().unwrap().update(&rr);
 
-                                        let message = NetMessage {
-                                            instance_id: self.instance_id.clone(),
-                                            message_data: rr.to_bytes().unwrap(),
-                                            is_total_order: false,
-                                        };
-                                        self.chan_out.send(message).await.unwrap();
-                                    }
-                                }
-                            }
-                            Err(_) => {
-                                warn!(
-                                    "<{:?}>: Could not deserialize round result. Round result will be ignored.",
-                                    &self.instance_id
-                                );
-                                continue;
-                            }
-                        }
-                    } else {
-                        match SignatureShare::from_bytes(&msg) {
-                            Ok(deserialized_share) => {
-                                self.on_receive_signature_share(deserialized_share)?;
-                                if self.finished {
-                                    self.terminate().await?;
+//                                         let message = NetMessage {
+//                                             instance_id: self.instance_id.clone(),
+//                                             message_data: rr.to_bytes().unwrap(),
+//                                             is_total_order: false,
+//                                         };
+//                                         self.chan_out.send(message).await.unwrap();
+//                                     }
+//                                 }
+//                             }
+//                             Err(_) => {
+//                                 warn!(
+//                                     "<{:?}>: Could not deserialize round result. Round result will be ignored.",
+//                                     &self.instance_id
+//                                 );
+//                                 continue;
+//                             }
+//                         }
+//                     } else {
+//                         match SignatureShare::from_bytes(&msg) {
+//                             Ok(deserialized_share) => {
+//                                 self.on_receive_signature_share(deserialized_share)?;
+//                                 if self.finished {
+//                                     self.terminate().await?;
 
-                                    let result = self.signature.as_ref().unwrap().to_bytes();
-                                    if result.is_err() {
-                                        return Err(ProtocolError::SchemeError(
-                                            result.unwrap_err(),
-                                        ));
-                                    }
+//                                     let result = self.signature.as_ref().unwrap().to_bytes();
+//                                     if result.is_err() {
+//                                         return Err(ProtocolError::SchemeError(
+//                                             result.unwrap_err(),
+//                                         ));
+//                                     }
 
-                                    let event = Event::FinishedSigningInstance {
-                                        timestamp: Utc::now(),
-                                        instance_id: self.instance_id.clone(),
-                                    };
-                                    self.event_emitter_sender.send(event).await.unwrap();
-                                    return Ok(result.unwrap());
-                                }
-                            }
-                            Err(_) => {
-                                warn!(
-                                    "<{:?}>: Could not deserialize share. Share will be ignored.",
-                                    &self.instance_id
-                                );
-                                continue;
-                            }
-                        };
-                    }
-                }
-                None => {
-                    error!(
-                        "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
-                        &self.instance_id
-                    );
-                    self.terminate().await?;
-                    return Err(ProtocolError::InternalError);
-                }
-            }
-        }
-        // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
-    }
-}
+//                                     let event = Event::FinishedInstance {
+//                                         timestamp: Utc::now(),
+//                                         instance_id: self.instance_id.clone(),
+//                                     };
+//                                     self.event_emitter_sender.send(event).await.unwrap();
+//                                     return Ok(result.unwrap());
+//                                 }
+//                             }
+//                             Err(_) => {
+//                                 warn!(
+//                                     "<{:?}>: Could not deserialize share. Share will be ignored.",
+//                                     &self.instance_id
+//                                 );
+//                                 continue;
+//                             }
+//                         };
+//                     }
+//                 }
+//                 None => {
+//                     error!(
+//                         "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
+//                         &self.instance_id
+//                     );
+//                     self.terminate().await?;
+//                     return Err(ProtocolError::InternalError);
+//                 }
+//             }
+//         }
+//         // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
+//     }
+// }
 
 impl<'a> ThresholdSignatureProtocol {
     pub fn new(

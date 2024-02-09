@@ -40,10 +40,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<DecryptResponse>, Status> {
         info!("Received a decrypt request.");
 
-        let event = Event::ReceivedDecryptionRequest {
-            timestamp: Utc::now(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
+        // let event = Event::ReceivedDecryptionRequest {
+        //     timestamp: Utc::now(),
+        // };
+        // self.event_emitter_sender.send(event).await.unwrap();
 
         // Deserialize ciphertext
         let ciphertext = match Ciphertext::from_bytes(&request.get_ref().ciphertext) {
@@ -85,10 +85,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
     async fn sign(&self, request: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
         info!("Received a signature request");
-        let event = Event::ReceivedSigningRequest {
-            timestamp: Utc::now(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
+        // let event = Event::ReceivedSigningRequest {
+        //     timestamp: Utc::now(),
+        // };
+        // self.event_emitter_sender.send(event).await.unwrap();
 
         let req: &SignRequest = request.get_ref();
 
@@ -143,10 +143,10 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
     ) -> Result<Response<CoinResponse>, Status> {
         info!("Received a coin flip request.");
 
-        let event = Event::ReceivedCoinRequest {
-            timestamp: Utc::now(),
-        };
-        self.event_emitter_sender.send(event).await.unwrap();
+        // let event = Event::ReceivedCoinRequest {
+        //     timestamp: Utc::now(),
+        // };
+        // self.event_emitter_sender.send(event).await.unwrap();
 
         let req: &CoinRequest = request.get_ref();
 

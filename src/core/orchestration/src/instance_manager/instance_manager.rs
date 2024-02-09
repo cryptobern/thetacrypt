@@ -11,7 +11,7 @@ use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
-    interface::{ProtocolError, ThresholdProtocol, ThresholdRoundProtocol},
+    interface::{ProtocolError, ThresholdRoundProtocol},
     threshold_cipher::protocol::ThresholdCipherProtocol,
     threshold_coin::protocol::ThresholdCoinProtocol,
     threshold_signature::protocol::ThresholdSignatureProtocol,
@@ -27,6 +27,7 @@ use crate::{
     instance_manager::instance::{self, Instance},
     instance_manager::protocol_executor::ThresholdProtocolExecutor,                                                                                                                                                   
     key_manager::key_manager::KeyManagerCommand,
+    interface::ThresholdProtocol,
 };            
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
@@ -363,7 +364,6 @@ impl InstanceManager {
 
                 let key = key.unwrap();
 
-                let (sender_old, receiver_old) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
                 let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
                 
                 let instance = Instance::new(
@@ -377,14 +377,10 @@ impl InstanceManager {
                 let prot = ThresholdCipherProtocol::new(
                     key.clone(),
                     ciphertext,
-                    receiver_old,
-                    self.outgoing_p2p_sender.clone(),
-                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
                 );
 
-                let executor = ThresholdProtocolExecutor::new(      
-                    key,
+                let executor = ThresholdProtocolExecutor::new(
                     receiver,
                     self.outgoing_p2p_sender.clone(),
                     instance_id.clone(),
