@@ -3,17 +3,17 @@ use std::sync::Arc;
 use log::{error, info, warn};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
-    Ciphertext, DecryptionShare, ThresholdCipher, ThresholdCipherParams,
+    Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams
 };
 use theta_schemes::keys::keys::PrivateKeyShare;
 
 use crate::interface::{ProtocolError, ThresholdRoundProtocol};
-use crate::threshold_cipher::message_types::DecryptionShareMessage;
+use crate::threshold_cipher::message_types::{DecryptionMessage, DecryptionShareMessageOut};
 
 pub struct ThresholdCipherProtocol {
     private_key: Arc<PrivateKeyShare>,
     ciphertext: Ciphertext,
-    instance_id: String,
+    instance_id: String, //We can probably give this to the executor
     valid_shares: Vec<DecryptionShare>,
     decrypted: bool,
     decrypted_plaintext: Vec<u8>,
@@ -23,32 +23,9 @@ pub struct ThresholdCipherProtocol {
 
 //ROSE: see this function can be NOT async
 // #[async_trait] 
-impl ThresholdRoundProtocol for ThresholdCipherProtocol{
-    fn do_round(&mut self) -> Result<NetMessage, ProtocolError> {
+impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
 
-        // We know that this protocol has just one round, otherwise we need to check the current round here. 
-        let valid_ctxt = ThresholdCipher::verify_ciphertext(
-            &self.ciphertext,
-            &self.private_key.get_public_key(),
-        )?;
-        if !valid_ctxt {
-            error!(
-                "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
-                &self.instance_id
-            );
-            //COMMENT_R: termination flag or something 
-            //TODO: Maybe here we want to throw a scheme error?
-            return Err(ProtocolError::InvalidCiphertext);
-        }
-
-        let mut params = ThresholdCipherParams::new();
-        let share =
-            ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
-        let message = DecryptionShareMessage::to_net_message(&share, &self.instance_id);
-        self.received_share_ids.insert(share.get_id());
-        self.valid_shares.push(share);
-        Ok(message)
-    }
+    type ProtocolMessage = DecryptionMessage;
 
     fn is_finished(&self) -> bool {
         return self.decrypted
@@ -59,10 +36,13 @@ impl ThresholdRoundProtocol for ThresholdCipherProtocol{
         return self.valid_shares.len() >= self.private_key.get_threshold() as usize
     }
 
-    fn update(&mut self, message: NetMessage) -> Result<(), ProtocolError> {
-        if let Some(decryption_share_message) =
-            DecryptionShareMessage::try_from_bytes(&message.message_data){
-                let share = decryption_share_message.share;
+    fn update(&mut self, message: Self::ProtocolMessage) -> Result<(), ProtocolError> {
+        
+        match message {
+            DecryptionMessage::ShareMessageOut(share_message) => {
+                let share_bytes = share_message.get_share_bytes();
+                let share = DecryptionShare::from_bytes(&share_bytes).unwrap(); //TODO: handle the error
+
                 info!(
                     "<{:?}>: Received share with id {:?}.",
                     &self.instance_id,
@@ -123,22 +103,75 @@ impl ThresholdRoundProtocol for ThresholdCipherProtocol{
                 }
 
                 return Ok(());
-        
-        } else {
-            info!(
-                "<{:?}>: Received and ignored unknown message type",
-                &self.instance_id
-            );
-            return Ok(());
+            },
+            _ => {
+                todo!()
+            }
         }
     }
 
-    fn get_result(&self) -> Result<Vec<u8>, ProtocolError> {
-        if self.decrypted{
-            return Ok(self.decrypted_plaintext.clone());
+    fn do_round(&mut self) -> Result<Self::ProtocolMessage, ProtocolError> {
+
+       // We know that this protocol has just one round, otherwise we need to check the current round here. 
+       let valid_ctxt = ThresholdCipher::verify_ciphertext(
+        &self.ciphertext,
+        &self.private_key.get_public_key(),
+        )?;
+
+        if !valid_ctxt {
+            error!(
+                "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
+                &self.instance_id
+            );
+            //COMMENT_R: termination flag or something 
+            //TODO: Maybe here we want to throw a scheme error?
+            return Err(ProtocolError::InvalidCiphertext);
         }
-        return Err(ProtocolError::NotFinished);
+
+        let mut params = ThresholdCipherParams::new();
+        let share =
+            ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
+        let message = DecryptionShareMessageOut::new(&share);
+        self.received_share_ids.insert(share.get_id());
+        self.valid_shares.push(share);
+
+        Ok(DecryptionMessage::ShareMessageOut(message))
     }
+
+        fn get_result(&self) -> Result<Vec<u8>, ProtocolError> {
+            if self.decrypted{
+                return Ok(self.decrypted_plaintext.clone());
+            }
+            return Err(ProtocolError::NotFinished);
+        }
+
+    // fn do_round<T>(&mut self) -> Result<Box<dyn ProtocolMessage<T>>, ProtocolError> {
+    //    // We know that this protocol has just one round, otherwise we need to check the current round here. 
+    //    let valid_ctxt = ThresholdCipher::verify_ciphertext(
+    //     &self.ciphertext,
+    //     &self.private_key.get_public_key(),
+    // )?;
+    // if !valid_ctxt {
+    //     error!(
+    //         "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
+    //         &self.instance_id
+    //     );
+    //     //COMMENT_R: termination flag or something 
+    //     //TODO: Maybe here we want to throw a scheme error?
+    //     return Err(ProtocolError::InvalidCiphertext);
+    // }
+
+    // let mut params = ThresholdCipherParams::new();
+    // let share =
+    //     ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
+    // let message = DecryptionShareMessage::new_from_share(&share);
+    // let net_message = message.to_net_message(&self.instance_id);
+    // self.received_share_ids.insert(share.get_id());
+    // self.valid_shares.push(share);
+    // Ok(Box::new(message))
+    // }
+
+    
 }
 
 // #[async_trait]

@@ -10,6 +10,7 @@ mdns = ["libp2p-mdns"]
 tcp-tokio = ["libp2p-tcp", "libp2p-tcp/tokio"]
 
 [dependencies]
+
 async-std = { version = "1.11.0", features = ["attributes"] }
 config-file = "0.2.3"
 futures = "0.3.21" # for our async / await blocks

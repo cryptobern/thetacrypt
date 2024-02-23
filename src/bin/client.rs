@@ -174,7 +174,7 @@ async fn threshold_decryption(
         let result = conn.decrypt(request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().to_string());
         }
@@ -226,7 +226,7 @@ async fn threshold_signature(
         let result = conn.sign(sign_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().to_string());
         }
@@ -273,7 +273,7 @@ async fn threshold_coin(
         let result = conn.flip_coin(coin_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().message());
         }

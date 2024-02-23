@@ -1,7 +1,7 @@
 
 use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
-use theta_protocols::interface::ThresholdRoundProtocol;
+use theta_protocols::interface::{ProtocolMessageWrapper, ThresholdRoundProtocol};
 use chrono::Utc;
 
 use crate::interface::ThresholdProtocol;
@@ -10,17 +10,17 @@ use tonic::async_trait;
 use log::{error, info};
 
 
-pub struct ThresholdProtocolExecutor<P: ThresholdRoundProtocol>{
-    chan_in: tokio::sync::mpsc::Receiver<NetMessage>,
-    chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+pub struct ThresholdProtocolExecutor<P, T> where P: ThresholdRoundProtocol<T> {
+    chan_in: tokio::sync::mpsc::Receiver<T>,
+    chan_out: tokio::sync::mpsc::Sender<T>,
     instance_id: String,
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
-    protocol: P,
+    protocol: P ,
 }
 
-impl<P: ThresholdRoundProtocol> ThresholdProtocolExecutor<P> {
-    pub fn new(chan_in: tokio::sync::mpsc::Receiver<NetMessage>,
-        chan_out: tokio::sync::mpsc::Sender<NetMessage>,
+impl<P: ThresholdRoundProtocol<T>,T> ThresholdProtocolExecutor<P,T> {
+    pub fn new(chan_in: tokio::sync::mpsc::Receiver<T>,
+        chan_out: tokio::sync::mpsc::Sender<T>,
         instance_id: String,
         event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
         protocol: P,) -> Self{
@@ -37,7 +37,7 @@ impl<P: ThresholdRoundProtocol> ThresholdProtocolExecutor<P> {
 
 //TODO: Handle trowing the errors
 #[async_trait]
-impl<P: ThresholdRoundProtocol + std::marker::Send> ThresholdProtocol for ThresholdProtocolExecutor<P> {
+impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send> ThresholdProtocol for ThresholdProtocolExecutor<P,T> {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError>{
         info!(
             "<{:?}>: Starting executing threshol protocol instance",
@@ -53,8 +53,9 @@ impl<P: ThresholdRoundProtocol + std::marker::Send> ThresholdProtocol for Thresh
         };
         self.event_emitter_sender.send(event).await.unwrap();
 
-        //do the initial round 
-        let net_message = self.protocol.do_round().unwrap();
+        //do the initial round and handle the possible error 
+        let message = self.protocol.do_round().unwrap();
+        let net_message = message.wrap(&self.instance_id.clone()).unwrap();
 
         //send the message
         self.chan_out.send(net_message).await.unwrap();
@@ -62,8 +63,9 @@ impl<P: ThresholdRoundProtocol + std::marker::Send> ThresholdProtocol for Thresh
         //start the loop for receiving
         loop {
             match self.chan_in.recv().await {
-                Some(message_data) => {
-                    let result = self.protocol.update(message_data);
+                Some(net_message) => {
+                    let protocol_message = ProtocolMessageWrapper::unwrap(net_message);
+                    let result = self.protocol.update(protocol_message);
                     match result {
                         Ok(_) => {
                             if self.protocol.is_ready_for_next_round() {
@@ -81,7 +83,8 @@ impl<P: ThresholdRoundProtocol + std::marker::Send> ThresholdProtocol for Thresh
                                     return Ok(result) 
                                 }else{
                                     //go to the next rounds
-                                    let net_message = self.protocol.do_round().unwrap();
+                                    let message = self.protocol.do_round().unwrap();
+                                    let net_message = message.wrap(&self.instance_id.clone()).unwrap();
                                     self.chan_out.send(net_message).await.unwrap();
         
                                     //update again?

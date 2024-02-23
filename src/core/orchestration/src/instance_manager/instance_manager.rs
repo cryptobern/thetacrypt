@@ -13,8 +13,8 @@ use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
     interface::{ProtocolError, ThresholdRoundProtocol},
     threshold_cipher::protocol::ThresholdCipherProtocol,
-    threshold_coin::protocol::ThresholdCoinProtocol,
-    threshold_signature::protocol::ThresholdSignatureProtocol,
+    // threshold_coin::protocol::ThresholdCoinProtocol,
+    // threshold_signature::protocol::ThresholdSignatureProtocol,
 };
 use theta_schemes::{
     interface::{Ciphertext, SchemeError},
@@ -281,7 +281,7 @@ impl InstanceManager {
                 incoming_message = self.incoming_p2p_receiver.recv() => {
                     match incoming_message {
                         Some(net_message) => {
-                            let instance =  self.instances.get(&net_message.instance_id);
+                            let instance =  self.instances.get(&net_message.get_instace_id());
 
                             // First check, if an instance already exists for that message
                             match instance {
@@ -292,7 +292,7 @@ impl InstanceManager {
                                     }
                                 },
                                 None => {
-                                    let instance_id = net_message.instance_id.clone();
+                                    let instance_id = net_message.get_instace_id().clone();
                                     // Otherwise, backlog the message. This can happen for two reasons:
                                     // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
                                     // - The instance has not yet started because the corresponding request has not yet arrived.
