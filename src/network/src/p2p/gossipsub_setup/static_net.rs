@@ -14,51 +14,97 @@ use crate::types::message::NetMessage;
 
 use super::net_utils::*;
 
+//T wil be NetMessage
+use tonic::async_trait;
+
+#[async_trait]
+pub trait Gossip<T> {
+    //Init should initialize the state of the component implemening the Gossip interface, starting in case some listening services
+    fn init(&self);
+    fn broadcast(message: T);
+    async fn deliver() -> Option<T>;
+}
+
+pub struct P2PComponent {
+    config: Config,
+    id: u32,
+    swarm: Swarm<Gossipsub>
+}
+
+impl<T> Gossip<T> for P2PComponent {
+    
+        ///init() for now provides the initialization of libp2p
+    //TODO: The goal will be to setup the different modules available for transmission 
+    fn init(&self){
+        // Create a Gossipsub topic
+       let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
+
+       // Create a random Keypair and PeerId (hash of the public key)
+       let id_keys = identity::Keypair::generate_ed25519();
+       let local_peer_id = PeerId::from(id_keys.public());
+       // println!(">> NET: Local peer id: {:?}", local_peer_id);
+
+       // Create a keypair for authenticated encryption of the transport.
+       let noise_keys = create_noise_keys(&id_keys);
+
+       // Create a tokio-based TCP transport, use noise for authenticated
+       // encryption and Mplex for multiplexing of substreams on a TCP stream.
+       let transport = create_tcp_transport(noise_keys);
+
+       // Create a Swarm to manage peers and events.
+       let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
+
+       // load listener address from config file
+       let listen_addr = get_p2p_listen_addr(&self.config, self.id);
+       debug!("NET: Listening for P2P on: {}", listen_addr);
+
+       // bind port to listener address
+       match swarm.listen_on(listen_addr.clone()) {
+           Ok(_) => (),
+           Err(error) => debug!("NET: listen {:?} failed: {:?}", listen_addr, error),
+       }
+    }
+
+    fn broadcast(message: T) {
+        todo!()
+    }
+
+    #[must_use]
+    #[allow(clippy::type_complexity,clippy::type_repetition_in_bounds)]
+    fn deliver<'async_trait>() ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = Option<T> > + ::core::marker::Send+'async_trait> >  {
+        todo!()
+    }
+
+  
+}
+pub struct NetworkManager<T> {
+    outgoing_msg_receiver: Receiver<T>,
+    incoming_msg_sender: Sender<T>,
+    localnet_config: Config,
+    my_id: u32,
+}
+
+impl<T> NetworkManager<T> {
+    pub fn new(    
+        outgoing_msg_receiver: Receiver<T>,
+        incoming_msg_sender: Sender<T>,
+        localnet_config: Config,
+        my_id: u32) -> NetworkManager<T>{
+            return NetworkManager{
+                outgoing_msg_receiver,
+                incoming_msg_sender,
+                localnet_config,
+                my_id
+            }
+        }
+}
+
 pub async fn init(
     outgoing_msg_receiver: Receiver<NetMessage>,
     incoming_msg_sender: Sender<NetMessage>,
     localnet_config: Config,
     my_id: u32,
 ) {
-    // Create a Gossipsub topic
-    let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
-
-    // Create a random Keypair and PeerId (hash of the public key)
-    let id_keys = identity::Keypair::generate_ed25519();
-    let local_peer_id = PeerId::from(id_keys.public());
-    // println!(">> NET: Local peer id: {:?}", local_peer_id);
-
-    // Create a keypair for authenticated encryption of the transport.
-    let noise_keys = create_noise_keys(&id_keys);
-
-    // Create a tokio-based TCP transport, use noise for authenticated
-    // encryption and Mplex for multiplexing of substreams on a TCP stream.
-    let transport = create_tcp_transport(noise_keys);
-
-    // Create a Swarm to manage peers and events.
-    let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
-
-    // load listener address from config file
-    let listen_addr = get_p2p_listen_addr(&localnet_config, my_id);
-    debug!("NET: Listening for P2P on: {}", listen_addr);
-
-    // bind port to listener address
-    match swarm.listen_on(listen_addr.clone()) {
-        Ok(_) => (),
-        Err(error) => debug!("NET: listen {:?} failed: {:?}", listen_addr, error),
-    }
-
-    // dial another peer in the network
-    dial_local_net(&mut swarm, localnet_config, my_id).await;
-
-    // kick off tokio::select event loop to handle events
-    run_event_loop(
-        &mut swarm,
-        topic,
-        outgoing_msg_receiver,
-        incoming_msg_sender,
-    )
-    .await;
 }
 
 /// Dial all peers, and wait for at least one connection to be established.

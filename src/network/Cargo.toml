@@ -31,4 +31,6 @@ toml = { version = "0.5.9" }
 time = {version = "0.3.9"}
 tendermint-rpc = { version = "0.23.7", features = ["http-client"] }
 
+tonic = "0.8"
+
 thetacrypt_blockchain_stub = {path="../thetacrypt_blockchain_stub", version="0.1.0"}
