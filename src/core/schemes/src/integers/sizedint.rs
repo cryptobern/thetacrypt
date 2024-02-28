@@ -131,7 +131,7 @@ impl SizedBigInt {
     }
 
     pub fn from_hex(group: &Group, hex: &str) -> SizedBigInt {
-        let bytes: Vec<u8> = Vec::from_hex(hex).expect("Invalid Hex String");
+        let bytes: Vec<u8> = hex::decode(hex).expect("Invalid Hex String");
 
         SizedBigInt::from_bytes(group, &bytes)
     }

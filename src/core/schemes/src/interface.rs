@@ -14,9 +14,7 @@ use crate::{
         coins::cks05::{Cks05CoinShare, Cks05ThresholdCoin},
         signatures::{
             bls04::{Bls04Signature, Bls04SignatureShare, Bls04ThresholdSignature},
-            frost::{
-                FrostRoundResult, FrostSignature, FrostSignatureShare, FrostThresholdSignature,
-            },
+            frost::{FrostSignature, FrostSignatureShare},
         },
     },
     groups::group::GroupElement,
@@ -880,6 +878,13 @@ impl ThresholdSignature {
                 PublicKey::Sh00(key) => Ok(Sh00ThresholdSignature::verify(s, key, msg)),
                 _ => Result::Err(SchemeError::WrongKeyProvided),
             },
+
+            Signature::Frost(s) => match pubkey {
+                PublicKey::Frost(key) => {
+                    Ok(crate::dl_schemes::signatures::frost::verify(s, key, msg))
+                }
+                _ => Result::Err(SchemeError::WrongKeyProvided),
+            },
             _ => Err(SchemeError::WrongKeyProvided),
         }
     }
@@ -960,199 +965,8 @@ impl ThresholdSignature {
     }
 }
 
-#[derive(Debug, AsnType, PartialEq, Clone)]
-#[rasn(enumerated)]
-pub enum RoundResult {
-    Frost(FrostRoundResult),
-}
-
-impl RoundResult {
-    pub fn get_id(&self) -> u16 {
-        match self {
-            Self::Frost(f) => match f {
-                FrostRoundResult::RoundOne(a) => a.get_id(),
-                FrostRoundResult::RoundTwo(a) => a.get_id(),
-                FrostRoundResult::Precomputation(a) => a[0].get_id(),
-            },
-        }
-    }
-}
-
-impl Serializable for RoundResult {
-    fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
-        match self {
-            Self::Frost(rr) => {
-                let result = asn1::write(|w| {
-                    w.write_element(&asn1::SequenceWriter::new(&|w| {
-                        w.write_element(&ThresholdScheme::Frost.get_id())?;
-
-                        let bytes = rr.to_bytes();
-                        if bytes.is_err() {
-                            return Err(WriteError::AllocationError);
-                        }
-                        w.write_element(&bytes.unwrap().as_slice())?;
-                        Ok(())
-                    }))
-                });
-
-                if result.is_err() {
-                    return Err(SchemeError::SerializationFailed);
-                }
-
-                return Ok(result.unwrap());
-            }
-        }
-    }
-
-    fn from_bytes(bytes: &Vec<u8>) -> Result<Self, SchemeError> {
-        let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
-            return d.read_element::<asn1::Sequence>()?.parse(|d| {
-                let scheme = ThresholdScheme::from_id(d.read_element::<u8>()?);
-                let bytes = d.read_element::<&[u8]>()?.to_vec();
-
-                if scheme.is_none() {
-                    return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
-                }
-
-                let sig;
-                match scheme.unwrap() {
-                    ThresholdScheme::Frost => {
-                        let r = FrostRoundResult::from_bytes(&bytes);
-                        if r.is_err() {
-                            return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
-                        }
-
-                        sig = Ok(Self::Frost(r.unwrap()));
-                    }
-                    _ => {
-                        return Err(ParseError::new(asn1::ParseErrorKind::InvalidValue));
-                    }
-                }
-
-                return sig;
-            });
-        });
-
-        if result.is_err() {
-            return Err(SchemeError::DeserializationFailed);
-        }
-
-        return Ok(result.unwrap());
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum InteractiveThresholdSignature {
-    Frost(FrostThresholdSignature),
-}
-
 pub enum ThresholdSignatureOptions {
     Frost(FrostOptions),
-}
-
-impl InteractiveThresholdSignature {
-    pub fn new(
-        key: &PrivateKeyShare,
-        msg: &[u8],
-        options: Option<ThresholdSignatureOptions>,
-    ) -> Result<Self, SchemeError> {
-        match key {
-            PrivateKeyShare::Frost(sk) => {
-                if let Option::Some(ThresholdSignatureOptions::Frost(o)) = options {
-                    return Ok(Self::Frost(FrostThresholdSignature::new(&sk, msg, o)));
-                }
-                return Ok(Self::Frost(FrostThresholdSignature::new(
-                    &sk,
-                    msg,
-                    FrostOptions::NoPrecomputation,
-                )));
-            }
-            _ => Err(SchemeError::WrongScheme),
-        }
-    }
-
-    pub fn set_label(&mut self, label: &[u8]) -> Result<(), SchemeError> {
-        match self {
-            Self::Frost(instance) => {
-                instance.set_label(label);
-                Ok(())
-            }
-        }
-    }
-
-    pub fn get_label(&self) -> Vec<u8> {
-        match self {
-            Self::Frost(instance) => {
-                return instance.get_label();
-            }
-        }
-    }
-
-    pub fn is_finished(&self) -> bool {
-        match self {
-            InteractiveThresholdSignature::Frost(i) => i.is_finished(),
-        }
-    }
-
-    pub fn is_ready_for_next_round(&self) -> bool {
-        match self {
-            InteractiveThresholdSignature::Frost(i) => i.is_ready_for_next_round(),
-        }
-    }
-
-    pub fn update(&mut self, rr: &RoundResult) -> Result<(), SchemeError> {
-        match self {
-            Self::Frost(inst) => {
-                if let RoundResult::Frost(round_result) = rr {
-                    let rs = inst.update(&round_result);
-                    if rs.is_ok() {
-                        return Ok(());
-                    }
-
-                    return Err(rs.unwrap_err());
-                }
-
-                return Err(SchemeError::WrongKeyProvided);
-            }
-        }
-    }
-
-    pub fn verify(sig: &Signature, pubkey: &PublicKey, msg: &[u8]) -> Result<bool, SchemeError> {
-        match sig {
-            Signature::Frost(s) => match pubkey {
-                PublicKey::Frost(key) => Ok(FrostThresholdSignature::verify(s, key, msg)),
-                _ => Err(SchemeError::WrongKeyProvided),
-            },
-
-            _ => Err(SchemeError::WrongKeyProvided),
-        }
-    }
-
-    pub fn do_round(&mut self) -> Result<RoundResult, SchemeError> {
-        match self {
-            Self::Frost(instance) => {
-                let res = instance.do_round();
-                if res.is_ok() {
-                    return Ok(RoundResult::Frost(res.unwrap()));
-                }
-
-                return Err(res.unwrap_err());
-            }
-        }
-    }
-
-    pub fn get_signature(&self) -> Result<Signature, SchemeError> {
-        match self {
-            Self::Frost(instance) => {
-                let res = instance.get_signature();
-                if res.is_ok() {
-                    return Ok(Signature::Frost(res.unwrap()));
-                }
-
-                return Err(res.unwrap_err());
-            }
-        }
-    }
 }
 
 pub struct ThresholdSignatureParams {

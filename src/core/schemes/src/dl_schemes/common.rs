@@ -15,6 +15,9 @@ use theta_proto::scheme_types::Group;
 
 use crate::groups::group::GroupElement;
 
+/*
+    share secret x using shamir secret sharing with n parties and a threshold of k
+*/
 pub fn shamir_share(
     x: &SizedBigInt,
     k: usize,
@@ -45,6 +48,9 @@ pub fn shamir_share(
     (shares, h)
 }
 
+/*
+    evaluate polynomial defined by the vector of coefficients a at point x
+*/
 pub fn eval_pol(x: &SizedBigInt, a: &Vec<SizedBigInt>) -> SizedBigInt {
     let len = (a.len()) as i32;
     let group = x.get_group();
@@ -65,6 +71,9 @@ pub fn eval_pol(x: &SizedBigInt, a: &Vec<SizedBigInt>) -> SizedBigInt {
     val
 }
 
+/*
+    faster way to evaluate polynomials, source https://en.wikipedia.org/wiki/Horner%27s_method
+*/
 pub fn horner(x: &SizedBigInt, a: &Vec<SizedBigInt>) -> SizedBigInt {
     let mut result = a[0].clone(); // Initialize result
     let order = x.get_group().get_order();
@@ -75,6 +84,7 @@ pub fn horner(x: &SizedBigInt, a: &Vec<SizedBigInt>) -> SizedBigInt {
     return result;
 }
 
+/* byte-wise xor between two byte vectors */
 pub fn xor(v1: Vec<u8>, v2: Vec<u8>) -> Vec<u8> {
     let v3: Vec<u8> = v1.iter().zip(v2.iter()).map(|(&x1, &x2)| x1 ^ x2).collect();
 
@@ -97,6 +107,9 @@ pub fn gen_symm_key(rng: &mut RNG) -> [u8; 32] {
     *k
 }
 
+/*
+    perform lagrange interpolation over a vector of dl shares
+*/
 pub fn interpolate<T: DlShare>(shares: &Vec<T>) -> GroupElement {
     let ids: Vec<u16> = (0..shares.len()).map(|x| shares[x].get_id()).collect();
     let mut ry = GroupElement::new(&shares[0].get_group());

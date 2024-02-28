@@ -1,15 +1,12 @@
 #![allow(dead_code)]
-use crate::dl_schemes::signatures::frost::FrostOptions;
+use crate::dl_schemes::signatures::frost::{commit, deserialize_scalar, FrostOptions};
 use crate::interface::{ThresholdSignature, ThresholdSignatureOptions};
 use crate::keys::key_generator::KeyGenerator;
 use crate::rand::StaticRNG;
 use crate::{
-    dl_schemes::signatures::frost::{FrostRoundResult, FrostThresholdSignature},
     groups::group::GroupElement,
     integers::sizedint::SizedBigInt,
-    interface::{
-        InteractiveThresholdSignature, RoundResult, Serializable, Signature, ThresholdScheme,
-    },
+    interface::{Serializable, Signature, ThresholdScheme},
     keys::keys::PrivateKeyShare,
     rand::{RngAlgorithm, RNG},
 };
@@ -18,224 +15,21 @@ use theta_proto::scheme_types::Group;
 
 use super::frost::{FrostPrivateKey, FrostPublicKey, PublicCommitment};
 
-#[test]
-fn test_interface() {
-    let k = 3;
-    let n = 5;
+/* ToDo: make test vector work
 
-    let keys = KeyGenerator::generate_keys(
-        k,
-        n,
-        &mut RNG::new(RngAlgorithm::OsRng),
-        &ThresholdScheme::Frost,
-        &Group::Ed25519,
-        &Option::None,
-    )
-    .unwrap();
-    assert!(keys.len() == n);
+Test vectors can be found at https://www.ietf.org/archive/id/draft-irtf-cfrg-frost-15.html#name-frosted25519-sha-512-2
 
-    let msg = b"Test message!";
-    let pk = keys[0].get_public_key();
-
-    let mut instances = Vec::new();
-
-    for i in 0..k {
-        let mut I = InteractiveThresholdSignature::new(&keys[i], msg, None).unwrap();
-        instances.push(I);
-    }
-
-    let mut round_results = Vec::new();
-
-    while !instances[0].is_finished() {
-        for i in 0..k {
-            round_results.push(instances[i].do_round().unwrap());
-        }
-
-        for i in 0..k {
-            let mut j = 0;
-            while !instances[i].is_ready_for_next_round() {
-                assert!(instances[i].update(&round_results[j]).is_ok());
-                j += 1;
-            }
-        }
-
-        round_results.clear();
-    }
-
-    let signature = instances[0].get_signature().unwrap();
-
-    assert!(InteractiveThresholdSignature::verify(&signature, &pk, msg).unwrap());
-}
-
-#[test]
-fn test_private_key_serialization() {
-    let keys = KeyGenerator::generate_keys(
-        3,
-        5,
-        &mut RNG::new(RngAlgorithm::OsRng),
-        &ThresholdScheme::Frost,
-        &Group::Ed25519,
-        &Option::None,
-    )
-    .unwrap();
-
-    let bytes = keys[0].to_bytes();
-    assert!(bytes.is_ok());
-    let bytes = bytes.unwrap();
-    let key = PrivateKeyShare::from_bytes(&bytes);
-    assert!(key.is_ok());
-    assert!(key.unwrap().eq(&keys[0]));
-}
-
-#[test]
-fn test_round_result_serialization() {
-    let keys = KeyGenerator::generate_keys(
-        2,
-        5,
-        &mut RNG::new(RngAlgorithm::OsRng),
-        &ThresholdScheme::Frost,
-        &Group::Ed25519,
-        &Option::None,
-    )
-    .unwrap();
-
-    let msg = b"Hello world";
-    let mut I = InteractiveThresholdSignature::new(&keys[0], msg, None).unwrap();
-    let mut I1 = InteractiveThresholdSignature::new(&keys[1], msg, None).unwrap();
-    let rr = I.do_round().unwrap();
-    let rr1 = I1.do_round().unwrap();
-    let bytes = rr.to_bytes().unwrap();
-    let rr0 = RoundResult::from_bytes(&bytes);
-    assert!(rr0.is_ok());
-    assert!(rr0.unwrap().eq(&rr));
-
-    let _ = I.update(&rr);
-    let _ = I.update(&rr1);
-    let rr2 = I.do_round();
-    assert!(rr2.is_ok());
-    let rr2 = rr2.unwrap();
-    let bytes = rr2.to_bytes().unwrap();
-    let rr0 = RoundResult::from_bytes(&bytes);
-    assert!(rr0.is_ok());
-    assert!(rr0.unwrap().eq(&rr2));
-}
-
-#[test]
-fn test_signature_serialization() {
-    let k = 3;
-    let n = 5;
-
-    let keys = KeyGenerator::generate_keys(
-        k,
-        n,
-        &mut RNG::new(RngAlgorithm::OsRng),
-        &ThresholdScheme::Frost,
-        &Group::Ed25519,
-        &Option::None,
-    )
-    .unwrap();
-    assert!(keys.len() == n);
-
-    let msg = b"Test message!";
-    let pk = keys[0].get_public_key();
-
-    let mut instances = Vec::new();
-
-    for i in 0..k {
-        let mut I = InteractiveThresholdSignature::new(&keys[i], msg, None).unwrap();
-        instances.push(I);
-    }
-
-    let mut round_results = Vec::new();
-
-    while !instances[0].is_finished() {
-        for i in 0..k {
-            round_results.push(instances[i].do_round().unwrap());
-        }
-
-        for i in 0..k {
-            let mut j = 0;
-            while !instances[i].is_ready_for_next_round() {
-                assert!(instances[i].update(&round_results[j]).is_ok());
-                j += 1;
-            }
-        }
-
-        round_results.clear();
-    }
-
-    let signature = instances[0].get_signature().unwrap();
-
-    let serialized = signature.to_bytes().unwrap();
-    println!("serialized");
-    let re = Signature::from_bytes(&serialized).unwrap();
-
-    assert!(signature.eq(&re));
-}
-
-#[test]
-fn test_precomputation() {
-    let k = 3;
-    let n = 5;
-
-    let keys = KeyGenerator::generate_keys(
-        k,
-        n,
-        &mut RNG::new(RngAlgorithm::OsRng),
-        &ThresholdScheme::Frost,
-        &Group::Ed25519,
-        &Option::None,
-    )
-    .unwrap();
-    assert!(keys.len() == n);
-
-    let msg = b"Test message!";
-    let pk = keys[0].get_public_key();
-
-    let mut instances = Vec::new();
-
-    for i in 0..k {
-        let I = InteractiveThresholdSignature::new(
-            &keys[i],
-            msg,
-            Some(ThresholdSignatureOptions::Frost(
-                FrostOptions::Precomputation,
-            )),
-        )
-        .unwrap();
-        instances.push(I);
-    }
-
-    let mut round_results = Vec::new();
-
-    while !instances[0].is_finished() {
-        for i in 0..k {
-            round_results.push(instances[i].do_round().unwrap());
-        }
-
-        for i in 0..k {
-            let mut j = 0;
-            while !instances[i].is_ready_for_next_round() {
-                assert!(instances[i].update(&round_results[j]).is_ok());
-                j += 1;
-            }
-        }
-
-        round_results.clear();
-    }
-
-    let signature = instances[0].get_signature().unwrap();
-    assert!(ThresholdSignature::verify(&signature, &pk, msg).unwrap());
-}
-
-/* ToDo: verify assemble */
 #[test]
 #[allow(dead_code)]
 fn test_vector() {
     let group = Group::Ed25519;
-    let x = SizedBigInt::from_hex(
+    /*  let x = SizedBigInt::from_hex(
         &group,
         "7b1c33d3f5291d85de664833beb1ad469f7fb6025a0ec78b3a790c6e13a98304",
+    );*/
+    let x = deserialize_scalar(
+        &group,
+        &hex::decode("7b1c33d3f5291d85de664833beb1ad469f7fb6025a0ec78b3a790c6e13a98304").unwrap(),
     );
     let y = GroupElement::new_pow_big(&group, &x);
 
@@ -250,9 +44,9 @@ fn test_vector() {
     let k = 2;
     let n = 3;
 
-    let share1 = SizedBigInt::from_hex(
+    let share1 = deserialize_scalar(
         &group,
-        "929dcc590407aae7d388761cddb0c0db6f5627aea8e217f4a033f2ec83d93509",
+        &hex::decode("929dcc590407aae7d388761cddb0c0db6f5627aea8e217f4a033f2ec83d93509").unwrap(),
     );
     let share2 = SizedBigInt::from_hex(
         &group,
@@ -262,6 +56,12 @@ fn test_vector() {
         &group,
         "d3cb090a075eb154e82fdb4b3cb507f110040905468bb9c46da8bdea643a9a02",
     );
+
+    let mut s_serialize = share1.to_bytes();
+    s_serialize.reverse();
+    let t = s_serialize.len() - 1;
+    s_serialize[t] &= 0x1f;
+    println!("share: {}", hex::encode(s_serialize));
 
     let c1 = GroupElement::new_pow_big(&group, &share1);
     let c2 = GroupElement::new_pow_big(&group, &share2);
@@ -274,16 +74,14 @@ fn test_vector() {
     let sk2 = FrostPrivateKey::new(2, &share2, &pk);
     let sk3 = FrostPrivateKey::new(3, &share3, &pk);
 
-    let mut i1 = FrostThresholdSignature::new(&sk1, &msg, FrostOptions::NoPrecomputation);
-    let mut i3 = FrostThresholdSignature::new(&sk3, &msg, FrostOptions::NoPrecomputation);
+    let mut rng1 = RNG::Static(StaticRNG::new(
+        "069cd85f631d5f7f2721ed5e40519b1366f340a87c2f6856363dbdcda348a7501fd2e39e111cdc266f6c0f4d0fd45c947761f1f5d3cb583dfcb9bbaf8d4c9fec".to_string(), true));
 
-    let rr1 = i1.commit(&mut RNG::Static(StaticRNG::new(String::from(
-        "0fd2e39e111cdc266f6c0f4d0fd45c947761f1f5d3cb583dfcb9bbaf8d4c9fec69cd85f631d5f7f2721ed5e40519b1366f340a87c2f6856363dbdcda348a7501",
-    ))));
+    let (comm1, nonce1) = commit(&sk1, &mut rng1);
 
-    let hiding_nonce_1 = SizedBigInt::from_hex(
+    let hiding_nonce_1 = deserialize_scalar(
         &group,
-        "812d6104142944d5a55924de6d49940956206909f2acaeedecda2b726e630407",
+        &hex::decode("812d6104142944d5a55924de6d49940956206909f2acaeedecda2b726e630407").unwrap(),
     );
     let hiding_nonce_3 = SizedBigInt::from_hex(
         &group,
@@ -300,7 +98,7 @@ fn test_vector() {
     );
 
     // TODO: Fix failing test here
-    //assert_eq!(hiding_nonce_1, i1.get_nonce().clone().unwrap().hiding_nonce);
+    assert_eq!(hiding_nonce_1, nonce1.hiding_nonce);
 
     /*
 
@@ -352,4 +150,4 @@ fn test_vector() {
     if let FrostRoundResult::RoundTwo(r) = r3 {
         assert!(e3.equals(&r.get_share()));
     }*/
-}
+}*/

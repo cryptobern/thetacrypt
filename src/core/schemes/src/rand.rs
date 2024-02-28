@@ -66,7 +66,7 @@ impl RNG {
             }
 
             RngAlgorithm::Static(seed) => {
-                let rng = StaticRNG::new(seed);
+                let rng = StaticRNG::new(seed, true);
                 return RNG::Static(rng);
             }
         }
@@ -87,11 +87,15 @@ pub struct StaticRNG {
 }
 
 impl StaticRNG {
-    pub fn new(seed: String) -> Self {
+    pub fn new(seed: String, little_endian: bool) -> Self {
         let t = hex::decode(seed);
         let mut seed = Vec::new();
         if t.is_ok() {
             seed = t.unwrap();
+
+            if little_endian {
+                seed.reverse();
+            }
         }
 
         let index = 0;

@@ -1,20 +1,20 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{borrow::BorrowMut, collections::HashMap, path::PathBuf, sync::Arc};
 
 use log::{error, info};
 use theta_proto::{
     scheme_types::PublicKeyEntry,
     scheme_types::{Group, ThresholdScheme},
 };
+use theta_protocols::frost::protocol::FrostPrecomputation;
 use theta_schemes::{
     dl_schemes::signatures::frost::PublicCommitment,
-    interface::InteractiveThresholdSignature,
     keys::key_store::{KeyEntry, KeyStore},
 };
 
 pub struct KeyManager {
     command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
     keystore: KeyStore,
-    frost_precomputes: Vec<HashMap<u16, PublicCommitment>>,
+    frost_precomputes: HashMap<String, Vec<FrostPrecomputation>>,
 }
 
 #[derive(Debug)]
@@ -35,10 +35,12 @@ pub enum KeyManagerCommand {
         responder: tokio::sync::oneshot::Sender<Result<Arc<KeyEntry>, String>>,
     },
     PopFrostPrecomputation {
-        responder: tokio::sync::oneshot::Sender<Option<HashMap<u16, PublicCommitment>>>,
+        key_id: String,
+        responder: tokio::sync::oneshot::Sender<Option<FrostPrecomputation>>,
     },
     PushFrostPrecomputations {
-        precomputations: Vec<HashMap<u16, PublicCommitment>>,
+        key_id: String,
+        precomputations: Vec<FrostPrecomputation>,
     },
 }
 
@@ -61,7 +63,7 @@ impl KeyManager {
         Self {
             command_receiver,
             keystore,
-            frost_precomputes: Vec::new(),
+            frost_precomputes: HashMap::new(),
         }
     }
 
@@ -78,16 +80,17 @@ impl KeyManager {
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
                         },
                         KeyManagerCommand::PopFrostPrecomputation {
+                            key_id,
                             responder
                         } => {
-                            let result = self.pop_precomputation();
+                            let result = self.pop_precomputation(&key_id);
 
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
 
                             info!("{} FROST precomputations left", self.num_precomputations());
                         },
-                        KeyManagerCommand::PushFrostPrecomputations { precomputations } => {
-                            self.append_precomputations(precomputations);
+                        KeyManagerCommand::PushFrostPrecomputations { key_id, precomputations } => {
+                            self.append_precomputations(&key_id, precomputations);
                         },
                         KeyManagerCommand::GetKeyById {id, responder} => {
                             info!("Searching for key with id {}", &id);
@@ -118,11 +121,31 @@ impl KeyManager {
         return self.frost_precomputes.len();
     }
 
-    pub fn append_precomputations(&mut self, precomputations: Vec<HashMap<u16, PublicCommitment>>) {
-        self.frost_precomputes = [precomputations, self.frost_precomputes.clone()].concat();
+    pub fn append_precomputations(
+        &mut self,
+        key_id: &String,
+        precomputations: Vec<FrostPrecomputation>,
+    ) {
+        let current = self.frost_precomputes.get(key_id);
+        if current.is_none() {
+            self.frost_precomputes
+                .insert(key_id.clone(), precomputations);
+            return;
+        }
+
+        self.frost_precomputes.insert(
+            key_id.clone(),
+            [precomputations, current.unwrap().clone()].concat(),
+        );
     }
 
-    pub fn pop_precomputation(&mut self) -> Option<HashMap<u16, PublicCommitment>> {
-        self.frost_precomputes.pop()
+    pub fn pop_precomputation(&mut self, key_id: &String) -> Option<FrostPrecomputation> {
+        let mut vec = self.frost_precomputes.get_mut(key_id);
+        if vec.is_none() {
+            return None;
+        }
+
+        let mut vec = vec.unwrap();
+        vec.pop()
     }
 }
