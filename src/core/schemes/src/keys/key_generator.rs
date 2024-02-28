@@ -57,7 +57,7 @@ impl KeyGenerator {
         params: &Option<KeyParams>,
     ) -> Result<Vec<PrivateKeyShare>, SchemeError> {
         if k > n || n < 1 {
-            return Err(SchemeError::InvalidParams);
+            return Err(SchemeError::InvalidParams(None));
         }
 
         match scheme {

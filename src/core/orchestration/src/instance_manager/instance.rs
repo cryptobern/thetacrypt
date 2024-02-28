@@ -1,5 +1,4 @@
 use core::fmt;
-
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::interface::ProtocolError;
 use tokio::sync::mpsc::error::SendError;
@@ -72,5 +71,9 @@ impl Instance {
 
     pub async fn send_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
         self.message_channel_sender.send(message).await
+    }
+
+    pub fn get_sender(&self) -> tokio::sync::mpsc::Sender<Vec<u8>>{
+        self.message_channel_sender.clone()
     }
 }

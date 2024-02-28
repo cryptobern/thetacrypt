@@ -135,7 +135,7 @@ pub struct InstanceManager {
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
-const BACKLOG_CHECK_INTERVAL: u64 = 600;
+const BACKLOG_CHECK_INTERVAL: u64 = 60;
 
 // BacklogData keeps all the messages that are destined for a specific instance,
 // plus a field checked, which is used to detect too old backlog data.
@@ -289,7 +289,9 @@ impl InstanceManager {
                     match instance {
                         Some(_instance) => {
                             // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
-                            let _ = _instance.send_message(message_data).await;
+                            if !(_instance.is_finished()){
+                                let _ =  _instance.send_message(message_data).await;
+                            }
                         },
                         None => {
                             // Otherwise, backlog the message. This can happen for two reasons:
@@ -383,7 +385,7 @@ impl InstanceManager {
                 self.instances.insert(instance_id.clone(), instance);
 
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
+                self.start_protocol(
                     prot,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
@@ -437,7 +439,7 @@ impl InstanceManager {
                 self.instances.insert(instance_id.clone(), instance);
 
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
+                self.start_protocol(
                     prot,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
@@ -483,7 +485,7 @@ impl InstanceManager {
                 self.instances.insert(instance_id.clone(), instance);
 
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
+                self.start_protocol(
                     prot,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
@@ -495,15 +497,18 @@ impl InstanceManager {
     }
 
     fn start_protocol(
+        &mut self,
         mut prot: (impl ThresholdProtocol + std::marker::Send + 'static),
         instance_id: String,
         sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     ) {
+        let id = instance_id.clone();
         tokio::spawn(async move {
+            
             let result = prot.run().await;
 
             // Protocol terminated, update state with the result.
-            info!("Instance {:?} finished", instance_id);
+            info!("Instance {:?} finished", instance_id.clone());
 
             while sender
                 .send(InstanceManagerCommand::StoreResult {
@@ -518,9 +523,11 @@ impl InstanceManager {
                 thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
             }
         });
+        _ = self.forward_backlogged_messages(id);
+        
     }
 
-    async fn _forward_backlogged_messages(&mut self, instance_id: String) {
+    fn forward_backlogged_messages(&mut self, instance_id: String) {
         let instance = self.instances.get(&instance_id);
 
         if instance.is_none() {
@@ -534,10 +541,16 @@ impl InstanceManager {
         }
 
         let backlog = backlog.unwrap();
-        for msg in &backlog.messages {
-            let _ = instance.send_message(msg.clone()).await;
-        }
-
+        let messages = backlog.messages.clone();
+        let sender = instance.get_sender();
+        let instance_id_cloned = instance_id.clone();
+        tokio::spawn(  async move {
+            for msg in &messages {
+                    let _ = sender.send(msg.clone()).await;
+            }
+            info!("All the messages backlogged for instance {:?} have been sent", instance_id_cloned);
+         });
+        
         self.backlog.remove(&instance_id);
     }
 
