@@ -546,7 +546,7 @@ pub fn partial_sign(
     message: &[u8],
     key: &FrostPrivateKey,
     node_id: u16,
-) -> Result<FrostSignatureShare, SchemeError> {
+) -> Result<(FrostSignatureShare, GroupElement), SchemeError> {
     let group = nonce.binding_nonce.get_group();
     let order = group.get_order();
     let pubkey = key.get_public_key();
@@ -578,12 +578,13 @@ pub fn partial_sign(
         .add(&lambda_i.mul_mod(&key.x, &order).mul_mod(&challenge, &order))
         .rmod(&order);
 
-    let group_commitment = Option::Some(group_commitment);
-
-    Ok(FrostSignatureShare {
-        id: node_id,
-        data: share,
-    })
+    Ok((
+        FrostSignatureShare {
+            id: node_id,
+            data: share,
+        },
+        group_commitment,
+    ))
 }
 
 pub fn commit(key: &FrostPrivateKey, rng: &mut RNG) -> (PublicCommitment, Nonce) {

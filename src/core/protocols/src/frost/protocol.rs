@@ -38,13 +38,10 @@ pub struct FrostProtocol {
     signer_group: SignerGroup,
 }
 
-//ROSE: see this function can be NOT async
-// #[async_trait]
 impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     // Define the concrete type for the ProtocolMessage
     type ProtocolMessage = FrostMessage;
 
-    // by default we only take the first k shares (ordered by key id), to ensure that every node has the same group of signers
     fn update(&mut self, message: FrostMessage) -> Result<(), ProtocolError> {
         match message.data {
             FrostData::Commitment(result) => {
@@ -194,9 +191,11 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
             if res.is_ok() {
                 self.round += 1;
 
+                let (share, group_commitment) = res.unwrap();
+                self.group_commitment = Some(group_commitment);
                 let message = FrostMessage {
                     id: self.key.get_share_id(),
-                    data: FrostData::Share(res.unwrap()),
+                    data: FrostData::Share(share),
                 };
 
                 return Ok(message);
@@ -236,17 +235,42 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
 }
 
 impl FrostProtocol {
-    pub fn new(key: &FrostPrivateKey, msg: &[u8], options: FrostOptions) -> Self {
+    pub fn new(
+        key: &FrostPrivateKey,
+        msg: &[u8],
+        label: &[u8],
+        options: FrostOptions,
+        precomputation: Option<FrostPrecomputation>,
+    ) -> Self {
+        if precomputation.is_none() {
+            return Self {
+                round: 0,
+                msg: msg.to_vec(),
+                label: label.to_vec(),
+                shares: HashMap::new(),
+                key: key.clone(),
+                nonce: Option::None,
+                commitment: Option::None,
+                precomputation_list: Vec::new(),
+                commitment_list: HashMap::new(),
+                group_commitment: None,
+                share: None,
+                finished: false,
+                options,
+                signer_group: SignerGroup::new(key.get_threshold()),
+            };
+        }
+        let precomputation = precomputation.unwrap();
         Self {
-            round: 0,
+            round: 1,
             msg: msg.to_vec(),
-            label: Vec::new(),
+            label: label.to_vec(),
             shares: HashMap::new(),
             key: key.clone(),
-            nonce: Option::None,
-            commitment: Option::None,
+            nonce: Option::Some(precomputation.nonce),
+            commitment: precomputation.commitments.get(&key.get_share_id()).cloned(),
             precomputation_list: Vec::new(),
-            commitment_list: HashMap::new(),
+            commitment_list: precomputation.commitments,
             group_commitment: None,
             share: None,
             finished: false,
