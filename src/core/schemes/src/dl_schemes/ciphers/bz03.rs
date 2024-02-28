@@ -7,15 +7,15 @@
 use asn1::{ParseError, WriteError};
 use chacha20poly1305::aead::{Aead, NewAead};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use derive::DlShare;
 use log::error;
 use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::AsnType;
+use theta_derive::DlShare;
 
-use crate::dl_schemes::bigint::SizedBigInt;
 use crate::dl_schemes::common::*;
-use crate::group::GroupElement;
+use crate::groups::group::GroupElement;
+use crate::integers::sizedint::SizedBigInt;
 use crate::interface::{DlShare, SchemeError, Serializable, ThresholdCipherParams};
 use crate::keys::keys::calc_key_id;
 use crate::scheme_types_impl::GroupDetails;

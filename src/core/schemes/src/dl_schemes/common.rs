@@ -4,16 +4,16 @@ use mcore::{
 };
 
 use crate::{
-    dl_schemes::dl_groups::*,
+    groups::ec::*,
     interface::{DecryptionShare, DlShare},
     rand::RNG,
     scheme_types_impl::GroupDetails,
 };
 
-use super::bigint::SizedBigInt;
+use crate::integers::sizedint::SizedBigInt;
 use theta_proto::scheme_types::Group;
 
-use crate::group::GroupElement;
+use crate::groups::group::GroupElement;
 
 pub fn shamir_share(
     x: &SizedBigInt,

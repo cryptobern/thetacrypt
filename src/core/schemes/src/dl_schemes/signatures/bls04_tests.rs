@@ -1,6 +1,6 @@
 use crate::keys::key_generator::KeyGenerator;
 use crate::{
-    dl_schemes::dl_groups::bls12381::Bls12381,
+    groups::ec::bls12381::Bls12381,
     interface::{
         Serializable, Signature, SignatureShare, ThresholdScheme, ThresholdSignature,
         ThresholdSignatureParams,

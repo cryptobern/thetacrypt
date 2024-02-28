@@ -1,8 +1,10 @@
 use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
+    process::Command,
     sync::Arc,
-    thread, time,
+    thread,
+    time::{self, Instant},
 };
 
 use log::{debug, error, info};
@@ -23,10 +25,7 @@ use theta_schemes::{
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
 
-use crate::{
-    instance_manager::instance::{self, Instance},
-    key_manager::key_manager::KeyManagerCommand,
-};
+use crate::{instance_manager::instance::Instance, key_manager::key_manager::KeyManagerCommand};
 
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
@@ -339,6 +338,7 @@ impl InstanceManager {
 
         match instance_request {
             StartInstanceRequest::Decryption { ciphertext } => {
+                let now = Instant::now();
                 let key = self
                     .setup_instance(
                         ciphertext.get_scheme(),
@@ -347,6 +347,8 @@ impl InstanceManager {
                         Some(ciphertext.get_key_id().to_string()),
                     )
                     .await;
+
+                println!("Set up instance after {}ms", now.elapsed().as_millis());
 
                 if key.is_err() {
                     let e = key.unwrap_err();
@@ -387,6 +389,11 @@ impl InstanceManager {
                     self.instance_command_sender.clone(),
                 );
 
+                println!(
+                    "Set up instance thread after {}ms",
+                    now.elapsed().as_millis()
+                );
+
                 return Ok(instance_id.clone());
             }
             StartInstanceRequest::Signature {
@@ -418,11 +425,12 @@ impl InstanceManager {
                 // Create the new protocol instance
                 let prot = ThresholdSignatureProtocol::new(
                     key,
-                    Some(&message),
+                    &message,
                     &label,
                     receiver,
                     self.outgoing_p2p_sender.clone(),
                     self.event_emitter_sender.clone(),
+                    Option::None,
                     instance_id.clone(),
                 );
 
@@ -648,7 +656,7 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             return hex::encode(h);
         }
         StartInstanceRequest::Signature {
-            message,
+            message: _,
             label,
             scheme,
             group,

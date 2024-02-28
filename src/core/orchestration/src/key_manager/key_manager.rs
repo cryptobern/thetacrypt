@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use log::{error, info};
 use theta_proto::{
@@ -6,6 +6,7 @@ use theta_proto::{
     scheme_types::{Group, ThresholdScheme},
 };
 use theta_schemes::{
+    dl_schemes::signatures::frost::PublicCommitment,
     interface::InteractiveThresholdSignature,
     keys::key_store::{KeyEntry, KeyStore},
 };
@@ -13,7 +14,7 @@ use theta_schemes::{
 pub struct KeyManager {
     command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
     keystore: KeyStore,
-    frost_precomputes: Vec<InteractiveThresholdSignature>,
+    frost_precomputes: Vec<HashMap<u16, PublicCommitment>>,
 }
 
 #[derive(Debug)]
@@ -34,10 +35,10 @@ pub enum KeyManagerCommand {
         responder: tokio::sync::oneshot::Sender<Result<Arc<KeyEntry>, String>>,
     },
     PopFrostPrecomputation {
-        responder: tokio::sync::oneshot::Sender<Option<InteractiveThresholdSignature>>,
+        responder: tokio::sync::oneshot::Sender<Option<HashMap<u16, PublicCommitment>>>,
     },
-    PushFrostPrecomputation {
-        instance: InteractiveThresholdSignature,
+    PushFrostPrecomputations {
+        precomputations: Vec<HashMap<u16, PublicCommitment>>,
     },
 }
 
@@ -79,14 +80,14 @@ impl KeyManager {
                         KeyManagerCommand::PopFrostPrecomputation {
                             responder
                         } => {
-                            let result = self.pop_precompute_result();
+                            let result = self.pop_precomputation();
 
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
 
                             info!("{} FROST precomputations left", self.num_precomputations());
                         },
-                        KeyManagerCommand::PushFrostPrecomputation { instance } => {
-                            self.push_precompute_result(instance);
+                        KeyManagerCommand::PushFrostPrecomputations { precomputations } => {
+                            self.append_precomputations(precomputations);
                         },
                         KeyManagerCommand::GetKeyById {id, responder} => {
                             info!("Searching for key with id {}", &id);
@@ -117,20 +118,11 @@ impl KeyManager {
         return self.frost_precomputes.len();
     }
 
-    pub fn append_precompute_results(
-        &mut self,
-        instances: &mut Vec<InteractiveThresholdSignature>,
-    ) {
-        self.frost_precomputes.append(instances);
+    pub fn append_precomputations(&mut self, precomputations: Vec<HashMap<u16, PublicCommitment>>) {
+        self.frost_precomputes = [precomputations, self.frost_precomputes.clone()].concat();
     }
 
-    pub fn push_precompute_result(&mut self, instance: InteractiveThresholdSignature) {
-        self.frost_precomputes.push(instance);
-        self.frost_precomputes
-            .sort_by(|a, b| a.get_label().cmp(&b.get_label()))
-    }
-
-    pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
+    pub fn pop_precomputation(&mut self) -> Option<HashMap<u16, PublicCommitment>> {
         self.frost_precomputes.pop()
     }
 }

@@ -1,5 +1,5 @@
-use crate::dl_schemes::bigint::SizedBigInt;
-use crate::group::GroupElement;
+use crate::groups::group::GroupElement;
+use crate::integers::sizedint::SizedBigInt;
 use crate::scheme_types_impl::GroupDetails;
 
 pub struct PedersenCommitmentParams {

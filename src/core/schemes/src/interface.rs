@@ -1,5 +1,7 @@
+use std::fmt::write;
 use std::{error::Error, fmt::Display};
 
+use crate::dl_schemes::signatures::frost::FrostOptions;
 use crate::keys::keys::{PrivateKeyShare, PublicKey};
 use crate::scheme_types_impl::SchemeDetails;
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
             },
         },
     },
-    group::GroupElement,
+    groups::group::GroupElement,
     rand::{RngAlgorithm, RNG},
     rsa_schemes::signatures::sh00::{Sh00Signature, Sh00SignatureShare, Sh00ThresholdSignature},
     unwrap_enum_vec,
@@ -970,6 +972,7 @@ impl RoundResult {
             Self::Frost(f) => match f {
                 FrostRoundResult::RoundOne(a) => a.get_id(),
                 FrostRoundResult::RoundTwo(a) => a.get_id(),
+                FrostRoundResult::Precomputation(a) => a[0].get_id(),
             },
         }
     }
@@ -1043,11 +1046,26 @@ pub enum InteractiveThresholdSignature {
     Frost(FrostThresholdSignature),
 }
 
+pub enum ThresholdSignatureOptions {
+    Frost(FrostOptions),
+}
+
 impl InteractiveThresholdSignature {
-    pub fn new(key: &PrivateKeyShare) -> Result<Self, SchemeError> {
+    pub fn new(
+        key: &PrivateKeyShare,
+        msg: &[u8],
+        options: Option<ThresholdSignatureOptions>,
+    ) -> Result<Self, SchemeError> {
         match key {
             PrivateKeyShare::Frost(sk) => {
-                return Ok(Self::Frost(FrostThresholdSignature::new(&sk)));
+                if let Option::Some(ThresholdSignatureOptions::Frost(o)) = options {
+                    return Ok(Self::Frost(FrostThresholdSignature::new(&sk, msg, o)));
+                }
+                return Ok(Self::Frost(FrostThresholdSignature::new(
+                    &sk,
+                    msg,
+                    FrostOptions::NoPrecomputation,
+                )));
             }
             _ => Err(SchemeError::WrongScheme),
         }
@@ -1058,14 +1076,6 @@ impl InteractiveThresholdSignature {
             Self::Frost(instance) => {
                 instance.set_label(label);
                 Ok(())
-            }
-        }
-    }
-
-    pub fn set_msg(&mut self, msg: &[u8]) -> Result<(), SchemeError> {
-        match self {
-            Self::Frost(instance) => {
-                return instance.set_msg(msg);
             }
         }
     }
@@ -1188,6 +1198,7 @@ pub enum SchemeError {
     Aborted(String),
     KeyNotFound,
     MacFailure,
+    NoMoreCommitments,
 }
 
 impl Error for SchemeError {}
@@ -1221,6 +1232,7 @@ impl Display for SchemeError {
             Self::Aborted(s) => write!(f, "Protocol aborted: {}", s),
             Self::MacFailure => write!(f, "MAC Failure"),
             Self::KeyNotFound => write!(f, "Key not found"),
+            Self::NoMoreCommitments => write!(f, "No more commitments available"),
         }
     }
 }

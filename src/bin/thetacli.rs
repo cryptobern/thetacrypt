@@ -21,7 +21,6 @@ use theta_schemes::{
         ThresholdSignature,
     },
     keys::{
-        self,
         key_generator::KeyGenerator,
         key_store::KeyStore,
         keys::{PrivateKeyShare, PublicKey},

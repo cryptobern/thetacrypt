@@ -1,6 +1,8 @@
-use super::group::GroupElement;
-use crate::dl_schemes::bigint::SizedBigInt;
-use crate::dl_schemes::dl_groups::bls12381::Bls12381;
+use crate::groups::ec::bls12381::Bls12381;
+use crate::groups::group::GroupElement;
+use crate::integers::sizedint::SizedBigInt;
+use crate::rand::RNG;
+use rand::Rng;
 use theta_proto::scheme_types::Group;
 
 static GROUP: Group = Group::Bls12381;

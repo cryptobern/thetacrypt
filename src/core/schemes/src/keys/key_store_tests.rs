@@ -5,7 +5,6 @@ use mcore::hash256::HASH256;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 use crate::{
-    dl_schemes::dl_groups::bls12381::Bls12381,
     interface::{Serializable, ThresholdCipherParams},
     rand::{RngAlgorithm, RNG},
 };

@@ -2,7 +2,8 @@ use std::fmt::{self, Debug, Display};
 
 pub mod key_generator;
 pub mod key_store;
-mod key_store_tests;
+#[cfg(test)]
+pub mod key_store_tests;
 pub mod keys;
 
 #[macro_export]

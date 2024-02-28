@@ -7,16 +7,16 @@
 use std::ops::BitAnd;
 
 use asn1::{ParseError, WriteError};
-use derive::DlShare;
 use log::error;
 use mcore::hash256::HASH256;
 use rasn::AsnType;
+use theta_derive::DlShare;
 
-use crate::dl_schemes::bigint::SizedBigInt;
+use crate::integers::sizedint::SizedBigInt;
 use crate::interface::{DlShare, SchemeError, Serializable};
 use crate::keys::keys::calc_key_id;
 use crate::scheme_types_impl::GroupDetails;
-use crate::{dl_schemes::common::interpolate, group::GroupElement, rand::RNG};
+use crate::{dl_schemes::common::interpolate, groups::group::GroupElement, rand::RNG};
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 pub struct Cks05ThresholdCoin {

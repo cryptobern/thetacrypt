@@ -2,8 +2,9 @@
 extern crate proc_macro;
 
 use crate::proc_macro::TokenStream;
-use quote::quote;
-use syn::DeriveInput;
+use proc_macro::Ident;
+use quote::{quote, ToTokens};
+use syn::{DeriveInput, FieldsNamed};
 
 #[proc_macro_derive(DlShare)]
 pub fn dlshare_derive(input: TokenStream) -> TokenStream {
@@ -241,8 +242,6 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
     let name_lower = syn::Ident::new(&lname, name.span());
 
     let expanded = quote! {
-        use crate::group::GroupData;
-
         impl #name {
             pub fn pair(g1: &Self, g2: &Self) -> Result<Self, SchemeError> {
                 if g1.i != 1 || g2.i != 0 {
@@ -362,7 +361,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         _ => panic!("invalid i")
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -380,7 +379,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         panic!("Incompatible big integer implementation!");
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -401,7 +400,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         _ => panic!("invalid i")
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -523,7 +522,6 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
     let name_lower = syn::Ident::new(&lname, name.span());
 
     let expanded = quote! {
-        use crate::group::GroupData;
         use std::mem::ManuallyDrop;
 
         impl #name {
@@ -556,12 +554,12 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
             pub fn mul(&self, g: &Self) -> GroupElement {
                 let mut v = self.value.clone();
                 v.add(&g.value);
-                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(Self { value:v })})
+                GroupElement::#name(Self { value:v })
             }
 
             pub fn pow (&self, x: &SizedBigInt) -> GroupElement {
                 if let SizedBigInt::#name(v) = x {
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: self.value.mul(&v.value) }) })
+                    GroupElement::#name(Self { value: self.value.mul(&v.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
@@ -570,7 +568,7 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
             pub fn div(&self, g: &Self) -> GroupElement {
                 let mut v = self.value.clone();
                 v.sub(&g.value);
-                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: v } ) })
+                GroupElement::#name(Self { value:v })
             }
 
             pub fn to_bytes(&self) -> Vec<u8> {
@@ -621,3 +619,131 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[proc_macro_derive(GroupWrapper)]
+pub fn derive_group_data(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let name = &input.ident.clone();
+
+    let mut fields: Vec<String> = Vec::new();
+
+    match input.data.clone() {
+        syn::Data::Union(s) => {
+            fields = s
+                .fields
+                .named
+                .iter()
+                .map(|f| f.ident.clone().unwrap().to_string())
+                .collect();
+        }
+        _ => {}
+    };
+
+    // let expanded = quote! {
+    //     impl PartialEq for #name {
+    //         fn eq(&self, other: &Self) -> bool {
+    //             if mem::discriminant(self) != mem::discriminant(other) {
+    //                 return false;
+    //             }
+
+    //             match self {
+    //                 Self::Bls12381(x) => {
+    //                     if let Self::(#fields[0])(y) = other {
+    //                         return x.eq(y);
+    //                     }
+    //                 }
+    //                 _ => {
+    //                     return false;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // };
+    TokenStream::from(quote! {})
+    //TokenStream::from(expanded)
+}
+
+/*
+#[proc_macro_derive(GroupWrapper)]
+pub fn derive_group_wrapper(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let name = &input.ident.clone();
+
+    //let attr = input.data.
+
+    //println!("{}", a_token);
+
+    //let item = syn::parse(input).expect("failed to parse input");
+
+    /*let lname = input.ident.clone().to_string().to_lowercase();
+
+    let mut big_name = input.ident.clone().to_string();
+    big_name.push_str("BIG");
+
+    let big_impl_name = syn::Ident::new(&big_name, name.span());
+    let name_lower = syn::Ident::new(&lname, name.span());*/
+
+    let description = match input.data.clone() {
+        syn::Data::Struct(s) => match s.fields {
+            syn::Fields::Named(FieldsNamed { named, .. }) => {
+                let mut fields = named.iter();
+                fields.next();
+                let data = fields.next().unwrap();
+
+                //let s: TokenStream = data.into_token_stream().into();
+
+                //let i = syn::parse_macro_input!(s as DeriveInput);
+
+                /*let variants = match i.data.clone() {
+                    syn::Data::Enum(enum_item) => enum_item.variants.into_iter().map(|v| v.ident),
+                    _ => panic!("AllVariants only works on enums"),
+                };*/
+
+                //format!("{}", quote! {#(#variants), *})
+
+                format!("{}", data.ident.as_ref().unwrap().to_string())
+            }
+            _ => String::from(""),
+        },
+        _ => String::from(""),
+    };
+
+    /*let variants = match input.data {
+        syn::Data::Enum(enum_item) => enum_item.variants.into_iter().map(|v| v.ident),
+        _ => panic!("AllVariants only works on enums"),
+    };*/
+
+    let expanded = quote! {
+        impl #name {
+            pub fn describe() {
+                println!("{} is {}.", stringify!(#name), #description);
+            }
+        }
+        //use std::mem::ManuallyDrop;
+
+        /*impl PartialEq for #name {
+            fn eq(&self, other: &Self) -> bool {
+                if self.group != other.group {
+                    return false;
+                }
+                unsafe {
+                    match self.group {
+                        Group::Bls12381 => (*self.data.bls12381).eq(&other.data.bls12381),
+                        Group::Bn254 => (*self.data.bn254).eq(&other.data.bn254),
+                        Group::Ed25519 => (*self.data.ed25519).eq(&other.data.ed25519),
+                        _ => todo!(),
+                    }
+                }
+            }
+        }
+
+        impl #name {
+            pub fn new() -> Self {
+                Self { value:ECP::generator() }
+            }
+        }*/
+    };
+
+    TokenStream::from(expanded)
+}
+*/

@@ -1,19 +1,23 @@
 #![allow(non_snake_case)]
 
+use std::{collections::HashMap, hash::Hash};
+
 use asn1::{ParseError, WriteError};
 
 use crate::{
-    dl_schemes::{bigint::SizedBigInt, common::lagrange_coeff},
-    group::GroupElement,
+    dl_schemes::common::lagrange_coeff,
+    groups::group::GroupElement,
+    integers::{bigint::BigInt, sizedint::SizedBigInt},
     interface::{DlShare, SchemeError, Serializable},
-    keys::keys::calc_key_id,
+    keys::keys::{calc_key_id, PublicKey},
     rand::{RngAlgorithm, RNG},
-    rsa_schemes::bigint::BigInt,
     scheme_types_impl::GroupDetails,
 };
 use log::error;
 use mcore::hash512::HASH512;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
+
+const NUM_PRECOMPUTATIONS: usize = 10;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {
@@ -490,36 +494,49 @@ impl Serializable for FrostSignature {
 }
 
 #[derive(PartialEq, Clone, Debug)]
+pub enum FrostOptions {
+    PrecomputeOnly,
+    Precomputation,
+    NoPrecomputation,
+}
+
+#[derive(PartialEq, Clone, Debug)]
 pub struct FrostThresholdSignature {
     round: u8,
     key: FrostPrivateKey,
     label: Vec<u8>,
-    msg: Option<Vec<u8>>,
+    msg: Vec<u8>,
     nonce: Option<Nonce>,
     commitment: Option<PublicCommitment>,
-    commitment_list: Vec<PublicCommitment>,
+    commitment_list: HashMap<u16, PublicCommitment>,
+    precomputation_list: Vec<HashMap<u16, PublicCommitment>>,
     group_commitment: Option<GroupElement>,
     share: Option<FrostSignatureShare>,
-    shares: Vec<FrostSignatureShare>,
+    shares: HashMap<u16, FrostSignatureShare>,
     signature: Option<FrostSignature>,
     finished: bool,
+    options: FrostOptions,
+    signer_group: SignerGroup,
 }
 
 impl<'a> FrostThresholdSignature {
-    pub fn new(key: &FrostPrivateKey) -> Self {
+    pub fn new(key: &FrostPrivateKey, msg: &[u8], options: FrostOptions) -> Self {
         Self {
             round: 0,
-            msg: None,
+            msg: msg.to_vec(),
             label: Vec::new(),
-            shares: Vec::new(),
+            shares: HashMap::new(),
             key: key.clone(),
             nonce: Option::None,
             commitment: Option::None,
-            commitment_list: Vec::new(),
+            precomputation_list: Vec::new(),
+            commitment_list: HashMap::new(),
             group_commitment: None,
             share: None,
             finished: false,
             signature: Option::None,
+            options,
+            signer_group: SignerGroup::new(key.get_threshold()),
         }
     }
 
@@ -535,35 +552,87 @@ impl<'a> FrostThresholdSignature {
         self.commitment = Some(comm.clone());
     }
 
-    pub fn set_msg(&mut self, msg: &'a [u8]) -> Result<(), SchemeError> {
-        if self.msg.is_some() {
-            return Err(SchemeError::MessageAlreadySpecified);
-        }
-        self.msg = Some(msg.to_vec());
-        Ok(())
-    }
-
+    // by default we only take the first k shares (ordered by key id), to ensure that every node has the same group of signers
     pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), SchemeError> {
         match round_result {
             FrostRoundResult::RoundOne(result) => {
-                self.commitment_list.push(result.clone());
+                if let FrostOptions::PrecomputeOnly = self.options {
+                    // ignore round one results if only precomputing
+                    return Ok(());
+                }
+
+                // only accept first commitment for each node (id should be authenticated in the network layer)
+                // and id has to be in the signer group
+                if self.signer_group.contains(&result.id)
+                    && !self.commitment_list.contains_key(&result.id)
+                {
+                    // todo: need some authentication here to verify id of round result
+                    self.commitment_list.insert(result.id, result.clone());
+                }
+
                 Ok(())
             }
             FrostRoundResult::RoundTwo(share) => {
-                let result = self.verify_share(share);
-                if result.is_err() {
-                    return Err(result.unwrap_err());
-                }
-
-                self.shares.push(share.clone());
-
-                if self.shares.len() == self.key.get_threshold() as usize {
-                    let sig = self.assemble();
-                    if sig.is_err() {
-                        return Err(sig.unwrap_err());
+                if self.signer_group.contains(&share.id) && !self.shares.contains_key(&share.id) {
+                    // todo: authentication
+                    let result = self.verify_share(share);
+                    if result.is_err() {
+                        return Err(result.unwrap_err());
                     }
 
-                    self.signature = Some(sig.unwrap());
+                    self.shares.insert(share.id, share.clone());
+
+                    if self.shares.len() == self.key.get_threshold() as usize {
+                        // check if we have the right set of shares
+                        for i in 0..self.key.get_threshold() {
+                            if !self.shares.contains_key(&i) {
+                                return Ok(());
+                            }
+                        }
+
+                        let sig = self.assemble();
+                        if sig.is_err() {
+                            println!("Error assembling signature");
+                            return Err(sig.unwrap_err());
+                        }
+                        println!("assembled signature");
+                        self.signature = Some(sig.unwrap());
+                    }
+                }
+
+                Ok(())
+            }
+            FrostRoundResult::Precomputation(precomputations) => {
+                if precomputations.len() == 0 {
+                    return Err(SchemeError::InvalidShare);
+                }
+
+                // TODO: use verified id once net layer supports signatures
+                println!("precomp id: {}", precomputations[0].id);
+                if self.signer_group.contains(&precomputations[0].id) {
+                    let mut p: Vec<PublicCommitment>;
+                    p = precomputations.clone();
+
+                    // if we should sign and do a precomputation round, pop the first commitment from the stack to use for
+                    // the signature in the current execution
+                    if self.options == FrostOptions::Precomputation {
+                        p = precomputations.clone();
+                        let comm = p.pop().unwrap();
+                        println!("use first precomp with id {}", comm.get_id());
+                        // TODO: use verified id once net layer supports signatures
+                        self.commitment_list.insert(comm.get_id() as u16, comm);
+                    }
+
+                    if p.len() > 0 {
+                        for i in 0..p.len() {
+                            if self.precomputation_list.len() < i + 1 {
+                                self.precomputation_list.push(HashMap::new());
+                            }
+
+                            // TODO: use verified id once net layer supports signatures
+                            self.precomputation_list[i].insert(p[i].id, p[i].clone());
+                        }
+                    }
                 }
 
                 Ok(())
@@ -571,16 +640,36 @@ impl<'a> FrostThresholdSignature {
         }
     }
 
+    /*
+    task: check whether we have all the necessary material to execute the next iteration of self.do_round()
+     */
     pub fn is_ready_for_next_round(&self) -> bool {
         match self.round {
             1 => {
+                println!("commitment list len: {}", self.commitment_list.len());
                 if self.commitment_list.len() >= self.key.get_threshold() as usize {
+                    if let Option::Some(_) = self
+                        .signer_group
+                        .get_vec()
+                        .iter()
+                        .find(|f| !self.commitment_list.contains_key(&f))
+                    {
+                        return false;
+                    }
                     return true;
                 }
                 return false;
             }
             2 => {
                 if self.shares.len() >= self.key.get_threshold() as usize {
+                    if let Option::Some(_) = self
+                        .signer_group
+                        .get_vec()
+                        .iter()
+                        .find(|f| !self.shares.contains_key(&f))
+                    {
+                        return false;
+                    }
                     return true;
                 }
                 return false;
@@ -601,14 +690,60 @@ impl<'a> FrostThresholdSignature {
         self.round == 2 && self.signature.is_some()
     }
 
+    /*
+    task: calculate NUM_PRECOMPUTATIONS commitments and create the according round result
+     */
+    pub fn precompute(&mut self) -> Result<FrostRoundResult, SchemeError> {
+        let mut pc = Vec::new();
+        for i in 0..NUM_PRECOMPUTATIONS {
+            let res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
+
+            if res.is_err() {
+                return Err(res.unwrap_err());
+            }
+
+            if let FrostRoundResult::RoundOne(rr) = res.unwrap() {
+                pc.push(rr);
+            } else {
+                return Err(SchemeError::InvalidRound);
+            }
+        }
+
+        return Ok(FrostRoundResult::Precomputation(pc));
+    }
+
+    /*
+    task: return the gathered precomputations (e.g. commitments) from round 1 of the protocol
+
+    returns: a vector of NUM_PRECOMPUTATIONS hash maps containing the commitments if successful
+             a SchemeError::WrongState if precomputation is not yet finished or has failed
+     */
+    pub fn get_precomputations(&self) -> Result<Vec<HashMap<u16, PublicCommitment>>, SchemeError> {
+        if self.precomputation_list.len() > 1 && self.finished {
+            return Ok(self.precomputation_list.clone());
+        }
+
+        Err(SchemeError::WrongState)
+    }
+
+    /*
+       task: execute one round of the protocol, call the necessary methods of the primitive according to the current round
+       returns: FrostRoundResult if execution was successful
+                SchemeError::InvalidRound if all roun
+    */
     pub fn do_round(&mut self) -> Result<FrostRoundResult, SchemeError> {
         if self.round == 0 {
-            let res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
+            let res;
+            if (self.options != FrostOptions::NoPrecomputation) {
+                res = self.precompute();
+            } else {
+                res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
+            }
+
             if res.is_ok() {
                 self.round += 1;
                 return Ok(res.unwrap());
             }
-
             return Err(res.unwrap_err());
         } else if self.round == 1 {
             let res = self.partial_sign();
@@ -632,20 +767,13 @@ impl<'a> FrostThresholdSignature {
             return Err(SchemeError::PreviousRoundNotExecuted);
         }
 
-        if self.msg.is_none() {
-            error!("Message not set");
-            return Err(SchemeError::MessageNotSpecified);
-        }
-
-        let msg = self.msg.as_ref().unwrap();
-
         let nonce = self.get_nonce().as_ref().unwrap();
         let commitment_list = self.get_commitment_list();
 
         let binding_factor_list = compute_binding_factors(
             &self.key.pubkey,
-            commitment_list,
-            msg,
+            &commitment_list,
+            &self.msg,
             &self.key.get_group(),
         );
 
@@ -656,8 +784,11 @@ impl<'a> FrostThresholdSignature {
         }
 
         let binding_factor = binding_factor.unwrap();
-        let group_commitment =
-            compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
+        let group_commitment = compute_group_commitment(
+            &commitment_list,
+            &binding_factor_list,
+            &self.key.get_group(),
+        );
         if group_commitment.is_err() {
             error!("group commitment error");
             return Err(group_commitment.expect_err(""));
@@ -665,9 +796,9 @@ impl<'a> FrostThresholdSignature {
 
         let group_commitment = group_commitment.unwrap();
 
-        let participant_list = participants_from_commitment_list(commitment_list);
+        let participant_list = participants_from_commitment_list(&commitment_list);
         let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_share_id() as i32);
-        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), msg);
+        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), &self.msg);
 
         let share = nonce
             .hiding_nonce
@@ -680,7 +811,6 @@ impl<'a> FrostThresholdSignature {
             )
             .rmod(&order);
 
-        //self.commitment_list = commitment_list.to_vec();
         self.group_commitment = Option::Some(group_commitment);
 
         Ok(FrostRoundResult::RoundTwo(FrostSignatureShare {
@@ -722,10 +852,10 @@ impl<'a> FrostThresholdSignature {
         }
 
         let mut z = SizedBigInt::new_int(&group_commitment.get_group(), 0);
-        for i in 0..self.shares.len() {
+        for i in 0..self.key.get_threshold() {
             z = z
-                .add(&self.shares[i].data)
-                .rmod(&self.shares[i].data.get_group().get_order());
+                .add(&self.shares[&(i as u16)].data)
+                .rmod(&self.shares[&(i as u16)].data.get_group().get_order());
         }
 
         Ok(FrostSignature {
@@ -737,25 +867,20 @@ impl<'a> FrostThresholdSignature {
     pub(crate) fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, SchemeError> {
         let commitment_list = self.get_commitment_list();
         let pk = &self.key.pubkey;
-        let msg = self.msg.as_ref().unwrap();
         if self.get_commitment().is_none() {
             return Err(SchemeError::PreviousRoundNotExecuted);
         }
 
-        if self.msg.is_none() {
-            return Err(SchemeError::MessageNotSpecified);
-        }
-
-        let commitment = commitment_for_participant(&self.commitment_list, share.get_id());
-        if commitment.is_err() {
-            return Err(commitment.expect_err(""));
+        let commitment = self.commitment_list.get(&(share.get_id() as u16));
+        if commitment.is_none() {
+            return Err(SchemeError::IdNotFound);
         }
         let commitment = commitment.unwrap();
 
         let binding_factor_list = compute_binding_factors(
             &self.key.pubkey,
             &commitment_list,
-            msg,
+            &self.msg,
             &self.key.get_group(),
         );
         let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
@@ -765,7 +890,7 @@ impl<'a> FrostThresholdSignature {
 
         let binding_factor = binding_factor.unwrap();
         let group_commitment =
-            compute_group_commitment(commitment_list, &binding_factor_list, &pk.get_group());
+            compute_group_commitment(&commitment_list, &binding_factor_list, &pk.get_group());
         if group_commitment.is_err() {
             return Err(group_commitment.expect_err(""));
         }
@@ -778,8 +903,8 @@ impl<'a> FrostThresholdSignature {
                 .pow(&binding_factor.factor),
         );
 
-        let challenge = compute_challenge(&group_commitment, pk, msg);
-        let participant_list = participants_from_commitment_list(commitment_list);
+        let challenge = compute_challenge(&group_commitment, pk, &self.msg);
+        let participant_list = participants_from_commitment_list(&commitment_list);
         let lambda_i = lagrange_coeff(&pk.get_group(), &participant_list, share.get_id() as i32);
 
         let l = GroupElement::new_pow_big(&pk.get_group(), &share.data);
@@ -799,8 +924,8 @@ impl<'a> FrostThresholdSignature {
         &self.commitment
     }
 
-    pub(crate) fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
-        &self.commitment_list
+    pub(crate) fn get_commitment_list(&self) -> Vec<PublicCommitment> {
+        self.commitment_list.clone().into_values().collect()
     }
 
     pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
@@ -817,6 +942,7 @@ impl<'a> FrostThresholdSignature {
 pub enum FrostRoundResult {
     RoundOne(PublicCommitment),
     RoundTwo(FrostSignatureShare),
+    Precomputation(Vec<PublicCommitment>),
 }
 
 impl Serializable for FrostRoundResult {
@@ -843,6 +969,14 @@ impl Serializable for FrostRoundResult {
                         }
 
                         w.write_element(&bytes.unwrap().as_slice())?;
+                    }
+                    Self::Precomputation(rr) => {
+                        w.write_element(&(3 as u64))?;
+                        w.write_element(&(rr.len() as u64))?;
+
+                        for r in rr {
+                            w.write_element(&r.to_bytes().unwrap().as_slice())?;
+                        }
                     }
                 }
                 Ok(())
@@ -879,6 +1013,16 @@ impl Serializable for FrostRoundResult {
                         }
 
                         return Ok(Self::RoundTwo(b.unwrap()));
+                    }
+                    3 => {
+                        let num = d.read_element::<u64>()?;
+                        let mut commitments = Vec::new();
+                        for _ in 0..num {
+                            let bytes = d.read_element::<&[u8]>()?.to_vec();
+                            let comm = PublicCommitment::from_bytes(&bytes).unwrap();
+                            commitments.push(comm);
+                        }
+                        return Ok(Self::Precomputation(commitments));
                     }
                     _ => {
                         return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
@@ -1004,19 +1148,6 @@ fn binding_factor_for_participant(
     Err(SchemeError::IdNotFound)
 }
 
-fn commitment_for_participant(
-    commitment_list: &[PublicCommitment],
-    identifier: u16,
-) -> Result<PublicCommitment, SchemeError> {
-    for i in 0..commitment_list.len() {
-        if identifier as u16 == commitment_list[i].id {
-            return Ok(commitment_list[i].clone());
-        }
-    }
-
-    Err(SchemeError::IdNotFound)
-}
-
 fn participants_from_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u16> {
     let mut identifiers = Vec::new();
 
@@ -1060,9 +1191,10 @@ fn h3(bytes: &[u8], group: &Group) -> SizedBigInt {
     let modulo = BigInt::from_bytes(
         &hex::decode("1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED").unwrap(),
     );
-    let r = BigInt::from_bytes(&h).rmod(&modulo).to_bytes();
-
-    println!("{}", hex::encode(r.clone()));
+    let r = BigInt::from_bytes(&h)
+        .rmod(&modulo)
+        .to_sized_bytes(32)
+        .unwrap();
 
     SizedBigInt::from_bytes(group, &r)
 }
@@ -1106,4 +1238,44 @@ pub(crate) fn serialize_scalar(scalar: &SizedBigInt) -> Vec<u8> {
     let mut bytes = scalar.to_bytes();
     bytes[0] &= 0x1f;
     bytes
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct SignerGroup {
+    signer_identifiers: Vec<u16>,
+}
+
+impl SignerGroup {
+    /* creates a new signer group with ids from 1 to n */
+    pub fn new(n: u16) -> Self {
+        let signer_identifiers: Vec<u16> = (1..n + 1).collect();
+        Self { signer_identifiers }
+    }
+
+    /* creates a new signer group from a vector of ids */
+    pub fn from_vec(ids: &Vec<u16>) -> Self {
+        Self {
+            signer_identifiers: ids.clone(),
+        }
+    }
+
+    /* include id in group */
+    pub fn include(&mut self, id: &u16) {
+        self.signer_identifiers.push(id.clone());
+    }
+
+    /* exclude id from group */
+    pub fn exclude(&mut self, id: &u16) {
+        self.signer_identifiers.retain(|v| !v.eq(id));
+    }
+
+    /* check if id is part of group */
+    pub fn contains(&self, id: &u16) -> bool {
+        self.signer_identifiers.contains(id)
+    }
+
+    /* return vector of signer identifiers */
+    pub fn get_vec(&self) -> &Vec<u16> {
+        &self.signer_identifiers
+    }
 }

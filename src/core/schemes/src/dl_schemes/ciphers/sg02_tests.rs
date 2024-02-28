@@ -1,7 +1,7 @@
 use std::{mem::ManuallyDrop, time::Instant};
 
-use crate::dl_schemes::bigint::SizedBigInt;
-use crate::group::GroupElement;
+use crate::groups::group::GroupElement;
+use crate::integers::sizedint::SizedBigInt;
 use crate::keys::key_generator::KeyGenerator;
 use crate::util::{hex2string, printbinary};
 use crate::{

@@ -1,6 +1,4 @@
-use std::mem::ManuallyDrop;
-
-use crate::dl_schemes::dl_groups::{bls12381::Bls12381BIG, bn254::Bn254BIG, ed25519::Ed25519BIG};
+use crate::groups::ec::{bls12381::Bls12381BIG, bn254::Bn254BIG, ed25519::Ed25519BIG};
 use crate::interface::Serializable;
 use hex::FromHex;
 use mcore::arch::Chunk;
@@ -10,8 +8,6 @@ use mcore::ed25519::big::MODBYTES as ED25519MODBYTES;
 use theta_proto::scheme_types::Group;
 
 use crate::rand::RNG;
-
-use crate::group::GroupElement;
 
 /// Wrapper for the different fixed size BIG implementations in Miracl Core
 /// In Miracl Core, each curve has its own big integer implementation with a

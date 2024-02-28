@@ -39,7 +39,7 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
             timestamp: Utc::now(),
             instance_id: self.instance_id.clone(),
         };
-        self.event_emitter_sender.send(event).await.unwrap();
+        let _ = self.event_emitter_sender.send(event).await;
 
         let valid_ctxt = ThresholdCipher::verify_ciphertext(
             &self.ciphertext,
@@ -68,7 +68,7 @@ impl ThresholdProtocol for ThresholdCipherProtocol {
                                 timestamp: Utc::now(),
                                 instance_id: self.instance_id.clone(),
                             };
-                            self.event_emitter_sender.send(event).await.unwrap();
+                            let _ = self.event_emitter_sender.send(event).await;
 
                             return Ok(self.decrypted_plaintext.clone());
                         }
