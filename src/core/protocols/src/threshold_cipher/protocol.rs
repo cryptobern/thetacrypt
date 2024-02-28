@@ -25,15 +25,31 @@ pub struct ThresholdCipherProtocol {
 // #[async_trait] 
 impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
 
+    // Define the concrete type for the ProtocolMessage
     type ProtocolMessage = DecryptionMessage;
-
-    fn is_finished(&self) -> bool {
-        return self.decrypted
-    }
 
     //see if the assemble should be here or not. In the sense that it is really the final step and a local computation
     fn is_ready_for_next_round(&self) -> bool {
         return self.valid_shares.len() >= self.private_key.get_threshold() as usize
+    }
+
+    fn is_ready_to_finalize(&self) -> bool {
+        return self.valid_shares.len() >= self.private_key.get_threshold() as usize
+    }
+
+    fn finalize(&mut self) -> Result<Vec<u8>, ProtocolError> {
+       let assemble_result = ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext); 
+       match assemble_result {
+            Ok(result) => {
+                self.decrypted_plaintext = result;
+                self.decrypted = true;
+                info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
+                return Ok(self.decrypted_plaintext.clone())
+            },
+            Err(scheme_error) => {
+                return Err(ProtocolError::SchemeError(scheme_error))
+            }
+       }
     }
 
     fn update(&mut self, message: Self::ProtocolMessage) -> Result<(), ProtocolError> {
@@ -138,112 +154,7 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
         Ok(DecryptionMessage::ShareMessageOut(message))
     }
 
-        fn get_result(&self) -> Result<Vec<u8>, ProtocolError> {
-            if self.decrypted{
-                return Ok(self.decrypted_plaintext.clone());
-            }
-            return Err(ProtocolError::NotFinished);
-        }
-
-    // fn do_round<T>(&mut self) -> Result<Box<dyn ProtocolMessage<T>>, ProtocolError> {
-    //    // We know that this protocol has just one round, otherwise we need to check the current round here. 
-    //    let valid_ctxt = ThresholdCipher::verify_ciphertext(
-    //     &self.ciphertext,
-    //     &self.private_key.get_public_key(),
-    // )?;
-    // if !valid_ctxt {
-    //     error!(
-    //         "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
-    //         &self.instance_id
-    //     );
-    //     //COMMENT_R: termination flag or something 
-    //     //TODO: Maybe here we want to throw a scheme error?
-    //     return Err(ProtocolError::InvalidCiphertext);
-    // }
-
-    // let mut params = ThresholdCipherParams::new();
-    // let share =
-    //     ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
-    // let message = DecryptionShareMessage::new_from_share(&share);
-    // let net_message = message.to_net_message(&self.instance_id);
-    // self.received_share_ids.insert(share.get_id());
-    // self.valid_shares.push(share);
-    // Ok(Box::new(message))
-    // }
-
-    
 }
-
-// #[async_trait]
-// impl ThresholdProtocol for ThresholdCipherProtocol {
-//     async fn terminate(&mut self){
-//         todo!()
-//     }
-//     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
-//         info!(
-//             "<{:?}>: Starting threshold cipher instance",
-//             &self.instance_id
-//         );
-
-//         //There is no particular reason why the Events are protocol dependent 
-//         //eventually they can be just StartProtocol and FinishProtocol
-//         let event = Event::StartedInstance {
-//             timestamp: Utc::now(),
-//             instance_id: self.instance_id.clone(),
-//         };
-//         self.event_emitter_sender.send(event).await.unwrap();
-
-//         let valid_ctxt = ThresholdCipher::verify_ciphertext(
-//             &self.ciphertext,
-//             &self.private_key.get_public_key(),
-//         )?;
-//         if !valid_ctxt {
-//             error!(
-//                 "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
-//                 &self.instance_id
-//             );
-//             self.terminate().await?;
-//             return Err(ProtocolError::InvalidCiphertext); //understand how to handle the errors. 
-//         }
-//         self.on_init().await?;
-//         loop {
-//             match self.chan_in.recv().await {
-//                 Some(message_data) => {
-//                     if let Some(decryption_share_message) =
-//                         DecryptionShareMessage::try_from_bytes(&message_data)
-//                     {
-//                         self.on_receive_decryption_share(decryption_share_message.share)?;
-//                         if self.decrypted {
-//                             self.terminate().await?;
-
-//                             let event = Event::FinishedInstance {
-//                                 timestamp: Utc::now(),
-//                                 instance_id: self.instance_id.clone(),
-//                             };
-//                             self.event_emitter_sender.send(event).await.unwrap();
-
-//                             return Ok(self.decrypted_plaintext.clone());
-//                         }
-//                     } else {
-//                         info!(
-//                             "<{:?}>: Received and ignored unknown message type",
-//                             &self.instance_id
-//                         );
-//                     }
-//                 }
-//                 None => {
-//                     error!(
-//                         "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
-//                         &self.instance_id
-//                     );
-//                     self.terminate().await?;
-//                     return Err(ProtocolError::InternalError);
-//                 }
-//             }
-//         }
-//         // todo: Currently the protocol instance will exist until it receives enough shares. Implement a timeout logic and exit the thread on expire.
-//     }
-// }
 
 impl ThresholdCipherProtocol {
     pub fn new(
@@ -274,60 +185,4 @@ impl ThresholdCipherProtocol {
     //     Ok(())
     // }
 
-    fn on_receive_decryption_share(&mut self, share: DecryptionShare) -> Result<(), ProtocolError> {
-        info!(
-            "<{:?}>: Received share with id {:?}.",
-            &self.instance_id,
-            share.get_id()
-        );
-        if self.decrypted {
-            return Ok(());
-        }
-
-        if self.received_share_ids.contains(&share.get_id()) {
-            warn!(
-                "<{:?}>: Found share {:?} to be DUPLICATE. Share will be ignored.",
-                &self.instance_id,
-                share.get_id()
-            );
-            return Ok(());
-        }
-        self.received_share_ids.insert(share.get_id());
-
-        let verification_result = ThresholdCipher::verify_share(
-            &share,
-            &self.ciphertext,
-            &self.private_key.get_public_key(),
-        );
-        match verification_result {
-            Ok(is_valid) => {
-                if !is_valid {
-                    warn!("<{:?}>: Received INVALID share with share_id: {:?}. Share will be ingored.", &self.instance_id, share.get_id());
-                    return Ok(());
-                }
-            }
-            Err(err) => {
-                warn!("<{:?}>: Encountered error when validating share with id {:?}. Error:{:?}. Share will be ingored.", &self.instance_id, err, share.get_id());
-                return Ok(());
-            }
-        }
-
-        self.valid_shares.push(share);
-
-        info!(
-            "<{:?}>: Valid shares: {:?}, needed: {:?}",
-            &self.instance_id,
-            self.valid_shares.len(),
-            self.private_key.get_threshold()
-        );
-
-        if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
-            self.decrypted_plaintext =
-                ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext)?;
-            self.decrypted = true;
-            info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
-            return Ok(());
-        }
-        return Ok(());
-    }
 }

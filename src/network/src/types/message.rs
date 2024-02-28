@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 pub enum Channel{
     Gossip,
     TOB,
-    PtP {
+    PointToPoint {
         receiver_id: u16,
     }
 }
@@ -83,9 +83,9 @@ impl NetMessage {
 
 }
 impl From<NetMessage> for Vec<u8> {
-    fn from(p2p_message: NetMessage) -> Self {
+    fn from(net_message: NetMessage) -> Self {
         // serde_json::to_string(&p2p_message).unwrap().as_bytes().to_vec()
-        serde_json::to_string(&p2p_message).expect("Error in From<NetMessage> for Vec<u8>").into_bytes()
+        serde_json::to_string(&net_message).expect("Error in From<NetMessage> for Vec<u8>").into_bytes()
     }
 }
 impl From<Vec<u8>> for NetMessage {

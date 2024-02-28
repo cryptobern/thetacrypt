@@ -46,7 +46,7 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send> Thr
 
         //put here the event emitter code
         //There is no particular reason why the Events are protocol dependent 
-        //eventually they can be just StartProtocol and FinishProtocol
+        //changed in just StartProtocol and FinishProtocol
         let event = Event::StartedInstance {
             timestamp: Utc::now(),
             instance_id: self.instance_id.clone(),
@@ -64,24 +64,31 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send> Thr
         loop {
             match self.chan_in.recv().await {
                 Some(net_message) => {
-                    let protocol_message = ProtocolMessageWrapper::unwrap(net_message);
-                    let result = self.protocol.update(protocol_message);
+                    let protocol_message: <P as ThresholdRoundProtocol<T>>::ProtocolMessage = *ProtocolMessageWrapper::unwrap(net_message).unwrap(); // handle the error
+                    let result = self.protocol.update(protocol_message.into());
                     match result {
                         Ok(_) => {
-                            if self.protocol.is_ready_for_next_round() {
-                                if self.protocol.is_finished(){
+                            if self.protocol.is_ready_to_finalize(){
+                                let result = self.protocol.finalize();//handle the error
 
-                                    //emitter code for signaling termination
-                                    let event = Event::FinishedInstance {
-                                        timestamp: Utc::now(),
-                                        instance_id: self.instance_id.clone(),
-                                    };
-                                    self.event_emitter_sender.send(event).await.unwrap();
+                                 //emitter code for signaling termination
+                                 let event = Event::FinishedInstance {
+                                    timestamp: Utc::now(),
+                                    instance_id: self.instance_id.clone(),
+                                };
+                                self.event_emitter_sender.send(event).await.unwrap();
 
-                                    //fetching the result 
-                                    let result = self.protocol.get_result().unwrap(); //TODO: handle the error
-                                    return Ok(result) 
-                                }else{
+                                match result {
+                                    Ok(value) => {
+                                        return Ok(value)
+                                    },
+                                    Err(prot_err) => {
+                                        return Err(prot_err);
+                                    }
+                                }
+                                
+                            }else{
+                                if self.protocol.is_ready_for_next_round() {
                                     //go to the next rounds
                                     let message = self.protocol.do_round().unwrap();
                                     let net_message = message.wrap(&self.instance_id.clone()).unwrap();

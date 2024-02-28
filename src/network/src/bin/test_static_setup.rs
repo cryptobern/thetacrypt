@@ -2,7 +2,7 @@ use std::env;
 use std::str::FromStr;
 use std::time::Duration;
 use theta_network::config::static_net;
-use theta_network::types::message::{NetMessage, NetMessageMetadata};
+use theta_network::types::message::{Channel, NetMessage, NetMessageMetadata};
 use tokio::time;
 
 const LOCAL_CONFIG_PATH: &str = "src/config/localnet_config/config.toml";
@@ -41,11 +41,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             my_vec[0] = count; // to keep track of the messages
             my_vec[1] = rand::random(); // to prevent dublicate messages
                                         // test msg
-            let my_msg = NetMessage {
-                instance_id: 1.to_string(),
-                message_data: my_vec,
-                metadata: NetMessageMetadata::new(&theta_network::types::message::Channel::Gossip),
-            };
+
+            let my_msg = NetMessage::new(1.to_string(), NetMessageMetadata::new(Channel::Gossip), my_vec);
 
             // sends msg into the channel
             println!(">> TEST: SEND ->: {:?}", my_msg);

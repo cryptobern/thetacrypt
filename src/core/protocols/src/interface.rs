@@ -28,15 +28,13 @@ impl From<SchemeError> for ProtocolError {
 //ROSE:
 //try to figure out the best modular why to handle messages 
 pub trait ProtocolMessageWrapper<T>: Send{
-    fn unwrap(wrapped: T) -> Self;
+    fn unwrap(wrapped: T) -> Result<Box<Self>, ProtocolError>; //we need to Box self because we don't know yet the type
     fn wrap(&self, instance_id: &String,) -> Result<T, String>; //T here would be NetMessage
 }
  
 
 
 //ROSE: to move to the protocol
-// #[async_trait]
-// Add ready_to_finalize() and finalize()
 // Do we need an init() ? Probably yes (with Lukas we discovered that with the two roles of cordinators and signers 
 // it will be useful to have an init function that thakes care of additional details)
 pub trait ThresholdRoundProtocol<T>{
@@ -45,9 +43,9 @@ pub trait ThresholdRoundProtocol<T>{
 
     fn do_round(&mut self) -> Result<Self::ProtocolMessage, ProtocolError>;
     fn is_ready_for_next_round(&self) -> bool;
-    fn is_finished(&self) -> bool;
+    fn is_ready_to_finalize(&self) -> bool;
+    fn finalize(&mut self) -> Result<Vec<u8>, ProtocolError>;
     fn update(&mut self, message: Self::ProtocolMessage)-> Result<(), ProtocolError>;
-    fn get_result(&self) -> Result<Vec<u8>, ProtocolError>;
 
 }
 
