@@ -10,6 +10,7 @@ trait ThresholdProtocol{
     is_ready_for_next_round()
     is_finished()
     update()
+    terminate() //Executor
 }
 ```
 
@@ -103,7 +104,7 @@ In the update function we should consider that we can receive a RoundResult (or 
 
 For now we can observe that the update function is the one in which we should handle different messages. The protocol can have a process_message() function. The function can be part of the ThresholdProtocol trait, or a new trait ThresholdProtocolMessageHandler. 
 
-Maybe we need to rethink messages and RoundResult. It can be the case that in a round one has different types of message to send around. We cannot have a 1:1 mapping.
+Maybe we need to rethink messages and RoundResult. It can be the case that in a round one has different types of message to send around. We cannot have a 1:1 mapping. Change the enum doesn't need to be called RoundOne and RoundTwo. 
 
 ## Handling multi-round protocols
 

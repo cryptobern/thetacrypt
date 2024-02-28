@@ -5,50 +5,50 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub enum Event {
-    // Emitted when the server received a decryption request.
-    ReceivedDecryptionRequest {
-        timestamp: DateTime<Utc>,
-    },
+    // // Emitted when the server received a decryption request.
+    // ReceivedDecryptionRequest {
+    //     timestamp: DateTime<Utc>,
+    // },
     // Emitted when an instance of the decryption protocol started.
-    StartedDecryptionInstance {
+    StartedInstance {
         timestamp: DateTime<Utc>,
         instance_id: String,
     },
     // Emitted when an instance of the decryption protocol terminated.
-    FinishedDecryptionInstance {
+    FinishedInstance {
         timestamp: DateTime<Utc>,
         instance_id: String,
     },
 
-    // Emitted when the server received a signing request.
-    ReceivedSigningRequest {
-        timestamp: DateTime<Utc>,
-    },
-    // Emitted when an instance of the signing protocol started.
-    StartedSigningInstance {
-        timestamp: DateTime<Utc>,
-        instance_id: String,
-    },
-    // Emitted when an instance of the signing protocol terminated.
-    FinishedSigningInstance {
-        timestamp: DateTime<Utc>,
-        instance_id: String,
-    },
+    // // Emitted when the server received a signing request.
+    // ReceivedSigningRequest {
+    //     timestamp: DateTime<Utc>,
+    // },
+    // // Emitted when an instance of the signing protocol started.
+    // StartedSigningInstance {
+    //     timestamp: DateTime<Utc>,
+    //     instance_id: String,
+    // },
+    // // Emitted when an instance of the signing protocol terminated.
+    // FinishedSigningInstance {
+    //     timestamp: DateTime<Utc>,
+    //     instance_id: String,
+    // },
 
-    // Emitted when the server received a coin request.
-    ReceivedCoinRequest {
-        timestamp: DateTime<Utc>,
-    },
-    // Emitted when an instance of the coin protocol started.
-    StartedCoinInstance {
-        timestamp: DateTime<Utc>,
-        instance_id: String,
-    },
-    // Emitted when an instance of the coin protocol terminated.
-    FinishedCoinInstance {
-        timestamp: DateTime<Utc>,
-        instance_id: String,
-    },
+    // // Emitted when the server received a coin request.
+    // ReceivedCoinRequest {
+    //     timestamp: DateTime<Utc>,
+    // },
+    // // Emitted when an instance of the coin protocol started.
+    // StartedCoinInstance {
+    //     timestamp: DateTime<Utc>,
+    //     instance_id: String,
+    // },
+    // // Emitted when an instance of the coin protocol terminated.
+    // FinishedCoinInstance {
+    //     timestamp: DateTime<Utc>,
+    //     instance_id: String,
+    // },
 }
 
 #[derive(Debug)]

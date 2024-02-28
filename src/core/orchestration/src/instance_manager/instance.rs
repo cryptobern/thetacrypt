@@ -2,12 +2,13 @@ use core::fmt;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::interface::ProtocolError;
 use tokio::sync::mpsc::error::SendError;
+use theta_network::types::message::NetMessage;
 
 pub struct Instance {
     id: String,
     scheme: ThresholdScheme,
     group: Group,
-    message_channel_sender: tokio::sync::mpsc::Sender<Vec<u8>>,
+    message_channel_sender: tokio::sync::mpsc::Sender<NetMessage>,
     status: String,
     finished: bool,
     result: Option<Result<Vec<u8>, ProtocolError>>,
@@ -31,7 +32,7 @@ impl Instance {
         id: String,
         scheme: ThresholdScheme,
         group: Group,
-        message_channel_sender: tokio::sync::mpsc::Sender<Vec<u8>>,
+        message_channel_sender: tokio::sync::mpsc::Sender<NetMessage>,
     ) -> Self {
         return Self {
             id,
@@ -69,11 +70,11 @@ impl Instance {
         self.group.clone()
     }
 
-    pub async fn send_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+    pub async fn send_message(&self, message: NetMessage) -> Result<(), SendError<NetMessage>> {
         self.message_channel_sender.send(message).await
     }
 
-    pub fn get_sender(&self) -> tokio::sync::mpsc::Sender<Vec<u8>>{
+    pub fn get_sender(&self) -> tokio::sync::mpsc::Sender<NetMessage>{
         self.message_channel_sender.clone()
     }
 }
