@@ -6,7 +6,7 @@ use crate::{
     },
     keys::keys::calc_key_id,
     rsa_schemes::{
-        bigint::RsaBigInt,
+        bigint::BigInt,
         common::{ext_euclid, interpolate},
     },
     scheme_types_impl::GroupDetails,
@@ -22,8 +22,8 @@ pub struct Sh00PublicKey {
     id: String,
     t: u16,
     n: u16,
-    N: RsaBigInt,
-    e: RsaBigInt,
+    N: BigInt,
+    e: BigInt,
     verification_key: Sh00VerificationKey,
     delta: usize,
     modbits: usize,
@@ -44,8 +44,8 @@ impl Sh00PublicKey {
     pub fn new(
         n: u16,
         t: u16,
-        N: RsaBigInt,
-        e: RsaBigInt,
+        N: BigInt,
+        e: BigInt,
         verification_key: Sh00VerificationKey,
         delta: usize,
         modbits: usize,
@@ -126,10 +126,10 @@ impl Serializable for Sh00PublicKey {
                 let t = d.read_element::<u64>()? as u16;
 
                 let mut b = d.read_element::<&[u8]>()?;
-                let N = RsaBigInt::from_bytes(&mut b);
+                let N = BigInt::from_bytes(&mut b);
 
                 b = d.read_element::<&[u8]>()?;
-                let e = RsaBigInt::from_bytes(&mut b);
+                let e = BigInt::from_bytes(&mut b);
 
                 let verify_bytes = d.read_element::<&[u8]>()?;
                 let res = Sh00VerificationKey::from_bytes(&verify_bytes.to_vec());
@@ -180,13 +180,13 @@ impl PartialEq for Sh00PublicKey {
 #[derive(Clone, Debug)]
 pub struct Sh00PrivateKey {
     id: u16,
-    m: RsaBigInt,
-    si: RsaBigInt,
+    m: BigInt,
+    si: BigInt,
     pubkey: Sh00PublicKey,
 }
 
 impl Sh00PrivateKey {
-    pub fn new(id: u16, m: &RsaBigInt, si: &RsaBigInt, pubkey: &Sh00PublicKey) -> Self {
+    pub fn new(id: u16, m: &BigInt, si: &BigInt, pubkey: &Sh00PublicKey) -> Self {
         Self {
             id,
             m: m.clone(),
@@ -255,8 +255,8 @@ impl Serializable for Sh00PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let m = RsaBigInt::from_bytes(mbytes);
-                let si = RsaBigInt::from_bytes(sibytes);
+                let m = BigInt::from_bytes(mbytes);
+                let si = BigInt::from_bytes(sibytes);
 
                 return Ok(Self { id, m, si, pubkey });
             });
@@ -285,9 +285,9 @@ pub struct Sh00SignatureShare {
     group: Group,
     id: u16,
     label: Vec<u8>,
-    xi: RsaBigInt,
-    z: RsaBigInt,
-    c: RsaBigInt,
+    xi: BigInt,
+    z: BigInt,
+    c: BigInt,
 }
 
 impl Sh00SignatureShare {
@@ -295,7 +295,7 @@ impl Sh00SignatureShare {
         self.id
     }
 
-    pub fn get_data(&self) -> &RsaBigInt {
+    pub fn get_data(&self) -> &BigInt {
         &self.xi
     }
 
@@ -345,13 +345,13 @@ impl Serializable for Sh00SignatureShare {
                 let label = d.read_element::<&[u8]>()?;
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let xi = RsaBigInt::from_bytes(&bytes);
+                let xi = BigInt::from_bytes(&bytes);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let z = RsaBigInt::from_bytes(&bytes);
+                let z = BigInt::from_bytes(&bytes);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let c = RsaBigInt::from_bytes(&bytes);
+                let c = BigInt::from_bytes(&bytes);
 
                 return Ok(Self {
                     id,
@@ -386,11 +386,11 @@ impl PartialEq for Sh00SignatureShare {
 
 #[derive(Clone, Debug)]
 pub struct Sh00Signature {
-    sig: RsaBigInt,
+    sig: BigInt,
 }
 
 impl Sh00Signature {
-    pub fn get_sig(&self) -> RsaBigInt {
+    pub fn get_sig(&self) -> BigInt {
         self.sig.clone()
     }
 }
@@ -415,7 +415,7 @@ impl Serializable for Sh00Signature {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let bytes = d.read_element::<&[u8]>()?;
-                let sig = RsaBigInt::from_bytes(&bytes);
+                let sig = BigInt::from_bytes(&bytes);
 
                 return Ok(Self { sig });
             });
@@ -438,13 +438,13 @@ impl PartialEq for Sh00Signature {
 
 #[derive(Clone, Debug)]
 pub struct Sh00VerificationKey {
-    v: RsaBigInt,
-    vi: Vec<RsaBigInt>,
-    u: RsaBigInt,
+    v: BigInt,
+    vi: Vec<BigInt>,
+    u: BigInt,
 }
 
 impl Sh00VerificationKey {
-    pub fn new(v: RsaBigInt, vi: Vec<RsaBigInt>, u: RsaBigInt) -> Self {
+    pub fn new(v: BigInt, vi: Vec<BigInt>, u: BigInt) -> Self {
         Self { v, vi, u }
     }
 }
@@ -476,18 +476,18 @@ impl Serializable for Sh00VerificationKey {
         let result: asn1::ParseResult<_> = asn1::parse(bytes, |d| {
             return d.read_element::<asn1::Sequence>()?.parse(|d| {
                 let mut bytes = d.read_element::<&[u8]>()?;
-                let v = RsaBigInt::from_bytes(&mut bytes);
+                let v = BigInt::from_bytes(&mut bytes);
                 let len = d.read_element::<u64>()? as u16;
 
                 let mut vi = Vec::new();
                 for _ in 0..len {
                     let mut bytes = d.read_element::<&[u8]>()?;
-                    let el = RsaBigInt::from_bytes(&mut bytes);
+                    let el = BigInt::from_bytes(&mut bytes);
                     vi.push(el);
                 }
 
                 let mut bytes = d.read_element::<&[u8]>()?;
-                let u = RsaBigInt::from_bytes(&mut bytes);
+                let u = BigInt::from_bytes(&mut bytes);
 
                 return Ok(Self { v, vi, u });
             });
@@ -534,7 +534,7 @@ impl Sh00ThresholdSignature {
         let x_hat = x.pow_mod(&BIGINT!(4), &N); // x_hat = x^4
 
         let bits = 2 * sk.pubkey.modbits + 2 + 2 * 8;
-        let r = RsaBigInt::new_rand(&mut params.rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
+        let r = BigInt::new_rand(&mut params.rng, bits); // r = random in {0, 2^(2*modbits + 2 + 2*L1)}
 
         let v1 = v.pow_mod(&r, &N); //v1 = v^r
         let x1 = x_hat.pow_mod(&r, &N); // x1 = x_hat^r
@@ -599,9 +599,9 @@ impl Sh00ThresholdSignature {
     }
 }
 
-fn H(m: &[u8], pk: &Sh00PublicKey) -> (RsaBigInt, isize) {
+fn H(m: &[u8], pk: &Sh00PublicKey) -> (BigInt, isize) {
     let mut x = H1(m, &pk.N, pk.modbits);
-    let j = RsaBigInt::jacobi(&x, &pk.N);
+    let j = BigInt::jacobi(&x, &pk.N);
     if j == -1 {
         x = pk
             .verification_key
@@ -616,7 +616,7 @@ fn H(m: &[u8], pk: &Sh00PublicKey) -> (RsaBigInt, isize) {
 }
 
 // TODO: improve hash function
-fn H1(m: &[u8], n: &RsaBigInt, modbits: usize) -> RsaBigInt {
+fn H1(m: &[u8], n: &BigInt, modbits: usize) -> BigInt {
     let mut hash = HASH256::new();
     hash.process_array(&m);
     let h = hash.hash();
@@ -637,17 +637,10 @@ fn H1(m: &[u8], n: &RsaBigInt, modbits: usize) -> RsaBigInt {
         }
     }
 
-    RsaBigInt::from_bytes(&mut buf).rmod(&n)
+    BigInt::from_bytes(&mut buf).rmod(&n)
 }
 
-fn H2(
-    g1: &RsaBigInt,
-    g2: &RsaBigInt,
-    g3: &RsaBigInt,
-    g4: &RsaBigInt,
-    g5: &RsaBigInt,
-    g6: &RsaBigInt,
-) -> RsaBigInt {
+fn H2(g1: &BigInt, g2: &BigInt, g3: &BigInt, g4: &BigInt, g5: &BigInt, g6: &BigInt) -> BigInt {
     let mut buf: Vec<u8> = Vec::new();
 
     buf = [&buf[..], &g1.to_bytes()[..]].concat();
@@ -664,5 +657,5 @@ fn H2(
     buf = Vec::new();
     buf = [&buf[..], &h].concat();
 
-    RsaBigInt::from_bytes(&mut buf)
+    BigInt::from_bytes(&mut buf)
 }

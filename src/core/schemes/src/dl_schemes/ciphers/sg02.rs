@@ -14,7 +14,7 @@ use mcore::hash256::HASH256;
 use rasn::{AsnType, Decode, Encode, Encoder};
 use theta_proto::scheme_types::Group;
 
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::group::GroupElement;
 use crate::{
     dl_schemes::common::{gen_symm_key, interpolate, xor},
@@ -35,7 +35,7 @@ pub struct Sg02PublicKey {
 }
 
 impl Sg02PublicKey {
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.y.get_order()
     }
 
@@ -156,12 +156,12 @@ impl Serializable for Sg02PublicKey {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sg02PrivateKey {
     id: u16,
-    xi: BigImpl,
+    xi: SizedBigInt,
     pubkey: Sg02PublicKey,
 }
 
 impl Sg02PrivateKey {
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.pubkey.get_order()
     }
 
@@ -181,7 +181,7 @@ impl Sg02PrivateKey {
         self.pubkey.get_group()
     }
 
-    pub fn new(id: u16, xi: &BigImpl, pubkey: &Sg02PublicKey) -> Self {
+    pub fn new(id: u16, xi: &SizedBigInt, pubkey: &Sg02PublicKey) -> Self {
         Self {
             id: id.clone(),
             xi: xi.clone(),
@@ -231,7 +231,7 @@ impl Serializable for Sg02PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let xi = SizedBigInt::from_bytes(&pubkey.get_group(), &bytes);
 
                 return Ok(Self { id, xi, pubkey });
             });
@@ -252,8 +252,8 @@ pub struct Sg02Ciphertext {
     ctxt: Vec<u8>,
     u: GroupElement,
     u_bar: GroupElement,
-    e: BigImpl,
-    f: BigImpl,
+    e: SizedBigInt,
+    f: SizedBigInt,
     c_k: Vec<u8>,
     key_id: String,
 }
@@ -300,10 +300,10 @@ impl Serializable for Sg02Ciphertext {
                 let u_bar = GroupElement::from_bytes(&bytes, &group, Option::None);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let e = BigImpl::from_bytes(&group, &bytes);
+                let e = SizedBigInt::from_bytes(&group, &bytes);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let f = BigImpl::from_bytes(&group, &bytes);
+                let f = SizedBigInt::from_bytes(&group, &bytes);
 
                 let c_k = d.read_element::<&[u8]>()?.to_vec();
                 let key_id = String::from_utf8(d.read_element::<&[u8]>()?.to_vec());
@@ -342,8 +342,8 @@ impl Sg02Ciphertext {
         ctxt: Vec<u8>,
         u: GroupElement,
         u_bar: GroupElement,
-        e: BigImpl,
-        f: BigImpl,
+        e: SizedBigInt,
+        f: SizedBigInt,
         c_k: Vec<u8>,
         key_id: String,
     ) -> Self {
@@ -383,8 +383,8 @@ pub struct Sg02DecryptionShare {
     id: u16,
     label: Vec<u8>,
     data: GroupElement,
-    ei: BigImpl,
-    fi: BigImpl,
+    ei: SizedBigInt,
+    fi: SizedBigInt,
 }
 
 impl Sg02DecryptionShare {
@@ -432,10 +432,10 @@ impl Serializable for Sg02DecryptionShare {
                 let data = GroupElement::from_bytes(&bytes, &group, Option::None);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let ei = BigImpl::from_bytes(&group, &bytes);
+                let ei = SizedBigInt::from_bytes(&group, &bytes);
 
                 let bytes = d.read_element::<&[u8]>()?;
-                let fi = BigImpl::from_bytes(&group, &bytes);
+                let fi = SizedBigInt::from_bytes(&group, &bytes);
 
                 return Ok(Self {
                     id,
@@ -467,7 +467,7 @@ impl Sg02ThresholdCipher {
         let order = group.get_order();
         let rng = &mut params.rng;
 
-        let r = BigImpl::new_rand(&group, &order, rng);
+        let r = SizedBigInt::new_rand(&group, &order, rng);
         let u = GroupElement::new_pow_big(&group, &r);
         let ry = pk.y.pow(&r);
 
@@ -480,7 +480,7 @@ impl Sg02ThresholdCipher {
 
         let c_k = xor(h(&ry), (k).to_vec());
 
-        let s = BigImpl::new_rand(&group, &order, rng);
+        let s = SizedBigInt::new_rand(&group, &order, rng);
         let w = GroupElement::new_pow_big(&group, &s);
 
         let w_bar = pk.g_bar.pow(&s);
@@ -488,7 +488,7 @@ impl Sg02ThresholdCipher {
 
         let e = h1(&c_k, &label, &u, &w, &u_bar, &w_bar);
 
-        let f = s.add(&BigImpl::rmul(&e, &r, &order)).rmod(&order);
+        let f = s.add(&SizedBigInt::rmul(&e, &r, &order)).rmod(&order);
 
         let c = Sg02Ciphertext {
             label: label.to_vec(),
@@ -521,13 +521,13 @@ impl Sg02ThresholdCipher {
         let order = group.get_order();
 
         let data = ct.u.pow(&sk.xi);
-        let si = BigImpl::new_rand(&group, &order, &mut params.rng);
+        let si = SizedBigInt::new_rand(&group, &order, &mut params.rng);
 
         let ui_bar = ct.u.pow(&si);
         let hi_bar = GroupElement::new(&group).pow(&si);
 
         let ei = h2(&data, &ui_bar, &hi_bar);
-        let fi = si.add(&BigImpl::rmul(&sk.xi, &ei, &order)).rmod(&order);
+        let fi = si.add(&SizedBigInt::rmul(&sk.xi, &ei, &order)).rmod(&order);
 
         Sg02DecryptionShare {
             id: sk.id.clone(),
@@ -590,7 +590,7 @@ fn h1(
     g2: &GroupElement,
     g3: &GroupElement,
     g4: &GroupElement,
-) -> BigImpl {
+) -> SizedBigInt {
     let mut buf: Vec<u8> = Vec::new();
     let q = g1.get_order();
 
@@ -620,10 +620,10 @@ fn h1(
         }
     }
 
-    BigImpl::from_bytes(&g1.get_group(), &buf).rmod(&g1.get_order())
+    SizedBigInt::from_bytes(&g1.get_group(), &buf).rmod(&g1.get_order())
 }
 
-fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
+fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> SizedBigInt {
     let mut buf: Vec<u8> = Vec::new();
     let q = g1.get_order();
 
@@ -650,5 +650,5 @@ fn h2(g1: &GroupElement, g2: &GroupElement, g3: &GroupElement) -> BigImpl {
         }
     }
 
-    BigImpl::from_bytes(&g1.get_group(), &buf).rmod(&g1.get_order())
+    SizedBigInt::from_bytes(&g1.get_group(), &buf).rmod(&g1.get_order())
 }

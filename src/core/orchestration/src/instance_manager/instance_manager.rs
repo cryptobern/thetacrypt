@@ -11,10 +11,10 @@ use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
-    interface::{ProtocolError, ThresholdProtocol},
+    interface::{ProtocolError, ThresholdRoundProtocol},
     threshold_cipher::protocol::ThresholdCipherProtocol,
-    threshold_coin::protocol::ThresholdCoinProtocol,
-    threshold_signature::protocol::ThresholdSignatureProtocol,
+    // threshold_coin::protocol::ThresholdCoinProtocol,
+    // threshold_signature::protocol::ThresholdSignatureProtocol,
 };
 use theta_schemes::{
     interface::{Ciphertext, SchemeError},
@@ -25,9 +25,10 @@ use tonic::{Code, Status};
 
 use crate::{
     instance_manager::instance::{self, Instance},
+    instance_manager::protocol_executor::ThresholdProtocolExecutor,                                                                                                                                                   
     key_manager::key_manager::KeyManagerCommand,
-};
-
+    interface::ThresholdProtocol,
+};            
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
 /// Number of instances which to look at when trying to find ones to eject.
@@ -136,12 +137,12 @@ pub struct InstanceManager {
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 }
 
-const BACKLOG_CHECK_INTERVAL: u64 = 600;
+const BACKLOG_CHECK_INTERVAL: u64 = 60;
 
 // BacklogData keeps all the messages that are destined for a specific instance,
 // plus a field checked, which is used to detect too old backlog data.
 struct BacklogData {
-    messages: Vec<Vec<u8>>,
+    messages: Vec<NetMessage>,
     checked: bool,
 }
 
@@ -278,37 +279,41 @@ impl InstanceManager {
                 }
 
                 incoming_message = self.incoming_p2p_receiver.recv() => {
-                    let NetMessage {
-                        instance_id,
-                        is_total_order: _,
-                        message_data
-                    } = incoming_message.expect("The channel for incoming_message_receiver has been closed.");
+                    match incoming_message {
+                        Some(net_message) => {
+                            let instance =  self.instances.get(&net_message.get_instace_id());
 
-                    let instance =  self.instances.get(&instance_id);
-
-                    // First check, if an instance already exists for that message
-                    match instance {
-                        Some(_instance) => {
-                            // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
-                            let _ = _instance.send_message(message_data).await;
+                            // First check, if an instance already exists for that message
+                            match instance {
+                                Some(_instance) => {
+                                    // If yes, forward the message to the instance. (ok if the following returns Err, it only means the instance has finished in the mean time)
+                                    if !(_instance.is_finished()){
+                                        let _ =  _instance.send_message(net_message).await;
+                                    }
+                                },
+                                None => {
+                                    let instance_id = net_message.get_instace_id().clone();
+                                    // Otherwise, backlog the message. This can happen for two reasons:
+                                    // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
+                                    // - The instance has not yet started because the corresponding request has not yet arrived.
+                                    // In both cases, we backlog the message. If the instance has already been finished,
+                                    // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
+                                    info!(
+                                        "Backlogging message for instance with id: {:?}",
+                                        &instance_id
+                                    );
+                                    if let Some(backlog_data) =  self.backlog.get_mut(&instance_id) {
+                                        backlog_data.messages.push(net_message);
+                                    } else {
+                                        let mut backlog_data = BacklogData{ messages: Vec::new(), checked: false };
+                                        backlog_data.messages.push(net_message);
+                                        self.backlog.insert(instance_id, backlog_data);
+                                    }
+                                }
+                            }
                         },
                         None => {
-                            // Otherwise, backlog the message. This can happen for two reasons:
-                            // - The instance has already finished and the corresponding sender has been removed from the instance_senders.
-                            // - The instance has not yet started because the corresponding request has not yet arrived.
-                            // In both cases, we backlog the message. If the instance has already been finished,
-                            // the backlog will be deleted after at most 2*BACKLOG_CHECK_INTERVAL seconds
-                            info!(
-                                "Backlogging message for instance with id: {:?}",
-                                &instance_id
-                            );
-                            if let Some(backlog_data) =  self.backlog.get_mut(&instance_id) {
-                                backlog_data.messages.push(message_data);
-                            } else {
-                                let mut backlog_data = BacklogData{ messages: Vec::new(), checked: false };
-                                backlog_data.messages.push(message_data);
-                                self.backlog.insert(instance_id, backlog_data);
-                            }
+                            todo!()
                         }
                     }
                 }
@@ -359,8 +364,8 @@ impl InstanceManager {
 
                 let key = key.unwrap();
 
-                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-
+                let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
+                
                 let instance = Instance::new(
                     instance_id.clone(),
                     ciphertext.get_scheme(),
@@ -370,132 +375,143 @@ impl InstanceManager {
 
                 // Create the new protocol instance
                 let prot = ThresholdCipherProtocol::new(
-                    key,
+                    key.clone(),
                     ciphertext,
+                    instance_id.clone(),
+                );
+
+                let executor = ThresholdProtocolExecutor::new(
                     receiver,
                     self.outgoing_p2p_sender.clone(),
-                    self.event_emitter_sender.clone(),
                     instance_id.clone(),
+                    self.event_emitter_sender.clone(),
+                    prot,
                 );
 
                 self.instances.insert(instance_id.clone(), instance);
 
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
-                    prot,
+                self.start_protocol(
+                    executor,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
                 );
 
                 return Ok(instance_id.clone());
             }
-            StartInstanceRequest::Signature {
-                message,
-                label,
-                scheme,
-                group,
-                key_id,
-            } => {
-                let key = self
-                    .setup_instance(scheme, &group, &instance_id, key_id)
-                    .await;
+            // StartInstanceRequest::Signature {
+            //     message,
+            //     label,
+            //     scheme,
+            //     group,
+            //     key_id,
+            // } => {
+            //     let key = self
+            //         .setup_instance(scheme, &group, &instance_id, key_id)
+            //         .await;
 
-                if key.is_err() {
-                    let e = key.unwrap_err();
-                    if e.code() == Code::AlreadyExists {
-                        return Ok(instance_id);
-                    }
-                    error!("Key not found");
-                    return Err(SchemeError::Aborted(String::from("key not found")));
-                }
+            //     if key.is_err() {
+            //         let e = key.unwrap_err();
+            //         if e.code() == Code::AlreadyExists {
+            //             return Ok(instance_id);
+            //         }
+            //         error!("Key not found");
+            //         return Err(SchemeError::Aborted(String::from("key not found")));
+            //     }
 
-                let key = key.unwrap();
+            //     let key = key.unwrap();
 
-                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+            //     let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
-                let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
+            //     let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
 
-                // Create the new protocol instance
-                let prot = ThresholdSignatureProtocol::new(
-                    key,
-                    Some(&message),
-                    &label,
-                    receiver,
-                    self.outgoing_p2p_sender.clone(),
-                    self.event_emitter_sender.clone(),
-                    instance_id.clone(),
-                );
+            //     //ROSE: replece this code with the creation of the executor + the protocol
+            //     // Create the new protocol instance
+            //     let prot = ThresholdSignatureProtocol::new(
+            //         key,
+            //         Some(&message),
+            //         &label,
+            //         receiver,
+            //         self.outgoing_p2p_sender.clone(),
+            //         self.event_emitter_sender.clone(),
+            //         instance_id.clone(),
+            //     );
 
-                self.instances.insert(instance_id.clone(), instance);
+            //     self.instances.insert(instance_id.clone(), instance);
 
-                // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
-                    prot,
-                    instance_id.clone(),
-                    self.instance_command_sender.clone(),
-                );
+            //     // Start it in a new thread, so that the client does not block until the protocol is finished.
+            //     self.start_protocol(
+            //         prot,
+            //         instance_id.clone(),
+            //         self.instance_command_sender.clone(),
+            //     );
 
-                return Ok(instance_id.clone());
-            }
-            StartInstanceRequest::Coin {
-                name,
-                scheme,
-                group,
-                key_id,
-            } => {
-                let key = self
-                    .setup_instance(scheme, &group, &instance_id, key_id)
-                    .await;
+            //     return Ok(instance_id.clone());
+            // }
+            // StartInstanceRequest::Coin {
+            //     name,
+            //     scheme,
+            //     group,
+            //     key_id,
+            // } => {
+            //     let key = self
+            //         .setup_instance(scheme, &group, &instance_id, key_id)
+            //         .await;
 
-                if key.is_err() {
-                    let e = key.unwrap_err();
-                    if e.code() == Code::AlreadyExists {
-                        return Ok(instance_id);
-                    }
-                    error!("Key not found");
-                    return Err(SchemeError::Aborted(String::from("key not found")));
-                }
+            //     if key.is_err() {
+            //         let e = key.unwrap_err();
+            //         if e.code() == Code::AlreadyExists {
+            //             return Ok(instance_id);
+            //         }
+            //         error!("Key not found");
+            //         return Err(SchemeError::Aborted(String::from("key not found")));
+            //     }
 
-                let key = key.unwrap();
+            //     let key = key.unwrap();
 
-                let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+            //     let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
 
-                let instance = Instance::new(instance_id.clone(), scheme, group, sender);
+            //     let instance = Instance::new(instance_id.clone(), scheme, group, sender);
 
-                // Create the new protocol instance
-                let prot = ThresholdCoinProtocol::new(
-                    key,
-                    &name,
-                    receiver,
-                    self.outgoing_p2p_sender.clone(),
-                    self.event_emitter_sender.clone(),
-                    instance_id.clone(),
-                );
+            //     // Create the new protocol instance
+            //     let prot = ThresholdCoinProtocol::new(
+            //         key,
+            //         &name,
+            //         receiver,
+            //         self.outgoing_p2p_sender.clone(),
+            //         self.event_emitter_sender.clone(),
+            //         instance_id.clone(),
+            //     );
 
-                self.instances.insert(instance_id.clone(), instance);
+            //     self.instances.insert(instance_id.clone(), instance);
 
-                // Start it in a new thread, so that the client does not block until the protocol is finished.
-                Self::start_protocol(
-                    prot,
-                    instance_id.clone(),
-                    self.instance_command_sender.clone(),
-                );
+            //     // Start it in a new thread, so that the client does not block until the protocol is finished.
+            //     self.start_protocol(
+            //         prot,
+            //         instance_id.clone(),
+            //         self.instance_command_sender.clone(),
+            //     );
 
-                return Ok(instance_id.clone());
-            }
+            //     return Ok(instance_id.clone());
+            // }
+            //ROSE: to gradually de-comment
+            StartInstanceRequest::Signature { .. } | StartInstanceRequest::Coin { .. } => todo!()
         }
     }
 
     fn start_protocol(
-        mut prot: (impl ThresholdProtocol + std::marker::Send + 'static),
+        &mut self,
+        mut executor: (impl ThresholdProtocol + std::marker::Send + 'static),
         instance_id: String,
         sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     ) {
+        let id = instance_id.clone();
         tokio::spawn(async move {
-            let result = prot.run().await;
+            
+            let result = executor.run().await;
 
             // Protocol terminated, update state with the result.
-            info!("Instance {:?} finished", instance_id);
+            info!("Instance {:?} finished", instance_id.clone());
 
             while sender
                 .send(InstanceManagerCommand::StoreResult {
@@ -506,13 +522,16 @@ impl InstanceManager {
                 .is_err()
             {
                 // loop until transmission successful
+                //COMMENT_R: can this loop occupy the CPU?
                 error!("Error storing result, retrying...");
                 thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
             }
         });
+        _ = self.forward_backlogged_messages(id);
+        
     }
 
-    async fn _forward_backlogged_messages(&mut self, instance_id: String) {
+    fn forward_backlogged_messages(&mut self, instance_id: String) {
         let instance = self.instances.get(&instance_id);
 
         if instance.is_none() {
@@ -526,10 +545,16 @@ impl InstanceManager {
         }
 
         let backlog = backlog.unwrap();
-        for msg in &backlog.messages {
-            let _ = instance.send_message(msg.clone()).await;
-        }
-
+        let messages = backlog.messages.clone();
+        let sender = instance.get_sender();
+        let instance_id_cloned = instance_id.clone();
+        tokio::spawn(  async move {
+            for msg in &messages {
+                    let _ = sender.send(msg.clone()).await;
+            }
+            info!("All the messages backlogged for instance {:?} have been sent", instance_id_cloned);
+         });
+        
         self.backlog.remove(&instance_id);
     }
 
@@ -644,21 +669,25 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
     match request {
         StartInstanceRequest::Decryption { ciphertext } => {
             digest.process_array(ciphertext.get_ck());
-            let h: &[u8] = &digest.hash()[..8];
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
         StartInstanceRequest::Signature {
             message,
             label,
-            scheme: _,
-            group: _,
+            scheme,
+            group,
             key_id,
         } => {
-            /* PROBLEM: Hashing the whole
-            message might become a bottleneck for big messages */
-            digest.process_array(&message);
             digest.process_array(&label);
-            let h: &[u8] = &digest.hash()[..8];
+            digest.process_array(scheme.as_str_name().as_bytes());
+            digest.process_array(group.as_str_name().as_bytes());
+
+            if key_id.is_some() {
+                digest.process_array(key_id.clone().unwrap().as_bytes())
+            }
+
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
         StartInstanceRequest::Coin {
@@ -670,7 +699,10 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             /* PROBLEM: Hashing the whole
             name might become a bottleneck for long names */
             digest.process_array(&name);
-            let h: &[u8] = &digest.hash()[..8];
+            if key_id.is_some() {
+                digest.process_array(key_id.clone().unwrap().as_bytes())
+            }
+            let h: &[u8] = &digest.hash();
             return hex::encode(h);
         }
     }

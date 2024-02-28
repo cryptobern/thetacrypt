@@ -12,6 +12,7 @@ use crate::interface::Serializable;
 use crate::scheme_types_impl::SchemeDetails;
 
 use super::keys::{key2id, PrivateKeyShare, PublicKey};
+use super::KeyStoreError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct KeyEntry {
@@ -30,7 +31,7 @@ impl KeyEntry {
 
         let mut default_string = String::from("");
         if self.is_default {
-            default_string.push_str(" (default)");
+            default_string.push_str("\t(default)");
         }
 
         format!(
@@ -63,10 +64,10 @@ struct SerializedKeyEntry {
 impl From<Vec<SerializedKeyEntry>> for KeyStore {
     fn from(value: Vec<SerializedKeyEntry>) -> Self {
         let mut kc = Self::new();
-        let secret_string = String::from("secret");
+
         for entry in value {
-            match entry.key_type {
-                secret_string => {
+            match entry.key_type.as_str() {
+                "secret" => {
                     let key = PrivateKeyShare::from_pem(&entry.key);
                     if key.is_err() {
                         error!(
@@ -80,11 +81,6 @@ impl From<Vec<SerializedKeyEntry>> for KeyStore {
                     if id.is_err() {
                         error!("Error inserting private key: {}", id.unwrap_err());
                     }
-
-                    /*let id = id.unwrap();
-                    if id != key.get_key_id() {
-                        error!("Key id changed: {} - {}", key.get_key_id(), &id);
-                    }*/
                 }
                 _ => {
                     let key = PublicKey::from_pem(&entry.key);
@@ -168,13 +164,14 @@ impl KeyStore {
             let key = PublicKey::from_bytes(&entry.key);
             if key.is_ok() {
                 let id = self.insert_public_key(key.unwrap());
-                if id.is_err() {
-                    return Err(String::from("Error importing public key"));
+                if let Err(e) = id {
+                    println!("Error: {}", e.to_string());
+                    continue;
                 }
 
                 debug!("Imported public key {}", id.unwrap());
             } else {
-                return Err(String::from("Error importing public key"));
+                return Err(format!("Error: {}", key.unwrap_err().to_string()));
             }
         }
 
@@ -219,12 +216,12 @@ impl KeyStore {
     // The function, and eventually the KeyStore, gets ownership of the key.
     // A key is_default_for_scheme_and_group if it is the first key created for its scheme and group.
     // A key is_default_for_operation if it is the first key created for its operation.
-    pub fn insert_private_key(&mut self, key: PrivateKeyShare) -> Result<String, String> {
+    pub fn insert_private_key(&mut self, key: PrivateKeyShare) -> Result<String, KeyStoreError> {
         let key_id = key2id(&key.get_public_key());
 
         if key_id.ne(key.get_key_id()) {
             error!("Key does not match id");
-            return Err(String::from("Key id does not match key"));
+            return Err(KeyStoreError::IdMismatch);
         }
 
         if self
@@ -232,7 +229,7 @@ impl KeyStore {
             .iter()
             .any(|e| e.0.eq(&key_id) && e.1.sk.is_some())
         {
-            return Err(String::from("KEYC: A key wit key_id: already exists."));
+            return Err(KeyStoreError::DuplicateEntry(key_id.clone()));
         }
 
         let operation = key.get_scheme().get_operation();
@@ -269,16 +266,16 @@ impl KeyStore {
         Ok(key_id)
     }
 
-    pub fn insert_public_key(&mut self, key: PublicKey) -> Result<String, String> {
+    pub fn insert_public_key(&mut self, key: PublicKey) -> Result<String, KeyStoreError> {
         let key_id = key2id(&key);
 
         if key_id.ne(key.get_key_id()) {
             error!("Key does not match id");
-            return Err(String::from("Key id does not match key"));
+            return Err(KeyStoreError::IdMismatch);
         }
 
         if self.key_entries.iter().any(|e| e.0.eq(&key_id)) {
-            return Err(String::from("A key with same key id already exists."));
+            return Err(KeyStoreError::DuplicateEntry(key_id.clone()));
         }
 
         let operation = key.get_scheme().get_operation();
@@ -300,13 +297,10 @@ impl KeyStore {
     }
 
     // Return the matching key with the given key_id, or an error if no key with key_id exists.
-    pub fn get_key_by_id(&self, id: &str) -> Result<KeyEntry, String> {
+    pub fn get_key_by_id(&self, id: &str) -> Result<KeyEntry, KeyStoreError> {
         if self.key_entries.contains_key(id) == false {
             error!("No entry for id {}", &id);
-            return Err(format!(
-                "Could not find a key with the given key_id '{}'",
-                id
-            ));
+            return Err(KeyStoreError::IdNotFound(String::from(id)));
         }
 
         return Ok(self.key_entries.get(id).unwrap().clone());

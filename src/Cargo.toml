@@ -19,6 +19,7 @@ edition = "2018"
 utils = {path = "utils", version = "0.1.0"}
 theta_schemes = {path = "core/schemes", version = "0.1.0"}
 theta_orchestration = {path = "core/orchestration", version = "0.1.0"}
+theta_protocols = {path = "core/protocols", version = "0.1.0"}
 theta_proto = {path = "proto", version = "0.1.0"}
 theta_service = {path = "service", version = "0.1.0"}
 theta_network = {path = "network", version = "0.1.0"}

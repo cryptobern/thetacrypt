@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::File,
     io::{Read, Write},
     path::PathBuf,
@@ -11,32 +12,51 @@ use log::{error, info, debug};
 use terminal_menu::{button, label, menu, mut_menu, run, TerminalMenuItem};
 
 use std::fs;
-use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};
+use theta_proto::{
+    protocol_types::{threshold_crypto_library_client::ThresholdCryptoLibraryClient, KeyRequest},
+    scheme_types::{Group, ThresholdOperation, ThresholdScheme},
+};
 use theta_schemes::{
     interface::{
         SchemeError, Serializable, Signature, ThresholdCipher, ThresholdCipherParams,
         ThresholdSignature,
     },
-    keys::{key_generator::KeyGenerator, key_store::KeyStore, keys::PublicKey},
+    keys::{
+        key_generator::KeyGenerator,
+        key_store::KeyStore,
+        keys::{PrivateKeyShare, PublicKey},
+    },
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::SchemeDetails,
 };
 use thiserror::Error;
 use utils::thetacli::cli::*;
 
-#[derive(Debug, Error)]
+#[derive(Error)]
 enum Error {
     #[error("file error: {0}")]
     File(#[from] std::io::Error),
-    #[error("download error: {0}")]
+    #[error("threshold error: {0}")]
     Threshold(#[from] SchemeError),
-    #[error("download error: {0}")]
+    #[error("serde error: {0}")]
     Serde(#[from] serde_json::Error),
-    #[error("download error: {0}")]
+    #[error("error: {0}")]
     String(String),
 }
 
-fn main() -> Result<(), Error> {
+impl Debug for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(arg0) => f.debug_tuple("File").field(arg0).finish(),
+            Self::Threshold(arg0) => f.debug_tuple("Threshold").field(arg0).finish(),
+            Self::Serde(arg0) => f.debug_tuple("Serde").field(arg0).finish(),
+            Self::String(arg0) => f.write_str(&arg0),
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     let args = ThetaCliArgs::parse();
 
     match args.command {
@@ -54,19 +74,29 @@ fn main() -> Result<(), Error> {
                 &enc_args.infile,
                 enc_args.label.as_bytes(),
                 &enc_args.output,
-                &enc_args.pubkey,
-                &enc_args.keystore,
-                &enc_args.key_id,
+                enc_args.pubkey,
+                enc_args.keystore,
+                enc_args.key_id,
             );
         }
         Commands::Verify(verify_args) => {
             return verify(
                 &verify_args.message_path,
                 &verify_args.signature_path,
-                &verify_args.pubkey,
-                &verify_args.keystore,
-                &verify_args.key_id,
+                verify_args.pubkey,
+                verify_args.keystore,
+                verify_args.key_id,
             );
+        }
+        Commands::Keystore(keystore_args) => {
+            return keystore(
+                &keystore_args.action,
+                &keystore_args.keystore,
+                keystore_args.address,
+                keystore_args.new,
+                keystore_args.input,
+            )
+            .await;
         }
     }
 }
@@ -75,6 +105,12 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
     let mut parts = a.split(',');
     let mut keys = HashMap::new();
     let mut rng = RNG::new(RngAlgorithm::OsRng);
+
+    if k > n {
+        return Err(Error::Threshold(SchemeError::InvalidParams(Some(
+            "Threshold parameter must not exceed number of parties".into(),
+        ))));
+    }
 
     if fs::create_dir_all(dir).is_err() {
         error!("Error: could not create directory");
@@ -106,26 +142,26 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
         let scheme_str = s.next();
         if scheme_str.is_none() {
-            error!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            println!("Invalid format of argument 'subjects'");
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let scheme = ThresholdScheme::from_str_name(scheme_str.unwrap());
         if scheme.is_none() {
-            error!("Invalid scheme '{}' selected", scheme_str.unwrap());
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            println!("Invalid scheme '{}' selected", scheme_str.unwrap());
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let group_str = s.next();
         if group_str.is_none() {
-            error!("Invalid format of argument 'subjects'");
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            println!("Invalid format of argument 'subjects'");
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         let group = Group::from_str_name(group_str.unwrap());
         if group.is_none() {
-            error!("Invalid group '{}' selected", group_str.unwrap());
-            return Err(Error::Threshold(SchemeError::InvalidParams));
+            println!("Invalid group '{}' selected", group_str.unwrap());
+            return Err(Error::Threshold(SchemeError::InvalidParams(None)));
         }
 
         info!("Generating {}...", part);
@@ -182,12 +218,12 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 }
 
 fn encrypt(
-    infile: &str,
+    infile: &Option<String>,
     label: &[u8],
     outfile: &str,
-    key_path: &str,
-    keystore_path: &str,
-    key_id: &str,
+    key_path: Option<String>,
+    keystore_path: Option<String>,
+    key_id: Option<String>,
 ) -> Result<(), Error> {
     let key = load_key(
         key_path,
@@ -202,7 +238,7 @@ fn encrypt(
 
     let msg;
 
-    if infile.is_empty() {
+    if infile.is_none() {
         let mut stdin = std::io::stdin();
         let mut buf = Vec::new();
 
@@ -216,6 +252,7 @@ fn encrypt(
 
         msg = buf.to_vec();
     } else {
+        let infile = infile.clone().unwrap();
         let tmp = fs::read(infile);
 
         if let Err(e) = tmp {
@@ -266,9 +303,9 @@ fn encrypt(
 fn verify(
     message_path: &str,
     signature_path: &str,
-    key_path: &str,
-    keystore_path: &str,
-    key_id: &str,
+    key_path: Option<String>,
+    keystore_path: Option<String>,
+    key_id: Option<String>,
 ) -> Result<(), Error> {
     let key = load_key(
         key_path,
@@ -360,15 +397,15 @@ fn generate_valid_scheme_group_pairs() -> Vec<String> {
 }
 
 fn load_key(
-    key_path: &str,
-    keystore_path: &str,
-    key_id: &str,
+    key_path: Option<String>,
+    keystore_path: Option<String>,
+    key_id: Option<String>,
     operation: ThresholdOperation,
 ) -> Result<PublicKey, Error> {
     let key;
 
-    if !key_path.is_empty() {
-        let contents = fs::read(key_path);
+    if key_path.is_some() {
+        let contents = fs::read(key_path.unwrap());
 
         if let Err(e) = contents {
             error!("Error reading public key: {}", e.to_string());
@@ -383,16 +420,14 @@ fn load_key(
         }
 
         key = tmp.unwrap();
-    } else if !keystore_path.is_empty() {
-        let keystore = KeyStore::from_file(&PathBuf::from(keystore_path));
+    } else if keystore_path.is_some() {
+        let keystore = KeyStore::from_file(&PathBuf::from(keystore_path.unwrap()));
 
-        if keystore.is_err() {
-            return Err(Error::String(String::from("Could not read keystore")));
-        }
+        if keystore.is_err() {}
 
         let keystore = keystore.unwrap();
 
-        if key_id.is_empty() {
+        if key_id.is_none() {
             let entries;
 
             match operation {
@@ -427,7 +462,7 @@ fn load_key(
                 key = tmp.unwrap().pk.clone();
             }
         } else {
-            let tmp = keystore.get_key_by_id(key_id);
+            let tmp = keystore.get_key_by_id(&key_id.unwrap());
 
             if let Err(e) = tmp {
                 error!("Error loading public key: {}", e.to_string());
@@ -446,29 +481,122 @@ fn load_key(
     return Ok(key);
 }
 
-fn list_keys(keystore_path: &str, operation: Option<ThresholdOperation>) -> Result<(), Error> {
-    let keystore = KeyStore::from_file(&PathBuf::from(keystore_path));
+async fn keystore(
+    action: &str,
+    keystore_path: &str,
+    address: Option<String>,
+    new: bool,
+    input: Option<String>,
+) -> Result<(), Error> {
+    match action {
+        "ls" => {
+            let tmp = KeyStore::from_file(&PathBuf::from(keystore_path));
 
-    if keystore.is_err() {
-        return Err(Error::String(String::from("Could not read keystore")));
-    }
+            if tmp.is_err() {
+                println!("Error reading key store!");
+                return Err(Error::String(format!("Error reading key store!")));
+            }
 
-    let keystore = keystore.unwrap();
+            let keystore = tmp.unwrap();
 
-    if operation.is_none() {
-        debug!("{}", keystore.to_string());
-    } else {
-        let entries;
-        match operation.unwrap() {
-            ThresholdOperation::Coin => {
-                entries = keystore.get_coin_keys();
+            println!("{}", keystore.to_string());
+        }
+        "fetch" => {
+            if address.is_none() {
+                println!("No node address specified");
+                return Err(Error::String(String::from("No node address specified")));
             }
-            ThresholdOperation::Encryption => {
-                entries = keystore.get_encryption_keys();
+
+            let mut keystore;
+
+            if !new {
+                let tmp = KeyStore::from_file(&PathBuf::from(keystore_path));
+
+                if tmp.is_err() {
+                    println!("Error reading key store!");
+                    return Err(Error::String(format!("Error reading key store!")));
+                }
+
+                keystore = tmp.unwrap();
+            } else {
+                keystore = KeyStore::new();
             }
-            ThresholdOperation::Signature => {
-                entries = keystore.get_signing_keys();
+
+            let address = address.unwrap();
+            let connection = ThresholdCryptoLibraryClient::connect(address.clone()).await;
+            if connection.is_err() {
+                return Err(Error::String(format!("Could not connect to {}", address)));
             }
+
+            let response = connection.unwrap().get_public_keys(KeyRequest {}).await;
+
+            if response.is_err() {
+                println!("Error fetching public keys!");
+                return Err(Error::String(format!("Error fetching public keys!")));
+            }
+
+            let response = response.unwrap();
+            let keys = &response.get_ref().keys;
+            if let Err(e) = keystore.import_public_keys(keys) {
+                return Err(Error::String(e));
+            }
+
+            if keystore.to_file(keystore_path).is_err() {
+                println!("Error storing keys to keychain");
+                return Err(Error::String(format!("Error storing keys to keychain")));
+            }
+
+            println!("Successfully imported keys from server");
+        }
+        "add" => {
+            if input.is_none() {
+                return Err(Error::String(String::from("No input key file provided")));
+            }
+
+            let key_file = fs::read(input.unwrap());
+
+            if key_file.is_err() {
+                return Err(Error::String(String::from("Error reading input key file")));
+            }
+
+            let tmp = KeyStore::from_file(&PathBuf::from(keystore_path));
+
+            if tmp.is_err() {
+                println!("Error reading key store!");
+                return Err(Error::String(format!("Error reading key store!")));
+            }
+
+            let mut keystore = tmp.unwrap();
+            let bytes = key_file.unwrap();
+
+            let pk = PublicKey::from_bytes(&bytes);
+            let mut key_type = "public";
+
+            if pk.is_err() {
+                let sk = PrivateKeyShare::from_bytes(&bytes);
+                if sk.is_err() {
+                    return Err(Error::String(String::from("Invalid key file")));
+                }
+
+                if let Err(e) = keystore.insert_private_key(sk.unwrap()) {
+                    return Err(Error::String(e.to_string()));
+                }
+
+                key_type = "secret";
+            } else {
+                if let Err(e) = keystore.insert_public_key(pk.unwrap()) {
+                    return Err(Error::String(e.to_string()));
+                }
+            }
+
+            if let Err(e) = keystore.to_file(keystore_path) {
+                return Err(Error::String(e.to_string()));
+            }
+
+            println!("Successfully added {} key to keystore", key_type);
+        }
+        _ => {
+            println!("Invalid action. Valid actions are: ls, add, fetch");
         }
     }
 

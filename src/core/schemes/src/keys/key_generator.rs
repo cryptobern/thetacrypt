@@ -5,7 +5,7 @@ use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 use crate::{
     dl_schemes::{
-        bigint::BigImpl,
+        bigint::SizedBigInt,
         ciphers::{
             bz03::{Bz03PrivateKey, Bz03PublicKey},
             sg02::{Sg02PrivateKey, Sg02PublicKey},
@@ -21,7 +21,7 @@ use crate::{
     interface::SchemeError,
     rand::RNG,
     rsa_schemes::{
-        bigint::RsaBigInt,
+        bigint::BigInt,
         common::{fac, gen_strong_prime, shamir_share_rsa},
         signatures::sh00::{Sh00PrivateKey, Sh00PublicKey, Sh00VerificationKey},
     },
@@ -32,7 +32,7 @@ use crate::{
 use super::keys::PrivateKeyShare;
 
 pub struct KeyParams {
-    e: RsaBigInt,
+    e: BigInt,
 }
 
 impl KeyParams {
@@ -40,7 +40,7 @@ impl KeyParams {
         return Self { e: BIGINT!(65537) };
     }
 
-    pub fn set_e(&mut self, e: &RsaBigInt) {
+    pub fn set_e(&mut self, e: &BigInt) {
         self.e.set(e);
     }
 }
@@ -57,7 +57,7 @@ impl KeyGenerator {
         params: &Option<KeyParams>,
     ) -> Result<Vec<PrivateKeyShare>, SchemeError> {
         if k > n || n < 1 {
-            return Err(SchemeError::InvalidParams);
+            return Err(SchemeError::InvalidParams(None));
         }
 
         match scheme {
@@ -70,7 +70,7 @@ impl KeyGenerator {
                     return Err(SchemeError::IncompatibleGroup);
                 }
 
-                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let x = SizedBigInt::new_rand(&group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big_ecp2(&group, &x);
 
                 let (shares, h) = shamir_share(&x, k, n, rng);
@@ -93,10 +93,10 @@ impl KeyGenerator {
                     return Err(SchemeError::IncompatibleGroup);
                 }
 
-                let x = BigImpl::new_rand(group, &group.get_order(), rng);
+                let x = SizedBigInt::new_rand(group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) =
+                let (shares, h): (Vec<SizedBigInt>, Vec<GroupElement>) =
                     shamir_share(&x, k as usize, n as usize, rng);
                 let mut private_keys = Vec::new();
 
@@ -124,7 +124,7 @@ impl KeyGenerator {
                     return Err(SchemeError::IncompatibleGroup);
                 }
 
-                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let x = SizedBigInt::new_rand(&group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
                 let (shares, h) = shamir_share(&x, k, n, rng);
@@ -147,10 +147,10 @@ impl KeyGenerator {
                     return Err(SchemeError::IncompatibleGroup);
                 }
 
-                let x = BigImpl::new_rand(&group, &group.get_order(), rng);
+                let x = SizedBigInt::new_rand(&group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) =
+                let (shares, h): (Vec<SizedBigInt>, Vec<GroupElement>) =
                     shamir_share(&x, k as usize, n as usize, rng);
                 let mut private_keys = Vec::new();
 
@@ -168,10 +168,10 @@ impl KeyGenerator {
             }
 
             ThresholdScheme::Frost => {
-                let x = BigImpl::new_rand(group, &group.get_order(), rng);
+                let x = SizedBigInt::new_rand(group, &group.get_order(), rng);
                 let y = GroupElement::new_pow_big(&group, &x);
 
-                let (shares, h): (Vec<BigImpl>, Vec<GroupElement>) =
+                let (shares, h): (Vec<SizedBigInt>, Vec<GroupElement>) =
                     shamir_share(&x, k as usize, n as usize, rng);
                 let mut private_keys = Vec::new();
 
@@ -210,11 +210,11 @@ impl KeyGenerator {
 
                 let plen = modsize / 2 - 2;
 
-                let mut p1 = RsaBigInt::new_rand(rng, plen);
-                let mut q1 = RsaBigInt::new_rand(rng, plen);
+                let mut p1 = BigInt::new_rand(rng, plen);
+                let mut q1 = BigInt::new_rand(rng, plen);
 
-                let mut p = RsaBigInt::new();
-                let mut q = RsaBigInt::new();
+                let mut p = BigInt::new();
+                let mut q = BigInt::new();
 
                 if DEBUG {
                     debug!("generating strong primes...");
@@ -245,7 +245,7 @@ impl KeyGenerator {
                 let N = p.mul(&q);
                 let m = p1.mul(&q1);
 
-                let v = RsaBigInt::new_rand(rng, modsize - 1).pow(2).rmod(&N);
+                let v = BigInt::new_rand(rng, modsize - 1).pow(2).rmod(&N);
 
                 let d = e.inv_mod(&m);
 
@@ -256,7 +256,7 @@ impl KeyGenerator {
                 let mut up;
                 let mut uq;
                 loop {
-                    u = RsaBigInt::new_rand(rng, modsize - 1);
+                    u = BigInt::new_rand(rng, modsize - 1);
                     up = u.pow_mod(&p1, &p);
                     uq = u.pow_mod(&q1, &q);
                     if up.equals(&ONE!()) != uq.equals(&ONE!()) {

@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::process::exit;
+use std::thread::sleep;
 use std::{io, thread, time};
 
 use clap::Parser;
@@ -163,14 +164,18 @@ async fn threshold_decryption(
     printbinary(&request.ciphertext, Option::Some("Encrypted message:"));
     println!("{:?}", request.ciphertext);
 
-    let mut i = 0;
+    let mut i: i32 = 0;
     let mut instance_id = String::new();
     for conn in connections.iter_mut() {
         print!("\n[Server {i}]: ");
+        // Lines to test forwarding messages in the backlog 
+        // if i == 2 {
+        //     sleep(time::Duration::from_millis(1000));
+        // }
         let result = conn.decrypt(request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().to_string());
         }
@@ -222,7 +227,7 @@ async fn threshold_signature(
         let result = conn.sign(sign_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().to_string());
         }
@@ -269,7 +274,7 @@ async fn threshold_coin(
         let result = conn.flip_coin(coin_request.clone()).await;
         if let Ok(r) = result {
             instance_id = r.get_ref().instance_id.clone();
-            println!("OK");
+            println!("Request received");
         } else {
             println!("ERR: {}", result.unwrap_err().message());
         }

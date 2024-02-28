@@ -13,7 +13,7 @@ Thetacrypt is a WIP codebase that aims at providing **threshold cryptography** a
 Threshold cryptography defines protocols to enhance the security of a cryptosystem by distributing the trust among a group of parties. 
 Typically, it is used for sharing a secret across a predefined number of nodes so as to obtain fault-tolerance for a subset, 
 or *threshold*, of them. 
-More formally, a threshold cryptosystem is defined by a fixed number of parties $P = \{P_1, \dots, P_n\}$, who need to collaborate to perform a cryptographic operation such that at least a threshold of them, $(t+1)$-out-of-$n$, are able to successfully terminate, but $t$ will learn anything about the shared secret. 
+More formally, a threshold cryptosystem is defined by a fixed number of parties $P = \{P_1, \dots, P_n\}$, who need to collaborate to perform a cryptographic operation such that at least a threshold of them, $(t+1)$-out-of- $n$, are able to successfully terminate, but $t$ will learn anything about the shared secret. 
 This is achieved by using *Shamir's secret sharing*, i.e. a technique based on *polynomial interpolation* that enables the reconstruction 
 of a polynomial of degree $t$ with at least $t+1$ points.
 

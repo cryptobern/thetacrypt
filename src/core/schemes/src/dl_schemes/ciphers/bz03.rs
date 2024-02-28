@@ -13,7 +13,7 @@ use mcore::bls12381::big;
 use mcore::hash256::*;
 use rasn::AsnType;
 
-use crate::dl_schemes::bigint::BigImpl;
+use crate::dl_schemes::bigint::SizedBigInt;
 use crate::dl_schemes::common::*;
 use crate::group::GroupElement;
 use crate::interface::{DlShare, SchemeError, Serializable, ThresholdCipherParams};
@@ -58,7 +58,7 @@ impl Bz03PublicKey {
         &self.id
     }
 
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.y.get_order()
     }
 
@@ -148,12 +148,12 @@ impl PartialEq for Bz03PublicKey {
 #[derive(Clone, Debug, AsnType)]
 pub struct Bz03PrivateKey {
     id: u16,
-    xi: BigImpl,
+    xi: SizedBigInt,
     pubkey: Bz03PublicKey,
 }
 
 impl Bz03PrivateKey {
-    pub fn new(id: u16, xi: &BigImpl, pubkey: &Bz03PublicKey) -> Self {
+    pub fn new(id: u16, xi: &SizedBigInt, pubkey: &Bz03PublicKey) -> Self {
         Self {
             id,
             xi: xi.clone(),
@@ -165,7 +165,7 @@ impl Bz03PrivateKey {
         &self.pubkey
     }
 
-    pub fn get_order(&self) -> BigImpl {
+    pub fn get_order(&self) -> SizedBigInt {
         self.get_group().get_order()
     }
 
@@ -228,7 +228,7 @@ impl Serializable for Bz03PrivateKey {
 
                 let pubkey = res.unwrap();
 
-                let xi = BigImpl::from_bytes(&pubkey.get_group(), &bytes);
+                let xi = SizedBigInt::from_bytes(&pubkey.get_group(), &bytes);
 
                 return Ok(Self { id, xi, pubkey });
             });
@@ -447,7 +447,7 @@ impl Bz03ThresholdCipher {
         pk: &Bz03PublicKey,
         params: &mut ThresholdCipherParams,
     ) -> Bz03Ciphertext {
-        let r = BigImpl::new_rand(
+        let r = SizedBigInt::new_rand(
             &pk.get_group(),
             &pk.get_group().get_order(),
             &mut params.rng,
@@ -547,7 +547,7 @@ fn h(g: &GroupElement, m: &Vec<u8>) -> GroupElement {
 
     let h = [&vec![0; big::MODBYTES - 32][..], &h.hash()[..]].concat();
 
-    let s = BigImpl::from_bytes(&g.get_group(), &h).rmod(&g.get_group().get_order());
+    let s = SizedBigInt::from_bytes(&g.get_group(), &h).rmod(&g.get_group().get_order());
 
     GroupElement::new(&g.get_group()).pow(&s)
 }

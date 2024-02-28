@@ -15,36 +15,36 @@ use crate::rand::RNG;
 #[macro_export]
 macro_rules! BIGINT {
     ($x:expr) => {
-        RsaBigInt::new_int($x as isize)
+        BigInt::new_int($x as isize)
     };
 }
 
 #[macro_export]
 macro_rules! ZERO {
     () => {
-        RsaBigInt::new_int(0)
+        BigInt::new_int(0)
     };
 }
 
 #[macro_export]
 macro_rules! ONE {
     () => {
-        RsaBigInt::new_int(1)
+        BigInt::new_int(1)
     };
 }
 
 #[derive(Debug)]
-pub struct RsaBigInt {
+pub struct BigInt {
     value: Integer,
 }
 
-impl PartialEq for RsaBigInt {
+impl PartialEq for BigInt {
     fn eq(&self, other: &Self) -> bool {
         self.equals(&other)
     }
 }
 
-impl RsaBigInt {
+impl BigInt {
     /* create new integer (initialized to 0) */
     pub fn new() -> Self {
         Self {
@@ -109,7 +109,7 @@ impl RsaBigInt {
 
     /* generates a new random prime of bit length len */
     pub fn new_prime(rng: &mut RNG, len: usize) -> Self {
-        let mut x = RsaBigInt::new();
+        let mut x = BigInt::new();
 
         loop {
             x.rand(rng, len);
@@ -308,8 +308,8 @@ impl RsaBigInt {
     }
 }
 
-impl Clone for RsaBigInt {
+impl Clone for BigInt {
     fn clone(&self) -> Self {
-        RsaBigInt::new_copy(&self)
+        BigInt::new_copy(&self)
     }
 }

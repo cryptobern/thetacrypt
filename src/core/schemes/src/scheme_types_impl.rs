@@ -1,7 +1,7 @@
 use crate::interface::SchemeError;
 use crate::{
     dl_schemes::{
-        bigint::BigImpl,
+        bigint::SizedBigInt,
         dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
     },
     group::GroupElement,
@@ -73,7 +73,7 @@ impl SchemeDetails for ThresholdScheme {
 pub trait GroupDetails {
     fn is_dl(&self) -> bool;
     fn parse_string(name: &str) -> Result<Group, SchemeError>;
-    fn get_order(&self) -> BigImpl;
+    fn get_order(&self) -> SizedBigInt;
     fn supports_pairings(&self) -> bool;
     fn get_alternate_generator(&self) -> GroupElement;
 }
@@ -106,7 +106,7 @@ impl GroupDetails for Group {
     }
 
     /* returns the group order */
-    fn get_order(&self) -> BigImpl {
+    fn get_order(&self) -> SizedBigInt {
         match self {
             Self::Bls12381 => Bls12381::get_order(),
             Self::Bn254 => Bn254::get_order(),
