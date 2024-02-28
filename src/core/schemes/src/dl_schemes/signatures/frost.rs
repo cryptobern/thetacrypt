@@ -577,25 +577,35 @@ impl<'a> FrostThresholdSignature {
                     // todo: authentication
                     let result = self.verify_share(share);
                     if result.is_err() {
+                        println!("invalid share with id {}", &share.id);
                         return Err(result.unwrap_err());
                     }
 
                     self.shares.insert(share.id, share.clone());
 
                     if self.shares.len() == self.key.get_threshold() as usize {
-                        // check if we have the right set of shares
-                        for i in 0..self.key.get_threshold() {
-                            if !self.shares.contains_key(&i) {
-                                return Ok(());
-                            }
+                        println!("shares len == threshold");
+                        // check if we have all required shares to assemble signature
+                        if let Option::None = self
+                            .signer_group
+                            .signer_identifiers
+                            .iter()
+                            .find(|i| !self.shares.contains_key(&i))
+                        {
+                            println!("missing shares to reconstruct");
+                            return Ok(()); // if not, just return Ok
                         }
 
+                        println!("all required shares aquired, try to assemble signature");
+                        // else we try to assemble signature
                         let sig = self.assemble();
                         if sig.is_err() {
                             println!("Error assembling signature");
+                            self.finished = true;
                             return Err(sig.unwrap_err());
                         }
                         println!("assembled signature");
+                        self.finished = true;
                         self.signature = Some(sig.unwrap());
                     }
                 }
@@ -687,7 +697,7 @@ impl<'a> FrostThresholdSignature {
     }
 
     pub fn is_finished(&self) -> bool {
-        self.round == 2 && self.signature.is_some()
+        self.finished
     }
 
     /*
