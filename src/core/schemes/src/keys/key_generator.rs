@@ -16,9 +16,8 @@ use crate::{
             frost::{FrostPrivateKey, FrostPublicKey},
         },
     },
-    groups::group::GroupElement,
-    integers::bigint::BigInt,
-    integers::sizedint::SizedBigInt,
+    groups::group::{GroupElement, GroupOperations},
+    integers::{bigint::BigInt, sizedint::SizedBigInt},
     interface::SchemeError,
     rand::RNG,
     rsa_schemes::{

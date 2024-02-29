@@ -1,3 +1,4 @@
+use crate::groups::group::GroupOperations;
 use crate::interface::Serializable;
 use crate::keys::keys::calc_key_id;
 use crate::{

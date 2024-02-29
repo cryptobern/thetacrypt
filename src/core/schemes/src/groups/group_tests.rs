@@ -5,6 +5,7 @@ use crate::rand::RNG;
 use rand::Rng;
 use theta_proto::scheme_types::Group;
 
+use crate::groups::group::GroupOperations;
 static GROUP: Group = Group::Bls12381;
 
 #[test]

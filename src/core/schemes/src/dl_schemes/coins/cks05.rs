@@ -4,6 +4,7 @@
 #![allow(clippy::zero_prefixed_literal)]
 #![allow(dead_code)]
 
+use crate::groups::group::GroupOperations;
 use std::ops::BitAnd;
 
 use asn1::{ParseError, WriteError};

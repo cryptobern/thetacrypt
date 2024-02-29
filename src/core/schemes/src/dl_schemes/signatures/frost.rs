@@ -5,6 +5,7 @@ use std::{collections::HashMap, hash::Hash};
 use asn1::{ParseError, WriteError};
 use serde::{Deserialize, Serialize};
 
+use crate::groups::group::GroupOperations;
 use crate::{
     dl_schemes::common::lagrange_coeff,
     groups::group::GroupElement,

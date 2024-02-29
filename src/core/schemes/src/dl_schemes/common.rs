@@ -10,6 +10,7 @@ use crate::{
     scheme_types_impl::GroupDetails,
 };
 
+use crate::groups::group::GroupOperations;
 use crate::integers::sizedint::SizedBigInt;
 use theta_proto::scheme_types::Group;
 

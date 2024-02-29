@@ -2,6 +2,7 @@ use crate::groups::group::GroupElement;
 use crate::integers::sizedint::SizedBigInt;
 use crate::scheme_types_impl::GroupDetails;
 
+use crate::groups::group::GroupOperations;
 pub struct PedersenCommitmentParams {
     pub x: SizedBigInt,
     pub r: SizedBigInt,

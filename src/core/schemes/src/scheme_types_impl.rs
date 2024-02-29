@@ -1,3 +1,4 @@
+use crate::groups::group::GroupOperations;
 use crate::integers::sizedint::SizedBigInt;
 use crate::interface::SchemeError;
 use crate::{

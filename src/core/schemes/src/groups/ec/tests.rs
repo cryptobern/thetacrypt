@@ -6,6 +6,7 @@ use crate::integers::sizedint::SizedBigInt;
 use crate::rand::{RngAlgorithm, RNG};
 
 use crate::groups::ec::bls12381::Bls12381;
+use crate::groups::group::GroupOperations;
 
 /* Test pow, mul, div */
 fn op_test(group: &Group) {

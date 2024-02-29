@@ -1,6 +1,7 @@
 use theta_proto::scheme_types::Group;
 
 use super::group::GroupElement;
+use crate::groups::group::GroupOperations;
 
 #[test]
 fn test_eq() {

@@ -36,7 +36,13 @@ fn test_interface() {
         } else {
             panic!("");
         };
-        let instance: FrostProtocol = FrostProtocol::new(&k, msg, FrostOptions::NoPrecomputation);
+        let instance: FrostProtocol = FrostProtocol::new(
+            &k,
+            msg,
+            b"label",
+            FrostOptions::NoPrecomputation,
+            Option::None,
+        );
         instances.push(instance);
     }
 

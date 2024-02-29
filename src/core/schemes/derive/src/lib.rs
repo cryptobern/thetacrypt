@@ -620,49 +620,85 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-#[proc_macro_derive(GroupOperations)]
+#[proc_macro_derive(GroupOperations, attributes(supports_pairings, no_pairings))]
 pub fn derive_group_operations(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
     let name = &input.ident.clone();
 
-    let fields: Vec<syn::Ident> = Vec::new();
+    let mut groups: Vec<syn::Ident> = Vec::new();
+    let mut pairing_groups: Vec<syn::Ident> = Vec::new();
+    let mut non_pairing_groups: Vec<syn::Ident> = Vec::new();
 
     match input.data.clone() {
         syn::Data::Enum(s) => {
-            let fields: Vec<syn::Ident> = s.variants.iter().map(|f| f.ident.clone()).collect();
+            groups = s.variants.iter().map(|f| f.ident.clone()).collect();
+            for group in s.variants.iter() {
+                if let Some(g) = group
+                    .attrs
+                    .iter()
+                    .find(|a| a.path.is_ident("supports_pairings"))
+                {
+                    pairing_groups.push(group.ident.clone());
+                }
+
+                /*if let Some(g) = group.attrs.iter().find(|a| a.path.is_ident("no_pairings")) {
+                    non_pairing_groups.push(group.ident.clone());
+                }*/
+            }
         }
-        _ => {}
+        _ => {
+            return TokenStream::new();
+        }
     };
 
-    let f1 = fields.clone();
-    let f2 = fields.clone();
-    let fields1 = fields.clone();
-    let fields2 = fields.clone();
-    let fields3 = fields.clone();
-    let fields4 = fields.clone();
-    let fields5 = fields.clone();
-    let fields6 = fields.clone();
-    let fields7 = fields.clone();
-    let fields8 = fields.clone();
-    let fields9 = fields.clone();
-    let fields10 = fields.clone();
-    let fields11 = fields.clone();
-    let fields12 = fields.clone();
-    let fields13 = fields.clone();
-    let fields14 = fields.clone();
-    let fields15 = fields.clone();
-    let fields16 = fields.clone();
-    let fields17 = fields.clone();
-    let fields18 = fields.clone();
-    let fields19 = fields.clone();
-    let fields20 = fields.clone();
-    let fields21 = fields.clone();
-    let fields22 = fields.clone();
-    let fields23 = fields.clone();
-    let fields24 = fields.clone();
-    let fields25 = fields.clone();
-    let fields26 = fields.clone();
-    let fields27 = fields.clone();
+    non_pairing_groups = groups
+        .iter()
+        .filter(|g| !pairing_groups.contains(&g))
+        .map(|g| g.clone())
+        .collect();
+
+    let f1 = groups.clone();
+    let f2 = groups.clone();
+    let fields1 = groups.clone();
+    let fields2 = groups.clone();
+    let fields3 = groups.clone();
+    let fields4 = groups.clone();
+    let fields5 = groups.clone();
+    let fields6 = groups.clone();
+    let fields7 = groups.clone();
+    let fields8 = groups.clone();
+    let fields9 = groups.clone();
+    let fields10 = groups.clone();
+    let fields11 = groups.clone();
+    let fields12 = groups.clone();
+    let fields13 = groups.clone();
+    let fields14 = groups.clone();
+    let fields15 = groups.clone();
+    let fields16 = groups.clone();
+    let fields17 = groups.clone();
+    let fields18 = groups.clone();
+    let fields19 = groups.clone();
+    let fields20 = groups.clone();
+    let fields27 = groups.clone();
+
+    let pfields1 = pairing_groups.clone();
+    let pfields2 = pairing_groups.clone();
+    let pfields3 = pairing_groups.clone();
+    let pfields4 = pairing_groups.clone();
+    let pfields5 = pairing_groups.clone();
+    let pfields6 = pairing_groups.clone();
+    let pfields7 = pairing_groups.clone();
+    let pfields8 = pairing_groups.clone();
+    let pfields9 = pairing_groups.clone();
+    let pfields10 = pairing_groups.clone();
+    let pfields11 = pairing_groups.clone();
+    let pfields12 = pairing_groups.clone();
+    let pfields13 = pairing_groups.clone();
+    let pfields14 = pairing_groups.clone();
+    let pfields15 = pairing_groups.clone();
+    let nfields1 = non_pairing_groups.clone();
+    let nfields2 = non_pairing_groups.clone();
+    let nfields3 = non_pairing_groups.clone();
 
     let expanded = quote! {
             impl PartialEq for #name {
@@ -676,19 +712,21 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                             if let Self::#f2(y) = other {
                                 return x.eq(y);
                             }
-                            return false;
                         }),*
                         _ => {
                             return false;
                         }
                     }
+
+                    return false;
                 }
             }
 
         impl GroupOperations for #name {
             fn identity(group: &Group) -> Self {
                 match group {
-                    #(Group::#fields1 => Self::#fields2(#fields3::identity())),*
+                    #(Group::#fields1 => {Self::#fields2(#fields3::identity())}),*
+                    _ => {panic!("unsupported group")},
                 }
             }
 
@@ -703,6 +741,7 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                             return true
                         }
                     }),*
+                    _ => return false
                 }
 
                 return false;
@@ -716,14 +755,14 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
 
             fn new(group: &Group) -> Self {
                 match group {
-                    #(Group::#fields8 => Self::#fields9(#fields10::new())),*
+                    #(Group::#fields8 => {Self::#fields9(#fields10::new())}),*
+                    _ => {panic!("unsupported group")},
                 }
             }
 
             fn new_ecp2(group: &Group) -> Self {
                 match group {
-                    Group::Bls12381 => Self::Bls12381(Bls12381::new_ecp2()),
-                    Group::Bn254 => Self::Bn254(Bn254::new_ecp2()),
+                    #(Group::#pfields4 => {Self::#pfields5(#pfields6::new_ecp2())}),*
                     _ => panic!("group does not support pairings"),
                 }
             }
@@ -738,22 +777,17 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                 }
 
                 match self {
-                    Self::Bls12381(_x) => {
-                        if let Self::Bls12381(_y) = y {
-                            return Self::Bls12381(Bls12381::pair(_x, _y).unwrap());
+                    #(Self::#pfields7(_x) => {
+                        if let Self::#pfields8(_y) = y {
+                            return Self::#pfields9(#pfields10::pair(_x, _y).unwrap());
                         }
-                    }
-                    Self::Bn254(_x) => {
-                        if let Self::Bn254(_y) = y {
-                            return Self::Bn254(Bn254::pair(_x, _y).unwrap());
-                        }
-                    }
+                    }),*
                     _ => {
-                        panic!()
+                        panic!();
                     }
                 }
 
-                panic!()
+                panic!();
             }
 
             fn ddh(
@@ -771,30 +805,21 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                 }
 
                 match x {
-                    Self::Bls12381(_x) => {
-                        if let Self::Bls12381(_y) = y {
-                            if let Self::Bls12381(_z) = z {
-                                if let Self::Bls12381(_w) = w {
-                                    return Bls12381::ddh(&_x, &_y, &_z, &_w);
+                    #(Self::#pfields11(_x) => {
+                        if let Self::#pfields12(_y) = y {
+                            if let Self::#pfields13(_z) = z {
+                                if let Self::#pfields14(_w) = w {
+                                    return #pfields15::ddh(&_x, &_y, &_z, &_w);
                                 }
                             }
                         }
-                    }
-                    Self::Bn254(_x) => {
-                        if let Self::Bn254(_y) = y {
-                            if let Self::Bn254(_z) = z {
-                                if let Self::Bn254(_w) = w {
-                                    return Bn254::ddh(&_x, &_y, &_z, &_w);
-                                }
-                            }
-                        }
-                    }
+                    }),*
                     _ => {
-                        panic!()
+                        panic!();
                     }
                 }
 
-                panic!()
+                panic!();
             }
 
             fn new_hash(group: &Group, hash: &[u8]) -> Self {
@@ -803,12 +828,12 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                         return Self::Bls12381(Bls12381::new_from_ecp(
                             mcore::bls12381::bls::bls_hash_to_point(hash),
                         ));
-                    }
+                    },
                     Group::Bn254 => {
                         return Self::Bn254(Bn254::new_from_ecp(mcore::bn254::bls::bls_hash_to_point(
                             hash,
                         )));
-                    }
+                    },
                     _ => panic!("group does not support hash to point"),
                 }
             }
@@ -818,6 +843,7 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                     #(Group::#fields11 => {
                         return Self::#fields12(#fields13::new_pow_big(y));
                     }),*
+                    _ => panic!("unsupported group")
                 }
             }
 
@@ -825,11 +851,11 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                 match group {
                     Group::Bls12381 => {
                         return Self::Bls12381(Bls12381::new_pow_big_ecp2(y));
-                    }
+                    },
                     Group::Bn254 => {
                         return Self::Bn254(Bn254::new_pow_big_ecp2(y));
-                    }
-                    _ => panic!("group does not support extensions"),
+                    },
+                    _ => panic!("group does not support extensions")
                 }
             }
 
@@ -838,6 +864,7 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                     #(Group::#fields14 => {
                         return Self::#fields15(#fields16::new_rand(rng));
                     }),*
+                    _ => panic!("unsupported group")
                 }
             }
 
@@ -851,17 +878,17 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                         if let Self::Bls12381(_y) = y {
                             return _x.mul(_y);
                         }
-                    }
+                    },
                     Self::Bn254(_x) => {
                         if let Self::Bn254(_y) = y {
                             return _x.mul(_y);
                         }
-                    }
+                    },
                     Self::Ed25519(_x) => {
                         if let Self::Ed25519(_y) = y {
                             return _x.mul(_y);
                         }
-                    }
+                    },
                     _ => todo!(),
                 }
 
@@ -878,17 +905,17 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                         if let Self::Bls12381(_y) = y {
                             return _x.div(_y);
                         }
-                    }
+                    },
                     Self::Bn254(_x) => {
                         if let Self::Bn254(_y) = y {
                             return _x.div(_y);
                         }
-                    }
+                    },
                     Self::Ed25519(_x) => {
                         if let Self::Ed25519(_y) = y {
                             return _x.div(_y);
                         }
-                    }
+                    },
                     _ => todo!(),
                 }
 
@@ -932,7 +959,9 @@ pub fn derive_group_operations(input: TokenStream) -> TokenStream {
                 }
 
                 match group {
-                    #(Group::#fields21 => return Self::#fields22(#fields23::from_bytes(bytes, j))),*
+                    #(Group::#pfields1 => {return Self::#pfields2(#pfields3::from_bytes(bytes, j))}),*
+                    #(Group::#nfields1 => {return Self::#nfields2(#nfields3::from_bytes(bytes))}),*
+                    _ => panic!("unsupported group")
                 }
             }
         }

@@ -15,6 +15,7 @@ use theta_derive::DlShare;
 
 use crate::dl_schemes::common::*;
 use crate::groups::group::GroupElement;
+use crate::groups::group::GroupOperations;
 use crate::integers::sizedint::SizedBigInt;
 use crate::interface::{DlShare, SchemeError, Serializable, ThresholdCipherParams};
 use crate::keys::keys::calc_key_id;

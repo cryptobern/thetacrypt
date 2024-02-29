@@ -8,6 +8,7 @@ use log::error;
 use mcore::hash256::HASH256;
 use theta_derive::DlShare;
 
+use crate::groups::group::GroupOperations;
 use crate::integers::sizedint::SizedBigInt;
 use crate::keys::keys::calc_key_id;
 use crate::{

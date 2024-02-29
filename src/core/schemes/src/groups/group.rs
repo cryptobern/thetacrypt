@@ -28,8 +28,11 @@ TODO: change code to standard way of encoding EC groups */
 #[rasn(enumerated)]
 #[derive(Debug, Clone, AsnType, GroupOperations)]
 pub enum GroupElement {
+    #[supports_pairings]
     Bls12381(Bls12381),
+    #[supports_pairings]
     Bn254(Bn254),
+    #[no_pairings]
     Ed25519(Ed25519),
 }
 
