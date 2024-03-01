@@ -31,8 +31,6 @@ pub trait ProtocolMessageWrapper<T>: Send{
     fn unwrap(wrapped: T) -> Result<Box<Self>, ProtocolError>; //we need to Box self because we don't know yet the type
     fn wrap(&self, instance_id: &String,) -> Result<T, String>; //T here would be NetMessage
 }
- 
-
 
 //ROSE: to move to the protocol
 // Do we need an init() ? Probably yes (with Lukas we discovered that with the two roles of cordinators and signers 

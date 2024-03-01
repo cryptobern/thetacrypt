@@ -1,4 +1,4 @@
-use futures::prelude::*;
+use futures::{prelude::*, StreamExt};
 use libp2p::{
     gossipsub::{Gossipsub, IdentTopic as GossibsubTopic},
     identity,
@@ -19,21 +19,66 @@ use tonic::async_trait;
 
 #[async_trait]
 pub trait Gossip<T> {
-    //Init should initialize the state of the component implemening the Gossip interface, starting in case some listening services
-    fn init(&self);
-    fn broadcast(message: T);
-    async fn deliver() -> Option<T>;
+    async fn broadcast(&mut self, message: T);
+    async fn deliver(&mut self) -> T;
 }
 
-pub struct P2PComponent {
+#[async_trait]
+pub trait TOB<T>{
+    fn broadcast(message: T);
+    async fn deliver(&self) -> Option<T>;
+}
+
+pub struct P2PComponent<T> {
     config: Config,
     id: u32,
-    swarm: Swarm<Gossipsub>
+    swarm: Swarm<Gossipsub>,
+    receiver: Receiver<T>
 }
 
-impl<T> Gossip<T> for P2PComponent {
-    
-        ///init() for now provides the initialization of libp2p
+#[async_trait]
+impl<T: std::marker::Send> Gossip<T> for P2PComponent<T> {
+
+    async fn broadcast(&mut self, message: T) {
+        todo!()
+    }
+
+    async fn deliver(&mut self) -> T {
+        let message = match self.receiver.recv().await {
+            Some(message) => return message, 
+            None => todo!()
+        };
+    }
+  
+}
+pub struct NetworkManager<T, G: Gossip<T>, P: TOB<T>> {
+    outgoing_msg_receiver: Receiver<T>,
+    incoming_msg_sender: Sender<T>,
+    localnet_config: Config,
+    my_id: u32,
+    gossip_channel: G,
+    tob_channel: P,
+}
+
+impl<T, G: Gossip<T>, P: TOB<T>> NetworkManager<T,G,P> {
+    pub fn new(    
+        outgoing_msg_receiver: Receiver<T>,
+        incoming_msg_sender: Sender<T>,
+        localnet_config: Config,
+        my_id: u32,
+        gossip_channel: G,
+        tob_channel: P) -> Self{
+            return NetworkManager{
+                outgoing_msg_receiver: outgoing_msg_receiver,
+                incoming_msg_sender: incoming_msg_sender,
+                localnet_config: localnet_config,
+                my_id: my_id,
+                gossip_channel: gossip_channel,
+                tob_channel: tob_channel,
+            };
+        }
+
+            ///init() for now provides the initialization of libp2p
     //TODO: The goal will be to setup the different modules available for transmission 
     fn init(&self){
         // Create a Gossipsub topic
@@ -55,7 +100,7 @@ impl<T> Gossip<T> for P2PComponent {
        let mut swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
 
        // load listener address from config file
-       let listen_addr = get_p2p_listen_addr(&self.config, self.id);
+       let listen_addr = get_p2p_listen_addr(&self.localnet_config, self.my_id);
        debug!("NET: Listening for P2P on: {}", listen_addr);
 
        // bind port to listener address
@@ -65,38 +110,18 @@ impl<T> Gossip<T> for P2PComponent {
        }
     }
 
-    fn broadcast(message: T) {
-        todo!()
-    }
-
-    #[must_use]
-    #[allow(clippy::type_complexity,clippy::type_repetition_in_bounds)]
-    fn deliver<'async_trait>() ->  ::core::pin::Pin<Box<dyn ::core::future::Future<Output = Option<T> > + ::core::marker::Send+'async_trait> >  {
-        todo!()
-    }
-
-  
-}
-pub struct NetworkManager<T> {
-    outgoing_msg_receiver: Receiver<T>,
-    incoming_msg_sender: Sender<T>,
-    localnet_config: Config,
-    my_id: u32,
-}
-
-impl<T> NetworkManager<T> {
-    pub fn new(    
-        outgoing_msg_receiver: Receiver<T>,
-        incoming_msg_sender: Sender<T>,
-        localnet_config: Config,
-        my_id: u32) -> NetworkManager<T>{
-            return NetworkManager{
-                outgoing_msg_receiver,
-                incoming_msg_sender,
-                localnet_config,
-                my_id
+    async fn run(&mut self){
+        loop{
+            tokio::select! {
+                gossip_msg = self.gossip_channel.deliver() => {
+                    todo!()
+                },
+                tob_message = self.tob_channel.deliver() => {
+                    todo!()
+                }
             }
         }
+    }
 }
 
 pub async fn init(
