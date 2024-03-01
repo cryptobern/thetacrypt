@@ -23,7 +23,11 @@ use crate::{
     unwrap_enum_vec,
 };
 use asn1::{ParseError, WriteError};
+use log::info;
 use rasn::AsnType;
+use serde::de::Visitor;
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Serialize};
 pub use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 pub trait Serializable: Sized + Clone + PartialEq {
@@ -330,6 +334,82 @@ pub enum DecryptionShare {
     Sg02(Sg02DecryptionShare),
     Bz03(Bz03DecryptionShare),
 }
+
+pub struct ByteBufVisitor;
+
+            //The visitor needs to be implemented to handle the actual deserialization
+            //Then is directly used in the deserialized code
+            impl<'de> Visitor<'de> for ByteBufVisitor{
+                type Value = Vec<u8>;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    formatter.write_str("Byte array representing the serialized data from the scheme module")
+                }
+
+                fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error, {
+                    Ok(v.to_vec())
+                }
+
+                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::SeqAccess<'de>, {
+
+                            let mut byte_vec: Vec<u8> = Vec::new();
+
+                            while let Some::<u8>(elem) = seq.next_element()?{
+                                byte_vec.push(elem);
+                            }
+                            return Ok(byte_vec)
+                        
+                }
+            }
+
+
+impl Serialize for DecryptionShare {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+
+            let bytes = self.to_bytes().unwrap();
+
+            let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+            for element in bytes {
+                seq.serialize_element(&element)?;
+            }
+            seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for DecryptionShare {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+
+            let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = DecryptionShare::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
+
+            
+    }
+}
+
+
 
 impl ThresholdCipher {
     pub fn encrypt(
@@ -1199,7 +1279,7 @@ impl Display for SchemeError {
             Self::WrongScheme => write!(f, "Wrong scheme"),
             Self::WrongKeyProvided => write!(f, "Wrong key provided"),
             Self::SerializationFailed => write!(f, "Serialization failed"),
-            Self::DeserializationFailed => write!(f, "Deseialization failed"),
+            Self::DeserializationFailed => write!(f, "Deserialization failed"),
             Self::CurveDoesNotSupportPairings => write!(f, "Curve does not support pairings"),
             Self::ParamsNotSet => write!(f, "Parameters not set"),
             Self::IdNotFound => write!(f, "ID not found"),

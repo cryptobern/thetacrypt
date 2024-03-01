@@ -8,7 +8,8 @@ use theta_schemes::interface::{
 use theta_schemes::keys::keys::PrivateKeyShare;
 
 use crate::interface::{ProtocolError, ThresholdRoundProtocol};
-use crate::threshold_cipher::message_types::{DecryptionMessage, DecryptionShareMessageOut};
+use crate::threshold_cipher::message_types::{DecryptionMessage, DecryptionShareMessage};
+
 
 pub struct ThresholdCipherProtocol {
     private_key: Arc<PrivateKeyShare>,
@@ -55,10 +56,11 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
     fn update(&mut self, message: Self::ProtocolMessage) -> Result<(), ProtocolError> {
         
         match message {
-            DecryptionMessage::ShareMessageOut(share_message) => {
-                let share_bytes = share_message.get_share_bytes();
-                let share = DecryptionShare::from_bytes(&share_bytes).unwrap(); //TODO: handle the error
+            DecryptionMessage::ShareMessage(share_message) => {
+                // let share_bytes = share_message.get_share_bytes();
+                // let share = DecryptionShare::from_bytes(&share_bytes).unwrap(); //TODO: handle the error
 
+                let share = share_message.get_share();
                 info!(
                     "<{:?}>: Received share with id {:?}.",
                     &self.instance_id,
@@ -101,7 +103,7 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
                     }
                 }
 
-                self.valid_shares.push(share);
+                self.valid_shares.push(share.clone());
 
                 info!(
                     "<{:?}>: Valid shares: {:?}, needed: {:?}",
@@ -147,11 +149,11 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
         let mut params = ThresholdCipherParams::new();
         let share =
             ThresholdCipher::partial_decrypt(&self.ciphertext, &self.private_key, &mut params)?;
-        let message = DecryptionShareMessageOut::new(&share);
+        let message = DecryptionShareMessage::new(share.clone());
         self.received_share_ids.insert(share.get_id());
         self.valid_shares.push(share);
 
-        Ok(DecryptionMessage::ShareMessageOut(message))
+        Ok(DecryptionMessage::ShareMessage(message))
     }
 
 }

@@ -10,24 +10,45 @@ use crate::interface::{ProtocolError, ProtocolMessageWrapper};
 // we can have a generic bytevector already in the message and serialize and deserialize here into the specific types required by the protocol.
 // if we absract these steps here the protocol will not care about serializaion/deserialization details.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct DecryptionShareMessageOut {
-    share: Vec<u8>, //we want to represent the message with the field of cryptographic data already in bytes because at the scheme layer we want to use the custom Serializable trait that uses asn1
-}
+// pub struct DecryptionShareMessageOut {
+//     share: Vec<u8>, //we want to represent the message with the field of cryptographic data already in bytes because at the scheme layer we want to use the custom Serializable trait that uses asn1
+// }
 
 
 //TODO: decide if we need this distinction or not
 // #[derive(Clone)]
-// pub struct DecryptionShareMessageIn {
-//     share: theta_schemes::interface::DecryptionShare,
-//     sender_id: u16
-// }
+pub struct DecryptionShareMessage {
+    share: DecryptionShare,
+    sender_id: u16
+}
+
+impl DecryptionShareMessage {
+    pub fn new(share: DecryptionShare) -> Self{
+        DecryptionShareMessage{
+            share,
+            sender_id: 0
+        }
+    }
+
+    pub fn get_share(&self) -> &DecryptionShare {
+        &self.share
+    }
+
+    pub fn set_sender_id(&mut self, sender_id: u16){
+        self.sender_id = sender_id;
+    }
+
+    pub fn get_sender_id(&self) -> u16 {
+        return self.sender_id
+    }
+}
 
 //Here define an enum of possible messages used in the protocol
 //In the case of the cipher and all the non-interactive one round protocol here we will have just one value
 //for more complex protocol this is not true
 #[derive(Serialize, Deserialize, Clone)]
 pub enum DecryptionMessage {
-    ShareMessageOut(DecryptionShareMessageOut)
+    ShareMessage(DecryptionShareMessage)
 }
 
 //consider that in protocols like frost you might have different kind of messages that needs the conversion 
@@ -59,18 +80,18 @@ impl ProtocolMessageWrapper<NetMessage> for DecryptionMessage {
 }
 
 
-///DecryptionShareMessage wraps the share needed in the protocol. 
+// DecryptionShareMessage wraps the share needed in the protocol. 
 // TODO: here we can add the functions for the serialization/deserialization so that we don't have them in the protocol logic?
-impl DecryptionShareMessageOut {
+// impl DecryptionShareMessageOut {
 
-    pub fn new(share: &theta_schemes::interface::DecryptionShare)-> Self{
-        let share_bytes = share.to_bytes().expect("Error in serializing decryption share.");
-        DecryptionShareMessageOut{
-            share: share_bytes,
-        }
-    }
+//     pub fn new(share: &theta_schemes::interface::DecryptionShare)-> Self{
+//         let share_bytes = share.to_bytes().expect("Error in serializing decryption share.");
+//         DecryptionShareMessageOut{
+//             share: share_bytes,
+//         }
+//     }
 
-    pub fn get_share_bytes(&self) -> &Vec<u8>{
-        return &self.share
-    }    
-}
+//     pub fn get_share_bytes(&self) -> &Vec<u8>{
+//         return &self.share
+//     }    
+// }
