@@ -28,12 +28,9 @@ thetacrypt_blockchain_stub = {path = "thetacrypt_blockchain_stub", version = "0.
 theta_events = {path = "events", version = "0.1.0"}
 tonic = "0.8"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-<<<<<<< HEAD
 
 serde = { version = "1.0", features = ["derive", "std"] }
 
-=======
->>>>>>> protocol_round_redesign
 rand = "0.8.5"
 hex = "0.4.3"
 log = "0.4.17"
@@ -68,10 +65,7 @@ path = "bin/proxy_server.rs"
 [[bin]]
 name = "server"
 path = "bin/server.rs"
-<<<<<<< HEAD
-=======
 
 [[bin]]
 name = "key_example"
 path = "bin/key_example.rs"
->>>>>>> protocol_round_redesign
