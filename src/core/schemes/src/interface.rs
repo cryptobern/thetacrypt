@@ -138,6 +138,48 @@ impl Serializable for CoinShare {
     }
 }
 
+impl Serialize for CoinShare {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+
+            let bytes = self.to_bytes().unwrap();
+
+            let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+            for element in bytes {
+                seq.serialize_element(&element)?;
+            }
+            seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for CoinShare {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+
+            let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = CoinShare::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
+
+            
+    }
+}
+
 pub struct ThresholdCoin {}
 
 impl ThresholdCoin {
@@ -352,6 +394,9 @@ pub struct ByteBufVisitor;
                     Ok(v.to_vec())
                 }
 
+                //Apperently this is the method that the deserializer calls. 
+                //Usually is good to implement more than one function of the trait because it 
+                //can happen a different one is called. It depends how teh desirializer interprets the data
                 fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
                     where
                         A: serde::de::SeqAccess<'de>, {
@@ -361,8 +406,7 @@ pub struct ByteBufVisitor;
                             while let Some::<u8>(elem) = seq.next_element()?{
                                 byte_vec.push(elem);
                             }
-                            return Ok(byte_vec)
-                        
+                            return Ok(byte_vec)  
                 }
             }
 

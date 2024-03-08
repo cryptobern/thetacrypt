@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
     Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams
@@ -105,20 +105,12 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
 
                 self.valid_shares.push(share.clone());
 
-                info!(
+                debug!(
                     "<{:?}>: Valid shares: {:?}, needed: {:?}",
                     &self.instance_id,
                     self.valid_shares.len(),
                     self.private_key.get_threshold()
                 );
-
-                //if there are the condition, can do the assemble
-                if self.valid_shares.len() >= self.private_key.get_threshold() as usize {
-                    self.decrypted_plaintext =
-                        ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext).unwrap(); //possible insecure unwrap  
-                    self.decrypted = true;
-                    info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
-                }
 
                 return Ok(());
             },

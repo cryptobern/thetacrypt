@@ -74,12 +74,12 @@ The binary `confgen` generates an extra config file, `client.json`, that has a l
 The codebase of Thetacrypt provides a binary, `ThetaCLI`, to perform complementary tasks. Said binary can be used with the parameter `keygen` to perform the initial setup and key generation and distribution among a set of `N` servers.
 It writes the keys for each server in a chosen directory. For a deployment with 4 servers and a threshold of 3, run:
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./conf
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --output ./conf
 ```
 
 By default, the newly generated key gets appended to the list of keys in the output file specified through `--dir`. To a completely new file and overwrite the previous key is possible to add the `--new` flag at the end. 
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --dir ./conf --new
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --output ./conf --new
 ```
 
 To generate the keys, information on the scheme and group is needed. Available schemes are:
@@ -105,7 +105,7 @@ For more information run the binary with `--help` option.
 
 To setup the network of servers with all possible available schemes you can run `thetacli` script with the `--subjects` flag set to "*all*":
 ```
-cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --dir ./conf --new
+cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --output ./conf --new
 ```
 
 ### Starting the server binary

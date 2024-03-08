@@ -12,7 +12,7 @@ use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
     interface::{ProtocolError, ThresholdRoundProtocol},
-    threshold_cipher::protocol::ThresholdCipherProtocol,
+    threshold_cipher::protocol::ThresholdCipherProtocol, threshold_coin::protocol::ThresholdCoinProtocol,
     // threshold_coin::protocol::ThresholdCoinProtocol,
     // threshold_signature::protocol::ThresholdSignatureProtocol,
 };
@@ -448,54 +448,58 @@ impl InstanceManager {
 
             //     return Ok(instance_id.clone());
             // }
-            // StartInstanceRequest::Coin {
-            //     name,
-            //     scheme,
-            //     group,
-            //     key_id,
-            // } => {
-            //     let key = self
-            //         .setup_instance(scheme, &group, &instance_id, key_id)
-            //         .await;
+            StartInstanceRequest::Coin {
+                name,
+                scheme,
+                group,
+                key_id,
+            } => {
+                let key = self
+                    .setup_instance(scheme, &group, &instance_id, key_id)
+                    .await;
 
-            //     if key.is_err() {
-            //         let e = key.unwrap_err();
-            //         if e.code() == Code::AlreadyExists {
-            //             return Ok(instance_id);
-            //         }
-            //         error!("Key not found");
-            //         return Err(SchemeError::Aborted(String::from("key not found")));
-            //     }
+                if key.is_err() {
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
+                    return Err(SchemeError::Aborted(String::from("key not found")));
+                }
 
-            //     let key = key.unwrap();
+                let key = key.unwrap();
 
-            //     let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+                let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
-            //     let instance = Instance::new(instance_id.clone(), scheme, group, sender);
+                let instance = Instance::new(instance_id.clone(), scheme, group, sender);
 
-            //     // Create the new protocol instance
-            //     let prot = ThresholdCoinProtocol::new(
-            //         key,
-            //         &name,
-            //         receiver,
-            //         self.outgoing_p2p_sender.clone(),
-            //         self.event_emitter_sender.clone(),
-            //         instance_id.clone(),
-            //     );
+                // Create the new protocol instance
+                let prot = ThresholdCoinProtocol::new(
+                    key,
+                    &name,
+                );
 
-            //     self.instances.insert(instance_id.clone(), instance);
+                let executor = ThresholdProtocolExecutor::new(
+                    receiver,
+                    self.outgoing_p2p_sender.clone(),
+                    instance_id.clone(),
+                    self.event_emitter_sender.clone(),
+                    prot,
+                );
 
-            //     // Start it in a new thread, so that the client does not block until the protocol is finished.
-            //     self.start_protocol(
-            //         prot,
-            //         instance_id.clone(),
-            //         self.instance_command_sender.clone(),
-            //     );
+                self.instances.insert(instance_id.clone(), instance);
 
-            //     return Ok(instance_id.clone());
-            // }
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                self.start_protocol(
+                    executor,
+                    instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
+
+                return Ok(instance_id.clone());
+            }
             //ROSE: to gradually de-comment
-            StartInstanceRequest::Signature { .. } | StartInstanceRequest::Coin { .. } => todo!()
+            StartInstanceRequest::Signature { .. } => todo!()
         }
     }
 
