@@ -1,3 +1,4 @@
+use crate::groups::group::GroupOperations;
 use crate::interface::Serializable;
 use crate::keys::keys::calc_key_id;
 use crate::{
@@ -9,13 +10,13 @@ use chacha20poly1305::{
     aead::{Aead, NewAead},
     ChaCha20Poly1305, Key, Nonce,
 };
-use derive::DlShare;
 use mcore::hash256::HASH256;
 use rasn::{AsnType, Decode, Encode, Encoder};
+use theta_derive::DlShare;
 use theta_proto::scheme_types::Group;
 
-use crate::dl_schemes::bigint::SizedBigInt;
-use crate::group::GroupElement;
+use crate::groups::group::GroupElement;
+use crate::integers::sizedint::SizedBigInt;
 use crate::{
     dl_schemes::common::{gen_symm_key, interpolate, xor},
     interface::{DlShare, ThresholdCipherParams},

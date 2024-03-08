@@ -1,8 +1,10 @@
 use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
+    process::Command,
     sync::Arc,
-    thread, time,
+    thread,
+    time::{self, Instant},
 };
 
 use log::{debug, error, info};
@@ -12,7 +14,7 @@ use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
     interface::{ProtocolError, ThresholdRoundProtocol},
-    threshold_cipher::protocol::ThresholdCipherProtocol,
+    threshold_cipher::protocol::ThresholdCipherProtocol, threshold_coin::protocol::ThresholdCoinProtocol, threshold_signature::protocol::ThresholdSignatureProtocol,
     // threshold_coin::protocol::ThresholdCoinProtocol,
     // threshold_signature::protocol::ThresholdSignatureProtocol,
 };
@@ -25,10 +27,10 @@ use tonic::{Code, Status};
 
 use crate::{
     instance_manager::instance::{self, Instance},
-    instance_manager::protocol_executor::ThresholdProtocolExecutor,                                                                                                                                                   
-    key_manager::key_manager::KeyManagerCommand,
+    instance_manager::protocol_executor::ThresholdProtocolExecutor,
     interface::ThresholdProtocol,
-};            
+    key_manager::key_manager::KeyManagerCommand,
+};
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
 /// Number of instances which to look at when trying to find ones to eject.
@@ -344,6 +346,7 @@ impl InstanceManager {
 
         match instance_request {
             StartInstanceRequest::Decryption { ciphertext } => {
+                let now = Instant::now();
                 let key = self
                     .setup_instance(
                         ciphertext.get_scheme(),
@@ -351,6 +354,67 @@ impl InstanceManager {
                         &instance_id,
                         Some(ciphertext.get_key_id().to_string()),
                     )
+                    .await;
+
+                println!("Set up instance after {}ms", now.elapsed().as_millis());
+
+                if key.is_err() {
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
+                    return Err(SchemeError::Aborted(String::from("key not found")));
+                }
+
+                let key = key.unwrap();
+
+                let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
+
+                let instance = Instance::new(
+                    instance_id.clone(),
+                    ciphertext.get_scheme(),
+                    ciphertext.get_group().clone(),
+                    sender,
+                );
+
+                // Create the new protocol instance
+                let prot =
+                    ThresholdCipherProtocol::new(key.clone(), ciphertext, instance_id.clone());
+
+                let executor = ThresholdProtocolExecutor::new(
+                    receiver,
+                    self.outgoing_p2p_sender.clone(),
+                    instance_id.clone(),
+                    self.event_emitter_sender.clone(),
+                    prot,
+                );
+
+                self.instances.insert(instance_id.clone(), instance);
+
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                self.start_protocol(
+                    executor,
+                    instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
+
+                println!(
+                    "Set up instance thread after {}ms",
+                    now.elapsed().as_millis()
+                );
+
+                return Ok(instance_id.clone());
+            }
+            StartInstanceRequest::Signature {
+                message,
+                label,
+                scheme,
+                group,
+                key_id,
+            } => {
+                let key = self
+                    .setup_instance(scheme, &group, &instance_id, key_id)
                     .await;
 
                 if key.is_err() {
@@ -365,19 +429,65 @@ impl InstanceManager {
                 let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
+
+                let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
+
+                let prot = match scheme {
+                    ThresholdScheme::Frost => {todo!()},
+                    _ => {
+                        ThresholdSignatureProtocol::new(key,Some(&message),&label)
+                    },
+                };
                 
-                let instance = Instance::new(
+
+                self.instances.insert(instance_id.clone(), instance);
+
+                let executor = ThresholdProtocolExecutor::new(
+                    receiver,
+                    self.outgoing_p2p_sender.clone(),
                     instance_id.clone(),
-                    ciphertext.get_scheme(),
-                    ciphertext.get_group().clone(),
-                    sender,
+                    self.event_emitter_sender.clone(),
+                    prot,
                 );
 
-                // Create the new protocol instance
-                let prot = ThresholdCipherProtocol::new(
-                    key.clone(),
-                    ciphertext,
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                self.start_protocol(
+                    executor,
                     instance_id.clone(),
+                    self.instance_command_sender.clone(),
+                );
+
+                return Ok(instance_id.clone());
+            }
+            StartInstanceRequest::Coin {
+                name,
+                scheme,
+                group,
+                key_id,
+            } => {
+                let key = self
+                    .setup_instance(scheme, &group, &instance_id, key_id)
+                    .await;
+
+                if key.is_err() {
+                    let e = key.unwrap_err();
+                    if e.code() == Code::AlreadyExists {
+                        return Ok(instance_id);
+                    }
+                    error!("Key not found");
+                    return Err(SchemeError::Aborted(String::from("key not found")));
+                }
+
+                let key = key.unwrap();
+
+                let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
+
+                let instance = Instance::new(instance_id.clone(), scheme, group, sender);
+
+                // Create the new protocol instance
+                let prot = ThresholdCoinProtocol::new(
+                    key,
+                    &name,
                 );
 
                 let executor = ThresholdProtocolExecutor::new(
@@ -399,103 +509,6 @@ impl InstanceManager {
 
                 return Ok(instance_id.clone());
             }
-            // StartInstanceRequest::Signature {
-            //     message,
-            //     label,
-            //     scheme,
-            //     group,
-            //     key_id,
-            // } => {
-            //     let key = self
-            //         .setup_instance(scheme, &group, &instance_id, key_id)
-            //         .await;
-
-            //     if key.is_err() {
-            //         let e = key.unwrap_err();
-            //         if e.code() == Code::AlreadyExists {
-            //             return Ok(instance_id);
-            //         }
-            //         error!("Key not found");
-            //         return Err(SchemeError::Aborted(String::from("key not found")));
-            //     }
-
-            //     let key = key.unwrap();
-
-            //     let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-
-            //     let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
-
-            //     //ROSE: replece this code with the creation of the executor + the protocol
-            //     // Create the new protocol instance
-            //     let prot = ThresholdSignatureProtocol::new(
-            //         key,
-            //         Some(&message),
-            //         &label,
-            //         receiver,
-            //         self.outgoing_p2p_sender.clone(),
-            //         self.event_emitter_sender.clone(),
-            //         instance_id.clone(),
-            //     );
-
-            //     self.instances.insert(instance_id.clone(), instance);
-
-            //     // Start it in a new thread, so that the client does not block until the protocol is finished.
-            //     self.start_protocol(
-            //         prot,
-            //         instance_id.clone(),
-            //         self.instance_command_sender.clone(),
-            //     );
-
-            //     return Ok(instance_id.clone());
-            // }
-            // StartInstanceRequest::Coin {
-            //     name,
-            //     scheme,
-            //     group,
-            //     key_id,
-            // } => {
-            //     let key = self
-            //         .setup_instance(scheme, &group, &instance_id, key_id)
-            //         .await;
-
-            //     if key.is_err() {
-            //         let e = key.unwrap_err();
-            //         if e.code() == Code::AlreadyExists {
-            //             return Ok(instance_id);
-            //         }
-            //         error!("Key not found");
-            //         return Err(SchemeError::Aborted(String::from("key not found")));
-            //     }
-
-            //     let key = key.unwrap();
-
-            //     let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
-
-            //     let instance = Instance::new(instance_id.clone(), scheme, group, sender);
-
-            //     // Create the new protocol instance
-            //     let prot = ThresholdCoinProtocol::new(
-            //         key,
-            //         &name,
-            //         receiver,
-            //         self.outgoing_p2p_sender.clone(),
-            //         self.event_emitter_sender.clone(),
-            //         instance_id.clone(),
-            //     );
-
-            //     self.instances.insert(instance_id.clone(), instance);
-
-            //     // Start it in a new thread, so that the client does not block until the protocol is finished.
-            //     self.start_protocol(
-            //         prot,
-            //         instance_id.clone(),
-            //         self.instance_command_sender.clone(),
-            //     );
-
-            //     return Ok(instance_id.clone());
-            // }
-            //ROSE: to gradually de-comment
-            StartInstanceRequest::Signature { .. } | StartInstanceRequest::Coin { .. } => todo!()
         }
     }
 
@@ -507,7 +520,6 @@ impl InstanceManager {
     ) {
         let id = instance_id.clone();
         tokio::spawn(async move {
-            
             let result = executor.run().await;
 
             // Protocol terminated, update state with the result.
@@ -528,7 +540,6 @@ impl InstanceManager {
             }
         });
         _ = self.forward_backlogged_messages(id);
-        
     }
 
     fn forward_backlogged_messages(&mut self, instance_id: String) {
@@ -548,13 +559,16 @@ impl InstanceManager {
         let messages = backlog.messages.clone();
         let sender = instance.get_sender();
         let instance_id_cloned = instance_id.clone();
-        tokio::spawn(  async move {
+        tokio::spawn(async move {
             for msg in &messages {
-                    let _ = sender.send(msg.clone()).await;
+                let _ = sender.send(msg.clone()).await;
             }
-            info!("All the messages backlogged for instance {:?} have been sent", instance_id_cloned);
-         });
-        
+            info!(
+                "All the messages backlogged for instance {:?} have been sent",
+                instance_id_cloned
+            );
+        });
+
         self.backlog.remove(&instance_id);
     }
 
@@ -673,7 +687,7 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             return hex::encode(h);
         }
         StartInstanceRequest::Signature {
-            message,
+            message: _,
             label,
             scheme,
             group,

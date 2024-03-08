@@ -1,11 +1,10 @@
+use crate::groups::group::GroupOperations;
+use crate::integers::sizedint::SizedBigInt;
 use crate::interface::SchemeError;
 use crate::{
-    dl_schemes::{
-        bigint::SizedBigInt,
-        dl_groups::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
-    },
-    group::GroupElement,
-    group_generators,
+    groups::ec::{bls12381::Bls12381, bn254::Bn254, ed25519::Ed25519},
+    groups::group::GroupElement,
+    groups::group_generators,
 };
 use theta_proto::scheme_types::PublicKeyEntry;
 use theta_proto::scheme_types::{Group, ThresholdOperation, ThresholdScheme};

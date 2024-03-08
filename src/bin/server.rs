@@ -1,6 +1,7 @@
 use clap::Parser;
 use log::{error, info};
 use log4rs;
+use sha2::{Digest, Sha256};
 use std::{path::PathBuf, process::exit};
 use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::{
@@ -48,14 +49,6 @@ async fn main() {
     info!("Keychain location: {}", keychain_path.display());
 
     start_server(&cfg, keychain_path).await;
-
-    info!("Server is running");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received interrupt signal, shutting down");
-            return;
-        }
-    }
 }
 
 /// Start main event loop of server.

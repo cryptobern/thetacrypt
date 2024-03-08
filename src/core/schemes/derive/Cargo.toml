@@ -1,10 +1,12 @@
 [package]
-name = "derive"
+name = "theta_derive"
 version = "0.1.0"
 edition = "2018"
 
 [lib]
 proc-macro = true
+name = "theta_derive"
+path = "src/lib.rs"
 
 [dependencies]
 syn = "0.15.23"

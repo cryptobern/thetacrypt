@@ -294,6 +294,22 @@ impl BigInt {
         }
     }
 
+    /* serializes value to bytes and pads with zeroes until byte vector fits specified length */
+    pub fn to_sized_bytes(&self, len: usize) -> Result<Vec<u8>, String> {
+        let mut bytes = self.to_bytes();
+
+        if bytes.len() > len {
+            return Err("Value is too big to fit into required size".to_string());
+        }
+
+        /* pad with zeroes at the beginning (big endian) encoding */
+        while bytes.len() < len {
+            bytes.insert(0, 0);
+        }
+
+        Ok(bytes)
+    }
+
     /* deserializes from byte vector */
     pub fn from_bytes(bytes: &[u8]) -> Self {
         unsafe {

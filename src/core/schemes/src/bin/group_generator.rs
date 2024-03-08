@@ -1,7 +1,7 @@
 use mcore::hash256::HASH256;
 use theta_proto::scheme_types::Group;
-use theta_schemes::{group::GroupElement, scheme_types_impl::GroupDetails};
-
+use theta_schemes::groups::group::GroupOperations;
+use theta_schemes::{groups::group::GroupElement, scheme_types_impl::GroupDetails};
 // This binary can be used to generate a second generator for the given cyclic EC-based groups.
 // The generator is chosen by mapping the SHA256 hash of the string
 // "thetacrypt_<commit ID of Linux 6.4>"" to a point on the respective elliptic curve.

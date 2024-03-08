@@ -2,8 +2,9 @@
 extern crate proc_macro;
 
 use crate::proc_macro::TokenStream;
-use quote::quote;
-use syn::DeriveInput;
+use proc_macro::Ident;
+use quote::{quote, ToTokens, TokenStreamExt};
+use syn::{DeriveInput, FieldsNamed};
 
 #[proc_macro_derive(DlShare)]
 pub fn dlshare_derive(input: TokenStream) -> TokenStream {
@@ -241,8 +242,6 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
     let name_lower = syn::Ident::new(&lname, name.span());
 
     let expanded = quote! {
-        use crate::group::GroupData;
-
         impl #name {
             pub fn pair(g1: &Self, g2: &Self) -> Result<Self, SchemeError> {
                 if g1.i != 1 || g2.i != 0 {
@@ -362,7 +361,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         _ => panic!("invalid i")
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -380,7 +379,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         panic!("Incompatible big integer implementation!");
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -401,7 +400,7 @@ pub fn derive_ec_pairing_impl(input: TokenStream) -> TokenStream {
                         _ => panic!("invalid i")
                     }
 
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(result)})
+                    GroupElement::#name(result)
                 }
             }
 
@@ -523,7 +522,6 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
     let name_lower = syn::Ident::new(&lname, name.span());
 
     let expanded = quote! {
-        use crate::group::GroupData;
         use std::mem::ManuallyDrop;
 
         impl #name {
@@ -556,12 +554,12 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
             pub fn mul(&self, g: &Self) -> GroupElement {
                 let mut v = self.value.clone();
                 v.add(&g.value);
-                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new(Self { value:v })})
+                GroupElement::#name(Self { value:v })
             }
 
             pub fn pow (&self, x: &SizedBigInt) -> GroupElement {
                 if let SizedBigInt::#name(v) = x {
-                    GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: self.value.mul(&v.value) }) })
+                    GroupElement::#name(Self { value: self.value.mul(&v.value) })
                 } else {
                     panic!("Incompatible big integer implementation!");
                 }
@@ -570,7 +568,7 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
             pub fn div(&self, g: &Self) -> GroupElement {
                 let mut v = self.value.clone();
                 v.sub(&g.value);
-                GroupElement::create(Group::#name, GroupData{#name_lower:ManuallyDrop::new( Self { value: v } ) })
+                GroupElement::#name(Self { value:v })
             }
 
             pub fn to_bytes(&self) -> Vec<u8> {
@@ -619,5 +617,354 @@ pub fn derive_ec_impl(input: TokenStream) -> TokenStream {
         }
     };
 
+    TokenStream::from(expanded)
+}
+
+#[proc_macro_derive(GroupOperations, attributes(supports_pairings, no_pairings))]
+pub fn derive_group_operations(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let name = &input.ident.clone();
+
+    let mut groups: Vec<syn::Ident> = Vec::new();
+    let mut pairing_groups: Vec<syn::Ident> = Vec::new();
+    let mut non_pairing_groups: Vec<syn::Ident> = Vec::new();
+
+    match input.data.clone() {
+        syn::Data::Enum(s) => {
+            groups = s.variants.iter().map(|f| f.ident.clone()).collect();
+            for group in s.variants.iter() {
+                if let Some(g) = group
+                    .attrs
+                    .iter()
+                    .find(|a| a.path.is_ident("supports_pairings"))
+                {
+                    pairing_groups.push(group.ident.clone());
+                }
+
+                /*if let Some(g) = group.attrs.iter().find(|a| a.path.is_ident("no_pairings")) {
+                    non_pairing_groups.push(group.ident.clone());
+                }*/
+            }
+        }
+        _ => {
+            return TokenStream::new();
+        }
+    };
+
+    non_pairing_groups = groups
+        .iter()
+        .filter(|g| !pairing_groups.contains(&g))
+        .map(|g| g.clone())
+        .collect();
+
+    let f1 = groups.clone();
+    let f2 = groups.clone();
+    let fields1 = groups.clone();
+    let fields2 = groups.clone();
+    let fields3 = groups.clone();
+    let fields4 = groups.clone();
+    let fields5 = groups.clone();
+    let fields6 = groups.clone();
+    let fields7 = groups.clone();
+    let fields8 = groups.clone();
+    let fields9 = groups.clone();
+    let fields10 = groups.clone();
+    let fields11 = groups.clone();
+    let fields12 = groups.clone();
+    let fields13 = groups.clone();
+    let fields14 = groups.clone();
+    let fields15 = groups.clone();
+    let fields16 = groups.clone();
+    let fields17 = groups.clone();
+    let fields18 = groups.clone();
+    let fields19 = groups.clone();
+    let fields20 = groups.clone();
+    let fields27 = groups.clone();
+
+    let pfields1 = pairing_groups.clone();
+    let pfields2 = pairing_groups.clone();
+    let pfields3 = pairing_groups.clone();
+    let pfields4 = pairing_groups.clone();
+    let pfields5 = pairing_groups.clone();
+    let pfields6 = pairing_groups.clone();
+    let pfields7 = pairing_groups.clone();
+    let pfields8 = pairing_groups.clone();
+    let pfields9 = pairing_groups.clone();
+    let pfields10 = pairing_groups.clone();
+    let pfields11 = pairing_groups.clone();
+    let pfields12 = pairing_groups.clone();
+    let pfields13 = pairing_groups.clone();
+    let pfields14 = pairing_groups.clone();
+    let pfields15 = pairing_groups.clone();
+    let nfields1 = non_pairing_groups.clone();
+    let nfields2 = non_pairing_groups.clone();
+    let nfields3 = non_pairing_groups.clone();
+
+    let expanded = quote! {
+            impl PartialEq for #name {
+                fn eq(&self, other: &Self) -> bool {
+                    if mem::discriminant(self) != mem::discriminant(other) {
+                        return false;
+                    }
+
+                    match self {
+                        #(Self::#f1(x) => {
+                            if let Self::#f2(y) = other {
+                                return x.eq(y);
+                            }
+                        }),*
+                        _ => {
+                            return false;
+                        }
+                    }
+
+                    return false;
+                }
+            }
+
+        impl GroupOperations for #name {
+            fn identity(group: &Group) -> Self {
+                match group {
+                    #(Group::#fields1 => {Self::#fields2(#fields3::identity())}),*
+                    _ => {panic!("unsupported group")},
+                }
+            }
+
+            fn cmp_group(&self, other: &Self) -> bool {
+                mem::discriminant(self) == mem::discriminant(other)
+            }
+
+            fn is_type(&self, group: &Group) -> bool {
+                match group {
+                    #(Group::#fields4 => {
+                        if let Self::#fields5(x) = self {
+                            return true
+                        }
+                    }),*
+                    _ => return false
+                }
+
+                return false;
+            }
+
+            fn get_group(&self) -> &Group {
+                match self {
+                    #(Self::#fields6(x) => &Group::#fields7),*
+                }
+            }
+
+            fn new(group: &Group) -> Self {
+                match group {
+                    #(Group::#fields8 => {Self::#fields9(#fields10::new())}),*
+                    _ => {panic!("unsupported group")},
+                }
+            }
+
+            fn new_ecp2(group: &Group) -> Self {
+                match group {
+                    #(Group::#pfields4 => {Self::#pfields5(#pfields6::new_ecp2())}),*
+                    _ => panic!("group does not support pairings"),
+                }
+            }
+
+            fn pair(&self, y: &Self) -> Self {
+                if !self.get_group().supports_pairings() {
+                    panic!("group does not support pairings");
+                }
+
+                if !self.cmp_group(&y) {
+                    panic!("incompatible groups");
+                }
+
+                match self {
+                    #(Self::#pfields7(_x) => {
+                        if let Self::#pfields8(_y) = y {
+                            return Self::#pfields9(#pfields10::pair(_x, _y).unwrap());
+                        }
+                    }),*
+                    _ => {
+                        panic!();
+                    }
+                }
+
+                panic!();
+            }
+
+            fn ddh(
+                x: &GroupElement,
+                y: &GroupElement,
+                z: &GroupElement,
+                w: &GroupElement,
+            ) -> Result<bool, SchemeError> {
+                if !x.get_group().supports_pairings() {
+                    panic!("group does not support pairings");
+                }
+
+                if !x.cmp_group(&y) || !y.cmp_group(&z) || !z.cmp_group(&w) {
+                    panic!("incompatible groups");
+                }
+
+                match x {
+                    #(Self::#pfields11(_x) => {
+                        if let Self::#pfields12(_y) = y {
+                            if let Self::#pfields13(_z) = z {
+                                if let Self::#pfields14(_w) = w {
+                                    return #pfields15::ddh(&_x, &_y, &_z, &_w);
+                                }
+                            }
+                        }
+                    }),*
+                    _ => {
+                        panic!();
+                    }
+                }
+
+                panic!();
+            }
+
+            fn new_hash(group: &Group, hash: &[u8]) -> Self {
+                match group {
+                    Group::Bls12381 => {
+                        return Self::Bls12381(Bls12381::new_from_ecp(
+                            mcore::bls12381::bls::bls_hash_to_point(hash),
+                        ));
+                    },
+                    Group::Bn254 => {
+                        return Self::Bn254(Bn254::new_from_ecp(mcore::bn254::bls::bls_hash_to_point(
+                            hash,
+                        )));
+                    },
+                    _ => panic!("group does not support hash to point"),
+                }
+            }
+
+            fn new_pow_big(group: &Group, y: &SizedBigInt) -> Self {
+                match group {
+                    #(Group::#fields11 => {
+                        return Self::#fields12(#fields13::new_pow_big(y));
+                    }),*
+                    _ => panic!("unsupported group")
+                }
+            }
+
+            fn new_pow_big_ecp2(group: &Group, y: &SizedBigInt) -> Self {
+                match group {
+                    Group::Bls12381 => {
+                        return Self::Bls12381(Bls12381::new_pow_big_ecp2(y));
+                    },
+                    Group::Bn254 => {
+                        return Self::Bn254(Bn254::new_pow_big_ecp2(y));
+                    },
+                    _ => panic!("group does not support extensions")
+                }
+            }
+
+            fn new_rand(group: &Group, rng: &mut RNG) -> Self {
+                match group {
+                    #(Group::#fields14 => {
+                        return Self::#fields15(#fields16::new_rand(rng));
+                    }),*
+                    _ => panic!("unsupported group")
+                }
+            }
+
+            fn mul(&self, y: &Self) -> Self {
+                if !Self::cmp_group(&self, y) {
+                    panic!("incompatible groups!");
+                }
+
+                match self {
+                    Self::Bls12381(_x) => {
+                        if let Self::Bls12381(_y) = y {
+                            return _x.mul(_y);
+                        }
+                    },
+                    Self::Bn254(_x) => {
+                        if let Self::Bn254(_y) = y {
+                            return _x.mul(_y);
+                        }
+                    },
+                    Self::Ed25519(_x) => {
+                        if let Self::Ed25519(_y) = y {
+                            return _x.mul(_y);
+                        }
+                    },
+                    _ => todo!(),
+                }
+
+                panic!("incompatible groups");
+            }
+
+            fn div(&self, y: &Self) -> Self {
+                if !Self::cmp_group(&self, y) {
+                    panic!("incompatible groups!");
+                }
+
+                match self {
+                    Self::Bls12381(_x) => {
+                        if let Self::Bls12381(_y) = y {
+                            return _x.div(_y);
+                        }
+                    },
+                    Self::Bn254(_x) => {
+                        if let Self::Bn254(_y) = y {
+                            return _x.div(_y);
+                        }
+                    },
+                    Self::Ed25519(_x) => {
+                        if let Self::Ed25519(_y) = y {
+                            return _x.div(_y);
+                        }
+                    },
+                    _ => todo!(),
+                }
+
+                panic!("incompatible groups");
+            }
+
+            fn pow(&self, y: &SizedBigInt) -> Self {
+                match self {
+                    #(Self::#fields17(x) => {
+                        return x.pow(y);
+                    }),*
+                }
+            }
+
+            fn get_order(&self) -> SizedBigInt {
+                match self {
+                    #(Self::#fields18(_) => #fields27::get_order()),*
+                }
+            }
+
+            fn to_bytes(&self) -> Vec<u8> {
+                unsafe {
+                    match self {
+                        #(Self::#fields19(x) => x.to_bytes()),*
+                    }
+                }
+            }
+
+            fn to_string(&self) -> String {
+                unsafe {
+                    match self {
+                        #(Self::#fields20(x) => x.to_string()),*
+                    }
+                }
+            }
+
+            fn from_bytes(bytes: &[u8], group: &Group, i: Option<u8>) -> Self {
+                let mut j = 0;
+                if i.is_some() {
+                    j = i.unwrap();
+                }
+
+                match group {
+                    #(Group::#pfields1 => {return Self::#pfields2(#pfields3::from_bytes(bytes, j))}),*
+                    #(Group::#nfields1 => {return Self::#nfields2(#nfields3::from_bytes(bytes))}),*
+                    _ => panic!("unsupported group")
+                }
+            }
+        }
+    };
     TokenStream::from(expanded)
 }

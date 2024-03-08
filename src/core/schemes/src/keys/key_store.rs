@@ -126,11 +126,15 @@ impl KeyStore {
         Ok(())
     }
 
-    pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
-        let key_chain_str = fs::read_to_string(filename)?;
+    pub fn from_str(key_chain_str: String) -> std::io::Result<Self> {
         let ks: Vec<SerializedKeyEntry> = serde_json::from_str(&key_chain_str)?;
         let k: KeyStore = ks.into();
         Ok(k)
+    }
+
+    pub fn from_file(filename: &PathBuf) -> std::io::Result<Self> {
+        let key_chain_str = fs::read_to_string(filename)?;
+        Self::from_str(key_chain_str)
     }
 
     pub fn to_file(&self, filename: &str) -> std::io::Result<()> {
@@ -369,8 +373,7 @@ impl KeyStore {
 
     pub fn list_public_keys(&self) -> Vec<Arc<PublicKeyEntry>> {
         let mut keys = Vec::new();
-        let it = self
-            .key_entries
+        self.key_entries
             .iter()
             .map(|entry| PublicKeyEntry {
                 id: entry.1.id.clone(),

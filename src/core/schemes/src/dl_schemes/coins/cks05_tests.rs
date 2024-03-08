@@ -1,7 +1,7 @@
 use super::cks05::*;
 use crate::keys::key_generator::KeyGenerator;
 use crate::{
-    dl_schemes::dl_groups::bls12381::Bls12381,
+    groups::ec::bls12381::Bls12381,
     interface::{CoinShare, Serializable, ThresholdCoin},
     keys::keys::PublicKey,
     rand::{RngAlgorithm, RNG},

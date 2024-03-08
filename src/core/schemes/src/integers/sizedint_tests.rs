@@ -1,6 +1,6 @@
 use theta_proto::scheme_types::Group;
 
-use super::{bigint::SizedBigInt, dl_groups::bls12381::Bls12381};
+use crate::{groups::ec::bls12381::Bls12381, integers::sizedint::SizedBigInt};
 
 const GROUP: Group = Group::Bls12381;
 

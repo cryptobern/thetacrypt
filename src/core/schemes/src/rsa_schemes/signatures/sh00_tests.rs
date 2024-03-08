@@ -1,5 +1,5 @@
+use crate::integers::bigint::BigInt;
 use crate::interface::*;
-use crate::rsa_schemes::bigint::BigInt;
 use crate::{
     keys::key_generator::{KeyGenerator, KeyParams},
     keys::keys::{PrivateKeyShare, PublicKey},

@@ -4,15 +4,16 @@
 #![allow(clippy::zero_prefixed_literal)]
 
 use asn1::{ParseError, WriteError};
-use derive::DlShare;
 use log::error;
 use mcore::hash256::HASH256;
+use theta_derive::DlShare;
 
-use crate::dl_schemes::bigint::SizedBigInt;
+use crate::groups::group::GroupOperations;
+use crate::integers::sizedint::SizedBigInt;
 use crate::keys::keys::calc_key_id;
 use crate::{
     dl_schemes::common::interpolate,
-    group::GroupElement,
+    groups::group::GroupElement,
     interface::{DlShare, SchemeError, Serializable, ThresholdSignatureParams},
     scheme_types_impl::GroupDetails,
 };

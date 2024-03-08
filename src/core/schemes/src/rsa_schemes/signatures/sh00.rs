@@ -1,15 +1,10 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    interface::{
-        SchemeError, Serializable, ThresholdScheme, ThresholdSignature, ThresholdSignatureParams,
-    },
+    integers::bigint::BigInt,
+    interface::{SchemeError, Serializable, ThresholdScheme, ThresholdSignatureParams},
     keys::keys::calc_key_id,
-    rsa_schemes::{
-        bigint::BigInt,
-        common::{ext_euclid, interpolate},
-    },
-    scheme_types_impl::GroupDetails,
+    rsa_schemes::common::{ext_euclid, interpolate},
     BIGINT,
 };
 use asn1::{ParseError, WriteError};

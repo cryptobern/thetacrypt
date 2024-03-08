@@ -1,19 +1,27 @@
 #![allow(non_snake_case)]
 
-use asn1::{ParseError, WriteError};
+use std::{collections::HashMap, hash::Hash};
 
+use asn1::{ParseError, WriteError};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Serialize};
+
+use crate::groups::group::GroupOperations;
+use crate::interface::ByteBufVisitor;
 use crate::{
-    dl_schemes::{bigint::SizedBigInt, common::lagrange_coeff},
-    group::GroupElement,
+    dl_schemes::common::lagrange_coeff,
+    groups::group::GroupElement,
+    integers::{bigint::BigInt, sizedint::SizedBigInt},
     interface::{DlShare, SchemeError, Serializable},
-    keys::keys::calc_key_id,
+    keys::keys::{calc_key_id, PublicKey},
     rand::{RngAlgorithm, RNG},
-    rsa_schemes::bigint::BigInt,
     scheme_types_impl::GroupDetails,
 };
-use log::error;
+use log::{error, info};
 use mcore::hash512::HASH512;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
+
+const NUM_PRECOMPUTATIONS: usize = 10;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrostPublicKey {
@@ -244,6 +252,46 @@ impl PublicCommitment {
     }
 }
 
+impl Serialize for PublicCommitment {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.to_bytes().unwrap();
+
+        let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+        for element in bytes {
+            seq.serialize_element(&element)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicCommitment {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = PublicCommitment::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
+    }
+}
+
 impl Serializable for PublicCommitment {
     fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
@@ -392,6 +440,46 @@ impl DlShare for FrostSignatureShare {
     }
 }
 
+impl Serialize for FrostSignatureShare {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.to_bytes().unwrap();
+
+        let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+        for element in bytes {
+            seq.serialize_element(&element)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for FrostSignatureShare {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = FrostSignatureShare::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
+    }
+}
+
 impl Serializable for FrostSignatureShare {
     fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
@@ -490,341 +578,168 @@ impl Serializable for FrostSignature {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct FrostThresholdSignature {
-    round: u8,
-    key: FrostPrivateKey,
-    label: Vec<u8>,
-    msg: Option<Vec<u8>>,
-    nonce: Option<Nonce>,
-    commitment: Option<PublicCommitment>,
-    commitment_list: Vec<PublicCommitment>,
-    group_commitment: Option<GroupElement>,
-    share: Option<FrostSignatureShare>,
-    shares: Vec<FrostSignatureShare>,
-    signature: Option<FrostSignature>,
-    finished: bool,
+pub enum FrostOptions {
+    PrecomputeOnly, // precompute commitments (execute round 1 NUM_PRECOMPUTATIONS times) and exit protocol
+    Precomputation, // precompute commitments and use first commitment to generate signature in second round
+    NoPrecomputation, // do not precompute commitments (might still use previously generated precomputations)
 }
 
-impl<'a> FrostThresholdSignature {
-    pub fn new(key: &FrostPrivateKey) -> Self {
-        Self {
-            round: 0,
-            msg: None,
-            label: Vec::new(),
-            shares: Vec::new(),
-            key: key.clone(),
-            nonce: Option::None,
-            commitment: Option::None,
-            commitment_list: Vec::new(),
-            group_commitment: None,
-            share: None,
-            finished: false,
-            signature: Option::None,
-        }
+pub struct FrostState {}
+
+pub fn partial_sign(
+    nonce: &Nonce,
+    commitment_list: &[PublicCommitment],
+    message: &[u8],
+    key: &FrostPrivateKey,
+    node_id: u16,
+) -> Result<(FrostSignatureShare, GroupElement), SchemeError> {
+    let group = nonce.binding_nonce.get_group();
+    let order = group.get_order();
+    let pubkey = key.get_public_key();
+    let binding_factor_list = compute_binding_factors(pubkey, &commitment_list, message, group);
+
+    let binding_factor = binding_factor_for_participant(&binding_factor_list, node_id);
+    if binding_factor.is_err() {
+        error!("binding factor error");
+        return Err(binding_factor.expect_err(""));
     }
 
-    pub fn set_label(&mut self, label: &[u8]) {
-        self.label = label.to_vec();
+    let binding_factor = binding_factor.unwrap();
+    let group_commitment = compute_group_commitment(&commitment_list, &binding_factor_list, &group);
+    if group_commitment.is_err() {
+        error!("group commitment error");
+        return Err(group_commitment.expect_err(""));
     }
 
-    pub fn get_label(&self) -> Vec<u8> {
-        return self.label.clone();
-    }
+    let group_commitment = group_commitment.unwrap();
 
-    pub fn set_commitment(&mut self, comm: &PublicCommitment) {
-        self.commitment = Some(comm.clone());
-    }
+    let participant_list = participants_from_commitment_list(&commitment_list);
+    let lambda_i = lagrange_coeff(&group, &participant_list, node_id as i32);
+    let challenge = compute_challenge(&group_commitment, &pubkey, message);
 
-    pub fn set_msg(&mut self, msg: &'a [u8]) -> Result<(), SchemeError> {
-        if self.msg.is_some() {
-            return Err(SchemeError::MessageAlreadySpecified);
-        }
-        self.msg = Some(msg.to_vec());
-        Ok(())
-    }
+    let share = nonce
+        .hiding_nonce
+        .add(&nonce.binding_nonce.mul_mod(&binding_factor.factor, &order))
+        .rmod(&order)
+        .add(&lambda_i.mul_mod(&key.x, &order).mul_mod(&challenge, &order))
+        .rmod(&order);
 
-    pub fn update(&mut self, round_result: &FrostRoundResult) -> Result<(), SchemeError> {
-        match round_result {
-            FrostRoundResult::RoundOne(result) => {
-                self.commitment_list.push(result.clone());
-                Ok(())
-            }
-            FrostRoundResult::RoundTwo(share) => {
-                let result = self.verify_share(share);
-                if result.is_err() {
-                    return Err(result.unwrap_err());
-                }
-
-                self.shares.push(share.clone());
-
-                if self.shares.len() == self.key.get_threshold() as usize {
-                    let sig = self.assemble();
-                    if sig.is_err() {
-                        return Err(sig.unwrap_err());
-                    }
-
-                    self.signature = Some(sig.unwrap());
-                }
-
-                Ok(())
-            }
-        }
-    }
-
-    pub fn is_ready_for_next_round(&self) -> bool {
-        match self.round {
-            1 => {
-                if self.commitment_list.len() >= self.key.get_threshold() as usize {
-                    return true;
-                }
-                return false;
-            }
-            2 => {
-                if self.shares.len() >= self.key.get_threshold() as usize {
-                    return true;
-                }
-                return false;
-            }
-            _ => return false,
-        }
-    }
-
-    pub fn get_signature(&self) -> Result<FrostSignature, SchemeError> {
-        if self.signature.is_none() {
-            return Err(SchemeError::ProtocolNotFinished);
-        }
-
-        Ok(self.signature.clone().unwrap())
-    }
-
-    pub fn is_finished(&self) -> bool {
-        self.round == 2 && self.signature.is_some()
-    }
-
-    pub fn do_round(&mut self) -> Result<FrostRoundResult, SchemeError> {
-        if self.round == 0 {
-            let res = self.commit(&mut RNG::new(RngAlgorithm::OsRng));
-            if res.is_ok() {
-                self.round += 1;
-                return Ok(res.unwrap());
-            }
-
-            return Err(res.unwrap_err());
-        } else if self.round == 1 {
-            let res = self.partial_sign();
-            if res.is_ok() {
-                self.round += 1;
-                return Ok(res.unwrap());
-            }
-
-            return Err(res.unwrap_err());
-        }
-
-        Err(SchemeError::InvalidRound)
-    }
-
-    pub(crate) fn partial_sign(&mut self) -> Result<FrostRoundResult, SchemeError> {
-        let group = self.key.get_group();
-        let order = group.get_order();
-
-        if self.get_nonce().is_none() {
-            error!("No nonce set");
-            return Err(SchemeError::PreviousRoundNotExecuted);
-        }
-
-        if self.msg.is_none() {
-            error!("Message not set");
-            return Err(SchemeError::MessageNotSpecified);
-        }
-
-        let msg = self.msg.as_ref().unwrap();
-
-        let nonce = self.get_nonce().as_ref().unwrap();
-        let commitment_list = self.get_commitment_list();
-
-        let binding_factor_list = compute_binding_factors(
-            &self.key.pubkey,
-            commitment_list,
-            msg,
-            &self.key.get_group(),
-        );
-
-        let binding_factor = binding_factor_for_participant(&binding_factor_list, self.key.id);
-        if binding_factor.is_err() {
-            error!("binding factor error");
-            return Err(binding_factor.expect_err(""));
-        }
-
-        let binding_factor = binding_factor.unwrap();
-        let group_commitment =
-            compute_group_commitment(commitment_list, &binding_factor_list, &self.key.get_group());
-        if group_commitment.is_err() {
-            error!("group commitment error");
-            return Err(group_commitment.expect_err(""));
-        }
-
-        let group_commitment = group_commitment.unwrap();
-
-        let participant_list = participants_from_commitment_list(commitment_list);
-        let lambda_i = lagrange_coeff(&group, &participant_list, self.key.get_share_id() as i32);
-        let challenge = compute_challenge(&group_commitment, &self.key.get_public_key(), msg);
-
-        let share = nonce
-            .hiding_nonce
-            .add(&nonce.binding_nonce.mul_mod(&binding_factor.factor, &order))
-            .rmod(&order)
-            .add(
-                &lambda_i
-                    .mul_mod(&self.key.x, &order)
-                    .mul_mod(&challenge, &order),
-            )
-            .rmod(&order);
-
-        //self.commitment_list = commitment_list.to_vec();
-        self.group_commitment = Option::Some(group_commitment);
-
-        Ok(FrostRoundResult::RoundTwo(FrostSignatureShare {
-            id: self.key.get_share_id(),
+    Ok((
+        FrostSignatureShare {
+            id: node_id,
             data: share,
-        }))
+        },
+        group_commitment,
+    ))
+}
+
+pub fn commit(key: &FrostPrivateKey, rng: &mut RNG) -> (PublicCommitment, Nonce) {
+    let hiding_nonce = nonce_generate(&key.x, rng);
+    let binding_nonce = nonce_generate(&key.x, rng);
+    let hiding_nonce_commitment = GroupElement::new_pow_big(&key.get_group(), &hiding_nonce);
+    let binding_nonce_commitment = GroupElement::new_pow_big(&key.get_group(), &binding_nonce);
+    let nonce = Nonce {
+        hiding_nonce,
+        binding_nonce,
+    };
+    let comm = PublicCommitment {
+        id: key.get_share_id(),
+        hiding_nonce_commitment,
+        binding_nonce_commitment,
+    };
+
+    (comm, nonce)
+}
+
+pub fn assemble(
+    group_commitment: &GroupElement,
+    key: &FrostPrivateKey,
+    shares: &Vec<FrostSignatureShare>,
+) -> FrostSignature {
+    let mut z = SizedBigInt::new_int(&group_commitment.get_group(), 0);
+    for i in 0..key.get_threshold() as usize {
+        z = z
+            .add(&shares[i].data)
+            .rmod(&shares[i].data.get_group().get_order());
     }
 
-    pub(crate) fn commit(&mut self, rng: &mut RNG) -> Result<FrostRoundResult, SchemeError> {
-        let hiding_nonce = nonce_generate(&self.key.x, rng);
-        let binding_nonce = nonce_generate(&self.key.x, rng);
-        let hiding_nonce_commitment =
-            GroupElement::new_pow_big(&self.key.get_group(), &hiding_nonce);
-        let binding_nonce_commitment =
-            GroupElement::new_pow_big(&self.key.get_group(), &binding_nonce);
-        let nonce = Nonce {
-            hiding_nonce,
-            binding_nonce,
-        };
-        let comm = PublicCommitment {
-            id: self.key.get_share_id(),
-            hiding_nonce_commitment,
-            binding_nonce_commitment,
-        };
-
-        //FrostThresholdSignature { nonce, commitment:comm, commitment_list:Vec::new(), group_commitment:Option::None, share:Option::None }
-        self.commitment = Some(comm.clone());
-        self.nonce = Some(nonce.clone());
-
-        Ok(FrostRoundResult::RoundOne(comm))
-    }
-
-    pub(crate) fn assemble(&self) -> Result<FrostSignature, SchemeError> {
-        let group_commitment;
-        if let Some(group_commit) = &self.group_commitment {
-            group_commitment = group_commit;
-        } else {
-            return Err(SchemeError::WrongState);
-        }
-
-        let mut z = SizedBigInt::new_int(&group_commitment.get_group(), 0);
-        for i in 0..self.shares.len() {
-            z = z
-                .add(&self.shares[i].data)
-                .rmod(&self.shares[i].data.get_group().get_order());
-        }
-
-        Ok(FrostSignature {
-            R: group_commitment.clone(),
-            z,
-        })
-    }
-
-    pub(crate) fn verify_share(&self, share: &FrostSignatureShare) -> Result<bool, SchemeError> {
-        let commitment_list = self.get_commitment_list();
-        let pk = &self.key.pubkey;
-        let msg = self.msg.as_ref().unwrap();
-        if self.get_commitment().is_none() {
-            return Err(SchemeError::PreviousRoundNotExecuted);
-        }
-
-        if self.msg.is_none() {
-            return Err(SchemeError::MessageNotSpecified);
-        }
-
-        let commitment = commitment_for_participant(&self.commitment_list, share.get_id());
-        if commitment.is_err() {
-            return Err(commitment.expect_err(""));
-        }
-        let commitment = commitment.unwrap();
-
-        let binding_factor_list = compute_binding_factors(
-            &self.key.pubkey,
-            &commitment_list,
-            msg,
-            &self.key.get_group(),
-        );
-        let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
-        if binding_factor.is_err() {
-            return Err(binding_factor.expect_err(""));
-        }
-
-        let binding_factor = binding_factor.unwrap();
-        let group_commitment =
-            compute_group_commitment(commitment_list, &binding_factor_list, &pk.get_group());
-        if group_commitment.is_err() {
-            return Err(group_commitment.expect_err(""));
-        }
-
-        let group_commitment = group_commitment.unwrap();
-
-        let comm_share = commitment.hiding_nonce_commitment.mul(
-            &commitment
-                .binding_nonce_commitment
-                .pow(&binding_factor.factor),
-        );
-
-        let challenge = compute_challenge(&group_commitment, pk, msg);
-        let participant_list = participants_from_commitment_list(commitment_list);
-        let lambda_i = lagrange_coeff(&pk.get_group(), &participant_list, share.get_id() as i32);
-
-        let l = GroupElement::new_pow_big(&pk.get_group(), &share.data);
-        let r = comm_share.mul(
-            &pk.get_verification_key(share.get_id())
-                .pow(&lambda_i.mul_mod(&challenge, &pk.get_group().get_order())),
-        );
-
-        Ok(l.eq(&r))
-    }
-
-    pub(crate) fn get_nonce(&self) -> &Option<Nonce> {
-        &self.nonce
-    }
-
-    pub(crate) fn get_commitment(&self) -> &Option<PublicCommitment> {
-        &self.commitment
-    }
-
-    pub(crate) fn get_commitment_list(&self) -> &Vec<PublicCommitment> {
-        &self.commitment_list
-    }
-
-    pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
-        let challenge = compute_challenge(&signature.R, pk, msg);
-
-        let l = GroupElement::new_pow_big(&pk.get_group(), &signature.z);
-        let r = signature.R.mul(&pk.y.pow(&challenge));
-        l.eq(&r)
+    FrostSignature {
+        R: group_commitment.clone(),
+        z,
     }
 }
 
-#[repr(C)]
-#[derive(Debug, PartialEq, Clone)]
-pub enum FrostRoundResult {
-    RoundOne(PublicCommitment),
-    RoundTwo(FrostSignatureShare),
+pub fn verify_share(
+    share: &FrostSignatureShare,
+    pubkey: &FrostPublicKey,
+    message: &[u8],
+    commitment_list: &[PublicCommitment],
+) -> Result<bool, SchemeError> {
+    let commitment = commitment_list.get(share.get_id() as usize);
+    if commitment.is_none() {
+        return Err(SchemeError::IdNotFound);
+    }
+    let commitment = commitment.unwrap();
+
+    let binding_factor_list =
+        compute_binding_factors(&pubkey, &commitment_list, &message, &pubkey.get_group());
+    let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
+    if binding_factor.is_err() {
+        return Err(binding_factor.expect_err(""));
+    }
+
+    let binding_factor = binding_factor.unwrap();
+    let group_commitment =
+        compute_group_commitment(&commitment_list, &binding_factor_list, &pubkey.get_group());
+    if group_commitment.is_err() {
+        return Err(group_commitment.expect_err(""));
+    }
+
+    let group_commitment = group_commitment.unwrap();
+
+    let comm_share = commitment.hiding_nonce_commitment.mul(
+        &commitment
+            .binding_nonce_commitment
+            .pow(&binding_factor.factor),
+    );
+
+    let challenge = compute_challenge(&group_commitment, pubkey, &message);
+    let participant_list = participants_from_commitment_list(&commitment_list);
+    let lambda_i = lagrange_coeff(
+        &pubkey.get_group(),
+        &participant_list,
+        share.get_id() as i32,
+    );
+
+    let l = GroupElement::new_pow_big(&pubkey.get_group(), &share.data);
+    let r = comm_share.mul(
+        &pubkey
+            .get_verification_key(share.get_id())
+            .pow(&lambda_i.mul_mod(&challenge, &pubkey.get_group().get_order())),
+    );
+
+    Ok(l.eq(&r))
 }
 
-impl Serializable for FrostRoundResult {
+//pub(crate) fn get_commitment_list(&self) -> Vec<PublicCommitment> {
+//    self.commitment_list.clone().into_values().collect()
+//}
+
+pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
+    let challenge = compute_challenge(&signature.R, pk, msg);
+
+    let l = GroupElement::new_pow_big(&pk.get_group(), &signature.z);
+    let r = signature.R.mul(&pk.y.pow(&challenge));
+    l.eq(&r)
+}
+
+/*
+impl Serializable for FrostData {
     fn to_bytes(&self) -> Result<Vec<u8>, SchemeError> {
         let result = asn1::write(|w| {
             w.write_element(&asn1::SequenceWriter::new(&|w| {
                 match self {
-                    Self::RoundOne(rr) => {
+                    Self::Commitment(rr) => {
                         w.write_element(&(1 as u64))?;
 
                         let bytes = rr.to_bytes();
@@ -834,7 +749,7 @@ impl Serializable for FrostRoundResult {
 
                         w.write_element(&bytes.unwrap().as_slice())?;
                     }
-                    Self::RoundTwo(rr) => {
+                    Self::Share(rr) => {
                         w.write_element(&(2 as u64))?;
 
                         let bytes = rr.to_bytes();
@@ -843,6 +758,14 @@ impl Serializable for FrostRoundResult {
                         }
 
                         w.write_element(&bytes.unwrap().as_slice())?;
+                    }
+                    Self::Precomputation(rr) => {
+                        w.write_element(&(3 as u64))?;
+                        w.write_element(&(rr.len() as u64))?;
+
+                        for r in rr {
+                            w.write_element(&r.to_bytes().unwrap().as_slice())?;
+                        }
                     }
                 }
                 Ok(())
@@ -869,7 +792,7 @@ impl Serializable for FrostRoundResult {
                             return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
                         }
 
-                        return Ok(Self::RoundOne(a.unwrap()));
+                        return Ok(Self::Commitment(a.unwrap()));
                     }
                     2 => {
                         let bytes = d.read_element::<&[u8]>()?.to_vec();
@@ -878,7 +801,17 @@ impl Serializable for FrostRoundResult {
                             return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
                         }
 
-                        return Ok(Self::RoundTwo(b.unwrap()));
+                        return Ok(Self::Share(b.unwrap()));
+                    }
+                    3 => {
+                        let num = d.read_element::<u64>()?;
+                        let mut commitments = Vec::new();
+                        for _ in 0..num {
+                            let bytes = d.read_element::<&[u8]>()?.to_vec();
+                            let comm = PublicCommitment::from_bytes(&bytes).unwrap();
+                            commitments.push(comm);
+                        }
+                        return Ok(Self::Precomputation(commitments));
                     }
                     _ => {
                         return Err(ParseError::new(asn1::ParseErrorKind::UnknownDefinedBy));
@@ -894,19 +827,14 @@ impl Serializable for FrostRoundResult {
 
         Ok(result.unwrap())
     }
-}
-
-pub fn get_share(instance: &FrostThresholdSignature) -> Result<FrostSignatureShare, SchemeError> {
-    if instance.share.is_none() {
-        return Err(SchemeError::WrongState);
-    }
-
-    Ok(instance.share.clone().unwrap())
-}
+}*/
 
 pub(crate) fn nonce_generate(secret: &SizedBigInt, rng: &mut RNG) -> SizedBigInt {
     let random_bytes = rng.random_bytes(32);
+    println!("rand bytes {}", hex::encode(&random_bytes));
     let secret_bytes = serialize_scalar(secret);
+
+    println!("secret bytes {}", hex::encode(&secret_bytes));
     return h3(&[random_bytes, secret_bytes].concat(), &secret.get_group());
 }
 
@@ -1004,19 +932,6 @@ fn binding_factor_for_participant(
     Err(SchemeError::IdNotFound)
 }
 
-fn commitment_for_participant(
-    commitment_list: &[PublicCommitment],
-    identifier: u16,
-) -> Result<PublicCommitment, SchemeError> {
-    for i in 0..commitment_list.len() {
-        if identifier as u16 == commitment_list[i].id {
-            return Ok(commitment_list[i].clone());
-        }
-    }
-
-    Err(SchemeError::IdNotFound)
-}
-
 fn participants_from_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u16> {
     let mut identifiers = Vec::new();
 
@@ -1057,12 +972,13 @@ fn h3(bytes: &[u8], group: &Group) -> SizedBigInt {
     hash.process_array(&msg);
     let h = hash.hash();
 
-    let modulo = BigInt::from_bytes(
-        &hex::decode("1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED").unwrap(),
-    );
-    let r = BigInt::from_bytes(&h).rmod(&modulo).to_bytes();
-
-    println!("{}", hex::encode(r.clone()));
+    let mod_bytes =
+        hex::decode("1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED").unwrap();
+    let modulo = BigInt::from_bytes(&mod_bytes);
+    let r = BigInt::from_bytes(&h)
+        .rmod(&modulo)
+        .to_sized_bytes(32)
+        .unwrap();
 
     SizedBigInt::from_bytes(group, &r)
 }
@@ -1104,6 +1020,14 @@ fn get_context_string(group: &Group) -> Result<&[u8], SchemeError> {
 pub(crate) fn serialize_scalar(scalar: &SizedBigInt) -> Vec<u8> {
     // only for ed25519 sha512
     let mut bytes = scalar.to_bytes();
-    bytes[0] &= 0x1f;
+    bytes.reverse();
+    let idx = bytes.len() - 1;
+    bytes[idx] &= 0x1f;
     bytes
+}
+
+pub(crate) fn deserialize_scalar(group: &Group, bytes: &[u8]) -> SizedBigInt {
+    let mut b = bytes.to_vec();
+    b.reverse();
+    SizedBigInt::from_bytes(group, &b)
 }
