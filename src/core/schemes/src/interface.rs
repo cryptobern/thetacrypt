@@ -864,7 +864,13 @@ impl Serialize for SignatureShare{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
-        todo!()
+            let bytes = self.to_bytes().unwrap();
+
+            let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+            for element in bytes {
+                seq.serialize_element(&element)?;
+            }
+            seq.end()
     }
 }
 
@@ -872,7 +878,23 @@ impl<'de> Deserialize<'de> for SignatureShare{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de> {
-        todo!()
+            let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = SignatureShare::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
     }
 }
 

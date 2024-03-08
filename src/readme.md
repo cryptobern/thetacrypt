@@ -61,7 +61,7 @@ echo "127.0.0.1
 2. Generate configuration files:
 
 ```
-cargo run --bin confgen -- --ip-file conf/server_ips --port-strategy consecutive --outdir=conf
+cargo run --bin confgen -- --ip-file conf/server_ips.txt --port-strategy consecutive --outdir=conf
 ```
 
 The option `--port-strategy` can be `static` or `consecutive`. The first uses the same port for each IP (suited for a distributed deployment), and the latter assigns incremental values of the port to the IPs (suited for a local deployment).
