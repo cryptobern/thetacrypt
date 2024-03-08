@@ -49,14 +49,6 @@ async fn main() {
     info!("Keychain location: {}", keychain_path.display());
 
     start_server(&cfg, keychain_path).await;
-
-    info!("Server is running");
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Received interrupt signal, shutting down");
-            return;
-        }
-    }
 }
 
 /// Start main event loop of server.
