@@ -860,6 +860,22 @@ impl Serializable for SignatureShare {
     }
 }
 
+impl Serialize for SignatureShare{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        todo!()
+    }
+}
+
+impl<'de> Deserialize<'de> for SignatureShare{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+}
+
 #[derive(AsnType, PartialEq, Clone, Debug)]
 #[rasn(enumerated)]
 pub enum Signature {

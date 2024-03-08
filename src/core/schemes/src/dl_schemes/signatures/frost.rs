@@ -3,9 +3,11 @@
 use std::{collections::HashMap, hash::Hash};
 
 use asn1::{ParseError, WriteError};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 
 use crate::groups::group::GroupOperations;
+use crate::interface::ByteBufVisitor;
 use crate::{
     dl_schemes::common::lagrange_coeff,
     groups::group::GroupElement,
@@ -15,7 +17,7 @@ use crate::{
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::GroupDetails,
 };
-use log::error;
+use log::{error, info};
 use mcore::hash512::HASH512;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 
@@ -255,8 +257,13 @@ impl Serialize for PublicCommitment {
     where
         S: serde::Serializer,
     {
-        todo!();
-        //S::serialize_bytes(&self, &self.to_bytes().unwrap())
+        let bytes = self.to_bytes().unwrap();
+
+        let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+        for element in bytes {
+            seq.serialize_element(&element)?;
+        }
+        seq.end()
     }
 }
 
@@ -265,7 +272,23 @@ impl<'de> Deserialize<'de> for PublicCommitment {
     where
         D: serde::Deserializer<'de>,
     {
-        todo!()
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = PublicCommitment::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
     }
 }
 
@@ -422,7 +445,13 @@ impl Serialize for FrostSignatureShare {
     where
         S: serde::Serializer,
     {
-        todo!()
+        let bytes = self.to_bytes().unwrap();
+
+        let mut seq = serializer.serialize_seq(Some(bytes.len()))?;
+        for element in bytes {
+            seq.serialize_element(&element)?;
+        }
+        seq.end()
     }
 }
 
@@ -431,7 +460,23 @@ impl<'de> Deserialize<'de> for FrostSignatureShare {
     where
         D: serde::Deserializer<'de>,
     {
-        todo!()
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
+            match result {
+                Ok(value) => {
+                    let try_share = FrostSignatureShare::from_bytes(&value);
+                    match try_share {
+                        Ok(share) => Ok(share),
+                        Err(e) => {
+                            info!("{}", e.to_string());
+                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
+                        },
+                    }
+                },
+                Err(e) => {
+                    info!("{}", e.to_string());
+                    return Err(e)
+                }
+            }
     }
 }
 
