@@ -1,22 +1,19 @@
-
 use std::io;
-use log::debug;
-use std::str::FromStr;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::str::FromStr;
 
-// Tokio 
-use tokio::net::{TcpStream, TcpListener};
-use tokio::sync::mpsc::{Receiver, Sender};
+// Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 // Thetacrypt
-use crate::config::static_net::config_service::*;
 use crate::types::message::NetMessage;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProxyConfig{
+pub struct ProxyConfig {
     pub listen_addr: String,
     pub p2p_port: u16,
     pub proxy_addr: String,
@@ -26,34 +23,38 @@ pub struct ProxyConfig{
 pub async fn init(
     outgoing_msg_receiver: Receiver<NetMessage>,
     incoming_msg_sender: Sender<NetMessage>,
-    config: ProxyConfig, //create a config for this 
+    config: ProxyConfig, //create a config for this
     my_id: u32,
 ) {
-
     //create the listening address to listen for messages from the p2p
     let host_ip = <Ipv4Addr>::from_str(config.listen_addr.as_str()).unwrap();
-    let port:u16 = config.p2p_port;
+    let port: u16 = config.p2p_port;
     let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
     // Start proxy server
     tokio::spawn(async move {
         println!("[Connection-proxy] Start the server");
-        let listener = TcpListener::bind(address).await.expect("Failed to bind the server");
+        let listener = TcpListener::bind(address)
+            .await
+            .expect("Failed to bind the server");
         println!("[Connection-proxy] Server started ...");
         proxy_handler(listener, incoming_msg_sender.clone()).await
     });
-    
+
     // Handle Channel Receiver
     println!("[Connection-proxy] Start outgoing message forwarder");
     let cloned_config = config.clone();
     tokio::spawn(async move {
-        outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await; //the receiver can't be cloned
+        let _ = outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await;
+        //the receiver can't be cloned
     });
-    
 }
 
-pub async fn outgoing_message_forwarder(mut receiver: Receiver<NetMessage>, config: ProxyConfig) -> io::Result<()> {
-    loop{
+pub async fn outgoing_message_forwarder(
+    mut receiver: Receiver<NetMessage>,
+    config: ProxyConfig,
+) -> io::Result<()> {
+    loop {
         let addr = config.proxy_addr.clone();
         let msg = receiver.recv().await;
         tokio::spawn(async move {
@@ -64,7 +65,7 @@ pub async fn outgoing_message_forwarder(mut receiver: Receiver<NetMessage>, conf
                 Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
                 Err(e) => print!(">> [outgoing_message_forwarder]: error send to connect to tendermint node: {e}"),
             }
-        }); 
+        });
     }
 }
 
@@ -77,13 +78,13 @@ pub async fn send_share(mut connection: TcpStream, data: Vec<u8>) -> io::Result<
     Ok(())
 }
 
-//Methods to handle the receving from thetacrypt 
+//Methods to handle the receving from thetacrypt
 pub async fn proxy_handler(listener: TcpListener, sender: Sender<NetMessage>) -> io::Result<()> {
     loop {
-        let (socket, remote_addr) = listener.accept().await.unwrap();
+        let (socket, _remote_addr) = listener.accept().await.unwrap();
         let sender_cloned = sender.clone();
         tokio::spawn(async move {
-            receive_share(socket, sender_cloned).await;    //multiple threads need to read from here
+            let _ = receive_share(socket, sender_cloned).await; //multiple threads need to read from here
         });
     }
 }
@@ -91,7 +92,7 @@ pub async fn proxy_handler(listener: TcpListener, sender: Sender<NetMessage>) ->
 //This should work because every time tendermint needs to send a share it opens a different connection
 async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) -> io::Result<()> {
     let mut buf = vec![0; 1]; //See how big we need the buffer and if we can read until is empty and concatenate evrything togeher
-    let mut data:Vec<u8> = Vec::new();
+    let mut data: Vec<u8> = Vec::new();
     loop {
         let n = connection
             .read(&mut buf)
@@ -112,17 +113,18 @@ async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) ->
         //     .await
         //     .expect("failed to write data to socket");
         data.append(&mut buf.to_vec());
-        // println!("Appending something to the vector!"); //test if this goes in idle 
+        // println!("Appending something to the vector!"); //test if this goes in idle
         //Send on the channel
     }
     let data_cloned = data.clone();
     let msg_received = NetMessage::from(data_cloned);
     let msg = NetMessage::from(data);
     match sender.send(msg).await {
-        Ok(_) => println!(">> [Sender on the incoming channel] Message sent to the protocol layer: {:?}", msg_received), 
+        Ok(_) => println!(
+            ">> [Sender on the incoming channel] Message sent to the protocol layer: {:?}",
+            msg_received
+        ),
         Err(e) => println!(">> TEST: error send to network {e}"),
     }
     Ok(())
-}  
-
-    
+}

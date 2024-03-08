@@ -15,7 +15,6 @@
 
 // use crate::interface::ProtocolError;
 
-
 // pub struct ThresholdSignatureProtocol {
 //     private_key: Arc<PrivateKeyShare>,
 //     message: Option<Vec<u8>>,
@@ -28,7 +27,7 @@
 //     signature: Option<Signature>,
 //     instance: Option<InteractiveThresholdSignature>,
 //     received_share_ids: HashSet<u16>,
-//     precompute: bool,
+//     options: Option<ThresholdSignatureOptions>,
 //     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
 // }
 
@@ -118,7 +117,7 @@
 
 // //                                     if rr.is_err() {
 // //                                         error!(
-// //                                             "<{:?}>: Error while doing signature protocol round: {}", 
+// //                                             "<{:?}>: Error while doing signature protocol round: {}",
 // //                                             &self.instance_id,
 // //                                             rr.unwrap_err().to_string()
 // //                                         );

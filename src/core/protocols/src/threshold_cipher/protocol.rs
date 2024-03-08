@@ -1,9 +1,10 @@
+use log::{error, info, warn};
 use std::collections::HashSet;
 use std::sync::Arc;
-use log::{debug, error, info, warn};
+use log::debug;
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::{
-    Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams
+    Ciphertext, DecryptionShare, Serializable, ThresholdCipher, ThresholdCipherParams,
 };
 use theta_schemes::keys::keys::PrivateKeyShare;
 
@@ -21,40 +22,35 @@ pub struct ThresholdCipherProtocol {
     received_share_ids: HashSet<u16>,
 }
 
-
 //ROSE: see this function can be NOT async
-// #[async_trait] 
-impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
-
+// #[async_trait]
+impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol {
     // Define the concrete type for the ProtocolMessage
     type ProtocolMessage = DecryptionMessage;
 
     //see if the assemble should be here or not. In the sense that it is really the final step and a local computation
     fn is_ready_for_next_round(&self) -> bool {
-        return self.valid_shares.len() >= self.private_key.get_threshold() as usize
+        return self.valid_shares.len() >= self.private_key.get_threshold() as usize;
     }
 
     fn is_ready_to_finalize(&self) -> bool {
-        return self.valid_shares.len() >= self.private_key.get_threshold() as usize
+        return self.valid_shares.len() >= self.private_key.get_threshold() as usize;
     }
 
     fn finalize(&mut self) -> Result<Vec<u8>, ProtocolError> {
-       let assemble_result = ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext); 
-       match assemble_result {
+        let assemble_result = ThresholdCipher::assemble(&self.valid_shares, &self.ciphertext);
+        match assemble_result {
             Ok(result) => {
                 self.decrypted_plaintext = result;
                 self.decrypted = true;
                 info!("<{:?}>: Decrypted the ciphertext.", &self.instance_id);
-                return Ok(self.decrypted_plaintext.clone())
-            },
-            Err(scheme_error) => {
-                return Err(ProtocolError::SchemeError(scheme_error))
+                return Ok(self.decrypted_plaintext.clone());
             }
-       }
+            Err(scheme_error) => return Err(ProtocolError::SchemeError(scheme_error)),
+        }
     }
 
     fn update(&mut self, message: Self::ProtocolMessage) -> Result<(), ProtocolError> {
-        
         match message {
             DecryptionMessage::ShareMessage(share_message) => {
                 // let share_bytes = share_message.get_share_bytes();
@@ -113,7 +109,7 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
                 );
 
                 return Ok(());
-            },
+            }
             _ => {
                 todo!()
             }
@@ -121,11 +117,10 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
     }
 
     fn do_round(&mut self) -> Result<Self::ProtocolMessage, ProtocolError> {
-
-       // We know that this protocol has just one round, otherwise we need to check the current round here. 
-       let valid_ctxt = ThresholdCipher::verify_ciphertext(
-        &self.ciphertext,
-        &self.private_key.get_public_key(),
+        // We know that this protocol has just one round, otherwise we need to check the current round here.
+        let valid_ctxt = ThresholdCipher::verify_ciphertext(
+            &self.ciphertext,
+            &self.private_key.get_public_key(),
         )?;
 
         if !valid_ctxt {
@@ -133,7 +128,7 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
                 "<{:?}>: Ciphertext found INVALID. Protocol instance will quit.",
                 &self.instance_id
             );
-            //COMMENT_R: termination flag or something 
+            //COMMENT_R: termination flag or something
             //TODO: Maybe here we want to throw a scheme error?
             return Err(ProtocolError::InvalidCiphertext);
         }
@@ -147,7 +142,6 @@ impl ThresholdRoundProtocol<NetMessage> for ThresholdCipherProtocol{
 
         Ok(DecryptionMessage::ShareMessage(message))
     }
-
 }
 
 impl ThresholdCipherProtocol {
@@ -178,5 +172,4 @@ impl ThresholdCipherProtocol {
     //     self.valid_shares.push(share);
     //     Ok(())
     // }
-
 }

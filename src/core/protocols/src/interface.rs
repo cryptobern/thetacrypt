@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 use theta_network::types::message::NetMessage;
 use theta_schemes::interface::SchemeError;
@@ -12,6 +14,8 @@ pub enum ProtocolError {
     InstanceNotFound,
     InternalError,
     NotFinished,
+    InvalidRound,
+    InvalidShare,
 }
 impl From<SchemeError> for ProtocolError {
     fn from(tc_error: SchemeError) -> Self {
@@ -26,18 +30,16 @@ impl From<SchemeError> for ProtocolError {
 // }
 
 //ROSE:
-//try to figure out the best modular why to handle messages 
-pub trait ProtocolMessageWrapper<T>: Send{
+//try to figure out the best modular why to handle messages
+pub trait ProtocolMessageWrapper<T>: Send { //Here there was a + Debug. Not sure if needed
     fn unwrap(wrapped: T) -> Result<Box<Self>, ProtocolError>; //we need to Box self because we don't know yet the type
-    fn wrap(&self, instance_id: &String,) -> Result<T, String>; //T here would be NetMessage
+    fn wrap(&self, instance_id: &String) -> Result<T, String>; //T here would be NetMessage
 }
- 
-
 
 //ROSE: to move to the protocol
-// Do we need an init() ? Probably yes (with Lukas we discovered that with the two roles of cordinators and signers 
+// Do we need an init() ? Probably yes (with Lukas we discovered that with the two roles of cordinators and signers
 // it will be useful to have an init function that thakes care of additional details)
-pub trait ThresholdRoundProtocol<T>{
+pub trait ThresholdRoundProtocol<T> {
     //add s function to handle checks needed to correctly start the protocol, needed or can be put in do round?
     type ProtocolMessage: ProtocolMessageWrapper<T>;
 
@@ -45,10 +47,5 @@ pub trait ThresholdRoundProtocol<T>{
     fn is_ready_for_next_round(&self) -> bool;
     fn is_ready_to_finalize(&self) -> bool;
     fn finalize(&mut self) -> Result<Vec<u8>, ProtocolError>;
-    fn update(&mut self, message: Self::ProtocolMessage)-> Result<(), ProtocolError>;
-
+    fn update(&mut self, message: Self::ProtocolMessage) -> Result<(), ProtocolError>;
 }
-
-
-
-

@@ -1,7 +1,7 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use chrono::Utc;
-use mcore::ed25519::ecdh::public_key_validate;
 use theta_orchestration::instance_manager::instance_manager::{
     InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
@@ -10,10 +10,7 @@ use theta_proto::protocol_types::{
     CoinRequest, CoinResponse, KeyRequest, KeyResponse, StatusRequest, StatusResponse,
 };
 use theta_proto::scheme_types::{Group, PublicKeyEntry};
-use theta_schemes::keys::key_store::KeyEntry;
-use theta_schemes::scheme_types_impl::SchemeDetails;
 use tokio::sync::oneshot;
-use tonic::Code;
 use tonic::{transport::Server, Request, Response, Status};
 
 use log::{self, error, info};
@@ -39,6 +36,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         request: Request<DecryptRequest>,
     ) -> Result<Response<DecryptResponse>, Status> {
         info!("Received a decrypt request.");
+        let now = Instant::now();
 
         // let event = Event::ReceivedDecryptionRequest {
         //     timestamp: Utc::now(),
@@ -54,6 +52,11 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             }
         };
 
+        println!(
+            "Deserialized ciphertext after {}ms",
+            now.elapsed().as_millis()
+        );
+
         println!("User wants to use key {}", ciphertext.get_key_id());
 
         let (response_sender, response_receiver) =
@@ -66,9 +69,19 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
             .await
             .expect("Receiver for state_command_sender closed.");
 
+        println!(
+            "Sent instance manager command after {}ms",
+            now.elapsed().as_millis()
+        );
+
         let result = response_receiver
             .await
             .expect("response_receiver.await returned Err");
+
+        println!(
+            "Received instance manager response after {}ms",
+            now.elapsed().as_millis()
+        );
 
         if result.is_err() {
             error!(

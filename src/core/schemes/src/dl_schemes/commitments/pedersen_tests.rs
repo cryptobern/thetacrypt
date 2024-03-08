@@ -1,13 +1,11 @@
 use theta_proto::scheme_types::Group;
 
 use crate::{
-    dl_schemes::{
-        bigint::SizedBigInt,
-        commitments::{
-            interface::{Commitment, CommitmentParams},
-            pedersen::PedersenCommitmentParams,
-        },
+    dl_schemes::commitments::{
+        interface::{Commitment, CommitmentParams},
+        pedersen::PedersenCommitmentParams,
     },
+    integers::sizedint::SizedBigInt,
     rand::{RngAlgorithm, RNG},
     scheme_types_impl::GroupDetails,
 };

@@ -5,7 +5,6 @@ use theta_proto::scheme_types::{Group, ThresholdScheme};
 
 use crate::{
     dl_schemes::{
-        bigint::SizedBigInt,
         ciphers::{
             bz03::{Bz03PrivateKey, Bz03PublicKey},
             sg02::{Sg02PrivateKey, Sg02PublicKey},
@@ -17,11 +16,11 @@ use crate::{
             frost::{FrostPrivateKey, FrostPublicKey},
         },
     },
-    group::GroupElement,
+    groups::group::{GroupElement, GroupOperations},
+    integers::{bigint::BigInt, sizedint::SizedBigInt},
     interface::SchemeError,
     rand::RNG,
     rsa_schemes::{
-        bigint::BigInt,
         common::{fac, gen_strong_prime, shamir_share_rsa},
         signatures::sh00::{Sh00PrivateKey, Sh00PublicKey, Sh00VerificationKey},
     },
@@ -46,7 +45,7 @@ impl KeyParams {
 }
 
 pub struct KeyGenerator {}
-
+#[allow(non_snake_case)]
 impl KeyGenerator {
     pub fn generate_keys(
         k: usize,

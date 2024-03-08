@@ -1,19 +1,20 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{borrow::BorrowMut, collections::HashMap, path::PathBuf, sync::Arc};
 
 use log::{error, info};
 use theta_proto::{
     scheme_types::PublicKeyEntry,
     scheme_types::{Group, ThresholdScheme},
 };
+use theta_protocols::frost::protocol::FrostPrecomputation;
 use theta_schemes::{
-    interface::InteractiveThresholdSignature,
+    dl_schemes::signatures::frost::PublicCommitment,
     keys::key_store::{KeyEntry, KeyStore},
 };
 
 pub struct KeyManager {
     command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
     keystore: KeyStore,
-    frost_precomputes: Vec<InteractiveThresholdSignature>,
+    frost_precomputes: HashMap<String, Vec<FrostPrecomputation>>,
 }
 
 #[derive(Debug)]
@@ -34,10 +35,12 @@ pub enum KeyManagerCommand {
         responder: tokio::sync::oneshot::Sender<Result<Arc<KeyEntry>, String>>,
     },
     PopFrostPrecomputation {
-        responder: tokio::sync::oneshot::Sender<Option<InteractiveThresholdSignature>>,
+        key_id: String,
+        responder: tokio::sync::oneshot::Sender<Option<FrostPrecomputation>>,
     },
-    PushFrostPrecomputation {
-        instance: InteractiveThresholdSignature,
+    PushFrostPrecomputations {
+        key_id: String,
+        precomputations: Vec<FrostPrecomputation>,
     },
 }
 
@@ -60,7 +63,7 @@ impl KeyManager {
         Self {
             command_receiver,
             keystore,
-            frost_precomputes: Vec::new(),
+            frost_precomputes: HashMap::new(),
         }
     }
 
@@ -77,16 +80,17 @@ impl KeyManager {
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
                         },
                         KeyManagerCommand::PopFrostPrecomputation {
+                            key_id,
                             responder
                         } => {
-                            let result = self.pop_precompute_result();
+                            let result = self.pop_precomputation(&key_id);
 
                             responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
 
                             info!("{} FROST precomputations left", self.num_precomputations());
                         },
-                        KeyManagerCommand::PushFrostPrecomputation { instance } => {
-                            self.push_precompute_result(instance);
+                        KeyManagerCommand::PushFrostPrecomputations { key_id, precomputations } => {
+                            self.append_precomputations(&key_id, precomputations);
                         },
                         KeyManagerCommand::GetKeyById {id, responder} => {
                             info!("Searching for key with id {}", &id);
@@ -117,20 +121,31 @@ impl KeyManager {
         return self.frost_precomputes.len();
     }
 
-    pub fn append_precompute_results(
+    pub fn append_precomputations(
         &mut self,
-        instances: &mut Vec<InteractiveThresholdSignature>,
+        key_id: &String,
+        precomputations: Vec<FrostPrecomputation>,
     ) {
-        self.frost_precomputes.append(instances);
+        let current = self.frost_precomputes.get(key_id);
+        if current.is_none() {
+            self.frost_precomputes
+                .insert(key_id.clone(), precomputations);
+            return;
+        }
+
+        self.frost_precomputes.insert(
+            key_id.clone(),
+            [precomputations, current.unwrap().clone()].concat(),
+        );
     }
 
-    pub fn push_precompute_result(&mut self, instance: InteractiveThresholdSignature) {
-        self.frost_precomputes.push(instance);
-        self.frost_precomputes
-            .sort_by(|a, b| a.get_label().cmp(&b.get_label()))
-    }
+    pub fn pop_precomputation(&mut self, key_id: &String) -> Option<FrostPrecomputation> {
+        let mut vec = self.frost_precomputes.get_mut(key_id);
+        if vec.is_none() {
+            return None;
+        }
 
-    pub fn pop_precompute_result(&mut self) -> Option<InteractiveThresholdSignature> {
-        self.frost_precomputes.pop()
+        let mut vec = vec.unwrap();
+        vec.pop()
     }
 }

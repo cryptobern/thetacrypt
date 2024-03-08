@@ -1,6 +1,7 @@
 use clap::Parser;
 use log::{error, info};
 use log4rs;
+use sha2::{Digest, Sha256};
 use std::{path::PathBuf, process::exit};
 use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::{

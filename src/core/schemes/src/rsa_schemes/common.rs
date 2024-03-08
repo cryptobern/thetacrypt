@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
-use crate::{rand::RNG, BIGINT, ONE, ZERO};
+use crate::{integers::bigint::BigInt, rand::RNG, BIGINT, ONE, ZERO};
 
-use super::{bigint::BigInt, signatures::sh00::Sh00SignatureShare};
+use super::signatures::sh00::Sh00SignatureShare;
 
 const PRIMES: [isize; 1828] = [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,

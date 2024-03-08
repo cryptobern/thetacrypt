@@ -13,6 +13,7 @@ use libp2p::{
     tcp::TokioTcpConfig,
     PeerId, Swarm, Transport,
 };
+use libp2p_dns::DnsConfig;
 use log::debug;
 use std::{
     collections::hash_map::DefaultHasher,
@@ -20,19 +21,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
-use libp2p_dns::DnsConfig;
-
-use std::net::*;
-use trust_dns_resolver::Resolver;
-use trust_dns_resolver::lookup_ip::LookupIp;
-use libp2p_dns::ResolverOpts;
-use trust_dns_resolver::config::ResolverConfig;
-
-use std::net::*;
-use trust_dns_resolver::{TokioAsyncResolver,AsyncResolver};
-use trust_dns_resolver::config::*;
-use trust_dns_resolver::system_conf::read_system_conf;
-use tokio::runtime::Handle;
+use trust_dns_resolver::AsyncResolver;
 
 use tokio::time;
 
@@ -60,33 +49,32 @@ pub fn create_tcp_transport(
 }
 
 //Attempt to create a DNS transport layer (not in use)
-pub fn create_dns_transport() -> DnsConfig <TokioTcpConfig>{
+pub fn create_dns_transport() -> DnsConfig<TokioTcpConfig> {
     let tcp = TokioTcpConfig::new().nodelay(true);
     let mut runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
     let transport = runtime.block_on(DnsConfig::system(tcp));
     let transport = match transport {
-    Ok(config) => config,
-    Err(error) => panic!("Problem opening dns: {:?}", error)
+        Ok(config) => config,
+        Err(error) => panic!("Problem opening dns: {:?}", error),
     };
     transport
 }
-
 
 //Attempt to define a DNS resolver fot the libp2p2 (not in use)
 pub async fn dns_lookup() {
     let resolver = AsyncResolver::tokio_from_system_conf();
     let resolver = match resolver {
         Ok(resolver) => resolver,
-        Err(error) => panic!("Problem opening dns: {:?}", error)
+        Err(error) => panic!("Problem opening dns: {:?}", error),
     };
 
-    let mut response = tokio::spawn(async move {
-        let lookup_future = resolver.ipv4_lookup("nameserver");
+    let response = tokio::spawn(async move {
+        let _lookup_future = resolver.ipv4_lookup("nameserver");
         // Run the lookup until it resolves or errors
         //rt.block_on(lookup_future).unwrap()
     });
     println!(">> STATIC_NET: .........");
-    let result = response.await.expect("The task being joined has panicked");//.unwrap();
+    let result = response.await.expect("The task being joined has panicked"); //.unwrap();
 
     //let address = result.iter().next().expect("no addresses returned!");
     format!(">> STATIC_NET: coversion: {:#?}", result);
@@ -96,7 +84,6 @@ pub async fn dns_lookup() {
     //     Err(error) => error
     // };
 }
-
 
 // Create a Swarm to manage peers and events.
 pub fn create_gossipsub_swarm(

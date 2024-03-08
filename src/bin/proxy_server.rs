@@ -103,7 +103,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain_path: PathBuf) {
     // Takes ownership of instance_manager_receiver, incoming_message_receiver, state_command_sender
     info!("Initiating InstanceManager.");
 
-    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
+    let (emitter_tx, _emitter_shutdown_tx, _emitter_handle) = match &config.event_file {
         Some(f) => {
             info!(
                 "Starting event emitter with output file {}",
@@ -144,7 +144,7 @@ pub async fn start_server(config: &ServerProxyConfig, keychain_path: PathBuf) {
         my_listen_address, my_rpc_port
     );
 
-    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = start_null_emitter();
+    let (_emitter_tx, emitter_shutdown_tx, emitter_handle) = start_null_emitter();
     let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,

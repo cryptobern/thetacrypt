@@ -1,8 +1,10 @@
 use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
+    process::Command,
     sync::Arc,
-    thread, time,
+    thread,
+    time::{self, Instant},
 };
 
 use log::{debug, error, info};
@@ -25,10 +27,10 @@ use tonic::{Code, Status};
 
 use crate::{
     instance_manager::instance::{self, Instance},
-    instance_manager::protocol_executor::ThresholdProtocolExecutor,                                                                                                                                                   
-    key_manager::key_manager::KeyManagerCommand,
+    instance_manager::protocol_executor::ThresholdProtocolExecutor,
     interface::ThresholdProtocol,
-};            
+    key_manager::key_manager::KeyManagerCommand,
+};
 /// Upper bound on the number of finished instances which to store.
 const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
 /// Number of instances which to look at when trying to find ones to eject.
@@ -344,6 +346,7 @@ impl InstanceManager {
 
         match instance_request {
             StartInstanceRequest::Decryption { ciphertext } => {
+                let now = Instant::now();
                 let key = self
                     .setup_instance(
                         ciphertext.get_scheme(),
@@ -352,6 +355,8 @@ impl InstanceManager {
                         Some(ciphertext.get_key_id().to_string()),
                     )
                     .await;
+
+                println!("Set up instance after {}ms", now.elapsed().as_millis());
 
                 if key.is_err() {
                     let e = key.unwrap_err();
@@ -365,7 +370,7 @@ impl InstanceManager {
                 let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
-                
+
                 let instance = Instance::new(
                     instance_id.clone(),
                     ciphertext.get_scheme(),
@@ -374,11 +379,8 @@ impl InstanceManager {
                 );
 
                 // Create the new protocol instance
-                let prot = ThresholdCipherProtocol::new(
-                    key.clone(),
-                    ciphertext,
-                    instance_id.clone(),
-                );
+                let prot =
+                    ThresholdCipherProtocol::new(key.clone(), ciphertext, instance_id.clone());
 
                 let executor = ThresholdProtocolExecutor::new(
                     receiver,
@@ -395,6 +397,11 @@ impl InstanceManager {
                     executor,
                     instance_id.clone(),
                     self.instance_command_sender.clone(),
+                );
+
+                println!(
+                    "Set up instance thread after {}ms",
+                    now.elapsed().as_millis()
                 );
 
                 return Ok(instance_id.clone());
@@ -434,6 +441,7 @@ impl InstanceManager {
             //         receiver,
             //         self.outgoing_p2p_sender.clone(),
             //         self.event_emitter_sender.clone(),
+            //         Option::None
             //         instance_id.clone(),
             //     );
 
@@ -511,7 +519,6 @@ impl InstanceManager {
     ) {
         let id = instance_id.clone();
         tokio::spawn(async move {
-            
             let result = executor.run().await;
 
             // Protocol terminated, update state with the result.
@@ -532,7 +539,6 @@ impl InstanceManager {
             }
         });
         _ = self.forward_backlogged_messages(id);
-        
     }
 
     fn forward_backlogged_messages(&mut self, instance_id: String) {
@@ -552,13 +558,16 @@ impl InstanceManager {
         let messages = backlog.messages.clone();
         let sender = instance.get_sender();
         let instance_id_cloned = instance_id.clone();
-        tokio::spawn(  async move {
+        tokio::spawn(async move {
             for msg in &messages {
-                    let _ = sender.send(msg.clone()).await;
+                let _ = sender.send(msg.clone()).await;
             }
-            info!("All the messages backlogged for instance {:?} have been sent", instance_id_cloned);
-         });
-        
+            info!(
+                "All the messages backlogged for instance {:?} have been sent",
+                instance_id_cloned
+            );
+        });
+
         self.backlog.remove(&instance_id);
     }
 
@@ -677,7 +686,7 @@ fn assign_instance_id(request: &StartInstanceRequest) -> String {
             return hex::encode(h);
         }
         StartInstanceRequest::Signature {
-            message,
+            message: _,
             label,
             scheme,
             group,
