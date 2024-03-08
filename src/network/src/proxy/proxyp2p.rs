@@ -2,22 +2,16 @@ use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
-<<<<<<< HEAD
 use log::{info, error, debug};
 use thetacrypt_blockchain_stub::proto::blockchain_stub::AtomicBroadcastRequest;
-=======
->>>>>>> protocol_round_redesign
 // Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{Receiver, Sender};
-<<<<<<< HEAD
 
 use thetacrypt_blockchain_stub::proto::blockchain_stub::{
     blockchain_stub_client::BlockchainStubClient, ForwardShareRequest,
 };
-=======
->>>>>>> protocol_round_redesign
 
 // Thetacrypt
 use crate::types::message::NetMessage;
@@ -37,11 +31,7 @@ pub async fn init(
     incoming_msg_sender: Sender<NetMessage>,
     config: ProxyConfig, //create a config for this
     my_id: u32,
-<<<<<<< HEAD
 ) -> io::Result<()> {
-=======
-) {
->>>>>>> protocol_round_redesign
     //create the listening address to listen for messages from the p2p
     let host_ip = <Ipv4Addr>::from_str(config.listen_addr.as_str()).unwrap();
     let port: u16 = config.p2p_port;
@@ -49,19 +39,11 @@ pub async fn init(
 
     // Start proxy server
     tokio::spawn(async move {
-<<<<<<< HEAD
         info!("Start the server");
         let listener = TcpListener::bind(address)
             .await
             .expect("Failed to bind the server");
         info!("Server started ...");
-=======
-        println!("[Connection-proxy] Start the server");
-        let listener = TcpListener::bind(address)
-            .await
-            .expect("Failed to bind the server");
-        println!("[Connection-proxy] Server started ...");
->>>>>>> protocol_round_redesign
         proxy_handler(listener, incoming_msg_sender.clone()).await
     });
 
@@ -69,15 +51,9 @@ pub async fn init(
     info!("Start outgoing message forwarder");
     let cloned_config = config.clone();
     tokio::spawn(async move {
-<<<<<<< HEAD
         outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await //the receiver can't be cloned
     });
     Ok(())
-=======
-        let _ = outgoing_message_forwarder(outgoing_msg_receiver, cloned_config).await;
-        //the receiver can't be cloned
-    });
->>>>>>> protocol_round_redesign
 }
 
 pub async fn outgoing_message_forwarder(
@@ -99,7 +75,6 @@ pub async fn outgoing_message_forwarder(
                 Ok(stream) => send_share(stream, Vec::from(data)).await.unwrap(),
                 Err(e) => error!(">> Error connecting to blockchain node: {e}"),
             }
-<<<<<<< HEAD
 
             // match BlockchainStubClient::connect(address).await {
             //     Ok(mut client) => {
@@ -122,8 +97,6 @@ pub async fn outgoing_message_forwarder(
             //     }
             //     Err(e) => println!("Error in opening the connection!: {}", e),
             // }
-=======
->>>>>>> protocol_round_redesign
         });
     }
 }
@@ -179,19 +152,11 @@ async fn receive_share(mut connection: TcpStream, sender: Sender<NetMessage>) ->
     let msg_received = NetMessage::from(data_cloned);
     let msg = NetMessage::from(data);
     match sender.send(msg).await {
-<<<<<<< HEAD
         Ok(_) => info!(
             ">> Message with instance_id {:?} sent to the protocol layer. ",
-            msg_received.instance_id
+            msg_received.get_instace_id()
         ),
         Err(e) => error!(">> TEST: error send to network {e}"),
-=======
-        Ok(_) => println!(
-            ">> [Sender on the incoming channel] Message sent to the protocol layer: {:?}",
-            msg_received
-        ),
-        Err(e) => println!(">> TEST: error send to network {e}"),
->>>>>>> protocol_round_redesign
     }
     Ok(())
 }
