@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Channel{
     Gossip,
@@ -57,6 +58,7 @@ pub struct NetMessage {
     metadata: NetMessageMetadata,
     message_data: Vec<u8>,
 }
+
 
 impl NetMessage {
     pub fn new(instance_id: String, metadata: NetMessageMetadata, message_data: Vec<u8>)->NetMessage{
