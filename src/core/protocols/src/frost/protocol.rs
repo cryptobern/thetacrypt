@@ -10,7 +10,7 @@ use theta_schemes::{
         },
     },
     groups::group::GroupElement,
-    interface::{SchemeError, Serializable},
+    interface::{SchemeError, Serializable, Signature},
     rand::{RngAlgorithm, RNG},
 };
 
@@ -70,9 +70,10 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                         self.key.get_public_key(),
                         &self.msg,
                         &commitment_list,
+                        self.commitment.clone()
                     );
                     if result.is_err() {
-                        println!("invalid share with id {}", &message.id);
+                        println!("invalid share with id {}: error: {:?}", &message.id, result.err());
                         return Err(ProtocolError::InvalidShare);
                     }
 
@@ -121,11 +122,12 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
             1 => {
                 println!("commitment list len: {}", self.commitment_list.len());
                 if self.commitment_list.len() >= self.key.get_threshold() as usize {
+                    //checks if the commitments in the list are from the signing grup list
                     if let Option::Some(_) = self
                         .signer_group
                         .get_vec()
                         .iter()
-                        .find(|f| !self.commitment_list.contains_key(&f))
+                        .find(|f| !self.commitment_list.contains_key(&f)) // notice '!' it will stop as soon as it finds that a signer is NOT present
                     {
                         return false;
                     }
@@ -134,6 +136,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 return false;
             }
             2 => {
+                println!("shares list len: {}", self.shares.len());
                 if self.shares.len() >= self.key.get_threshold() as usize {
                     if let Option::Some(_) = self
                         .signer_group
@@ -210,7 +213,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     fn is_ready_to_finalize(&self) -> bool {
         if self.shares.len() == self.key.get_threshold() as usize {
             // check if we have all required shares to assemble signature
-            if let Option::None = self
+            if let Option::Some(_) = self
                 .signer_group
                 .signer_identifiers
                 .iter()
@@ -230,7 +233,8 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
         let shares = self.shares.values().cloned().collect();
         let sig = assemble(&group_commitment, &self.key, &shares);
         self.finished = true;
-        Ok(sig.to_bytes().unwrap())
+        let serialized_sig = Signature::Frost(sig).to_bytes();
+        Ok(serialized_sig.unwrap())
     }
 }
 

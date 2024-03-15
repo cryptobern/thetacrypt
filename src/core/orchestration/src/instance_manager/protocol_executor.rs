@@ -104,6 +104,7 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                             }
                         }
                         Err(e) => {
+                            info!("Error during update: {:?}", e);
                             return Err(e);
                         }
                     }

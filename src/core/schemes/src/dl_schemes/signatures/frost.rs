@@ -569,7 +569,7 @@ impl Serializable for FrostSignature {
         });
 
         if result.is_err() {
-            error!("{}", result.err().unwrap().to_string());
+            println!("{}", result.err().unwrap().to_string());
             return Err(SchemeError::DeserializationFailed);
         }
 
@@ -656,7 +656,7 @@ pub fn assemble(
     key: &FrostPrivateKey,
     shares: &Vec<FrostSignatureShare>,
 ) -> FrostSignature {
-    let mut z = SizedBigInt::new_int(&group_commitment.get_group(), 0);
+    let mut z = SizedBigInt::new_int(&key.get_group(), 0);
     for i in 0..key.get_threshold() as usize {
         z = z
             .add(&shares[i].data)
@@ -674,8 +674,9 @@ pub fn verify_share(
     pubkey: &FrostPublicKey,
     message: &[u8],
     commitment_list: &[PublicCommitment],
+    share_commitment: Option<PublicCommitment>,
 ) -> Result<bool, SchemeError> {
-    let commitment = commitment_list.get(share.get_id() as usize);
+    let commitment = share_commitment; //TODO: to remove commitment_list.get(share.get_id() as usize);
     if commitment.is_none() {
         return Err(SchemeError::IdNotFound);
     }

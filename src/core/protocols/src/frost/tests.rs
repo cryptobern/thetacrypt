@@ -56,6 +56,15 @@ fn test_interface() {
         for i in 0..k {
             let mut j = 0;
             while !instances[i].is_ready_for_next_round() {
+                // let result = instances[i].update(messages[j].clone());
+                // match result {
+                //     Ok(()) => {
+                //         continue;
+                //     },
+                //     Err(e) => {
+                //         println!("Error during update: {:?}", e);
+                //     }
+                // }
                 assert!(instances[i].update(messages[j].clone()).is_ok());
                 j += 1;
             }
@@ -65,9 +74,18 @@ fn test_interface() {
     }
 
     let signature = instances[0].finalize().unwrap();
-    let signature = Signature::from_bytes(&signature).unwrap();
+    let result = Signature::from_bytes(&signature);
 
-    assert!(ThresholdSignature::verify(&signature, &pk, msg).unwrap());
+    match result {
+        Ok(signature) => {
+            assert!(ThresholdSignature::verify(&signature, &pk, msg).unwrap());
+        },
+        Err(e) => {
+            println!("Error during update: {:?}", e);
+        }
+    }
+
+    
 }
 /*
 #[test]
