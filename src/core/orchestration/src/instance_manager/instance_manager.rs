@@ -13,14 +13,12 @@ use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
 use theta_protocols::{
-    interface::{ProtocolError, ThresholdRoundProtocol},
-    threshold_cipher::protocol::ThresholdCipherProtocol, threshold_coin::protocol::ThresholdCoinProtocol, threshold_signature::protocol::ThresholdSignatureProtocol,
+    frost::protocol::FrostProtocol, interface::{ProtocolError, ThresholdRoundProtocol}, threshold_cipher::protocol::ThresholdCipherProtocol, threshold_coin::protocol::ThresholdCoinProtocol, threshold_signature::protocol::ThresholdSignatureProtocol
     // threshold_coin::protocol::ThresholdCoinProtocol,
     // threshold_signature::protocol::ThresholdSignatureProtocol,
 };
 use theta_schemes::{
-    interface::{Ciphertext, SchemeError},
-    keys::{key_store::KeyEntry, keys::PrivateKeyShare},
+    dl_schemes::signatures::frost::FrostOptions, interface::{Ciphertext, SchemeError}, keys::{key_store::KeyEntry, keys::PrivateKeyShare}
 };
 use tokio::sync::oneshot;
 use tonic::{Code, Status};
@@ -432,32 +430,57 @@ impl InstanceManager {
 
                 let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
 
-                let prot = match scheme {
-                    ThresholdScheme::Frost => {todo!()},
+                match scheme {
+                    ThresholdScheme::Frost => {
+                        let prot = FrostProtocol::new(
+                            key, 
+                            &message, 
+                            b"label",
+                            FrostOptions::NoPrecomputation,
+                            Option::None
+                        );
+                        let executor = ThresholdProtocolExecutor::new(
+                            receiver,
+                            self.outgoing_p2p_sender.clone(),
+                            instance_id.clone(),
+                            self.event_emitter_sender.clone(),
+                            prot,
+                        );
+                        self.instances.insert(instance_id.clone(), instance);
+
+                
+
+                        // Start it in a new thread, so that the client does not block until the protocol is finished.
+                        self.start_protocol(
+                            executor,
+                            instance_id.clone(),
+                            self.instance_command_sender.clone(),
+                        );
+        
+                        return Ok(instance_id.clone());
+                    },
                     _ => {
-                        ThresholdSignatureProtocol::new(key,Some(&message),&label)
+                        let prot = ThresholdSignatureProtocol::new(key,Some(&message),&label);
+                        let executor = ThresholdProtocolExecutor::new(
+                            receiver,
+                            self.outgoing_p2p_sender.clone(),
+                            instance_id.clone(),
+                            self.event_emitter_sender.clone(),
+                            prot,
+                        );
+                        self.instances.insert(instance_id.clone(), instance);
+
+                        // Start it in a new thread, so that the client does not block until the protocol is finished.
+                        self.start_protocol(
+                            executor,
+                            instance_id.clone(),
+                            self.instance_command_sender.clone(),
+                        );
+        
+                        return Ok(instance_id.clone());
                     },
                 };
                 
-
-                self.instances.insert(instance_id.clone(), instance);
-
-                let executor = ThresholdProtocolExecutor::new(
-                    receiver,
-                    self.outgoing_p2p_sender.clone(),
-                    instance_id.clone(),
-                    self.event_emitter_sender.clone(),
-                    prot,
-                );
-
-                // Start it in a new thread, so that the client does not block until the protocol is finished.
-                self.start_protocol(
-                    executor,
-                    instance_id.clone(),
-                    self.instance_command_sender.clone(),
-                );
-
-                return Ok(instance_id.clone());
             }
             StartInstanceRequest::Coin {
                 name,
