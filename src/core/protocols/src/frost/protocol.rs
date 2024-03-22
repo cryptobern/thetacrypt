@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 
+use log::{debug, error, info};
 use theta_network::types::message::NetMessage;
 use theta_schemes::{
     dl_schemes::{
@@ -8,10 +9,7 @@ use theta_schemes::{
             assemble, commit, partial_sign, verify_share, FrostOptions, FrostPrivateKey,
             FrostSignature, FrostSignatureShare, Nonce, PublicCommitment,
         },
-    },
-    groups::group::GroupElement,
-    interface::{SchemeError, Serializable},
-    rand::{RngAlgorithm, RNG},
+    }, groups::group::GroupElement, interface::{DlShare, SchemeError, Serializable, Signature}, keys::keys::PrivateKeyShare, rand::{RngAlgorithm, RNG}
 };
 
 use crate::interface::{ProtocolError, ThresholdRoundProtocol};
@@ -43,6 +41,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     type ProtocolMessage = FrostMessage;
 
     fn update(&mut self, message: FrostMessage) -> Result<(), ProtocolError> {
+        info!("Update: round {:?}", self.round);
         match message.data {
             FrostData::Commitment(result) => {
                 if let FrostOptions::PrecomputeOnly = self.options {
@@ -56,6 +55,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                     && !self.commitment_list.contains_key(&message.id)
                 {
                     self.commitment_list.insert(message.id, result.clone());
+                    info!("Inserted commitment with id {:?}", message.id);
                 }
 
                 Ok(())
@@ -63,16 +63,22 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
             FrostData::Share(share) => {
                 if self.signer_group.contains(&message.id) && !self.shares.contains_key(&message.id)
                 {
-                    let commitment_list: Vec<PublicCommitment> =
+                    let mut commitment_list: Vec<PublicCommitment> =
                         self.commitment_list.values().cloned().collect();
+                    
                     let result = verify_share(
                         &share,
-                        self.key.get_public_key(),
+                        &self.key.get_public_key(),
                         &self.msg,
-                        &commitment_list,
+                        &mut commitment_list,
                     );
                     if result.is_err() {
-                        println!("invalid share with id {}", &message.id);
+                        error!("invalid share with id {}: error: {:?}", &message.id, result.err());
+                        return Err(ProtocolError::InternalError);
+                    } 
+
+                    if !result.unwrap() {
+                        error!("invalid share with id {}", &message.id);
                         return Err(ProtocolError::InvalidShare);
                     }
 
@@ -86,7 +92,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                     return Err(ProtocolError::InvalidShare);
                 }
 
-                println!("precomp id: {}", message.id);
+                info!("precomp id: {}", message.id);
                 if self.signer_group.contains(&message.id) {
                     let mut p: Vec<PublicCommitment>;
                     p = precomputations.clone();
@@ -96,7 +102,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                     if self.options == FrostOptions::Precomputation {
                         p = precomputations.clone();
                         let comm = p.pop().unwrap();
-                        println!("use first precomp with id {}", message.id);
+                        info!("use first precomp with id {}", message.id);
                         self.commitment_list.insert(message.id, comm);
                     }
 
@@ -117,15 +123,17 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     task: check whether we have all the necessary material to execute the next iteration of self.do_round()
      */
     fn is_ready_for_next_round(&self) -> bool {
+        info!("is_ready_for_next_round: round {:?}", self.round);
         match self.round {
             1 => {
-                println!("commitment list len: {}", self.commitment_list.len());
+                debug!("party {:?} commitment list len: {}",self.key.get_share_id(), self.commitment_list.len());
                 if self.commitment_list.len() >= self.key.get_threshold() as usize {
+                    //checks if the commitments in the list are from the signing grup list
                     if let Option::Some(_) = self
                         .signer_group
                         .get_vec()
                         .iter()
-                        .find(|f| !self.commitment_list.contains_key(&f))
+                        .find(|f| !self.commitment_list.contains_key(&f)) // notice '!' it will stop as soon as it finds that a signer is NOT present
                     {
                         return false;
                     }
@@ -134,6 +142,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 return false;
             }
             2 => {
+                debug!("shares list len: {}", self.shares.len());
                 if self.shares.len() >= self.key.get_threshold() as usize {
                     if let Option::Some(_) = self
                         .signer_group
@@ -157,6 +166,10 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 SchemeError::InvalidRound if all roun
     */
     fn do_round(&mut self) -> Result<FrostMessage, ProtocolError> {
+        //TODO: handle the case in which the current node is not in the signer group 
+        //      the node can still collect the material and assemple the signature
+        //      But the do round will not produce anything, so we need a void message or something
+        info!("do_round: : round {:?}", self.round);
         if self.round == 0 {
             let data;
             if (self.options != FrostOptions::NoPrecomputation) {
@@ -166,7 +179,16 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 self.nonce = Some(nonce);
                 self.commitment = Some(comm.clone());
 
-                data = FrostData::Commitment(comm);
+                
+
+                if self.signer_group.contains(&self.key.get_share_id())
+                && !self.commitment_list.contains_key(&self.key.get_share_id())
+            {
+                self.commitment_list.insert(self.key.get_share_id(), comm.clone());
+                info!("Inserted commitment with id {:?}", self.key.get_share_id());
+            }
+
+            data = FrostData::Commitment(comm);
             }
 
             self.round += 1;
@@ -176,14 +198,16 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 data,
             };
 
+        
+
             return Ok(message);
         } else if self.round == 1 {
-            let commitment_list: Vec<PublicCommitment> =
+            let mut commitment_list: Vec<PublicCommitment> =
                 self.commitment_list.values().cloned().collect();
 
             let res = partial_sign(
                 &self.nonce.clone().unwrap(),
-                &commitment_list,
+                &mut commitment_list,
                 &self.msg,
                 &self.key,
                 self.key.get_share_id(),
@@ -193,10 +217,17 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
 
                 let (share, group_commitment) = res.unwrap();
                 self.group_commitment = Some(group_commitment);
+
+                if self.signer_group.contains(&self.key.get_share_id()) && !self.shares.contains_key(&self.key.get_share_id()){
+                    self.shares.insert(self.key.get_share_id(), share.clone());
+                }
+
                 let message = FrostMessage {
                     id: self.key.get_share_id(),
                     data: FrostData::Share(share),
                 };
+
+                
 
                 return Ok(message);
             }
@@ -210,7 +241,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     fn is_ready_to_finalize(&self) -> bool {
         if self.shares.len() == self.key.get_threshold() as usize {
             // check if we have all required shares to assemble signature
-            if let Option::None = self
+            if let Option::Some(_) = self
                 .signer_group
                 .signer_identifiers
                 .iter()
@@ -230,25 +261,31 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
         let shares = self.shares.values().cloned().collect();
         let sig = assemble(&group_commitment, &self.key, &shares);
         self.finished = true;
-        Ok(sig.to_bytes().unwrap())
+        let serialized_sig = Signature::Frost(sig).to_bytes();
+        Ok(serialized_sig.unwrap())
     }
 }
 
 impl FrostProtocol {
     pub fn new(
-        key: &FrostPrivateKey,
+        key: Arc<PrivateKeyShare>,
         msg: &[u8],
         label: &[u8],
         options: FrostOptions,
         precomputation: Option<FrostPrecomputation>,
     ) -> Self {
+        let k = if let PrivateKeyShare::Frost(x) = key.as_ref() {
+            x
+        } else {
+            panic!("");
+        };
         if precomputation.is_none() {
             return Self {
                 round: 0,
                 msg: msg.to_vec(),
                 label: label.to_vec(),
                 shares: HashMap::new(),
-                key: key.clone(),
+                key: k.clone(),
                 nonce: Option::None,
                 commitment: Option::None,
                 precomputation_list: Vec::new(),
@@ -266,7 +303,7 @@ impl FrostProtocol {
             msg: msg.to_vec(),
             label: label.to_vec(),
             shares: HashMap::new(),
-            key: key.clone(),
+            key: k.clone(),
             nonce: Option::Some(precomputation.nonce),
             commitment: precomputation.commitments.get(&key.get_share_id()).cloned(),
             precomputation_list: Vec::new(),
