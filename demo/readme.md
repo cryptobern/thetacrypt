@@ -4,8 +4,6 @@
 
 The demo application aims at showcasing the usage of Thetacrypt in a distributed deployment. Thetacrypt has been designed with two system configurations in mind. The first one entails the use of Thetacrypt as a standalone distributed service and requires the development of an application that wants to use it. The second configuration is the integration with a blockchain platform. In this case, an instance of Thetacrypt will run on each validator node of a blockchain and the service can be called from a smart contract upon the delivery of a consensus decision.
 
-//TODO: Put some pictures here to show the two different deployments
-
 To make it simpler to run and try out our service we provide a demo application with Docker. In this way to run the demo you just need docker installed on your machine.
 
 ## Local configuration
@@ -19,15 +17,13 @@ The Makefile presents the following rules:
 
 - *build-docker*: builds the library docker image, `rust-threshold-library`, needed for subsequent steps.
 
-- *config-files* : generates configuration files for every Thetacrypt instance. While the script `confgen` is used to provide the network information of each instance, the script `Thetacli` with the parameter `keygen` is used to generate the key shares for each of them. All the resulting files will be placed in the shared volume `tmp`, mapped to the `conf` directory under `src/protocol` in the root directory.  To read more about these scripts you can refer to the library documentation.
+- *config-files*: generates configuration files for every Thetacrypt instance. While the script `confgen` is used to provide the network information of each instance, the script `Thetacli` with the parameter `keygen` is used to generate the key shares for each of them. All the resulting files will be placed in the shared volume `tmp`, mapped to the `conf` directory under `src/protocol` in the root directory.  To read more about these scripts you can refer to the library documentation.
 
 - *demo-start*: calls the `docker-compose.yml` file to build a network of four Thetacrypt nodes.
 
 - *demo-stop*: performs just a command to stop all the running containers built from the `docker-compose.yml`.
 
 - *client-start*: provides the right docker instruction to run a client script that connects to all the servers.
-
-//TODO: add a stop also for the client container
 
 - *clean-up*: removes the `tmp` directory.
 
@@ -36,7 +32,7 @@ The Makefile presents the following rules:
 1) Clone the directory <br> 
 ```
 git clone <GitHub Link>
-cd 2021.thetacrypt/demo
+cd <GitHub Repo>/demo
 ```
 2) Run the necessary rules to prepare the environment and start the network of nodes inside docker <br>
 ```
@@ -52,10 +48,11 @@ make client-start
 
 In this way, you make use of the image of the library already built and run everything inside the docker network defined in the `docker-compose.yml`.
 
-Alternatively, you can run the client script on your host: 
+Alternatively, you can run the client script on your host:
+
 ```
 cd ../src/protocols
 cargo run --bin client -- --config-file=../../demo/tmp/client.json
 ```
 
-Be aware that in this case you need the toolchain and all the dependencies to run a rust program.  
+Be aware that in this case, you need the toolchain and all the dependencies to run a Rust program.  
