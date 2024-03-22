@@ -700,7 +700,6 @@ pub fn verify_share(
     }
 
     let binding_factor = binding_factor.unwrap(); //rho of share i 
-    println!("rho_i commitment of share {:?}: {:?}", share.get_id(), binding_factor.factor);
     
     let group_commitment =
         compute_group_commitment(commitment_list, &binding_factor_list, pubkey.get_group()); //this can also not be computed every time
@@ -863,7 +862,6 @@ pub(crate) fn compute_binding_factors(
     let msg_hash = h4(msg, group);
     commitment_list.sort();
     let encoded_commitment_hash = h5(&encode_group_commitment_list(commitment_list), group);
-    println!("encoded_commitment_hash: {:?}", encoded_commitment_hash);
     let rho_input_prefix = [pubkey_enc, &msg_hash, &encoded_commitment_hash].concat(); //TODO: check if here the pubkey should be changed for the index as in the paper, otherwise this value is the same for all
 
     let mut binding_factor_list: Vec<BindingFactor> = Vec::new();
