@@ -46,7 +46,7 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
 {
     async fn run(&mut self) -> Result<Vec<u8>, ProtocolError> {
         info!(
-            "<{:?}>: Starting executing threshol protocol instance",
+            "<{:?}>: Starting executing threshold protocol instance",
             &self.instance_id
         );
 

@@ -6,3 +6,4 @@ src/proto/src/*.rs
 src/protocols/conf/*
 */debug/*
 */.rustc_info.json
+*/tmp/*

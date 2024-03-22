@@ -27,6 +27,8 @@ COPY --from=builder /rootLibrary/threasholdLibrary/target/release/confgen /targe
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/thetacli /target/release/
 
+COPY --from=builder /rootLibrary/threasholdLibrary/log4rs.yaml /target/release/
+
 WORKDIR /target/release/
 
 #after docker run you can override CMD 
