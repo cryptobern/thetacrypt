@@ -12,7 +12,12 @@ use theta_service::rpc_request_handler;
 
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
-use theta_network::{config::static_net, types::message::NetMessage};
+use theta_network::{
+    config::static_net, 
+    network_manager::network_manager::NetworkManager, 
+    p2p::gossipsub_setup::static_net::P2PComponent, 
+    types::message::NetMessage
+};
 
 #[tokio::main]
 async fn main() {
@@ -80,14 +85,29 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
         config.listen_address, my_p2p_port
     );
 
-    // TODO: Here we can have an init() function for the network (that gives back the id) and then a run() function to run it on a different thread
+    // TODO: Here we can have an init() function for the network (that gives back the id) 
+    // and then a run() function to run it on a different thread
+
+
+    // Instanciathe the p2p compponent implementation
+    let mut p2p_component = P2PComponent::new(
+        net_cfg.clone(),
+        my_id,
+    );
+
+    p2p_component.init().await;
+
+    // Instantiate the NetworkManager
+    let mut network_manager = NetworkManager::new(
+        prot_to_net_receiver, 
+        net_to_prot_sender, 
+        net_cfg.clone(), 
+        my_id, 
+        p2p_component
+    );
+
     tokio::spawn(async move {
-        theta_network::p2p::gossipsub_setup::static_net::init(
-            prot_to_net_receiver,
-            net_to_prot_sender,
-            net_cfg,
-            my_id,
-        )
+        network_manager.run()
         .await;
     });
 

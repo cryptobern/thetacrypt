@@ -1,6 +1,7 @@
 .vscode/*
 Cargo.lock
 */target/*
+src/conf/*
 *.DS_Store
 src/proto/src/*.rs
 src/protocols/conf/*

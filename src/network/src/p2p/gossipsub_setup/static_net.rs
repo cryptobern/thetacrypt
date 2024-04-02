@@ -1,7 +1,6 @@
 
 use std::time::Duration;
 
-use async_std::stream::Pending;
 use tokio::time;
 
 use futures::{prelude::*, StreamExt};
@@ -13,10 +12,7 @@ use libp2p::{
 };
 use log::{debug, info};
 
-use futures::task::Poll;
-
 use tokio::sync::mpsc::{Receiver, Sender};
-use trust_dns_resolver::proto::op::message;
 
 use crate::{config::static_net::{config_service::*, deserialize::Config}, interface::Gossip};
 use crate::types::message::*;
@@ -28,69 +24,98 @@ use tonic::async_trait;
 
 
 //TODO: remove the pub and add a constructor
-pub struct P2PComponent<NetMessage> {
+pub struct P2PComponent {
     pub config: Config,
     pub id: u32,
-    pub swarm: Swarm<Gossipsub>,
+    pub swarm: Option<Swarm<Gossipsub>>,
     pub topic: GossibsubTopic,
-    pub receiver: Receiver<NetMessage>
-}
-
-struct NetFuture<T> {
-    message: Option<T>,
-}
-
-impl<T> NetFuture<T> {
-    pub fn new() -> Self{
-        return NetFuture { message: None }
-    }
-}
-impl<T> Future for NetFuture<T> {
-    type Output = Option<T>;
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        todo!()
-        // let event = self.swarm.select_next_some().await;
-        
-        // match event {
-        //     // Handles (incoming) Gossipsub-Message
-        //     SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
-        //         debug!("NET: Received a message");
-        //         return message.data.into()
-        //     },
-        //     _ => {return Poll::Pending}
-        // }
-    }
 }
 
 #[async_trait]
-impl Gossip<NetMessage, NetFuture<NetMessage>> for P2PComponent<NetMessage> 
+impl Gossip<NetMessage> for P2PComponent
     where Vec<u8>: From<NetMessage> //needed for libp2p
 {
 
     fn broadcast(&mut self, net_message: NetMessage) {
         
         debug!("NET: Sending a message");
-        self.swarm.behaviour_mut().publish(self.topic.clone(), net_message).expect("Publish error");
+        let swarm = self.swarm.as_mut().unwrap();
+        swarm.behaviour_mut().publish(self.topic.clone(), net_message).expect("Publish error");
         
     }
 
-    fn deliver(&mut self) -> NetFuture<NetMessage> {
-
-        //create the future 
-        let future = NetFuture::new();
-        return future
+    async fn deliver(&mut self) -> Option<NetMessage> {
+        // put here the code that handles the swarm and the other cases should go in a different functions that checks the network of peers
+        
+            tokio::select! {
+                
+                // polls swarm events
+                event = self.swarm.as_mut().unwrap().select_next_some() => match event {
+                    // Handles (incoming) Gossipsub-Message
+                    SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
+                        debug!("NET: Received a message");
+                        let message: NetMessage = message.data.into();
+                        return Some(message);
+                    }
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        debug!("NET: Listening on {:?}", address);
+                        return None
+                    }
+                    SwarmEvent::Dialing(peer_id) => {
+                        debug!("NET: Attempting to dial peer {peer_id}");
+                        return None
+                    }
+                    SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
+                        debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
+                        return None
+                    },
+                    SwarmEvent::ConnectionClosed { peer_id, endpoint, num_established: _, cause } => {
+                        debug!("NET: Closed connection to peer {peer_id} on {} due to {:?}", endpoint.get_remote_address(), cause);
+                        return None
+                    }
+                    _ => {return None}
+                }
     }
   
 }
+}
 
-impl P2PComponent<NetMessage> {
+impl P2PComponent {
+
+    async fn monitor_network(&mut self) {
+        let mut list_peers_timer = time::interval(Duration::from_secs(60));
+        let swarm = self.swarm.as_mut().unwrap();
+        tokio::select! {
+            // Periodically list all our known peers.
+            _tick = list_peers_timer.tick() => {
+                debug!("NET: My currently known peers: ");
+                for (peer, _) in swarm.behaviour().all_peers() {
+                    debug!("- {}", peer);
+                }
+
+                debug!("NET: My currently connected mesh peers: ");
+                for peer in swarm.behaviour().all_mesh_peers() {
+                    debug!("- {}", peer);
+                }
+            }    
+        }
+        
+    }
+
+    pub fn new(config: Config, id: u32) -> Self{
+        let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
+        return P2PComponent{
+            config: config,
+            id: id,
+            swarm: None,
+            topic: topic,
+        }
+    }
     
     ///init() for now provides the initialization of libp2p
     //TODO: The goal will be to setup the different modules available for transmission 
-    fn init(&mut self){
+    pub async fn init(&mut self){ //Handle an error that in case doesn't allow the component to exist if it is not possible to instantiate the swarm
         // Create a Gossipsub topic
-       let topic: GossibsubTopic = GossibsubTopic::new("gossipsub broadcast");
 
        // Create a random Keypair and PeerId (hash of the public key)
        let id_keys = identity::Keypair::generate_ed25519();
@@ -105,17 +130,21 @@ impl P2PComponent<NetMessage> {
        let transport = create_tcp_transport(noise_keys);
 
        // Create a Swarm to manage peers and events.
-       self.swarm = create_gossipsub_swarm(&topic, id_keys.clone(), transport, local_peer_id);
+       let mut swarm = create_gossipsub_swarm(&self.topic, id_keys.clone(), transport, local_peer_id);
+       self.swarm = Some(swarm);
 
        // load listener address from config file
        let listen_addr = get_p2p_listen_addr(&self.config, self.id);
        debug!("NET: Listening for P2P on: {}", listen_addr);
 
        // bind port to listener address
-       match self.swarm.listen_on(listen_addr.clone()) {
+       let swarm = self.swarm.as_mut().unwrap();
+       match swarm.listen_on(listen_addr.clone()) {
            Ok(_) => (),
            Err(error) => debug!("NET: listen {:?} failed: {:?}", listen_addr, error),
        }
+       
+       self.dial_local_net().await
     }
 
     /// Dial all peers, and wait for at least one connection to be established.
@@ -138,7 +167,8 @@ impl P2PComponent<NetMessage> {
             // know of.
             // As such, .dial() seems to just be a way to let the network layer know of peers which
             // exist, so it can try to connect to them.
-            match self.swarm.dial(dial_addr.clone()) {
+            let swarm = self.swarm.as_mut().unwrap();
+            match swarm.dial(dial_addr.clone()) {
                 Ok(_) => {}
                 Err(e) => debug!("NET: Dial {:?} failed: {:?}", dial_addr, e),
             };
@@ -146,8 +176,9 @@ impl P2PComponent<NetMessage> {
 
         debug!("NET: Waiting for connection to first peer");
         // Now we wait until we've successfully connected to at least one peer.
+        let swarm = self.swarm.as_mut().unwrap();
         loop {
-            match self.swarm.select_next_some().await {
+            match swarm.select_next_some().await {
                 SwarmEvent::ConnectionEstablished { endpoint, .. } => {
                     debug!(
                         "NET: Successfully connected to first peer on: {:?}",
@@ -162,52 +193,48 @@ impl P2PComponent<NetMessage> {
     }
 
     // kick off tokio::select event loop to handle events
-pub async fn run_event_loop(&mut self,
-    topic: GossibsubTopic,
-    mut outgoing_msg_receiver: Receiver<NetMessage>,
-    incoming_msg_sender: Sender<NetMessage>,
-) -> ! {
-    let mut list_peers_timer = time::interval(Duration::from_secs(60));
-    loop {
-        tokio::select! {
-            // Periodically list all our known peers.
-            _tick = list_peers_timer.tick() => {
-                debug!("NET: My currently known peers: ");
-                for (peer, _) in self.swarm.behaviour().all_peers() {
-                    debug!("- {}", peer);
-                }
+    pub async fn run_event_loop(&mut self,
+        incoming_msg_sender: Sender<NetMessage>,
+    ) -> ! {
+        
+        loop {
+            // tokio::select! {
+                // // Periodically list all our known peers.
+                // _tick = list_peers_timer.tick() => {
+                //     debug!("NET: My currently known peers: ");
+                //     for (peer, _) in swarm.behaviour().all_peers() {
+                //         debug!("- {}", peer);
+                //     }
 
-                debug!("NET: My currently connected mesh peers: ");
-                for peer in self.swarm.behaviour().all_mesh_peers() {
-                    debug!("- {}", peer);
-                }
-            }
-            // polls swarm events
-            event = self.swarm.select_next_some() => match event {
-                // Handles (incoming) Gossipsub-Message
-                SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
-                    debug!("NET: Received a message");
-                    incoming_msg_sender.send(message.data.into()).await.unwrap();
-                }
-                SwarmEvent::NewListenAddr { address, .. } => {
-                    debug!("NET: Listening on {:?}", address);
-                }
-                SwarmEvent::Dialing(peer_id) => {
-                    debug!("NET: Attempting to dial peer {peer_id}");
-                }
-                SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
-                    debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
-                },
-                SwarmEvent::ConnectionClosed { peer_id, endpoint, num_established: _, cause } => {
-                    debug!("NET: Closed connection to peer {peer_id} on {} due to {:?}", endpoint.get_remote_address(), cause);
-                }
-                _ => {}
-            }
+                //     debug!("NET: My currently connected mesh peers: ");
+                //     for peer in swarm.behaviour().all_mesh_peers() {
+                //         debug!("- {}", peer);
+                //     }
+                // }
+                // // polls swarm events
+                // event = swarm.select_next_some() => match event {
+                //     // Handles (incoming) Gossipsub-Message
+                //     SwarmEvent::Behaviour(GossipsubEvent::Message {message, ..}) => {
+                //         debug!("NET: Received a message");
+                //         incoming_msg_sender.send(message.data.into()).await.unwrap();
+                //     }
+                //     SwarmEvent::NewListenAddr { address, .. } => {
+                //         debug!("NET: Listening on {:?}", address);
+                //     }
+                //     SwarmEvent::Dialing(peer_id) => {
+                //         debug!("NET: Attempting to dial peer {peer_id}");
+                //     }
+                //     SwarmEvent::ConnectionEstablished { peer_id, endpoint, num_established: _, concurrent_dial_errors: _} => {
+                //         debug!("NET: Successfully established connection to peer {peer_id} on {}", endpoint.get_remote_address());
+                //     },
+                //     SwarmEvent::ConnectionClosed { peer_id, endpoint, num_established: _, cause } => {
+                //         debug!("NET: Closed connection to peer {peer_id} on {} due to {:?}", endpoint.get_remote_address(), cause);
+                //     }
+                //     _ => {}
+                // }
+            // }
         }
     }
-}
-
-
 }
 
 
