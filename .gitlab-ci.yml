@@ -22,7 +22,7 @@ docker-build:
 test:
   stage: test
 
-  image: rust:1.70
+  image: rust:1.74
 
   script:
     - apt-get update && apt-get install -yqq build-essential cmake protobuf-compiler
