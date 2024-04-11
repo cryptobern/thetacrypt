@@ -1,5 +1,5 @@
 # Stage 1: Base image
-FROM rust:1.70 AS rust
+FROM rust:1.74 AS rust
 WORKDIR /app
 
 # Install cargo-chef, which will help us utilize Docker's layer caching 
