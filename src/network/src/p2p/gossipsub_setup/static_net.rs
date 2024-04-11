@@ -143,7 +143,7 @@ impl P2PComponent {
            Ok(_) => (),
            Err(error) => debug!("NET: listen {:?} failed: {:?}", listen_addr, error),
        }
-       
+        
        self.dial_local_net().await
     }
 

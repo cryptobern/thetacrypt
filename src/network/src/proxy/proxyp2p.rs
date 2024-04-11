@@ -13,10 +13,13 @@ use thetacrypt_blockchain_stub::proto::blockchain_stub::{
     blockchain_stub_client::BlockchainStubClient, ForwardShareRequest,
 };
 
+use crate::interface::Gossip;
 // Thetacrypt
 use crate::types::message::NetMessage;
 
 use serde::{Deserialize, Serialize};
+
+use tonic::async_trait;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProxyConfig {
@@ -24,6 +27,23 @@ pub struct ProxyConfig {
     pub p2p_port: u16,
     pub proxy_addr: String,
     pub proxy_port: u16,
+}
+
+pub struct ProxyP2P {
+    pub config: ProxyConfig,
+    pub id: u32,
+}
+
+#[async_trait]
+impl Gossip<NetMessage> for ProxyP2P {
+    fn broadcast(&mut self, message: NetMessage) {
+        todo!()
+    }
+
+
+    async fn deliver(&mut self) -> Option<NetMessage> {
+        todo!()
+    }
 }
 
 pub async fn init(

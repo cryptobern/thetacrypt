@@ -17,3 +17,8 @@ pub trait TOB<T>{
     fn broadcast(message: T);
     async fn deliver(&self) -> T;
 }
+
+#[async_trait]
+pub trait NetworkService {
+    fn listen_on(&self, port: i32);
+}

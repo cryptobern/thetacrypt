@@ -126,7 +126,7 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         if let Err(e) = self.broadcast_channel_sender.send((id, msg.to_vec())).await {
             println!("Error occurred during send(): {}", e);
         }
-        Ok((Response::new(AtomicBroadcastResponse {})))
+        Ok(Response::new(AtomicBroadcastResponse {}))
     }
 }
 
@@ -233,5 +233,10 @@ async fn main() -> io::Result<()> {
     // Start the server
     // Initialize the data structure for the blockchain
     // Handle the listener so that every request is handled by modifying the state of the blockchain atomically
-    // All the messages sent to the blockchain must be totally ordered. So it doesn't matter the order in which they arrive, but in the deliver phase (when we are triggered on the node about something decided in the blockchain we need to ensure that every node will receive the same messages in the same order). How can we do this? We can keep a list of teh connected endpoints and for each of them keeping a thread that notifies and points to a particular position of the vector. Modifying it just if the reception of th message was ack(ed).
+    // All the messages sent to the blockchain must be totally ordered. So it doesn't matter the order in which they arrive, 
+    // but in the deliver phase (when we are triggered on the node about something decided in the blockchain 
+    // we need to ensure that every node will receive the same messages in the same order). 
+    
+    // How can we do this? We can keep a list of the connected endpoints and for each of them keeping a thread that notifies 
+    // and points to a particular position of the vector. Modifying it just if the reception of th message was ack(ed).
 }
