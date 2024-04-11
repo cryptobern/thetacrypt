@@ -6,7 +6,7 @@ pub enum Channel{
     Gossip,
     TOB,
     PointToPoint {
-        receiver_id: u16,
+        receiver_id: Vec<u32>,
     }
 }
 
@@ -46,10 +46,10 @@ impl NetMessageMetadata{
 // inside the message_data
 
 // At an high level we want the NetMessage to contain just the instance_id, metadata, and message_data. 
-// The instance_id is uzsed by the orchestration logic of the core layer to decide to which protocol execution deliver the message 
+// The instance_id is used by the orchestration logic of the core layer to decide to which protocol execution deliver the message 
 // OBSV: Can an adversary mess up with the instance ids? If we add authentication NO. 
 // The metadata should be used by the network layer to decide how to send the message, to add the signature and optionally encrypt. 
-// We also need a mechanism to signal if a TOB channel is available or not and in case change the bechaviour of a protocol accordingly, or 
+// We also need a mechanism to signal if a TOB channel is available or not and in case change the behavior of a protocol accordingly, or 
 // deny it completely.
 // The message_data field is a vector of bytes with no meaning for the network layer.  
 #[derive(Serialize, Deserialize, Debug, Clone)]
