@@ -103,7 +103,8 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
         net_to_prot_sender, 
         net_cfg.clone(), 
         my_id, 
-        p2p_component
+        p2p_component, 
+        None
     );
 
     tokio::spawn(async move {

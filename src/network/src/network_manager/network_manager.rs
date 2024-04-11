@@ -7,23 +7,23 @@ use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
 // T is the generic for the message
 // G is the generic for the Gossip module
 // P is the generic for Total order broadcast
-pub struct NetworkManager<T, G: Gossip<T>> {//, P: TOB<T> > {
+pub struct NetworkManager<T, G: Gossip<T>, P: TOB<T> > {
     outgoing_msg_receiver: Receiver<T>,
     incoming_msg_sender: Sender<T>,
     config: Config, //TODO: to review this Config, also the position
     my_id: u32,
     gossip_channel: G,
-    // tob_channel: Option<P>,
+    tob_channel: Option<P>,
 }
 
-impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
+impl<G: Gossip<NetMessage>, P: TOB<NetMessage>> NetworkManager<NetMessage,G, P> {
     pub fn new(    
         outgoing_msg_receiver: Receiver<NetMessage>,
         incoming_msg_sender: Sender<NetMessage>,
         config: Config,
         my_id: u32,
         gossip_channel: G,
-        // tob_channel: Option<P>
+        tob_channel: Option<P>
     ) -> Self{
             return NetworkManager{
                 outgoing_msg_receiver: outgoing_msg_receiver,
@@ -31,17 +31,19 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
                 config: config,
                 my_id: my_id,
                 gossip_channel: gossip_channel,
-                // tob_channel: None,
+                tob_channel: tob_channel,
             };
         }
 
     //Here should go all the logic of the network layer    
     pub async fn run(&mut self){
+
+        let tob_ref = self.tob_channel.as_ref();
         loop{
             tokio::select! {
-                protocol_msg = self.outgoing_msg_receiver.recv() => {
+                Some(protocol_msg) = self.outgoing_msg_receiver.recv() => { //if the channel closes, then the recv() returns None and the branch is ignored
                     //check condition for the channel (does it need gossip, tob, additional PtP)
-                    let net_message = protocol_msg.unwrap().clone();
+                    let net_message = protocol_msg.clone();
                     let channel = net_message.get_metadata().get_channel();
                     match channel {
                         Channel::Gossip => info!("Gossip channel"),
@@ -52,9 +54,9 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
                     let _ = self.gossip_channel.broadcast(net_message);
                     info!("... sending to the network");
                 },
-                gossip_msg = self.gossip_channel.deliver() => {
-                    if let Some(message) = gossip_msg {
-                        let net_message = message.clone();
+                Some(gossip_msg) = self.gossip_channel.deliver() => {
+                    
+                        let net_message = gossip_msg.clone();
                         info!("Received message from network");
                         let channel = net_message.get_metadata().get_channel();
                         match channel {
@@ -71,12 +73,14 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
                             },   
                         };
                         
-                        let _ = self.incoming_msg_sender.send(message).await; //we need to wait here in casy the channel is full, we might add handling error if the channel closes
-                        info!("... forwarding to the protocol");
-                    }
-                    // let message = gossip_msg.unwrap(); //handle a secure unwrap
-                    
+                        let _ = self.incoming_msg_sender.send(gossip_msg).await; //we need to wait here in casy the channel is full, we might add handling error if the channel closes
+                        info!("... forwarding to the protocol");   
                 },
+                Some(tob_msg) = tob_ref.unwrap().deliver(), if !tob_ref.is_none() => {//after the comma we have a precondition to enable the branch
+                    todo!()
+                },
+                else => { break },
+                
                 // tob_message = self.tob_channel.as_ref().unwrap().deliver() => { //TODO: dangerous unwarp(), to handle
                 //     todo!()
                 // }

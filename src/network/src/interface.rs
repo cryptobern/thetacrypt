@@ -14,8 +14,8 @@ pub trait Gossip<T> {
 
 #[async_trait]
 pub trait TOB<T>{
-    fn broadcast(message: T);
-    async fn deliver(&self) -> T;
+    fn broadcast(&mut self, message: T);
+    async fn deliver(&self) -> Option<T>;
 }
 
 #[async_trait]
