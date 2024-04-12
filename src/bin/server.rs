@@ -16,8 +16,10 @@ use theta_network::{
     config::static_net, 
     network_manager::network_manager::NetworkManager, 
     p2p::gossipsub_setup::static_net::P2PComponent, 
-    types::message::NetMessage
+    types::message::NetMessage,
+    interface::{TOB,TOBComponentEmpty}
 };
+use tonic::async_trait;
 
 #[tokio::main]
 async fn main() {
@@ -98,7 +100,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     p2p_component.init().await;
 
     // Instantiate the NetworkManager
-    let mut network_manager = NetworkManager::new(
+    let mut network_manager: NetworkManager<NetMessage, P2PComponent, TOBComponentEmpty<NetMessage>> = NetworkManager::new(
         prot_to_net_receiver, 
         net_to_prot_sender, 
         net_cfg.clone(), 

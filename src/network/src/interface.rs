@@ -1,11 +1,6 @@
-use futures::Future;
-use tokio::sync::mpsc::{Receiver, Sender};
-
-//T wil be NetMessage
 use tonic::async_trait;
 
-use crate::{config::static_net::deserialize::Config, types::message::NetMessage};
-
+//T wil be NetMessage
 #[async_trait]
 pub trait Gossip<T> {
     fn broadcast(&mut self, message: T);
@@ -16,6 +11,23 @@ pub trait Gossip<T> {
 pub trait TOB<T>{
     fn broadcast(&mut self, message: T);
     async fn deliver(&self) -> Option<T>;
+}
+
+/// TOBComponentEmpty implements the TOB interface to provide rust with a concrete type but it is meant to use when a TOB channel is unavailable
+/// The generic T allows to not specify in the interface the type of messages that the channels will handle
+pub struct TOBComponentEmpty<T>{
+     _message: T
+}
+
+#[async_trait]
+impl<T: std::marker::Sync> TOB<T> for TOBComponentEmpty<T>{
+    fn broadcast(&mut self,_message:T) {
+        unimplemented!()
+    }
+
+    async fn deliver(&self)->Option<T>{
+        unimplemented!()
+    }
 }
 
 #[async_trait]
