@@ -44,26 +44,19 @@ impl Blockchain {
     pub async fn start_and_run(&mut self, config: P2PConfig) {
         loop {
             tokio::select! {
-                incoming_block = self.broadcast_channel_receiver.recv() => {
-                    match incoming_block {
-                        Some(data) => {
-                            let (id, msg) = data;
-                            if !(self.registry.contains(&id)){
-                                println!("Id of the msg {}",id);
-                                self.registry.insert(id);
-                                self.chain.push_back(msg.clone());
-                                println!("New message added to the chain. Current length: {}", self.chain.len());
+                Some(incoming_block) = self.broadcast_channel_receiver.recv() => {
+                    let (id, msg) = incoming_block;
+                    if !(self.registry.contains(&id)){ //The id for now is the instance id, but this can be the same for multiple messages of the same protocol instance
+                        println!("Id of the msg {}",id);
+                        self.registry.insert(id);
+                        self.chain.push_back(msg.clone());
+                        println!("New message added to the chain. Current length: {}", self.chain.len());
 
-                                let streams = connect_to_all_local(config.clone());
-                                forward_message_to_peers(msg.as_slice(), streams);
-                            }
-                        },
-                        None => {
-                            todo!();
-                        },
-                    }
-
-            }
+                        let streams = connect_to_all_local(config.clone());
+                        forward_message_to_peers(msg.as_slice(), streams);  // Here we are sending back to the peers after ordering 
+                                                                            // but in a blockchain we would poll the state (probably)
+                    }        
+                }
             }
         }
     }
@@ -87,8 +80,8 @@ fn forward_message_to_peers(msg: &[u8], streams: Vec<TcpStream>) {
         let _write_all = stream.write_all(msg);
     }
 
-    println!(
-        "[BlockchainStubServer] Received forward_share request and send it to the other thetacrypt nodes!"
+    info!(
+        "[BlockchainStubServer] Received request and forwarded it to the other thetacrypt nodes!"
     );
 
 }
