@@ -288,7 +288,7 @@ fn run_integration(
                 listen_address.clone(),
                 p2p_port,
                 rpc_port,
-                ProxyNode { ip: ip.to_string(), port: proxy_port.add(u16::try_from(i).unwrap()) }, //TODO: consider also for the proxy_port the PortStrategy 
+                ProxyNode { ip: ip.to_string(), port: proxy_port.add(u16::try_from(i).unwrap()) }, //TODO: consider also for the proxy_port the PortStrategy (the stub has the same port)
                 event_file.clone(),
             )
             .unwrap()

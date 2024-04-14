@@ -46,7 +46,7 @@ async fn main() {
         }
     };
 
-    if server_cli.key_file.is_none() {
+    if server_cli.key_file.is_none() { //TODO: thre should be a way to start everything without keys (maybe this is just for file location and it can be empty?)
         error!("Please specify the keystore location");
         exit(-1);
     }
@@ -91,7 +91,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     // and then a run() function to run it on a different thread
 
 
-    // Instanciathe the p2p compponent implementation
+    // Instantiate the p2p component implementation
     let mut p2p_component = P2PComponent::new(
         net_cfg.clone(),
         my_id,

@@ -27,6 +27,7 @@ struct ThetacryptBlockchainStub {
     broadcast_channel_sender: mpsc::Sender<(String, Vec<u8>)>,
 }
 
+/// Blockchain represents the storage abstraction of a chian
 struct Blockchain {
     chain: VecDeque<Vec<u8>>,
     registry: HashSet<String>,
@@ -54,7 +55,7 @@ impl Blockchain {
 
                         let streams = connect_to_all_local(config.clone());
                         forward_message_to_peers(msg.as_slice(), streams);  // Here we are sending back to the peers after ordering 
-                                                                            // but in a blockchain we would poll the state (probably)
+                                                                            // but in a blockchain we would poll the state (probably?)
                     }        
                 }
             }
@@ -86,6 +87,8 @@ fn forward_message_to_peers(msg: &[u8], streams: Vec<TcpStream>) {
 
 }
 
+
+// the following implementation is needed to make our concrete type conformed with BlockchainStub protobuf definition 
 #[tonic::async_trait] // needed to allow async function in the trait
 impl BlockchainStub for ThetacryptBlockchainStub {
     async fn forward_share(
@@ -166,31 +169,6 @@ async fn main() -> io::Result<()> {
             exit(1);
         }
     };
-
-    // Hardcoded addresses of the peers just for test
-    // TODO: read these information from a config file
-    let p2p_info_1 = PeerP2PInfo {
-        id: 1,
-        ip: "127.0.0.1".to_string(),
-        p2p_port: 50000,
-    };
-    let p2p_info_2 = PeerP2PInfo {
-        id: 2,
-        ip: "127.0.0.1".to_string(),
-        p2p_port: 50001,
-    };
-    let p2p_info_3 = PeerP2PInfo {
-        id: 3,
-        ip: "127.0.0.1".to_string(),
-        p2p_port: 50002,
-    };
-    let p2p_info_4 = PeerP2PInfo {
-        id: 4,
-        ip: "127.0.0.1".to_string(),
-        p2p_port: 50003,
-    };
-
-    let _peers = vec![p2p_info_1, p2p_info_2, p2p_info_3, p2p_info_4];
 
     let (channel_sender, channel_receiver) = tokio::sync::mpsc::channel::<(String, Vec<u8>)>(100);
     let mut blockchain = Blockchain::new(channel_receiver);

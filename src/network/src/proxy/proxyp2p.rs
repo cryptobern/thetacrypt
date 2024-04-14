@@ -87,7 +87,7 @@ impl ProxyP2PStub {
         return ProxyP2PStub { config: config, id: id , listener: None}
     }
 
-    pub async fn start_service(&mut self) {
+    pub async fn init(&mut self) {
 
         let host_ip = <Ipv4Addr>::from_str(self.config.listen_addr.as_str()).unwrap();
         let port: u16 = self.config.p2p_port;
@@ -102,6 +102,7 @@ impl ProxyP2PStub {
     }
 }
 
+//TODO: finish the implementation deciding if it is the blockchain part that should push when something is decided (maybe here consider the finality)
 pub struct ProxyTOBStub {
     pub config: ProxyConfig,
     pub id: u32,
@@ -147,7 +148,7 @@ impl ProxyTOBStub {
     }
 
     //setup of service listening for incoming messages
-    fn start_service(){
+    fn init(){
         todo!()
     }
 }
