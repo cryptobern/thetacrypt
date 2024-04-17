@@ -53,6 +53,10 @@ impl<G: Gossip<NetMessage>, P: TOB<NetMessage>> NetworkManager<NetMessage,G, P> 
                     info!("Received message from protocol layer");
                     let _ = self.gossip_channel.broadcast(net_message);
                     info!("... sending to the network");
+
+                    let _ = self.incoming_msg_sender.send(protocol_msg).await; 
+                        info!("... forwarding my message back to the protocol");
+
                 },
                 Some(gossip_msg) = self.gossip_channel.deliver() => {
                     
