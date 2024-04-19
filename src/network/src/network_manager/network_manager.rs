@@ -49,8 +49,16 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
                         Channel::PointToPoint{receiver_id} => info!("Point to Point channel"), //here handle authentication   
                     };
                     info!("Received message from protocol layer");
-                    let _ = self.gossip_channel.broadcast(net_message);
+                    let _ = self.gossip_channel.broadcast(net_message.clone());
                     info!("... sending to the network");
+
+                    // The next line implements the logic to give back to the protocol a message produced locally 
+                    // so that a self-message appears in teh received ones. 
+                    // It is up to the implementers of a certain protocol the decision of handling 
+                    // a locally produced message already in the protocol to optimize in terms of transmission
+                    // latency and verification time. 
+                    let _ = self.incoming_msg_sender.send(net_message).await;
+                    info!("... forwarding my message back to the protocol");
                 },
                 gossip_msg = self.gossip_channel.deliver() => {
                     if let Some(message) = gossip_msg {
