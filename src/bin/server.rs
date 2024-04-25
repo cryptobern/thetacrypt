@@ -14,7 +14,7 @@ use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{
     config::static_net, 
-    network_manager::network_manager::NetworkManager, 
+    network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder}, 
     p2p::gossipsub_setup::static_net::P2PComponent, 
     types::message::NetMessage
 };
@@ -89,22 +89,15 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     // and then a run() function to run it on a different thread
 
 
-    // Instanciathe the p2p compponent implementation
-    let mut p2p_component = P2PComponent::new(
-        net_cfg.clone(),
-        my_id,
-    );
-
-    p2p_component.init().await;
+    let mut network_builder = NetworkManagerBuilder::default();
+    network_builder.set_outgoing_msg_receiver(prot_to_net_receiver);
+    network_builder.set_incoming_message_sender(net_to_prot_sender);
+    network_builder.set_config(net_cfg.clone());
+    network_builder.set_id(my_id);
+    NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id).await;
 
     // Instantiate the NetworkManager
-    let mut network_manager = NetworkManager::new(
-        prot_to_net_receiver, 
-        net_to_prot_sender, 
-        net_cfg.clone(), 
-        my_id, 
-        p2p_component
-    );
+    let mut network_manager = network_builder.build();
 
     tokio::spawn(async move {
         network_manager.run()

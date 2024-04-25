@@ -35,7 +35,9 @@ pub struct ProxyP2P {
 }
 
 #[async_trait]
-impl Gossip<NetMessage> for ProxyP2P {
+impl Gossip for ProxyP2P {
+
+    type T = NetMessage;
     fn broadcast(&mut self, message: NetMessage) {
         todo!()
     }

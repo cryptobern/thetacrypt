@@ -32,11 +32,12 @@ pub struct P2PComponent {
 }
 
 #[async_trait]
-impl Gossip<NetMessage> for P2PComponent
+impl Gossip for P2PComponent
     where Vec<u8>: From<NetMessage> //needed for libp2p
 {
+    type T = NetMessage;
 
-    fn broadcast(&mut self, net_message: NetMessage) {
+    fn broadcast(&mut self, net_message: Self::T) {
         
         debug!("NET: Sending a message");
         let swarm = self.swarm.as_mut().unwrap();
@@ -44,7 +45,7 @@ impl Gossip<NetMessage> for P2PComponent
         
     }
 
-    async fn deliver(&mut self) -> Option<NetMessage> {
+    async fn deliver(&mut self) -> Option<Self::T> {
         // put here the code that handles the swarm and the other cases should go in a different functions that checks the network of peers
         
             tokio::select! {

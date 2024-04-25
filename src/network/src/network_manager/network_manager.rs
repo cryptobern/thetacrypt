@@ -7,23 +7,24 @@ use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
 // T is the generic for the message
 // G is the generic for the Gossip module
 // P is the generic for Total order broadcast
-pub struct NetworkManager<T, G: Gossip<T>> {//, P: TOB<T> > {
-    outgoing_msg_receiver: Receiver<T>,
-    incoming_msg_sender: Sender<T>,
+pub struct NetworkManager{
+    outgoing_msg_receiver: Receiver<NetMessage>,
+    incoming_msg_sender: Sender<NetMessage>,
     config: Config, //TODO: to review this Config, also the position
     my_id: u32,
-    gossip_channel: G,
-    // tob_channel: Option<P>,
+    gossip_channel: Box<dyn Gossip<T= NetMessage>>,
+    tob_channel: Option<Box<dyn TOB<T= NetMessage>>>,
 }
 
-impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
+
+impl NetworkManager{
     pub fn new(    
         outgoing_msg_receiver: Receiver<NetMessage>,
         incoming_msg_sender: Sender<NetMessage>,
         config: Config,
         my_id: u32,
-        gossip_channel: G,
-        // tob_channel: Option<P>
+        gossip_channel: Box<dyn Gossip<T= NetMessage>>,
+        tob_channel: Option<Box<dyn TOB<T= NetMessage>>>
     ) -> Self{
             return NetworkManager{
                 outgoing_msg_receiver: outgoing_msg_receiver,
@@ -31,10 +32,10 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
                 config: config,
                 my_id: my_id,
                 gossip_channel: gossip_channel,
-                // tob_channel: None,
+                tob_channel: None,
             };
-        }
-
+    }
+    
     //Here should go all the logic of the network layer    
     pub async fn run(&mut self){
         loop{
@@ -91,5 +92,4 @@ impl<G: Gossip<NetMessage>> NetworkManager<NetMessage,G> {
             }
         }
     }
-
 }
