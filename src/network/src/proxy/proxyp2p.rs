@@ -35,7 +35,9 @@ pub struct ProxyP2PStub {
 }
 
 #[async_trait]
-impl Gossip<NetMessage> for ProxyP2PStub {
+impl Gossip for ProxyP2PStub {
+
+    type T = NetMessage;
     fn broadcast(&mut self, message: NetMessage) {
         info!("Receiving message from outgoing_channel");
         //here goes the target_platform ip
@@ -108,34 +110,37 @@ pub struct ProxyTOBStub {
     pub id: u32,
 }
 
-#[async_trait]
-impl TOB<NetMessage> for ProxyTOBStub {
-    fn broadcast(&mut self, message: NetMessage){
-        info!("Receiving message from outgoing_channel");
-        //here goes the target_platform ip
-        let mut address = self.config.proxy_addr.clone().to_owned();
-        address.push(':');
-        address.push_str(&self.config.proxy_port.to_string());
-        info!("Connecting to remote address: {}", address);
-        tokio::spawn(async move {
-            match BlockchainStubClient::connect(address).await {
-                Ok(mut client) => {
-                    println!("Id of the msg {}", message.get_instace_id().clone());
-                    let request = AtomicBroadcastRequest {
-                        id: message.get_instace_id().to_string(),
-                        data: Vec::from(message),
-                    };
+// #[async_trait]
+// impl TOB for ProxyTOBStub {
 
-                    tokio::spawn(async move { client.atomic_broadcast(request).await });
-                }
-                Err(e) => println!("Error in opening the connection!: {}", e),
-            }
-        });
-    }
-    async fn deliver(&self) -> Option<NetMessage>{
-        todo!() //poll the blockchain state
-    }
-}
+//     type T = NetMessage;
+
+//     fn broadcast(&mut self, message: Self::T){
+//         info!("Receiving message from outgoing_channel");
+//         //here goes the target_platform ip
+//         let mut address = self.config.proxy_addr.clone().to_owned();
+//         address.push(':');
+//         address.push_str(&self.config.proxy_port.to_string());
+//         info!("Connecting to remote address: {}", address);
+//         tokio::spawn(async move {
+//             match BlockchainStubClient::connect(address).await {
+//                 Ok(mut client) => {
+//                     println!("Id of the msg {}", message.get_instace_id().clone());
+//                     let request = AtomicBroadcastRequest {
+//                         id: message.get_instace_id().to_string(),
+//                         data: Vec::from(message),
+//                     };
+
+//                     tokio::spawn(async move { client.atomic_broadcast(request).await });
+//                 }
+//                 Err(e) => println!("Error in opening the connection!: {}", e),
+//             }
+//         });
+//     }
+//     async fn deliver(&self) -> Option<Self::T>{
+//         todo!() //poll the blockchain state
+//     }
+// }
 
 
 impl ProxyTOBStub {

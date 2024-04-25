@@ -7,8 +7,8 @@
 
 // const LOCAL_CONFIG_PATH: &str = "src/config/localnet_config/config.toml";
 
-// #[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //     // Read configuration file and key file
 //     let args: Vec<String> = env::args().collect();
 //     if args.len() < 2 {
@@ -75,4 +75,5 @@
 //             println!(">> TEST: RECV <-: {:?}", message);
 //         },
 //     )
-// }
+Ok(())
+}
