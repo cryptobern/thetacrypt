@@ -11,7 +11,6 @@ pub struct Peer {
     pub id: u32,
     pub ip: String,
     pub p2p_port: u16,
-    pub rpc_port: u16,
 }
 
 /// Configuration of the server binary.
@@ -21,6 +20,8 @@ pub struct ServerConfig {
     pub id: u32,
     /// Address which the server will attempt to bind to.
     pub listen_address: String,
+    /// Port used by the server to expose the RPC endpoint to an application 
+    pub rpc_port: u16,
     /// Vector of peers this server will connect to. Must also contain itself as a peer.
     pub peers: Vec<Peer>,
     /// Path to file in which to store benchmarking events.
@@ -151,13 +152,14 @@ impl ServerConfig {
             Err(e) => return Err(format!("Invalid JSON: {}", e)),
         };
 
-        ServerConfig::new(cfg.id, cfg.listen_address, cfg.peers, cfg.event_file)
+        ServerConfig::new(cfg.id, cfg.listen_address, cfg.rpc_port, cfg.peers, cfg.event_file)
     }
 
     /// Initialize a new config struct. Performs a sanity check of passed values.
     pub fn new(
         id: u32,
         listen_address: String,
+        rpc_port: u16,
         peers: Vec<Peer>,
         event_file: Option<PathBuf>,
     ) -> Result<ServerConfig, String> {
@@ -176,6 +178,7 @@ impl ServerConfig {
         Ok(ServerConfig {
             id,
             listen_address,
+            rpc_port,
             peers,
             event_file,
         })
@@ -197,27 +200,10 @@ impl ServerConfig {
         self.peers.iter().map(|p| p.p2p_port).collect()
     }
 
-    /// Get list of all peers' RPC ports, sorted by the order in which they appear in the config
-    /// file.
-    pub fn peer_rpc_ports(&self) -> Vec<u16> {
-        self.peers.iter().map(|p| p.rpc_port).collect()
-    }
-
     /// Get this server's P2P port. Returns an error if this server is not found in the list of peers.
     pub fn my_p2p_port(&self) -> Result<u16, String> {
         match self.self_peer() {
             Some(peer) => Ok(peer.p2p_port),
-            None => Err(format!(
-                "Config for server with ID {} not found in list of configured peers",
-                self.id
-            )),
-        }
-    }
-
-    /// Get this server's RPC port. Returns an error if this server is not found in the list of peers.
-    pub fn my_rpc_port(&self) -> Result<u16, String> {
-        match self.self_peer() {
-            Some(peer) => Ok(peer.rpc_port),
             None => Err(format!(
                 "Config for server with ID {} not found in list of configured peers",
                 self.id

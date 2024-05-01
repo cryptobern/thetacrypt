@@ -167,20 +167,17 @@ fn run(
         .iter()
         .enumerate()
         .map(|(i, ip)| {
-            let (rpc_port, p2p_port) = match port_strategy {
-                PortStrategy::Consecutive => (
+            let p2p_port = match port_strategy {
+                PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    rpc_port + u16::try_from(i).unwrap(),
                     p2p_port + u16::try_from(i).unwrap(),
-                ),
-                PortStrategy::Static => (rpc_port, p2p_port),
+                PortStrategy::Static => p2p_port,
             };
 
             Peer {
                 // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
                 id: u32::try_from(i).unwrap(),
                 ip: String::from(ip),
-                rpc_port,
                 p2p_port,
             }
         })
@@ -199,6 +196,7 @@ fn run(
             ServerConfig::new(
                 u32::try_from(i).unwrap(),
                 listen_address.clone(),
+                rpc_port + u16::try_from(i).unwrap(),
                 my_peers,
                 event_file.clone(),
             )
@@ -209,12 +207,18 @@ fn run(
     let public_peers: Vec<PeerPublicInfo> = peers
         .iter()
         .enumerate()
-        .map(|(_, peer_ref)| {
+        .map(|(i, peer_ref)| {
             let peer = peer_ref.clone();
+            let rpc_port = match port_strategy {
+                PortStrategy::Consecutive => 
+                    // More than 2^16 peers? What are we, an ISP?
+                    rpc_port + u16::try_from(i).unwrap(),
+                PortStrategy::Static => rpc_port,
+            };
             PeerPublicInfo {
                 id: peer.id,
                 ip: peer.ip,
-                rpc_port: peer.rpc_port,
+                rpc_port: rpc_port,
             }
         })
         .collect();
@@ -248,20 +252,17 @@ fn run_integration(
         .iter()
         .enumerate()
         .map(|(i, ip)| {
-            let (rpc_port, p2p_port) = match port_strategy {
-                PortStrategy::Consecutive => (
+            let p2p_port = match port_strategy {
+                PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    rpc_port + u16::try_from(i).unwrap(),
                     p2p_port + u16::try_from(i).unwrap(),
-                ),
-                PortStrategy::Static => (rpc_port, p2p_port),
+                PortStrategy::Static => p2p_port,
             };
 
             Peer {
                 // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
                 id: u32::try_from(i).unwrap(),
                 ip: String::from(ip),
-                rpc_port,
                 p2p_port,
             }
         })
@@ -275,13 +276,11 @@ fn run_integration(
         .iter()
         .enumerate()
         .map(|(i, ip)| {
-            let (rpc_port, p2p_port) = match port_strategy {
-                PortStrategy::Consecutive => (
+            let p2p_port = match port_strategy {
+                PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    rpc_port + u16::try_from(i).unwrap(),
                     p2p_port + u16::try_from(i).unwrap(),
-                ),
-                PortStrategy::Static => (rpc_port, p2p_port),
+                PortStrategy::Static => p2p_port,
             };
             ServerProxyConfig::new(
                 u32::try_from(i).unwrap(),
@@ -331,12 +330,18 @@ fn run_integration(
     let public_peers: Vec<PeerPublicInfo> = peers
         .iter()
         .enumerate()
-        .map(|(_, peer_ref)| {
+        .map(|(i, peer_ref)| {
             let peer = peer_ref.clone();
+            let rpc_port = match port_strategy {
+                PortStrategy::Consecutive => 
+                    // More than 2^16 peers? What are we, an ISP?
+                    rpc_port + u16::try_from(i).unwrap(),
+                PortStrategy::Static => rpc_port,
+            };
             PeerPublicInfo {
                 id: peer.id,
                 ip: peer.ip,
-                rpc_port: peer.rpc_port,
+                rpc_port: rpc_port,
             }
         })
         .collect();
