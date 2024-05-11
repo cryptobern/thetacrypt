@@ -1,4 +1,4 @@
-use log::info;
+use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}};
@@ -42,9 +42,9 @@ impl NetworkManager{
         let tob_ref = self.tob_channel.as_ref();
         loop{
             tokio::select! {
-                Some(protocol_msg) = self.outgoing_msg_receiver.recv() => { //if the channel closes, then the recv() returns None and the branch is ignored
+                protocol_msg = self.outgoing_msg_receiver.recv() => { //if the channel closes, then the recv() returns None and the branch is ignored
                     //check condition for the channel (does it need gossip, tob, additional PtP)
-                    let net_message = protocol_msg.clone();
+                    let net_message = protocol_msg.unwrap().clone(); //handle the unwrap for when the channel closes
                     let channel = net_message.get_metadata().get_channel();
                     match channel {
                         Channel::Gossip => info!("Gossip channel"),
@@ -60,10 +60,14 @@ impl NetworkManager{
                     // It is up to the implementers of a certain protocol the decision of handling 
                     // a locally produced message already in the protocol to optimize in terms of transmission
                     // latency and verification time. 
-                    let _ = self.incoming_msg_sender.send(net_message).await;
-                    info!("... forwarding my message back to the protocol");
+                    let result = self.incoming_msg_sender.send(net_message).await;
+                    match result {
+                        Ok(_) => info!("... forwarding my message back to the protocol"),
+                        Err(e) => error!("Send error occurred: {}", e),
+                    }
                 },
-                gossip_msg = self.gossip_channel.deliver() => {
+                gossip_msg = self.gossip_channel.deliver() => { //is bthe branch disabled if I used Some()? Yes, the pattern matching fails for this branch, but the select
+                                                                //waits on the other branches until one produces something or all of them become disabled.
                     if let Some(message) = gossip_msg {
                         let net_message = message.clone();
                         info!("Received message from network");
