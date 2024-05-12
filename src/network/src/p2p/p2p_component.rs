@@ -276,7 +276,7 @@ mod utils {
         pub fn get_dial_addr(peer: &NetworkPeer) -> Multiaddr {
             let ip_version = "/ip4/";
         
-            let dial_ip = peer.ip;
+            let dial_ip = &peer.ip;
             let dial_port = peer.port;
         
             // create Multiaddr from config data

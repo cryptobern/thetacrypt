@@ -1,4 +1,4 @@
-use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, p2p::gossipsub_setup::static_net::P2PComponent, types::message::NetMessage};
+use crate::{interface::{Gossip, TOB}, p2p::gossipsub_setup::static_net::P2PComponent, types::{config::NetworkConfig, message::NetMessage}};
 
 use super::network_manager_builder::NetworkManagerBuilder;
 
@@ -6,7 +6,7 @@ use super::network_manager_builder::NetworkManagerBuilder;
 pub struct NetworkDirector;
 
 impl NetworkDirector{
-    pub async fn construct_standalone_network(builder: &mut NetworkManagerBuilder, config: Config, my_id: u32){
+    pub async fn construct_standalone_network(builder: &mut NetworkManagerBuilder, config: NetworkConfig, my_id: u32){
         // Instanciathe the p2p compponent implementation
         let mut p2p_component = P2PComponent::new(
             config.clone(),

@@ -1,7 +1,8 @@
-use libp2p::Multiaddr;
+use libp2p::{rendezvous::server, Multiaddr};
 use serde::{Deserialize, Serialize};
+use utils::server::types::{Peer, ProxyNode, ServerConfig};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct NetworkPeer{
     pub id: u32, 
     pub ip: String,
@@ -10,7 +11,7 @@ pub struct NetworkPeer{
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NetworkProxy{
-    pub ip: u32,
+    pub ip: String,
     pub port: u16,
 }
 
@@ -22,16 +23,65 @@ pub struct NetworkConfig {
     pub base_listen_address: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProxyConfig {
-    pub listen_addr: String,
-    pub p2p_port: u16,
-    pub proxy_addr: String,
-    pub proxy_port: u16,
+impl NetworkPeer{
+    pub fn new(peer: &Peer)-> Self{
+        return NetworkPeer{
+            id: peer.id,
+            ip: peer.ip.clone(),
+            port: peer.p2p_port
+        }
+    }
 }
 
+impl NetworkProxy{
+    pub fn new(peer: &ProxyNode)-> Self{
+        return NetworkProxy{
+            ip: peer.ip.clone(),
+            port: peer.port
+        }
+    }
+}
 
 impl NetworkConfig {
+
+    pub fn new(server_config: ServerConfig)-> Result<Self, String>{
+
+        let mut local_peer = NetworkPeer::default();
+
+        if let Some(peer) = server_config.self_peer(){
+            let local_peer = NetworkPeer::new(peer);
+        }
+
+        if local_peer == NetworkPeer::default() {
+            return Err("No local information to setup the peer".to_string())
+        } 
+
+        let mut network_peers:Option<Vec<NetworkPeer>> = None;
+        
+        let server_peers:Vec<NetworkPeer> = server_config.peers
+            .iter()
+            .map(|peer|
+                NetworkPeer::new(peer)
+            )
+            .collect();
+
+        if server_peers.len() > 1 {
+            network_peers = Some(server_peers);
+        }
+
+        let mut proxy_peer:Option<NetworkProxy> = None;
+
+        if let Some(proxy) = server_config.get_proxy_node(){
+            let proxy_peer = Some(NetworkProxy::new(proxy));
+        }
+        
+        Ok(NetworkConfig{
+            local_peer,
+            peers: network_peers,
+            proxy: proxy_peer,
+            base_listen_address: server_config.listen_address,
+        })
+    }
 
     pub fn get_p2p_listen_addr(&self) -> Multiaddr {
         format!("{}{}", self.base_listen_address, self.local_peer.port)

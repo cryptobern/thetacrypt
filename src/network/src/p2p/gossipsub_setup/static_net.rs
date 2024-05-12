@@ -5,16 +5,13 @@ use tokio::time;
 
 use futures::{prelude::*, StreamExt};
 use libp2p::{
-    gossipsub::{Gossipsub, GossipsubEvent, IdentTopic as GossibsubTopic},
-    identity,
-    swarm::SwarmEvent,
-    PeerId, Swarm,
+    gossipsub::{Gossipsub, GossipsubEvent, IdentTopic as GossibsubTopic}, identity, multiaddr::Protocol, swarm::SwarmEvent, Multiaddr, PeerId, Swarm
 };
 use log::{debug, info};
 
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{config::static_net::{config_service::*, deserialize::Config}, interface::Gossip, types::config::NetworkConfig};
+use crate::{config::static_net::{config_service::*, deserialize::Config}, interface::Gossip, types::config::{NetworkConfig, NetworkPeer}};
 use crate::types::message::*;
 
 
@@ -154,13 +151,14 @@ impl P2PComponent {
     async fn dial_local_net(&mut self) {
         // Start by dialing all peers other than ourselves, letting the underlying network layer know
         // of their existenec, allowing it to connect if required.
-        for peer_id in &self.config.ids {
-            if *peer_id == self.id {
+        let peers: &Vec<NetworkPeer> = self.config.peers.as_ref().unwrap();
+        for peer in peers {
+            if peer.id == self.config.local_peer.id {
                 // Let's not dial ourselves.
                 continue;
             }
 
-            let dial_addr = get_dial_addr(&self.config, *peer_id);
+            let dial_addr = get_dial_addr(&peer.ip, peer.port);
             // Note that the dial() method will *not* erorr if connection fails - e.g. dialing a
             // not-yet-reachable peer will work just fine. I assume it will rather fail if the thing we
             // pass is not actually dial-able - e.g. an invalid IP, or a peer ID of a peer we do not
@@ -237,4 +235,13 @@ impl P2PComponent {
     }
 }
 
+// return dialing address as Multiaddr from config file
+pub fn get_dial_addr(dial_ip: &String, dial_port: u16) -> Multiaddr {
+    let ip_version = "/ip4/";
 
+    // create Multiaddr from config data
+    let dial_base_addr = format!("{}{}", ip_version, dial_ip);
+    let mut dial_addr: Multiaddr = dial_base_addr.parse().unwrap();
+    dial_addr.push(Protocol::Tcp(dial_port));
+    return dial_addr;
+}

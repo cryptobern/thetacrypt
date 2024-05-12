@@ -9,7 +9,7 @@ use log::{error, info};
 use utils::client::types::{ClientConfig, PeerPublicInfo};
 use utils::server::{
     dirutil,
-    types::{Peer, ProxyNode, ServerConfig, ServerProxyConfig},
+    types::{Peer, ProxyNode, ServerConfig},
 };
 use thetacrypt_blockchain_stub::cli::types::{P2PConfig, PeerP2PInfo};
 
@@ -27,12 +27,12 @@ fn main() {
         }
     };
 
-    let mut ips_proxy_nodes = Vec::new();
-    let mut proxy_port: u16 = 0;
+    let mut ips_proxy_nodes = None;
+    let mut proxy_port: Option<u16> = None;
 
     if let Some(path) = confgen_cli.integration_file {
         ips_proxy_nodes = match ips_from_file(&path) {
-            Ok(ips) => ips,
+            Ok(ips) => Some(ips),
             Err(e) => {
                 error!("{}", e);
                 exit(1);
@@ -41,7 +41,7 @@ fn main() {
     }
 
     if let Some(port) = confgen_cli.proxy_port {
-        proxy_port = port;
+        proxy_port = Some(port);
     }
 
     match dirutil::ensure_sane_output_directory(&confgen_cli.outdir, false) {
@@ -52,47 +52,28 @@ fn main() {
         }
     }
 
-    if confgen_cli.integration {
-        match run_integration(
-            ips,
-            ips_proxy_nodes,
-            confgen_cli.rpc_port,
-            confgen_cli.p2p_port,
-            proxy_port,
-            confgen_cli.port_strategy,
-            confgen_cli.listen_address,
-            confgen_cli.outdir,
-            confgen_cli.stub,
-            confgen_cli.event_file,
-        ) {
-            Ok(_) => {
-                info!("Config generation successful, all config files saved to disk");
-            }
-            Err(e) => {
-                error!("Config generation failed: {}", e);
-                exit(1);
-            }
+    
+    match generate_configs(
+        ips,
+        ips_proxy_nodes,
+        confgen_cli.rpc_port,
+        confgen_cli.p2p_port,
+        proxy_port,
+        confgen_cli.port_strategy,
+        confgen_cli.listen_address,
+        confgen_cli.outdir,
+        confgen_cli.stub,
+        confgen_cli.event_file,
+    ) {
+        Ok(_) => {
+            info!("Config generation successful, all config files saved to disk");
         }
-    } else {
-        match run(
-            ips,
-            confgen_cli.rpc_port,
-            confgen_cli.p2p_port,
-            confgen_cli.port_strategy,
-            confgen_cli.shuffle_peers,
-            confgen_cli.listen_address,
-            confgen_cli.outdir,
-            confgen_cli.event_file,
-        ) {
-            Ok(_) => {
-                info!("Config generation successful, all config files saved to disk");
-            }
-            Err(e) => {
-                error!("Config generation failed: {}", e);
-                exit(1);
-            }
+        Err(e) => {
+            error!("Config generation failed: {}", e);
+            exit(1);
         }
     }
+     
 }
 
 pub fn create_and_save_stub_config(outdir: PathBuf, peers: Vec<PeerP2PInfo>) -> Result<(), String> {
@@ -152,95 +133,95 @@ fn ips_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
     Ok(ips)
 }
 
-fn run(
+// fn run(
+//     ips: Vec<String>,
+//     rpc_port: u16,
+//     p2p_port: u16,
+//     port_strategy: PortStrategy,
+//     shuffle_peers: bool,
+//     listen_address: String,
+//     outdir: PathBuf,
+//     event_file: Option<PathBuf>,
+// ) -> Result<(), String> {
+//     info!("Generating configuration structs");
+//     let peers: Vec<Peer> = ips
+//         .iter()
+//         .enumerate()
+//         .map(|(i, ip)| {
+//             let p2p_port = match port_strategy {
+//                 PortStrategy::Consecutive => 
+//                     // More than 2^16 peers? What are we, an ISP?
+//                     p2p_port + u16::try_from(i).unwrap(),
+//                 PortStrategy::Static => p2p_port,
+//             };
+
+//             Peer {
+//                 // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
+//                 id: u32::try_from(i).unwrap(),
+//                 ip: String::from(ip),
+//                 p2p_port,
+//             }
+//         })
+//         .collect();
+
+//     let configs: Vec<ServerConfig> = ips
+//         .iter()
+//         .enumerate()
+//         .map(|(i, _)| {
+//             let mut my_peers = peers.clone();
+//             if shuffle_peers {
+//                 let mut rng = rand::thread_rng();
+//                 my_peers.shuffle(&mut rng);
+//             }
+
+//             ServerConfig::new(
+//                 u32::try_from(i).unwrap(),
+//                 listen_address.clone(),
+//                 rpc_port + u16::try_from(i).unwrap(),
+//                 my_peers,
+//                 event_file.clone(),
+//             )
+//             .unwrap()
+//         })
+//         .collect();
+
+//     let public_peers: Vec<PeerPublicInfo> = peers
+//         .iter()
+//         .enumerate()
+//         .map(|(i, peer_ref)| {
+//             let peer = peer_ref.clone();
+//             let rpc_port = match port_strategy {
+//                 PortStrategy::Consecutive => 
+//                     // More than 2^16 peers? What are we, an ISP?
+//                     rpc_port + u16::try_from(i).unwrap(),
+//                 PortStrategy::Static => rpc_port,
+//             };
+//             PeerPublicInfo {
+//                 id: peer.id,
+//                 ip: peer.ip,
+//                 rpc_port: rpc_port,
+//             }
+//         })
+//         .collect();
+
+//     let client_config = ClientConfig::new(public_peers).unwrap();
+
+//     info!("Writing configurations to disk");
+//     for cfg in configs {
+//         let outfile = outdir.clone();
+//         save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
+//     }
+//     info!("Writing client configuration to disk");
+//     save_config_on_file(outdir, &client_config, "client.json".to_string()).expect("Error writing on client config on file!");
+//     Ok(())
+// }
+
+fn generate_configs(
     ips: Vec<String>,
+    ips_proxy_nodes: Option<Vec<String>>,
     rpc_port: u16,
     p2p_port: u16,
-    port_strategy: PortStrategy,
-    shuffle_peers: bool,
-    listen_address: String,
-    outdir: PathBuf,
-    event_file: Option<PathBuf>,
-) -> Result<(), String> {
-    info!("Generating configuration structs");
-    let peers: Vec<Peer> = ips
-        .iter()
-        .enumerate()
-        .map(|(i, ip)| {
-            let p2p_port = match port_strategy {
-                PortStrategy::Consecutive => 
-                    // More than 2^16 peers? What are we, an ISP?
-                    p2p_port + u16::try_from(i).unwrap(),
-                PortStrategy::Static => p2p_port,
-            };
-
-            Peer {
-                // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
-                id: u32::try_from(i).unwrap(),
-                ip: String::from(ip),
-                p2p_port,
-            }
-        })
-        .collect();
-
-    let configs: Vec<ServerConfig> = ips
-        .iter()
-        .enumerate()
-        .map(|(i, _)| {
-            let mut my_peers = peers.clone();
-            if shuffle_peers {
-                let mut rng = rand::thread_rng();
-                my_peers.shuffle(&mut rng);
-            }
-
-            ServerConfig::new(
-                u32::try_from(i).unwrap(),
-                listen_address.clone(),
-                rpc_port + u16::try_from(i).unwrap(),
-                my_peers,
-                event_file.clone(),
-            )
-            .unwrap()
-        })
-        .collect();
-
-    let public_peers: Vec<PeerPublicInfo> = peers
-        .iter()
-        .enumerate()
-        .map(|(i, peer_ref)| {
-            let peer = peer_ref.clone();
-            let rpc_port = match port_strategy {
-                PortStrategy::Consecutive => 
-                    // More than 2^16 peers? What are we, an ISP?
-                    rpc_port + u16::try_from(i).unwrap(),
-                PortStrategy::Static => rpc_port,
-            };
-            PeerPublicInfo {
-                id: peer.id,
-                ip: peer.ip,
-                rpc_port: rpc_port,
-            }
-        })
-        .collect();
-
-    let client_config = ClientConfig::new(public_peers).unwrap();
-
-    info!("Writing configurations to disk");
-    for cfg in configs {
-        let outfile = outdir.clone();
-        save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
-    }
-    info!("Writing client configuration to disk");
-    save_config_on_file(outdir, &client_config, "client.json".to_string()).expect("Error writing on client config on file!");
-    Ok(())
-}
-
-fn run_integration(
-    ips: Vec<String>,
-    ips_proxy_nodes: Vec<String>,
-    rpc_port: u16,
-    p2p_port: u16,
-    proxy_port: u16,
+    proxy_port: Option<u16>,
     port_strategy: PortStrategy,
     listen_address: String,
     outdir: PathBuf,
@@ -255,39 +236,57 @@ fn run_integration(
             let p2p_port = match port_strategy {
                 PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    p2p_port + u16::try_from(i).unwrap(),
+                    p2p_port + u16::try_from(i+1).unwrap(),
                 PortStrategy::Static => p2p_port,
             };
 
             Peer {
                 // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
-                id: u32::try_from(i).unwrap(),
+                id: u32::try_from(i+1).unwrap(),
                 ip: String::from(ip),
                 p2p_port,
             }
         })
         .collect();
+    
+    let mut ip_list = ips;
+    if ips_proxy_nodes.clone().is_some(){
+        ip_list = ips_proxy_nodes.clone().unwrap();
+    }
+    
 
-    // TODO:
-    // check that the two vectors of ips are of equal lenght
-    // check if we need the local ip
-
-    let configs: Vec<ServerProxyConfig> = ips_proxy_nodes
+    //Final configuration
+    let configs: Vec<ServerConfig> = ip_list
         .iter()
         .enumerate()
         .map(|(i, ip)| {
-            let p2p_port = match port_strategy {
+            let rpc_port = match port_strategy {
                 PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    p2p_port + u16::try_from(i).unwrap(),
-                PortStrategy::Static => p2p_port,
+                    rpc_port + u16::try_from(i+1).unwrap(),
+                PortStrategy::Static => rpc_port,
             };
-            ServerProxyConfig::new(
-                u32::try_from(i).unwrap(),
+
+            //Set optional values i proxy are used
+            let mut proxy: Option<ProxyNode> = None;
+            if ips_proxy_nodes.clone().is_some() && proxy_port.clone().is_some(){
+                
+                let proxy_port = match port_strategy {
+                    PortStrategy::Consecutive => 
+                        // More than 2^16 peers? What are we, an ISP?
+                        proxy_port.unwrap() + u16::try_from(i+1).unwrap(),
+                    PortStrategy::Static => proxy_port.unwrap(),
+                };
+
+                proxy = Some((ProxyNode { ip: ip.to_string(), port: proxy_port}));
+            }
+
+            ServerConfig::new(
+                u32::try_from(i+1).unwrap(),
                 listen_address.clone(),
-                p2p_port,
                 rpc_port,
-                ProxyNode { ip: ip.to_string(), port: proxy_port.add(u16::try_from(i).unwrap()) }, //TODO: consider also for the proxy_port the PortStrategy (the stub has the same port)
+                peers.clone(),
+                proxy, //TODO: consider also for the proxy_port the PortStrategy (the stub has the same port)
                 event_file.clone(),
             )
             .unwrap()
@@ -335,7 +334,7 @@ fn run_integration(
             let rpc_port = match port_strategy {
                 PortStrategy::Consecutive => 
                     // More than 2^16 peers? What are we, an ISP?
-                    rpc_port + u16::try_from(i).unwrap(),
+                    rpc_port + u16::try_from(i+1).unwrap(),
                 PortStrategy::Static => rpc_port,
             };
             PeerPublicInfo {

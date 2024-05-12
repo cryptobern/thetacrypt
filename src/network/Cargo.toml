@@ -34,3 +34,4 @@ tendermint-rpc = { version = "0.23.7", features = ["http-client"] }
 tonic = "0.8"
 
 thetacrypt_blockchain_stub = {path="../thetacrypt_blockchain_stub", version="0.1.0"}
+utils = {path = "../utils", version = "0.1.0"}

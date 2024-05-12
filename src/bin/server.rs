@@ -2,7 +2,7 @@ use clap::Parser;
 use log::{error, info};
 use log4rs;
 use sha2::{Digest, Sha256};
-use std::{path::PathBuf, process::exit};
+use std::{path::PathBuf, process::exit, result};
 use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
@@ -13,11 +13,7 @@ use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{
-    config::static_net, 
-    network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder}, 
-    p2p::gossipsub_setup::static_net::P2PComponent, 
-    types::message::NetMessage,
-    interface::TOB,
+    config::static_net, interface::TOB, network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder}, p2p::gossipsub_setup::static_net::P2PComponent, types::{config::NetworkConfig, message::NetMessage}
 };
 use tonic::async_trait;
 
@@ -55,19 +51,25 @@ async fn main() {
 
     info!("Keychain location: {}", keychain_path.display());
 
-    start_server(&cfg, keychain_path).await;
+    let result = start_server(&cfg, keychain_path).await;
+
+    if result.is_err(){
+        print!(result.err())
+    }
+
+    
 }
 
 /// Start main event loop of server.
-pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
-    // Build local-net config required by provided static-network implementation.
-    let net_cfg = static_net::deserialize::Config {
-        ids: config.peer_ids(),
-        ips: config.peer_ips(),
-        p2p_ports: config.peer_p2p_ports(),
-        rpc_ports: config.peer_rpc_ports(),
-        base_listen_address: format!("/ip4/{}/tcp/", config.listen_address),
-    };
+pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Result<(), String >{
+
+    let try_network_config = NetworkConfig::new(config);
+
+    if try_network_config.is_err(){
+        return try_network_config.err()
+    } 
+
+    let net_cfg =try_network_config.unwrap();
 
     // Network to protocol communication
     let (net_to_prot_sender, net_to_prot_receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
@@ -194,6 +196,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
             rpc_handle.abort();
 
             info!("Shutdown complete");
+            return Ok(())
         }
     }
 }
