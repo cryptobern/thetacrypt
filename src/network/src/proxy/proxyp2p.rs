@@ -2,14 +2,14 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
 use log::{info, error, debug};
-use thetacrypt_blockchain_stub::proto::blockchain_stub::AtomicBroadcastRequest;
+use theta_proto::proxy_api::AtomicBroadcastRequest;
 // Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use thetacrypt_blockchain_stub::proto::blockchain_stub::{
-    blockchain_stub_client::BlockchainStubClient, ForwardShareRequest,
+use theta_proto::proxy_api::{
+    proxy_api_client::ProxyApiClient, ForwardShareRequest,
 };
 
 use crate::interface::{Gossip, TOB};
@@ -49,7 +49,7 @@ impl Gossip for P2PProxy {
 
         info!("Connecting to remote address: {}", address);
         tokio::spawn(async move {
-            match BlockchainStubClient::connect(address).await {
+            match ProxyApiClient::connect(address).await {
                 Ok(mut client) => {
                     println!("Id of the msg {}", message.get_instace_id().clone());
                     let request = ForwardShareRequest {

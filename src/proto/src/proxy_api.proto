@@ -1,7 +1,7 @@
 syntax = "proto3";
-package blockchain_stub;
+package proxy_api;
 
-service BlockchainStub {
+service ProxyAPI {
     rpc forward_share(ForwardShareRequest) returns (ForwardShareResponse);
     rpc atomic_broadcast(AtomicBroadcastRequest) returns (AtomicBroadcastResponse);
 };

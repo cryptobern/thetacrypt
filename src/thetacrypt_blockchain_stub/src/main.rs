@@ -10,10 +10,8 @@ use std::error::Error;
 use std::io::{self, Read};
 use std::str::FromStr;
 
-use thetacrypt_blockchain_stub::proto::blockchain_stub::blockchain_stub_server::{
-    BlockchainStub, BlockchainStubServer,
-};
-use thetacrypt_blockchain_stub::proto::blockchain_stub::{
+use theta_proto::proxy_api::proxy_api_server::ProxyApiServer;
+use theta_proto::proxy_api::{
     ForwardShareRequest, ForwardShareResponse,
 };
 use tonic::{transport::Server, Request, Response, Status};

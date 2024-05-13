@@ -1,10 +1,10 @@
-use thetacrypt_blockchain_stub::proto::blockchain_stub::{blockchain_stub_client::BlockchainStubClient, ForwardShareRequest};
+use theta_proto::proxy_api::{proxy_api_client::ProxyApiClient, ForwardShareRequest};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hello there! I'm the client!");
 
-    let mut client = BlockchainStubClient::connect("http://localhost:30000").await?;
+    let mut client = ProxyApiClient::connect("http://localhost:30000").await?;
 
     let request = ForwardShareRequest{
         data: "Hello World".to_owned().into_bytes(),

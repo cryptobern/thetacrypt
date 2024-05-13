@@ -8,10 +8,8 @@ use std::process::exit;
 use std::str::FromStr;
 use tokio::sync::mpsc;
 
-use thetacrypt_blockchain_stub::proto::blockchain_stub::blockchain_stub_server::{
-    BlockchainStub, BlockchainStubServer,
-};
-use thetacrypt_blockchain_stub::proto::blockchain_stub::{
+use theta_proto::proxy_api::proxy_api_server::{ProxyApi, ProxyApiServer};
+use theta_proto::proxy_api::{
     AtomicBroadcastRequest, AtomicBroadcastResponse, ForwardShareRequest, ForwardShareResponse,
 };
 use tonic::{transport::Server, Request, Response, Status};
@@ -90,7 +88,7 @@ fn forward_message_to_peers(msg: &[u8], streams: Vec<TcpStream>) {
 
 // the following implementation is needed to make our concrete type conformed with BlockchainStub protobuf definition 
 #[tonic::async_trait] // needed to allow async function in the trait
-impl BlockchainStub for ThetacryptBlockchainStub {
+impl ProxyApi for ThetacryptBlockchainStub {
     async fn forward_share(
         &self,
         request: Request<ForwardShareRequest>,
@@ -135,7 +133,7 @@ impl ThetacryptBlockchainStub {
 async fn start_and_run(service: ThetacryptBlockchainStub, address: SocketAddr) -> io::Result<()> {
     println!("[BlockchainStubServer]: Request handler is starting. Listening for RPC on address: {address}");
     Server::builder()
-        .add_service(BlockchainStubServer::new(service))
+        .add_service(ProxyApiServer::new(service))
         // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
         .serve(address)
         .await
