@@ -59,10 +59,6 @@ name = "thetacli"
 path = "bin/thetacli.rs"
 
 [[bin]]
-name = "proxy_server"
-path = "bin/proxy_server.rs"
-
-[[bin]]
 name = "server"
 path = "bin/server.rs"
 

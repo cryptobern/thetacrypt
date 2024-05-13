@@ -545,22 +545,29 @@ impl InstanceManager {
         tokio::spawn(async move {
             let result = executor.run().await;
 
-            // Protocol terminated, update state with the result.
-            info!("Instance {:?} finished", instance_id.clone());
-
-            while sender
+            match result {
+                Ok(_) => {
+                    // Protocol terminated, update state with the result.
+                    info!("Instance {:?} finished", instance_id.clone());
+                },
+                Err(e) => todo!(),
+            }
+            
+            if sender
                 .send(InstanceManagerCommand::StoreResult {
                     instance_id: instance_id.clone(),
                     result: result.clone(),
                 })
                 .await
                 .is_err()
-            {
+                {
                 // loop until transmission successful
                 //COMMENT_R: can this loop occupy the CPU?
-                error!("Error storing result, retrying...");
-                thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
+                error!("Error storing result, channel closed");
+                // thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
             }
+
+            
         });
         _ = self.forward_backlogged_messages(id);
     }

@@ -115,7 +115,7 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                         &self.instance_id
                     );
                     self.terminate().await;
-                    return Err(ProtocolError::InternalError);
+                    return Err(ProtocolError::NotFinished);
                 }
             }
         }
