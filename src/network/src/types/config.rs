@@ -1,4 +1,6 @@
-use libp2p::{rendezvous::server, Multiaddr};
+use libp2p::multiaddr::Multiaddr;
+use std::str::FromStr;
+use log::info;
 use serde::{Deserialize, Serialize};
 use utils::server::types::{Peer, ProxyNode, ServerConfig};
 
@@ -44,12 +46,12 @@ impl NetworkProxy{
 
 impl NetworkConfig {
 
-    pub fn new(server_config: ServerConfig)-> Result<Self, String>{
+    pub fn new(server_config: &ServerConfig)-> Result<Self, String>{
 
         let mut local_peer = NetworkPeer::default();
 
         if let Some(peer) = server_config.self_peer(){
-            let local_peer = NetworkPeer::new(peer);
+            local_peer = NetworkPeer::new(peer);
         }
 
         if local_peer == NetworkPeer::default() {
@@ -72,19 +74,20 @@ impl NetworkConfig {
         let mut proxy_peer:Option<NetworkProxy> = None;
 
         if let Some(proxy) = server_config.get_proxy_node(){
-            let proxy_peer = Some(NetworkProxy::new(proxy));
+            proxy_peer = Some(NetworkProxy::new(proxy));
         }
         
         Ok(NetworkConfig{
             local_peer,
             peers: network_peers,
             proxy: proxy_peer,
-            base_listen_address: server_config.listen_address,
+            base_listen_address: server_config.listen_address.clone(),
         })
     }
 
     pub fn get_p2p_listen_addr(&self) -> Multiaddr {
-        format!("{}{}", self.base_listen_address, self.local_peer.port)
+        info!("{}, {}", self.base_listen_address, self.local_peer.port);
+        format!("/ip4/{}/tcp/{}", self.base_listen_address, self.local_peer.port)
         .parse()
         .expect(&format!(
             ">> NET: Fatal error: Could not open P2P listen port {}.",

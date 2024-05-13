@@ -1,4 +1,4 @@
-use crate::{interface::{Gossip, TOB}, p2p::gossipsub_setup::static_net::P2PComponent, types::{config::NetworkConfig, message::NetMessage}};
+use crate::{interface::{Gossip, TOB}, p2p::p2p_component::P2PComponent, types::{config::NetworkConfig, message::NetMessage}};
 
 use super::network_manager_builder::NetworkManagerBuilder;
 

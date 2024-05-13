@@ -13,7 +13,7 @@ use theta_service::rpc_request_handler;
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
 use theta_network::{
-    config::static_net, interface::TOB, network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder}, p2p::gossipsub_setup::static_net::P2PComponent, types::{config::NetworkConfig, message::NetMessage}
+    network_manager::{network_director::NetworkDirector, network_manager_builder::NetworkManagerBuilder}, types::{config::NetworkConfig, message::NetMessage}
 };
 use tonic::async_trait;
 
@@ -54,7 +54,7 @@ async fn main() {
     let result = start_server(&cfg, keychain_path).await;
 
     if result.is_err(){
-        print!(result.err())
+        print!("{}", result.err().unwrap())
     }
 
     
@@ -66,7 +66,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
     let try_network_config = NetworkConfig::new(config);
 
     if try_network_config.is_err(){
-        return try_network_config.err()
+        return Err(try_network_config.err().unwrap())
     } 
 
     let net_cfg =try_network_config.unwrap();
@@ -164,10 +164,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
     });
 
     let my_listen_address = config.listen_address.clone();
-    let my_rpc_port = match config.my_rpc_port() {
-        Ok(port) => port,
-        Err(e) => panic!("{}", e),
-    };
+    let my_rpc_port = config.rpc_port;
     info!(
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port

@@ -1,7 +1,7 @@
 use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}};
+use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, types::config::NetworkConfig};
 use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
 
 // T is the generic for the message
@@ -10,7 +10,7 @@ use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
 pub struct NetworkManager{
     outgoing_msg_receiver: Receiver<NetMessage>,
     incoming_msg_sender: Sender<NetMessage>,
-    config: Config, //TODO: to review this Config, also the position
+    config: NetworkConfig, //TODO: to review this Config, also the position
     my_id: u32,
     gossip_channel: Box<dyn Gossip<T= NetMessage>>,
     tob_channel: Option<Box<dyn TOB<T= NetMessage>>>,
@@ -21,7 +21,7 @@ impl NetworkManager{
     pub fn new(    
         outgoing_msg_receiver: Receiver<NetMessage>,
         incoming_msg_sender: Sender<NetMessage>,
-        config: Config,
+        config: NetworkConfig,
         my_id: u32,
         gossip_channel: Box<dyn Gossip<T= NetMessage>>,
         tob_channel: Option<Box<dyn TOB<T= NetMessage>>>

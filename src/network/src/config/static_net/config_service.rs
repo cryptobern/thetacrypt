@@ -27,7 +27,7 @@ pub fn load_config() -> Config {
         Err(e) => panic!("Couldn't read RPC_PORT ({:?})", e),
     };
 
-    let base_listen_address = String::from("/ip4/0.0.0.0/tcp/");
+    let base_listen_address = String::from("c");
 
     let mut ids: Vec<u32> = Vec::new();
     let mut ips: Vec<String> = Vec::new();

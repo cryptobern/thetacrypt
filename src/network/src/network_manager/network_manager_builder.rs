@@ -1,5 +1,5 @@
 use tokio::sync::mpsc::{Receiver, Sender};
-use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, types::message::NetMessage};
+use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, types::{config::NetworkConfig, message::NetMessage}};
 
 use super::network_manager::NetworkManager;
 
@@ -7,7 +7,7 @@ use super::network_manager::NetworkManager;
 pub struct NetworkManagerBuilder{
     outgoing_msg_receiver: Option<Receiver<NetMessage>>,
     incoming_msg_sender: Option<Sender<NetMessage>>,
-    config: Option<Config>, //TODO: to review this Config, also the position
+    config: Option<NetworkConfig>, //TODO: to review this Config, also the position
     my_id: u32,
     gossip_channel: Option<Box<dyn Gossip<T= NetMessage>>>,
     tob_channel: Option<Box<dyn TOB<T= NetMessage>>>,
@@ -23,7 +23,7 @@ impl NetworkManagerBuilder{
         self.incoming_msg_sender = Some(sender)
     }
 
-    pub fn set_config(&mut self, config: Config){
+    pub fn set_config(&mut self, config: NetworkConfig){
         self.config = Some(config)
     }
 
