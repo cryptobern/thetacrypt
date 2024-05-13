@@ -1,7 +1,8 @@
 // Tokio
 use log::{error, info};
+use theta_proto::proxy_api::proxy_api_client::ProxyApiClient;
 use std::collections::{HashSet, VecDeque};
-use std::io;
+use std::{io, result};
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::process::exit;
@@ -51,9 +52,12 @@ impl Blockchain {
                         self.chain.push_back(msg.clone());
                         println!("New message added to the chain. Current length: {}", self.chain.len());
 
-                        let streams = connect_to_all_local(config.clone());
-                        forward_message_to_peers(msg.as_slice(), streams);  // Here we are sending back to the peers after ordering 
-                                                                            // but in a blockchain we would poll the state (probably?)
+                        let result = forward_to_all(config.clone(), msg.as_slice()); //To review, maybe TOB case?
+
+                        if result.is_err(){
+                            error!("{}", result.err().unwrap());
+                        }
+                          
                     }        
                 }
             }
@@ -61,28 +65,40 @@ impl Blockchain {
     }
 }
 
-fn connect_to_all_local(config: P2PConfig) -> Vec<TcpStream> {
-    let mut connections = Vec::new();
+fn forward_to_all(config: P2PConfig, message: &[u8]) -> Result<(), String> {
+    
     for peer in config.peers.iter() {
         let ip = peer.ip.clone();
         let port = peer.p2p_port;
-        let address = SocketAddr::new(IpAddr::V4(<Ipv4Addr>::from_str(&ip).unwrap()), port);
-        let stream = TcpStream::connect(address).expect("Failed to connect");
-        connections.push(stream);
+
+        let address: String = format!("http://{}:{}",ip, port)
+        .parse()
+        .expect(&format!(
+            ">> Fatal error: Could not format address for ip:{}, and port {}.",
+            ip,
+            port
+        ));
+
+        let message = message.to_vec().clone();
+        info!("Connecting to remote address: {}", address);
+        tokio::spawn(async move {
+            match ProxyApiClient::connect(address).await {
+                Ok(mut client) => {
+                    let request = ForwardShareRequest {
+                        data: message,
+                    };
+
+                    tokio::spawn(async move { client.forward_share(request).await });
+                }
+                Err(e) => println!("Error in opening the connection!: {}", e),
+            }
+            info!(
+                "[BlockchainStub] Received request and forwarded it to the other thetacrypt nodes!"
+            );
+        });
     }
-    println!(">> Established connection to network.");
-    connections
-}
 
-fn forward_message_to_peers(msg: &[u8], streams: Vec<TcpStream>) {
-    for mut stream in streams {
-        let _write_all = stream.write_all(msg);
-    }
-
-    info!(
-        "[BlockchainStubServer] Received request and forwarded it to the other thetacrypt nodes!"
-    );
-
+    Ok(())
 }
 
 
@@ -99,12 +115,15 @@ impl ProxyApi for ThetacryptBlockchainStub {
         let peers_config = P2PConfig {
             peers: self.peers.clone(),
         };
-        let streams = connect_to_all_local(peers_config);
 
         let binding = request.into_inner();
         let msg = binding.data.as_slice();
         
-        forward_message_to_peers(msg, streams);
+        let result = forward_to_all(peers_config, msg);
+
+        if result.is_err(){
+            error!("{}", result.err().unwrap());
+        }
 
         Ok(Response::new(ForwardShareResponse {}))
     }
@@ -144,6 +163,8 @@ async fn start_and_run(service: ThetacryptBlockchainStub, address: SocketAddr) -
 #[tokio::main]
 async fn main() -> io::Result<()> {
     println!("Hello Blockchain Stub");
+
+    env_logger::init();
 
     //network address of the stub
     let host = "127.0.0.1";

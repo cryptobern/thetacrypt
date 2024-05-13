@@ -2,7 +2,8 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
 use log::{info, error, debug};
-use theta_proto::proxy_api::AtomicBroadcastRequest;
+use theta_proto::proxy_api::proxy_api_server::{ProxyApi, ProxyApiServer};
+use theta_proto::proxy_api::{AtomicBroadcastRequest, AtomicBroadcastResponse, ForwardShareResponse};
 // Tokio
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -11,6 +12,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use theta_proto::proxy_api::{
     proxy_api_client::ProxyApiClient, ForwardShareRequest,
 };
+use tonic::transport::Server;
 
 use crate::interface::{Gossip, TOB};
 use crate::types::config::NetworkConfig;
@@ -19,12 +21,13 @@ use crate::types::message::NetMessage;
 
 use serde::{Deserialize, Serialize};
 
-use tonic::async_trait;
+use tonic::{async_trait, Request, Response, Status};
 
 pub struct P2PProxy {
     pub config: NetworkConfig,
     pub id: u32,
-    listener: Option<TcpListener>,
+    sender: Sender<Vec<u8>>,
+    receiver: Receiver<Vec<u8>>
 }
 
 #[async_trait]
@@ -64,32 +67,53 @@ impl Gossip for P2PProxy {
     }
 
     async fn deliver(&mut self) -> Option<NetMessage> {
-        let (mut socket, _remote_addr) = self.listener.as_ref().unwrap().accept().await.unwrap();
-        let mut buf = vec![0; 1]; //See how big we need the buffer and if we can read until is empty and concatenate evrything togeher
-        let mut data: Vec<u8> = Vec::new();
-        loop {
-            let n = socket
-                .read(&mut buf)
-                .await
-                .expect("failed to read data from socket");
-            if n == 0 {
-                debug!("Buffer read is empty...");
-                break; //This is needed to exit the loop and terminate this thread
+        tokio::select! {
+            Some(message) = self.receiver.recv() => {
+                let msg = NetMessage::from(message);
+                info!("Deliver message to the protocol layer");
+                return Some(msg)
             }
-            if buf[0] == 0 {
-                break;
-            }
-            data.append(&mut buf.to_vec());
         }
-        let msg = NetMessage::from(data);
-        return Some(msg)
     }
+}
+
+
+struct P2PProxyService{
+    sender: Sender<Vec<u8>>
+}
+
+#[tonic::async_trait]
+impl ProxyApi for P2PProxyService {
+    async fn forward_share(
+        &self,
+        request: Request<ForwardShareRequest>,
+    ) -> Result<Response<ForwardShareResponse>, Status> {
+        
+        //deliver to the higher layer
+        let binding = request.into_inner();
+        let msg = binding.data;
+
+        info!("Share received from proxy");
+        self.sender.send(msg).await;
+
+        Ok(Response::new(ForwardShareResponse{}))
+    }
+
+    async fn atomic_broadcast(
+        &self,
+        request: Request<AtomicBroadcastRequest>,
+    ) -> Result<Response<AtomicBroadcastResponse>, Status> {
+        
+        Ok(Response::new(AtomicBroadcastResponse {}))
+    }
+
 }
 
 impl P2PProxy {
 
     pub fn new(config: NetworkConfig, id: u32) -> Self {
-        return P2PProxy { config: config, id: id , listener: None}
+        let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
+        return P2PProxy { config: config, id: id , sender: sender, receiver: receiver}
     }
 
     pub async fn init(&mut self) {
@@ -100,12 +124,19 @@ impl P2PProxy {
         let port: u16 = local_node.port;
         let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
-        info!("Start ProxyP2PStub");
-        let listener = TcpListener::bind(address)
-            .await
-            .expect("Failed to bind the server");
-        info!("P2PProxy started ...");
-        self.listener = Some(listener);
+        println!("[P2PProxyServer]: Request handler is starting. Listening for RPC on address: {address}");
+        let service = P2PProxyService{
+            sender: self.sender.clone()
+        };
+        tokio::spawn(async move {
+            println!("Server is starting");
+            Server::builder()
+                .add_service(ProxyApiServer::new(service))
+                // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
+                .serve(address)
+                .await
+                .expect("Error starting the gRPC Server!");
+        });
     }
 }
 
