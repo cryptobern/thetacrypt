@@ -1,6 +1,4 @@
 use libp2p::multiaddr::Multiaddr;
-use std::str::FromStr;
-use log::info;
 use serde::{Deserialize, Serialize};
 use utils::server::types::{Peer, ProxyNode, ServerConfig};
 
@@ -86,7 +84,6 @@ impl NetworkConfig {
     }
 
     pub fn get_p2p_listen_addr(&self) -> Multiaddr {
-        info!("{}, {}", self.base_listen_address, self.local_peer.port);
         format!("/ip4/{}/tcp/{}", self.base_listen_address, self.local_peer.port)
         .parse()
         .expect(&format!(

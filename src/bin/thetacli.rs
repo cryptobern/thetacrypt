@@ -194,7 +194,7 @@ fn keygen(k: u16, n: u16, a: &str, dir: &str, new: bool) -> Result<(), Error> {
 
     for node_id in 0..n {
         // Define the name of the key file based on the node
-        let keyfile = format!("{}/node{:?}.keystore", dir, node_id);
+        let keyfile = format!("{}/node{:?}.keystore", dir, node_id+1);
         let mut kc = KeyStore::new();
 
         if !new {

@@ -2,7 +2,7 @@ use clap::Parser;
 use log::{error, info};
 use std::{path::PathBuf, process::exit};
 use theta_events::event::emitter::{self, start_null_emitter};
-use theta_network::{network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder}, p2p::gossipsub_setup::static_net::P2PComponent, proxy::proxyp2p::{ProxyConfig, ProxyP2PStub}, types::message::NetMessage};
+use theta_network::{network_manager::{network_director::NetworkDirector, network_manager::NetworkManager, network_manager_builder::NetworkManagerBuilder},proxy::proxyp2p::{ProxyConfig, ProxyP2PStub}, types::message::NetMessage};
 use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
@@ -10,7 +10,7 @@ use theta_orchestration::{
 use log4rs;
 
 use theta_service::rpc_request_handler;
-use utils::server::{cli::ServerCli, types::ServerProxyConfig};
+use utils::server::cli::ServerCli;
 
 #[tokio::main]
 async fn main() {
@@ -55,7 +55,7 @@ async fn main() {
 }
 
 //Start main event loop of server.
-pub async fn start_server(config: &ServerProxyConfig, keychain_path: PathBuf) {
+// pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) {
     // //Config for our proxy
     // let net_config = ProxyConfig {
     //     listen_addr: config.get_listen_addr(),
@@ -189,4 +189,4 @@ pub async fn start_server(config: &ServerProxyConfig, keychain_path: PathBuf) {
     //         info!("Shutdown complete");
     //     }
     // }
-}
+// }

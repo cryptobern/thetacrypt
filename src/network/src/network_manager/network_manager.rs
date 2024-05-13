@@ -1,7 +1,7 @@
 use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, types::config::NetworkConfig};
+use crate::{interface::{Gossip, TOB}, types::config::NetworkConfig};
 use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
 
 // T is the generic for the message

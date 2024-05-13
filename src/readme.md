@@ -113,10 +113,10 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --output ./conf --ne
 The server is implemented in `src\bin\server.rs`.
 From the root directory of the `protocols` project start 4 terminals and run, respectively:
 ```
-cargo run --bin server -- --config-file conf/server_0.json --key-file conf/node0.keystore
 cargo run --bin server -- --config-file conf/server_1.json --key-file conf/node1.keystore
 cargo run --bin server -- --config-file conf/server_2.json --key-file conf/node2.keystore
 cargo run --bin server -- --config-file conf/server_3.json --key-file conf/node3.keystore
+cargo run --bin server -- --config-file conf/server_4.json --key-file conf/node4.keystore
 ```
 
 Or use the supplied `start_network.sh` script to start four instances in a single terminal.

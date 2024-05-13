@@ -1,5 +1,5 @@
 use tokio::sync::mpsc::{Receiver, Sender};
-use crate::{config::static_net::deserialize::Config, interface::{Gossip, TOB}, types::{config::NetworkConfig, message::NetMessage}};
+use crate::{interface::{Gossip, TOB}, types::{config::NetworkConfig, message::NetMessage}};
 
 use super::network_manager::NetworkManager;
 
