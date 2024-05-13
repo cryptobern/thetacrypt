@@ -4,7 +4,7 @@ use thetacrypt_blockchain_stub::proto::blockchain_stub::{blockchain_stub_client:
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hello there! I'm the client!");
 
-    let mut client = BlockchainStubClient::connect("http://localhost:60000").await?;
+    let mut client = BlockchainStubClient::connect("http://localhost:30000").await?;
 
     let request = ForwardShareRequest{
         data: "Hello World".to_owned().into_bytes(),

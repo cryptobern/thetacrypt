@@ -133,89 +133,6 @@ fn ips_from_file(path: &PathBuf) -> Result<Vec<String>, String> {
     Ok(ips)
 }
 
-// fn run(
-//     ips: Vec<String>,
-//     rpc_port: u16,
-//     p2p_port: u16,
-//     port_strategy: PortStrategy,
-//     shuffle_peers: bool,
-//     listen_address: String,
-//     outdir: PathBuf,
-//     event_file: Option<PathBuf>,
-// ) -> Result<(), String> {
-//     info!("Generating configuration structs");
-//     let peers: Vec<Peer> = ips
-//         .iter()
-//         .enumerate()
-//         .map(|(i, ip)| {
-//             let p2p_port = match port_strategy {
-//                 PortStrategy::Consecutive => 
-//                     // More than 2^16 peers? What are we, an ISP?
-//                     p2p_port + u16::try_from(i).unwrap(),
-//                 PortStrategy::Static => p2p_port,
-//             };
-
-//             Peer {
-//                 // This will fail if we ever have more than 2^32 peers, but that is unlikely. :)
-//                 id: u32::try_from(i).unwrap(),
-//                 ip: String::from(ip),
-//                 p2p_port,
-//             }
-//         })
-//         .collect();
-
-//     let configs: Vec<ServerConfig> = ips
-//         .iter()
-//         .enumerate()
-//         .map(|(i, _)| {
-//             let mut my_peers = peers.clone();
-//             if shuffle_peers {
-//                 let mut rng = rand::thread_rng();
-//                 my_peers.shuffle(&mut rng);
-//             }
-
-//             ServerConfig::new(
-//                 u32::try_from(i).unwrap(),
-//                 listen_address.clone(),
-//                 rpc_port + u16::try_from(i).unwrap(),
-//                 my_peers,
-//                 event_file.clone(),
-//             )
-//             .unwrap()
-//         })
-//         .collect();
-
-//     let public_peers: Vec<PeerPublicInfo> = peers
-//         .iter()
-//         .enumerate()
-//         .map(|(i, peer_ref)| {
-//             let peer = peer_ref.clone();
-//             let rpc_port = match port_strategy {
-//                 PortStrategy::Consecutive => 
-//                     // More than 2^16 peers? What are we, an ISP?
-//                     rpc_port + u16::try_from(i).unwrap(),
-//                 PortStrategy::Static => rpc_port,
-//             };
-//             PeerPublicInfo {
-//                 id: peer.id,
-//                 ip: peer.ip,
-//                 rpc_port: rpc_port,
-//             }
-//         })
-//         .collect();
-
-//     let client_config = ClientConfig::new(public_peers).unwrap();
-
-//     info!("Writing configurations to disk");
-//     for cfg in configs {
-//         let outfile = outdir.clone();
-//         save_config_on_file(outfile, &cfg, format!("server_{:?}", cfg.id)).expect("Error writing server config on file!");
-//     }
-//     info!("Writing client configuration to disk");
-//     save_config_on_file(outdir, &client_config, "client.json".to_string()).expect("Error writing on client config on file!");
-//     Ok(())
-// }
-
 fn generate_configs(
     ips: Vec<String>,
     ips_proxy_nodes: Option<Vec<String>>,
@@ -274,7 +191,13 @@ fn generate_configs(
                 let proxy_port = match port_strategy {
                     PortStrategy::Consecutive => 
                         // More than 2^16 peers? What are we, an ISP?
-                        proxy_port.unwrap() + u16::try_from(i+1).unwrap(),
+                        if stub{
+                            // in case we are using the stub we have a central node acting as proxy
+                            // we need the same port
+                            proxy_port.unwrap()
+                        }else{
+                            proxy_port.unwrap() + u16::try_from(i+1).unwrap()
+                        },
                     PortStrategy::Static => proxy_port.unwrap(),
                 };
 

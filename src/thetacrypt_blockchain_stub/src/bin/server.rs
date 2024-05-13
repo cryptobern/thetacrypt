@@ -96,6 +96,8 @@ impl BlockchainStub for ThetacryptBlockchainStub {
         request: Request<ForwardShareRequest>,
     ) -> Result<Response<ForwardShareResponse>, Status> {
         //Forward to the other parties
+
+        print!("Message received from peer...");
         let peers_config = P2PConfig {
             peers: self.peers.clone(),
         };
@@ -145,10 +147,10 @@ async fn start_and_run(service: ThetacryptBlockchainStub, address: SocketAddr) -
 async fn main() -> io::Result<()> {
     println!("Hello Blockchain Stub");
 
-    //network address of teh stub
+    //network address of the stub
     let host = "127.0.0.1";
     let host_ip = <Ipv4Addr>::from_str(host).unwrap();
-    let port: u16 = 60000;
+    let port: u16 = 30000;
     let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
     // loading the configuration about the peer from file

@@ -13,6 +13,7 @@ use thetacrypt_blockchain_stub::proto::blockchain_stub::{
 };
 
 use crate::interface::{Gossip, TOB};
+use crate::types::config::NetworkConfig;
 // Thetacrypt
 use crate::types::message::NetMessage;
 
@@ -20,30 +21,32 @@ use serde::{Deserialize, Serialize};
 
 use tonic::async_trait;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProxyConfig {
-    pub listen_addr: String,
-    pub p2p_port: u16,
-    pub proxy_addr: String,
-    pub proxy_port: u16,
-}
-
-pub struct ProxyP2PStub {
-    pub config: ProxyConfig,
+pub struct P2PProxy {
+    pub config: NetworkConfig,
     pub id: u32,
-    pub listener: Option<TcpListener>,
+    listener: Option<TcpListener>,
 }
 
 #[async_trait]
-impl Gossip for ProxyP2PStub {
+impl Gossip for P2PProxy {
 
     type T = NetMessage;
     fn broadcast(&mut self, message: NetMessage) {
         info!("Receiving message from outgoing_channel");
         //here goes the target_platform ip
-        let mut address = self.config.proxy_addr.clone().to_owned();
-        address.push(':');
-        address.push_str(&self.config.proxy_port.to_string());
+
+        let proxy_node = self.config.proxy.as_ref().unwrap().clone();
+        let port: u16 = proxy_node.port;
+        let ip = proxy_node.ip;
+
+        let address: String = format!("http://{}:{}",ip, port)
+        .parse()
+        .expect(&format!(
+            ">> Fatal error: Could not format address for ip:{}, and port {}.",
+            ip,
+            port
+        ));
+
         info!("Connecting to remote address: {}", address);
         tokio::spawn(async move {
             match BlockchainStubClient::connect(address).await {
@@ -83,30 +86,32 @@ impl Gossip for ProxyP2PStub {
     }
 }
 
-impl ProxyP2PStub {
+impl P2PProxy {
 
-    pub fn new(config: ProxyConfig, id: u32) -> Self {
-        return ProxyP2PStub { config: config, id: id , listener: None}
+    pub fn new(config: NetworkConfig, id: u32) -> Self {
+        return P2PProxy { config: config, id: id , listener: None}
     }
 
     pub async fn init(&mut self) {
 
-        let host_ip = <Ipv4Addr>::from_str(self.config.listen_addr.as_str()).unwrap();
-        let port: u16 = self.config.p2p_port;
+        let local_node = self.config.local_peer.clone();
+
+        let host_ip = <Ipv4Addr>::from_str(local_node.ip.as_str()).unwrap();
+        let port: u16 = local_node.port;
         let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
         info!("Start ProxyP2PStub");
         let listener = TcpListener::bind(address)
             .await
             .expect("Failed to bind the server");
-        info!("ProxyP2PStub started ...");
+        info!("P2PProxy started ...");
         self.listener = Some(listener);
     }
 }
 
 //TODO: finish the implementation deciding if it is the blockchain part that should push when something is decided (maybe here consider the finality)
 pub struct ProxyTOBStub {
-    pub config: ProxyConfig,
+    pub config: NetworkConfig,
     pub id: u32,
 }
 
@@ -145,7 +150,7 @@ pub struct ProxyTOBStub {
 
 impl ProxyTOBStub {
 
-    pub fn new(config: ProxyConfig, id: u32) -> Self {
+    pub fn new(config: NetworkConfig, id: u32) -> Self {
         return ProxyTOBStub{
             config,
             id,

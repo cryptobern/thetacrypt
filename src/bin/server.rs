@@ -100,7 +100,11 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
     network_builder.set_id(my_id);
 
     //Here introduce code to differenciate between standalone and blockchain integration
-    NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id).await;
+    if config.proxy_node.is_some(){
+        NetworkDirector::construct_proxy_network(&mut network_builder, net_cfg.clone(), my_id).await;
+    }else{
+        NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id).await;
+    }
 
     // Instantiate the NetworkManager
     let mut network_manager = network_builder.build();

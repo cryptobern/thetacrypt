@@ -2,7 +2,7 @@ use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{interface::{Gossip, TOB}, types::config::NetworkConfig};
-use crate::types::message::{NetMessage, NetMessageMetadata, Channel};
+use crate::types::message::{NetMessage, Channel};
 
 // T is the generic for the message
 // G is the generic for the Gossip module
