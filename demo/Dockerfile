@@ -22,7 +22,6 @@ RUN apt-get -y install libc6
 
 #Binaries
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/server /target/release/ 
-COPY --from=builder /rootLibrary/threasholdLibrary/target/release/proxy_server /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/confgen /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client /target/release/ 
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/thetacli /target/release/
