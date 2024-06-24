@@ -32,7 +32,6 @@ RUN cargo build --release --bin server
 # as we have a compilation cache available at this point. So we might as well.
 RUN cargo build --release --bin client
 RUN cargo build --release --bin confgen
-RUN cargo build --release --bin proxy_server
 RUN cargo build --release --bin thetacli
 
 
