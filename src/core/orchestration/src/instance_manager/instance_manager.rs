@@ -30,9 +30,9 @@ use crate::{
     key_manager::key_manager::KeyManagerCommand,
 };
 /// Upper bound on the number of finished instances which to store.
-const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100_000;
+const DEFAULT_INSTANCE_CACHE_SIZE: usize = 10000;
 /// Number of instances which to look at when trying to find ones to eject.
-const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = 10;
+const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = 100;
 
 /// InstanceCache implements a first-in-first-out store for instances.
 ///
