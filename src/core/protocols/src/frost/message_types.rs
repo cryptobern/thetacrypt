@@ -10,7 +10,7 @@ use crate::interface::{ProtocolError, ProtocolMessageWrapper};
 
 use super::protocol::FrostPrecomputation;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct FrostMessage {
     pub(crate) id: u16,
     pub(crate) data: FrostData,
@@ -22,6 +22,13 @@ pub enum FrostData {
     Commitment(PublicCommitment),
     Share(FrostSignatureShare),
     Precomputation(Vec<PublicCommitment>),
+    Default,
+}
+
+impl Default for FrostData {
+    fn default() -> Self {
+        FrostData::Default
+    }
 }
 
 //consider that in protocols like frost you might have different kind of messages that needs the conversion

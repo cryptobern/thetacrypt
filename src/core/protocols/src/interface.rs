@@ -41,7 +41,7 @@ pub trait ProtocolMessageWrapper<T>: Send { //Here there was a + Debug. Not sure
 // it will be useful to have an init function that thakes care of additional details)
 pub trait ThresholdRoundProtocol<T> {
     //add s function to handle checks needed to correctly start the protocol, needed or can be put in do round?
-    type ProtocolMessage: ProtocolMessageWrapper<T>;
+    type ProtocolMessage: ProtocolMessageWrapper<T> + Default;
 
     fn do_round(&mut self) -> Result<Self::ProtocolMessage, ProtocolError>;
     fn is_ready_for_next_round(&self) -> bool;

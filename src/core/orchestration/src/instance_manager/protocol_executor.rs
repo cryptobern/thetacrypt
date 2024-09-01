@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use chrono::Utc;
 use theta_events::event::Event;
-use theta_network::types::message::NetMessage;
 use theta_protocols::interface::{ProtocolMessageWrapper, ThresholdRoundProtocol};
 
 use crate::interface::ThresholdProtocol;

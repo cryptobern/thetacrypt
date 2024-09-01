@@ -40,7 +40,14 @@ impl DecryptionShareMessage {
 //for more complex protocol this is not true
 #[derive(Serialize, Deserialize, Clone)]
 pub enum DecryptionMessage {
-    ShareMessage(DecryptionShareMessage)
+    ShareMessage(DecryptionShareMessage),
+    Default,
+}
+
+impl Default for DecryptionMessage {
+    fn default() -> Self {
+        DecryptionMessage::Default
+    }
 }
 
 //consider that in protocols like frost you might have different kind of messages that needs the conversion

@@ -7,7 +7,14 @@ use crate::interface::{ProtocolError, ProtocolMessageWrapper};
 
 #[derive(Serialize, Deserialize)]
 pub enum SignatureMessage{
-    ShareMessage(SignatureShare)
+    ShareMessage(SignatureShare),
+    Default,
+}
+
+impl Default for SignatureMessage {
+    fn default() -> Self {
+        SignatureMessage::Default
+    }
 }
 
 impl ProtocolMessageWrapper<NetMessage> for SignatureMessage{

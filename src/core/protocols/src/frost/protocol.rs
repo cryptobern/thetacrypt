@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{collections::HashMap, f32::consts::E, sync::Arc};
 
 use log::{debug, error, info};
 use theta_network::types::message::NetMessage;
@@ -117,6 +117,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
 
                 Ok(())
             }
+            FrostData::Default => Err(ProtocolError::InternalError), // Default should not be received
         }
     }
     /*
@@ -171,29 +172,31 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
         //      But the do round will not produce anything, so we need a void message or something
         info!("do_round: : round {:?}", self.round);
         if self.round == 0 {
-            let data;
+            let mut data = FrostData::Default;
+            let mut message = FrostMessage::default();
+
             if (self.options != FrostOptions::NoPrecomputation) {
                 data = self.precompute();
             } else {
+                
+                // Do the computation just if the node is in the signer group
+                if self.signer_group.contains(&self.key.get_share_id())
+                && !self.commitment_list.contains_key(&self.key.get_share_id())
+            {   
                 let (comm, nonce) = commit(&self.key, &mut RNG::new(RngAlgorithm::OsRng));
                 self.nonce = Some(nonce);
                 self.commitment = Some(comm.clone());
 
-                
-
-                if self.signer_group.contains(&self.key.get_share_id())
-                && !self.commitment_list.contains_key(&self.key.get_share_id())
-            {
                 self.commitment_list.insert(self.key.get_share_id(), comm.clone());
                 info!("Inserted commitment with id {:?}", self.key.get_share_id());
-            }
 
-            data = FrostData::Commitment(comm);
+                data = FrostData::Commitment(comm);
+            }
             }
 
             self.round += 1;
 
-            let message = FrostMessage {
+            message = FrostMessage {
                 id: self.key.get_share_id(),
                 data,
             };
@@ -226,9 +229,6 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                     id: self.key.get_share_id(),
                     data: FrostData::Share(share),
                 };
-
-                
-
                 return Ok(message);
             }
 
@@ -368,6 +368,7 @@ pub(crate) struct SignerGroup {
 
 impl SignerGroup {
     /* creates a new signer group with ids from 1 to n */
+    // TODO: create a function that generates a random signer group given the instance_id
     pub fn new(n: u16) -> Self {
         let signer_identifiers: Vec<u16> = (1..n + 1).collect();
         Self { signer_identifiers }

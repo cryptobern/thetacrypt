@@ -8,7 +8,14 @@ use crate::interface::{ProtocolError, ProtocolMessageWrapper};
 
 #[derive(Serialize, Deserialize)]
 pub enum CoinMessage{
-    ShareMessage(CoinShare)
+    ShareMessage(CoinShare),
+    Default,
+}
+
+impl Default for CoinMessage {
+    fn default() -> Self {
+        CoinMessage::Default
+    }
 }
 
 impl ProtocolMessageWrapper<NetMessage> for CoinMessage {
