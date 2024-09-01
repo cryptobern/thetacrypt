@@ -1,2 +1,4 @@
 conf/**
 target/**
+conf.tar.gz
+benchmark_conf/**
