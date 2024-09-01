@@ -113,17 +113,10 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                         "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
                         &self.instance_id
                     );
-                    self.terminate().await;
+                    self.chan_in.close();
                     return Err(ProtocolError::NotFinished);
                 }
             }
         }
-    }
-
-    //TODO: think if here you really need the error
-    async fn terminate(&mut self) -> Result<(), ProtocolError> {
-        info!("<{:?}>: Instance finished.", &self.instance_id);
-        self.chan_in.close();
-        Ok(())
     }
 }

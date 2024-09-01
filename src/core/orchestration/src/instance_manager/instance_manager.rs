@@ -1,14 +1,11 @@
 use core::panic;
 use std::{
-    collections::{HashMap, VecDeque},
-    process::Command,
-    sync::Arc,
-    thread,
-    time::{self, Instant},
+    collections::{HashMap, VecDeque}, f32::consts::E, process::Command, sync::Arc, thread, time::{self, Instant}
 };
 
 use log::{debug, error, info};
 use mcore::hash256::HASH256;
+use reqwest::header::CACHE_CONTROL;
 use theta_events::event::Event;
 use theta_network::types::message::NetMessage;
 use theta_proto::scheme_types::{Group, ThresholdScheme};
@@ -76,6 +73,7 @@ impl InstanceCache {
     /// space is required.
     fn inform_of_termination(&mut self, instance_id: String) {
         if self.instance_data.contains_key(&instance_id) {
+            debug!("Instance ID {} terminated inserted in the terminated_instances queue", instance_id);
             self.terminated_instances.push_back(instance_id);
         } else {
             error!(
@@ -214,7 +212,7 @@ impl InstanceManager {
             instance_command_sender,
             outgoing_p2p_sender,
             incoming_p2p_receiver,
-            instances: InstanceCache::new(None),
+            instances: InstanceCache::new(Some(DEFAULT_INSTANCE_CACHE_SIZE)),
             backlog: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,
@@ -234,7 +232,12 @@ impl InstanceManager {
                             responder
                         } => {
                             let result = self.start(request).await;
-                            responder.send(result).expect("The receiver for responder in StateUpdateCommand::GetInstanceResult has been closed.");
+                            // TODO: update error message
+                            if result.is_err() {
+                                error!("Error starting instance: {:?}", result.unwrap_err());
+                            } else {
+                                responder.send(Ok(result.unwrap())).expect("The receiver for responder in Rpc_request_handler has been closed.");
+                            }
                         },
 
                         InstanceManagerCommand::GetInstanceStatus { instance_id, responder } => {
@@ -338,7 +341,7 @@ impl InstanceManager {
     pub async fn start<'a>(
         &mut self,
         instance_request: StartInstanceRequest,
-    ) -> Result<String, SchemeError> {
+    ) -> Result<String, ProtocolError> {
         // Create a unique instance_id for this instance
         let instance_id = assign_instance_id(&instance_request);
 
@@ -362,7 +365,7 @@ impl InstanceManager {
                         return Ok(instance_id);
                     }
                     error!("Key not found");
-                    return Err(SchemeError::Aborted(String::from("key not found")));
+                    return Err(ProtocolError::SchemeError(SchemeError::Aborted(String::from("key not found"))));
                 }
 
                 let key = key.unwrap();
@@ -373,7 +376,7 @@ impl InstanceManager {
                     instance_id.clone(),
                     ciphertext.get_scheme(),
                     ciphertext.get_group().clone(),
-                    sender,
+                    Some(sender),
                 );
 
                 // Create the new protocol instance
@@ -390,12 +393,22 @@ impl InstanceManager {
 
                 self.instances.insert(instance_id.clone(), instance);
 
+                let sender = self.instance_command_sender.clone();
+                let id = instance_id.clone();
+
                 // Start it in a new thread, so that the client does not block until the protocol is finished.
-                self.start_protocol(
-                    executor,
-                    instance_id.clone(),
-                    self.instance_command_sender.clone(),
-                );
+                tokio::spawn(async move {
+                    let result = Self::execute_protocol(
+                        executor,
+                        id,
+                        sender,
+                    ).await;
+                    if result.is_err() {
+                        error!("Error starting protocol: {:?}", result.unwrap_err());
+                    }
+                });
+
+                _ = self.forward_backlogged_messages(instance_id.clone());
 
                 println!(
                     "Set up instance thread after {}ms",
@@ -421,14 +434,14 @@ impl InstanceManager {
                         return Ok(instance_id);
                     }
                     error!("Key not found");
-                    return Err(SchemeError::Aborted(String::from("key not found")));
+                    return Err(ProtocolError::SchemeError(SchemeError::Aborted(String::from("key not found"))));
                 }
 
                 let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
-                let instance = Instance::new(instance_id.clone(), scheme, group.clone(), sender);
+                let instance = Instance::new(instance_id.clone(), scheme, group.clone(), Some(sender));
 
                 match scheme {
                     ThresholdScheme::Frost => {
@@ -448,15 +461,23 @@ impl InstanceManager {
                         );
                         self.instances.insert(instance_id.clone(), instance);
 
-                
+                        let sender = self.instance_command_sender.clone();
+                        let id = instance_id.clone();
 
                         // Start it in a new thread, so that the client does not block until the protocol is finished.
-                        self.start_protocol(
-                            executor,
-                            instance_id.clone(),
-                            self.instance_command_sender.clone(),
-                        );
-        
+                        tokio::spawn(async move {
+                            let result = Self::execute_protocol(
+                                executor,
+                                id,
+                                sender,
+                            ).await;
+                            if result.is_err() {
+                                error!("Error starting protocol: {:?}", result.unwrap_err());
+                            }
+                        });
+
+                        _ = self.forward_backlogged_messages(instance_id.clone());
+                
                         return Ok(instance_id.clone());
                     },
                     _ => {
@@ -470,12 +491,22 @@ impl InstanceManager {
                         );
                         self.instances.insert(instance_id.clone(), instance);
 
+                        let sender = self.instance_command_sender.clone();
+                        let id = instance_id.clone();
+
                         // Start it in a new thread, so that the client does not block until the protocol is finished.
-                        self.start_protocol(
-                            executor,
-                            instance_id.clone(),
-                            self.instance_command_sender.clone(),
-                        );
+                        tokio::spawn(async move {
+                            let result = Self::execute_protocol(
+                                executor,
+                                id,
+                                sender,
+                            ).await;
+                            if result.is_err() {
+                                error!("Error starting protocol: {:?}", result.unwrap_err());
+                            }
+                        });
+
+                        _ = self.forward_backlogged_messages(instance_id.clone());
         
                         return Ok(instance_id.clone());
                     },
@@ -498,14 +529,14 @@ impl InstanceManager {
                         return Ok(instance_id);
                     }
                     error!("Key not found");
-                    return Err(SchemeError::Aborted(String::from("key not found")));
+                    return Err(ProtocolError::SchemeError(SchemeError::Aborted(String::from("key not found"))));
                 }
 
                 let key = key.unwrap();
 
                 let (sender, receiver) = tokio::sync::mpsc::channel::<NetMessage>(32);
 
-                let instance = Instance::new(instance_id.clone(), scheme, group, sender);
+                let instance = Instance::new(instance_id.clone(), scheme, group, Some(sender));
 
                 // Create the new protocol instance
                 let prot = ThresholdCoinProtocol::new(
@@ -523,26 +554,35 @@ impl InstanceManager {
 
                 self.instances.insert(instance_id.clone(), instance);
 
-                // Start it in a new thread, so that the client does not block until the protocol is finished.
-                self.start_protocol(
-                    executor,
-                    instance_id.clone(),
-                    self.instance_command_sender.clone(),
-                );
+                let sender = self.instance_command_sender.clone();
+                let id = instance_id.clone();
 
+                // Start it in a new thread, so that the client does not block until the protocol is finished.
+                tokio::spawn(async move {
+                    let result = Self::execute_protocol(
+                        executor,
+                        id,
+                        sender,
+                    ).await;
+                    if result.is_err() {
+                        error!("Error starting protocol: {:?}", result.unwrap_err());
+                    }
+                });
+
+                _ = self.forward_backlogged_messages(instance_id.clone());
+                
                 return Ok(instance_id.clone());
             }
         }
     }
 
-    fn start_protocol(
-        &mut self,
+    async fn execute_protocol(
+       
         mut executor: (impl ThresholdProtocol + std::marker::Send + 'static),
         instance_id: String,
         sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
-    ) {
-        let id = instance_id.clone();
-        tokio::spawn(async move {
+    ) -> Result<(), ProtocolError> {
+        
             let result = executor.run().await;
 
             match result {
@@ -550,7 +590,10 @@ impl InstanceManager {
                     // Protocol terminated, update state with the result.
                     info!("Instance {:?} finished", instance_id.clone());
                 },
-                Err(e) => todo!(),
+                Err(e) => {
+                    error!("Error running protocol: {:?}", e);
+                    return Err(e);
+                }
             }
             
             if sender
@@ -564,12 +607,13 @@ impl InstanceManager {
                 // loop until transmission successful
                 //COMMENT_R: can this loop occupy the CPU?
                 error!("Error storing result, channel closed");
+                return Err(ProtocolError::InternalError);
                 // thread::sleep(time::Duration::from_millis(500)); // wait for 500ms before trying again
             }
 
-            
-        });
-        _ = self.forward_backlogged_messages(id);
+            drop(sender); // close the sender channel
+
+            Ok(())
     }
 
     fn forward_backlogged_messages(&mut self, instance_id: String) {
@@ -587,18 +631,20 @@ impl InstanceManager {
 
         let backlog = backlog.unwrap();
         let messages = backlog.messages.clone();
-        let sender = instance.get_sender();
-        let instance_id_cloned = instance_id.clone();
-        tokio::spawn(async move {
-            for msg in &messages {
-                let _ = sender.send(msg.clone()).await;
-            }
-            info!(
-                "All the messages backlogged for instance {:?} have been sent",
-                instance_id_cloned
-            );
-        });
-
+        if let Some(sender) = instance.get_sender(){
+            let instance_id_cloned = instance_id.clone();
+            tokio::spawn(async move {
+                for msg in &messages {
+                    let _ = sender.send(msg.clone()).await;
+                }
+                info!(
+                    "All the messages backlogged for instance {:?} have been sent",
+                    instance_id_cloned
+                );
+                drop(sender);
+            });
+        }
+        // if the sender is back to None it means the instance has finished
         self.backlog.remove(&instance_id);
     }
 
