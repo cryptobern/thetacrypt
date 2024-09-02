@@ -379,6 +379,10 @@ impl FrostProtocol {
         self.commitment = Some(comm.clone());
     }
 
+    pub fn get_signer_group(&self) -> Vec<u16> {
+        self.signer_group.get_vec().clone()
+    }
+
     /*
     task: return the gathered precomputations (e.g. commitments) from round 1 of the protocol
 
