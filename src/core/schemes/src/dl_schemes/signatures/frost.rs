@@ -264,7 +264,7 @@ impl PartialOrd for PublicCommitment {
         Some(self.cmp(other))
     }
 }
- impl Eq for PublicCommitment{}
+impl Eq for PublicCommitment {}
 
 impl Serialize for PublicCommitment {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -286,23 +286,23 @@ impl<'de> Deserialize<'de> for PublicCommitment {
     where
         D: serde::Deserializer<'de>,
     {
-        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
-            match result {
-                Ok(value) => {
-                    let try_share = PublicCommitment::from_bytes(&value);
-                    match try_share {
-                        Ok(share) => Ok(share),
-                        Err(e) => {
-                            info!("{}", e.to_string());
-                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
-                        },
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor);
+        match result {
+            Ok(value) => {
+                let try_share = PublicCommitment::from_bytes(&value);
+                match try_share {
+                    Ok(share) => Ok(share),
+                    Err(e) => {
+                        info!("{}", e.to_string());
+                        Err(serde::de::Error::custom(format!("{}", e.to_string())))
                     }
-                },
-                Err(e) => {
-                    info!("{}", e.to_string());
-                    return Err(e)
                 }
             }
+            Err(e) => {
+                info!("{}", e.to_string());
+                return Err(e);
+            }
+        }
     }
 }
 
@@ -474,23 +474,23 @@ impl<'de> Deserialize<'de> for FrostSignatureShare {
     where
         D: serde::Deserializer<'de>,
     {
-        let result = deserializer.deserialize_byte_buf(ByteBufVisitor); 
-            match result {
-                Ok(value) => {
-                    let try_share = FrostSignatureShare::from_bytes(&value);
-                    match try_share {
-                        Ok(share) => Ok(share),
-                        Err(e) => {
-                            info!("{}", e.to_string());
-                            Err(serde::de::Error::custom(format!("{}", e.to_string())))
-                        },
+        let result = deserializer.deserialize_byte_buf(ByteBufVisitor);
+        match result {
+            Ok(value) => {
+                let try_share = FrostSignatureShare::from_bytes(&value);
+                match try_share {
+                    Ok(share) => Ok(share),
+                    Err(e) => {
+                        info!("{}", e.to_string());
+                        Err(serde::de::Error::custom(format!("{}", e.to_string())))
                     }
-                },
-                Err(e) => {
-                    info!("{}", e.to_string());
-                    return Err(e)
                 }
             }
+            Err(e) => {
+                info!("{}", e.to_string());
+                return Err(e);
+            }
+        }
     }
 }
 
@@ -605,8 +605,14 @@ pub fn get_group_commitment(
     message: &[u8],
     key: &FrostPrivateKey,
 ) -> Result<GroupElement, SchemeError> {
-    let binding_factor_list = compute_binding_factors(key.get_public_key(), commitment_list, message, key.get_group());
-    let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, key.get_group());
+    let binding_factor_list = compute_binding_factors(
+        key.get_public_key(),
+        commitment_list,
+        message,
+        key.get_group(),
+    );
+    let group_commitment =
+        compute_group_commitment(commitment_list, &binding_factor_list, key.get_group());
     match group_commitment {
         Ok(group_commitment) => Ok(group_commitment),
         Err(e) => Err(e),
@@ -697,60 +703,63 @@ pub fn assemble(
 }
 
 pub fn verify_share(
-    share: &FrostSignatureShare, //zi 
-    pubkey: &FrostPublicKey, //Y
-    message: &[u8], //M
+    share: &FrostSignatureShare, //zi
+    pubkey: &FrostPublicKey,     //Y
+    message: &[u8],              //M
     commitment_list: &mut [PublicCommitment], //(Dj, Ej)
-    // share_commitment: PublicCommitment, //(Di, Ei)
+                                 // share_commitment: PublicCommitment, //(Di, Ei)
 ) -> Result<bool, SchemeError> {
-    let share_commitment = commitment_for_participant(commitment_list, share.get_id()).unwrap(); //TODO: handle unwrap
-    // println!("Commitment of id {:?}: {:?}", share.get_id(), share_commitment);
-    let binding_factor_list =
-        compute_binding_factors(pubkey, commitment_list, message, pubkey.get_group()); //list of rho(s)
-    let binding_factor = binding_factor_for_participant(&binding_factor_list, share.get_id());
-    if binding_factor.is_err() {
-        return Err(binding_factor.expect_err("Binding factor not found"));
+    let share_commitment = commitment_for_participant(commitment_list, share.get_id());
+    match share_commitment {
+        Ok(share_commitment) => {
+            let binding_factor_list =
+                compute_binding_factors(pubkey, commitment_list, message, pubkey.get_group()); //list of rho(s)
+            let binding_factor =
+                binding_factor_for_participant(&binding_factor_list, share.get_id());
+            if binding_factor.is_err() {
+                return Err(binding_factor.expect_err("Binding factor not found"));
+            }
+
+            let binding_factor = binding_factor.unwrap(); //rho of share i
+
+            let group_commitment =
+                compute_group_commitment(commitment_list, &binding_factor_list, pubkey.get_group()); //this can also not be computed every time
+            if group_commitment.is_err() {
+                return Err(group_commitment.expect_err("Error in computing group commitment"));
+            }
+
+            let group_commitment = group_commitment.unwrap();
+
+            let rcommitment_i = share_commitment.hiding_nonce_commitment.mul(
+                &share_commitment
+                    .binding_nonce_commitment
+                    .pow(&binding_factor.factor),
+            ); //commitment share of i => Ri
+
+            // println!("Ri commitment of share {:?}: {:?}", share.get_id(), rcommitment_i);
+
+            let challenge = compute_challenge(&group_commitment, pubkey, message);
+            println!("challenge: {:?}", challenge);
+            // println!("commitment_list {:?}", commitment_list);
+            let participant_list = participants_from_commitment_list(commitment_list);
+            let lambda_i = lagrange_coeff(
+                &pubkey.get_group(),
+                &participant_list,
+                share.get_id() as i32,
+            );
+
+            let l = GroupElement::new_pow_big(pubkey.get_group(), &share.data);
+            let r = rcommitment_i.mul(
+                &pubkey
+                    .get_verification_key(share.get_id())
+                    .pow(&lambda_i.mul_mod(&challenge, &pubkey.get_group().get_order())),
+            );
+
+            Ok(l.eq(&r))
+        },
+        Err(e) => return Err(e),
     }
-
-    let binding_factor = binding_factor.unwrap(); //rho of share i 
-    
-    let group_commitment =
-        compute_group_commitment(commitment_list, &binding_factor_list, pubkey.get_group()); //this can also not be computed every time
-    if group_commitment.is_err() {
-        return Err(group_commitment.expect_err("Error in computing group commitment"));
-    }
-
-    let group_commitment = group_commitment.unwrap();
-
-    let rcommitment_i = share_commitment.hiding_nonce_commitment.mul(
-        &share_commitment
-            .binding_nonce_commitment
-            .pow(&binding_factor.factor),
-    ); //commitment share of i => Ri
-    
-    
-    // println!("Ri commitment of share {:?}: {:?}", share.get_id(), rcommitment_i);
-
-    let challenge = compute_challenge(&group_commitment, pubkey, message);
-    println!("challenge: {:?}", challenge);
-    // println!("commitment_list {:?}", commitment_list);
-    let participant_list = participants_from_commitment_list(commitment_list);
-    let lambda_i = lagrange_coeff(
-        &pubkey.get_group(),
-        &participant_list,
-        share.get_id() as i32,
-    );
-
-    let l = GroupElement::new_pow_big(pubkey.get_group(), &share.data);
-    let r = rcommitment_i.mul(
-        &pubkey
-            .get_verification_key(share.get_id())
-            .pow(&lambda_i.mul_mod(&challenge, &pubkey.get_group().get_order())),
-    );
-    
-    Ok(l.eq(&r))
 }
-
 
 pub fn verify(signature: &FrostSignature, pk: &FrostPublicKey, msg: &[u8]) -> bool {
     let challenge = compute_challenge(&signature.R, pk, msg);
@@ -903,7 +912,8 @@ pub(crate) fn compute_group_commitment(
     for i in 0..commitment_list.len() {
         let binding_factor;
         if let Ok(factor) =
-            binding_factor_for_participant(binding_factor_list, commitment_list[i].id) //checks that we have the binding_factor for a certain id present in the commitment list
+            binding_factor_for_participant(binding_factor_list, commitment_list[i].id)
+        //checks that we have the binding_factor for a certain id present in the commitment list
         {
             binding_factor = factor.factor;
         } else {
@@ -972,7 +982,6 @@ fn commitment_for_participant(
 
     Err(SchemeError::IdNotFound)
 }
-
 
 fn participants_from_commitment_list(commitment_list: &[PublicCommitment]) -> Vec<u16> {
     let mut identifiers = Vec::new();

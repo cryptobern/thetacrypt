@@ -1,4 +1,5 @@
-use std::{collections::HashMap, f32::consts::E, sync::Arc};
+use std::{collections::HashMap, f32::consts::E, hash::DefaultHasher, sync::Arc};
+use std::hash::{Hash, Hasher};
 
 use log::{debug, error, info};
 use theta_network::types::message::NetMessage;
@@ -15,6 +16,10 @@ use crate::interface::{ProtocolError, ThresholdRoundProtocol};
 
 use super::message_types::{FrostData, FrostMessage};
 
+use rand::rngs::StdRng;  // Import the standard RNG
+use rand::{Rng, SeedableRng};  // Import the Rng trait and SeedableRng for seed support
+use std::collections::HashSet;
+
 static NUM_PRECOMPUTATIONS: usize = 10;
 
 #[derive(PartialEq, Clone, Debug)]
@@ -30,6 +35,7 @@ pub struct FrostProtocol {
     group_commitment: Option<GroupElement>,
     share: Option<FrostSignatureShare>,
     shares: HashMap<u16, FrostSignatureShare>,
+    not_verified_shares: HashSet<u16>, 
     finished: bool,
     options: FrostOptions,
     signer_group: SignerGroup,
@@ -55,6 +61,26 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 {
                     self.commitment_list.insert(message.id, result.clone());
                     info!("Inserted commitment with id {:?}", message.id);
+
+                    // if we have a share for this commitment, we can verify it now
+                    if self.shares.contains_key(&message.id){
+                        let share = self.shares.get(&message.id).unwrap();
+                        let mut commitment_list: Vec<PublicCommitment> =
+                        self.commitment_list.values().cloned().collect();
+                        let result = verify_share(
+                            &share,
+                            &self.key.get_public_key(),
+                            &self.msg,
+                            &mut commitment_list,
+                        );
+                        if result.is_err() {
+                            error!("invalid share with id {}: error: {:?}", &message.id, result.err());
+                            return Err(ProtocolError::InvalidShare);
+                        } 
+    
+                        self.shares.insert(message.id, share.clone());
+                        self.not_verified_shares.remove(&message.id);
+                    }
                 }
 
                 Ok(())
@@ -64,6 +90,15 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 {
                     let mut commitment_list: Vec<PublicCommitment> =
                         self.commitment_list.values().cloned().collect();
+
+                    // if we don't have the commitment of the signer, we can't verify the share
+                    // so we store the share in a separate list
+
+                    if !self.commitment_list.contains_key(&message.id) {
+                        self.not_verified_shares.insert(message.id);
+                        self.shares.insert(message.id, share.clone());
+                        return Ok(());
+                    }
                     
                     let result = verify_share(
                         &share,
@@ -73,13 +108,8 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                     );
                     if result.is_err() {
                         error!("invalid share with id {}: error: {:?}", &message.id, result.err());
-                        return Err(ProtocolError::InternalError);
-                    } 
-
-                    if !result.unwrap() {
-                        error!("invalid share with id {}", &message.id);
                         return Err(ProtocolError::InvalidShare);
-                    }
+                    } 
 
                     self.shares.insert(message.id, share.clone());
                 }
@@ -143,7 +173,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
             }
             2 => {
                 debug!("shares list len: {}", self.shares.len());
-                if self.shares.len() >= self.key.get_threshold() as usize {
+                if self.shares.len() >= self.key.get_threshold() as usize && self.not_verified_shares.is_empty() {
                     if let Option::Some(_) = self
                         .signer_group
                         .get_vec()
@@ -246,7 +276,7 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
     }
 
     fn is_ready_to_finalize(&self) -> bool {
-        if self.shares.len() == self.key.get_threshold() as usize {
+        if self.shares.len() == self.key.get_threshold() as usize && self.not_verified_shares.is_empty() {
             // check if we have all required shares to assemble signature
             if let Option::Some(_) = self
                 .signer_group
@@ -304,6 +334,7 @@ impl FrostProtocol {
                 msg: msg.to_vec(),
                 label: label.to_vec(),
                 shares: HashMap::new(),
+                not_verified_shares: HashSet::new(),
                 key: k.clone(),
                 nonce: Option::None,
                 commitment: Option::None,
@@ -313,7 +344,7 @@ impl FrostProtocol {
                 share: None,
                 finished: false,
                 options,
-                signer_group: SignerGroup::new(key.get_threshold()),
+                signer_group: SignerGroup::new(key.get_threshold(), msg),
             };
         }
         let precomputation = precomputation.unwrap();
@@ -322,6 +353,7 @@ impl FrostProtocol {
             msg: msg.to_vec(),
             label: label.to_vec(),
             shares: HashMap::new(),
+            not_verified_shares: HashSet::new(),
             key: k.clone(),
             nonce: Option::Some(precomputation.nonce),
             commitment: precomputation.commitments.get(&key.get_share_id()).cloned(),
@@ -331,7 +363,7 @@ impl FrostProtocol {
             share: None,
             finished: false,
             options,
-            signer_group: SignerGroup::new(key.get_threshold()),
+            signer_group: SignerGroup::new(key.get_threshold(), msg),
         }
     }
 
@@ -388,8 +420,35 @@ pub(crate) struct SignerGroup {
 impl SignerGroup {
     /* creates a new signer group with ids from 1 to n */
     // TODO: create a function that generates a random signer group given the instance_id
-    pub fn new(n: u16) -> Self {
-        let signer_identifiers: Vec<u16> = (1..n + 1).collect();
+    // We don't have n has the total number of parties. We will assume that the threshold is f+1 and the total number of parties is 3f+1
+    pub fn new(t: u16, msg: &[u8]) -> Self {
+        let f = t - 1;
+        let n = 3 * f + 1;
+
+        // Generate seed from message
+        // Initialize the hasher
+        let mut hasher = DefaultHasher::new();
+        
+        // Hash the input data
+        msg.hash(&mut hasher);
+        
+        // Convert the hash result to u64
+        let seed = hasher.finish();
+
+        //randomly select f+1 parties
+        let mut rng = StdRng::seed_from_u64(seed);
+        let mut signer_identifiers = HashSet::new();
+        
+        // Generate unique identifiers
+        while signer_identifiers.len() < t as usize {
+            let id: u16 = rng.gen_range(1..=n);  
+            info!("id: {}", id);
+            signer_identifiers.insert(id);
+        }
+
+        // Convert HashSet to Vec
+        let signer_identifiers = signer_identifiers.into_iter().collect();
+
         Self { signer_identifiers }
     }
 

@@ -8,7 +8,7 @@ fi
 
 num_lines=$1
 
-threshold=$(echo "(($num_lines - 1) * 2/3) + 1 " | bc) 
+threshold=$(echo "(($num_lines - 1) * 1/3) + 1 " | bc) 
 
 # Purge previous config
 rm -r conf/*
