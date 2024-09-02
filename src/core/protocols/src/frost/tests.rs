@@ -1,3 +1,4 @@
+use log::info;
 use theta_schemes::{
     dl_schemes::signatures::frost::{FrostOptions, FrostPrivateKey},
     interface::{Group, Serializable, Signature, ThresholdScheme, ThresholdSignature},
@@ -11,7 +12,7 @@ use crate::{frost::protocol::FrostProtocol, interface::ThresholdRoundProtocol};
 #[test]
 fn test_interface() {
     let k = 3;
-    let n = 5;
+    let n = 7;
 
     let keys = KeyGenerator::generate_keys(
         k,
@@ -30,7 +31,7 @@ fn test_interface() {
 
     let mut instances = Vec::new();
 
-    for i in 0..k {
+    for i in 0..n {
         let instance: FrostProtocol = FrostProtocol::new(
             keys[i].clone().into(),
             msg,
@@ -41,19 +42,27 @@ fn test_interface() {
         instances.push(instance);
     }
 
+    let signer_group = instances[0].get_signer_group();
+
+
     let mut messages = Vec::new();
 
     while !instances[0].is_ready_to_finalize() {
-        for i in 0..k {
+        for i in 0..n {
             messages.push(instances[i].do_round().unwrap());
         }
-
-        for i in 0..k {
+        println!("Round done");
+        println!("Messages: {:?}", messages);
+        for i in 0..n {
             let mut j = 0;
+            println!("start update for instance {}", i);
             while !instances[i].is_ready_for_next_round() {
-                assert!(instances[i].update(messages[j].clone()).is_ok());
+                if signer_group.contains(&messages[j].id) {
+                    assert!(instances[i].update(messages[j].clone()).is_ok());
+                }
                 j += 1;
             }
+            println!("end update for instance {}", i);
         }
 
         messages.clear();
