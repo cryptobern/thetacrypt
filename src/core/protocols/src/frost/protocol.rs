@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f32::consts::E, hash::DefaultHasher, sync::Arc};
+use std::{collections::HashMap, f32::consts::E, collections::hash_map::DefaultHasher, sync::Arc};
 use std::hash::{Hash, Hasher};
 
 use log::{debug, error, info};
