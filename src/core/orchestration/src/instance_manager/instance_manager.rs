@@ -27,7 +27,7 @@ use crate::{
     key_manager::key_manager::KeyManagerCommand,
 };
 /// Upper bound on the number of finished instances which to store.
-const DEFAULT_INSTANCE_CACHE_SIZE: usize = 100000;
+const DEFAULT_INSTANCE_CACHE_SIZE: usize = 10000;
 /// Number of instances which to look at when trying to find ones to eject.
 const INSTANCE_CACHE_CLEANUP_SCAN_LENGTH: usize = 5000;
 
@@ -95,12 +95,14 @@ impl InstanceCache {
             }
         };
 
-        debug!(
+        info!(
             "Cleaning up instance store by ejecting up to {} terminated instances.",
             max_iterations
         );
 
-        while current_iteration < max_iterations && self.instance_data.len() > self.capacity {
+        // removed: && self.instance_data.len() > self.capacity
+        // This condition is not necessary, as the loop will stop as soon as the cache is at capacity.
+        while current_iteration < max_iterations {
             let candidate_id = self.terminated_instances.pop_front().unwrap();
             info!("Ejecting terminated instance {}", candidate_id);
             self.instance_data.remove(&candidate_id);
