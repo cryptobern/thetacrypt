@@ -34,6 +34,7 @@ impl From<SchemeError> for ProtocolError {
 pub trait ProtocolMessageWrapper<T>: Send { //Here there was a + Debug. Not sure if needed
     fn unwrap(wrapped: T) -> Result<Box<Self>, ProtocolError>; //we need to Box self because we don't know yet the type
     fn wrap(&self, instance_id: &String) -> Result<T, String>; //T here would be NetMessage
+    fn is_default(&self) -> bool;
 }
 
 //ROSE: to move to the protocol

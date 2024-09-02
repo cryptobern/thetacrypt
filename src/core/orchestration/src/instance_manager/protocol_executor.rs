@@ -59,11 +59,18 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
         self.event_emitter_sender.send(event).await.unwrap();
 
         //do the initial round and handle the possible error
-        let message = self.protocol.do_round().unwrap();
-        let net_message = message.wrap(&self.instance_id.clone()).unwrap();
-
-        //send the message
-        self.chan_out.send(net_message).await.unwrap();
+        let message_result = self.protocol.do_round();
+        match message_result {
+            Ok(message) => {
+                if !message.is_default() {
+                    let net_message = message.wrap(&self.instance_id.clone()).unwrap();
+                    self.chan_out.send(net_message).await.unwrap();
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
 
         //start the loop for receiving
         loop {
@@ -93,17 +100,23 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                             } else {
                                 if self.protocol.is_ready_for_next_round() {
                                     //go to the next rounds
-                                    let message = self.protocol.do_round().unwrap();
-                                    let net_message =
-                                        message.wrap(&self.instance_id.clone()).unwrap();
-                                    self.chan_out.send(net_message).await.unwrap();
-
-                                    //update again?
+                                    let message_result = self.protocol.do_round();
+                                    match message_result {
+                                        Ok(message) => {
+                                            if !message.is_default() {
+                                                let net_message = message.wrap(&self.instance_id.clone()).unwrap();
+                                                self.chan_out.send(net_message).await.unwrap();
+                                            }
+                                        }
+                                        Err(e) => {
+                                            return Err(e);
+                                        }
+                                    }
                                 }
                             }
                         }
                         Err(e) => {
-                            info!("Error during update: {:?}", e);
+                            error!("Error during update: {:?}", e);
                             return Err(e);
                         }
                     }

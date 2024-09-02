@@ -8,3 +8,4 @@ src/protocols/conf/*
 */debug/*
 */.rustc_info.json
 */tmp/*
+src/start_network.sh

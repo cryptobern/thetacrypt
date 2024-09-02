@@ -6,8 +6,7 @@ use theta_schemes::{
     dl_schemes::{
         commitments::interface::Commitment,
         signatures::frost::{
-            assemble, commit, partial_sign, verify_share, FrostOptions, FrostPrivateKey,
-            FrostSignature, FrostSignatureShare, Nonce, PublicCommitment,
+            assemble, commit, get_group_commitment, partial_sign, verify_share, FrostOptions, FrostPrivateKey, FrostSignature, FrostSignatureShare, Nonce, PublicCommitment
         },
     }, groups::group::GroupElement, interface::{DlShare, SchemeError, Serializable, Signature}, keys::keys::PrivateKeyShare, rand::{RngAlgorithm, RNG}
 };
@@ -200,39 +199,47 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
                 id: self.key.get_share_id(),
                 data,
             };
-
-        
-
             return Ok(message);
         } else if self.round == 1 {
-            let mut commitment_list: Vec<PublicCommitment> =
-                self.commitment_list.values().cloned().collect();
+            let mut data = FrostData::Default;
 
-            let res = partial_sign(
-                &self.nonce.clone().unwrap(),
-                &mut commitment_list,
-                &self.msg,
-                &self.key,
-                self.key.get_share_id(),
-            );
-            if res.is_ok() {
-                self.round += 1;
+            // Check if I am in the signer group
+            if self.signer_group.contains(&self.key.get_share_id()) && !self.shares.contains_key(&self.key.get_share_id()){
 
-                let (share, group_commitment) = res.unwrap();
-                self.group_commitment = Some(group_commitment);
+                let mut commitment_list: Vec<PublicCommitment> =
+                    self.commitment_list.values().cloned().collect();
 
-                if self.signer_group.contains(&self.key.get_share_id()) && !self.shares.contains_key(&self.key.get_share_id()){
+                let res = partial_sign(
+                    &self.nonce.clone().unwrap(),
+                    &mut commitment_list,
+                    &self.msg,
+                    &self.key,
+                    self.key.get_share_id(),
+                );
+
+                if res.is_ok() {
+                    self.round += 1;
+
+                    let (share, group_commitment) = res.unwrap();
+                    self.group_commitment = Some(group_commitment);
+
                     self.shares.insert(self.key.get_share_id(), share.clone());
-                }
 
-                let message = FrostMessage {
-                    id: self.key.get_share_id(),
-                    data: FrostData::Share(share),
-                };
-                return Ok(message);
+                    data =  FrostData::Share(share);
+                }else {
+                    return Err(ProtocolError::SchemeError(res.unwrap_err()));
+                }
+            }else {
+                // if I am not in the signer group, just increment the round
+                self.round += 1;
             }
 
-            return Err(ProtocolError::SchemeError(res.unwrap_err()));
+            let message = FrostMessage {
+                id: self.key.get_share_id(),
+                data: data,
+            };
+
+            return Ok(message);
         }
 
         Err(ProtocolError::InvalidRound)
@@ -256,13 +263,25 @@ impl ThresholdRoundProtocol<NetMessage> for FrostProtocol {
         false
     }
 
-    fn finalize(&mut self) -> Result<Vec<u8>, crate::interface::ProtocolError> {
-        let group_commitment = self.group_commitment.clone().unwrap();
-        let shares = self.shares.values().cloned().collect();
-        let sig = assemble(&group_commitment, &self.key, &shares);
-        self.finished = true;
-        let serialized_sig = Signature::Frost(sig).to_bytes();
-        Ok(serialized_sig.unwrap())
+    fn finalize(&mut self) -> Result<Vec<u8>, ProtocolError> {
+
+        let mut commitment_list: Vec<PublicCommitment> =
+                    self.commitment_list.values().cloned().collect();
+
+        let group_commitment = get_group_commitment(&mut commitment_list, &self.msg, &self.key);
+        match group_commitment {
+            Ok(_) => {
+                let group_commitment_internal = group_commitment.unwrap();
+                let shares = self.shares.values().cloned().collect();
+                let sig = assemble(&group_commitment_internal, &self.key, &shares);
+                self.finished = true;
+                let serialized_sig = Signature::Frost(sig).to_bytes();
+                Ok(serialized_sig.unwrap())
+            }
+            Err(e) => {
+                return Err(ProtocolError::SchemeError(e));
+            }
+        }
     }
 }
 

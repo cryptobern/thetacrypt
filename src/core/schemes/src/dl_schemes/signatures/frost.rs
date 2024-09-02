@@ -600,6 +600,19 @@ pub enum FrostOptions {
 
 pub struct FrostState {}
 
+pub fn get_group_commitment(
+    commitment_list: &mut [PublicCommitment],
+    message: &[u8],
+    key: &FrostPrivateKey,
+) -> Result<GroupElement, SchemeError> {
+    let binding_factor_list = compute_binding_factors(key.get_public_key(), commitment_list, message, key.get_group());
+    let group_commitment = compute_group_commitment(commitment_list, &binding_factor_list, key.get_group());
+    match group_commitment {
+        Ok(group_commitment) => Ok(group_commitment),
+        Err(e) => Err(e),
+    }
+}
+
 pub fn partial_sign(
     nonce: &Nonce,
     commitment_list: &mut [PublicCommitment],

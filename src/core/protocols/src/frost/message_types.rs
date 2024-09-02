@@ -63,4 +63,11 @@ impl ProtocolMessageWrapper<NetMessage> for FrostMessage {
         let net_message = NetMessage::new(instance_id.clone(), metadata, message_data);
         return Ok(net_message);
     }
+    
+    fn is_default(&self) -> bool {
+        match self.data {
+            FrostData::Default => true,
+            _ => false,
+        }
+    }
 }

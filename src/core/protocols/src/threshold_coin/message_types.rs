@@ -38,6 +38,13 @@ impl ProtocolMessageWrapper<NetMessage> for CoinMessage {
         let net_message = NetMessage::new(instance_id.clone(), metadata,message_data);
         return Ok(net_message)
     }
+
+    fn is_default(&self) -> bool {
+        match self {
+            CoinMessage::Default => true,
+            _ => false
+        }
+    }
 }
 
 

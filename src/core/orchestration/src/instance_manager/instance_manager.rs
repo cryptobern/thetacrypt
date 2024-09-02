@@ -73,7 +73,7 @@ impl InstanceCache {
     /// space is required.
     fn inform_of_termination(&mut self, instance_id: String) {
         if self.instance_data.contains_key(&instance_id) {
-            debug!("Instance ID {} terminated inserted in the terminated_instances queue", instance_id);
+            info!("Instance ID {} terminated inserted in the terminated_instances queue", instance_id);
             self.terminated_instances.push_back(instance_id);
         } else {
             error!(
@@ -212,7 +212,7 @@ impl InstanceManager {
             instance_command_sender,
             outgoing_p2p_sender,
             incoming_p2p_receiver,
-            instances: InstanceCache::new(Some(DEFAULT_INSTANCE_CACHE_SIZE)),
+            instances: InstanceCache::new(None),
             backlog: HashMap::new(),
             backlog_interval: tokio::time::interval(tokio::time::Duration::from_secs(
                 BACKLOG_CHECK_INTERVAL as u64,

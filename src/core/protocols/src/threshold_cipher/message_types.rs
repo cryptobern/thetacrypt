@@ -78,5 +78,12 @@ impl ProtocolMessageWrapper<NetMessage> for DecryptionMessage {
         let net_message = NetMessage::new(instance_id.clone(), metadata, message_data);
         return Ok(net_message);
     }
+    
+    fn is_default(&self) -> bool {
+        match self {
+            DecryptionMessage::Default => true,
+            _ => false
+        }
+    }
 }
 

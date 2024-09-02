@@ -32,9 +32,16 @@ impl ProtocolMessageWrapper<NetMessage> for SignatureMessage{
     }
 
     fn wrap(&self, instance_id: &String) -> Result<NetMessage, String> {
-        let message_data = serde_json::to_string(&self).expect("Error in serializing DecryptionShareMessage for Vec<u8>").into_bytes();
+        let message_data = serde_json::to_string(&self).expect("Error in serializing SignatureShareMessage for Vec<u8>").into_bytes();
         let metadata = NetMessageMetadata::new(Channel::Gossip);
         let net_message = NetMessage::new(instance_id.clone(), metadata,message_data);
         return Ok(net_message)
+    }
+
+    fn is_default(&self) -> bool {
+        match self {
+            SignatureMessage::Default => true,
+            _ => false
+        }
     }
 }
