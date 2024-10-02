@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub enum Channel{
     #[default]
     Gossip,
@@ -15,7 +15,7 @@ pub enum Channel{
 /// NetMessageMetadata incapsulates the information for handling the transmission of the message.
 /// Each message needs to specify the sender_id so that at the protocol layer it can be checked if 
 /// the sender_id matched the share_id of the piece of information received.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct NetMessageMetadata{
     sender_id: u16,
     channel: Channel,
@@ -53,7 +53,7 @@ impl NetMessageMetadata{
 // We also need a mechanism to signal if a TOB channel is available or not and in case change the behavior of a protocol accordingly, or 
 // deny it completely.
 // The message_data field is a vector of bytes with no meaning for the network layer.  
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct NetMessage {
     instance_id: String,
     metadata: NetMessageMetadata,

@@ -34,7 +34,7 @@ pub struct P2PProxy {
 impl Gossip for P2PProxy {
 
     type T = NetMessage;
-    fn broadcast(&mut self, message: NetMessage) {
+    fn broadcast(&mut self, message: NetMessage) -> Result<(), std::string::String> {
         info!("Receiving message from outgoing_channel");
         //here goes the target_platform ip
 
@@ -60,10 +60,15 @@ impl Gossip for P2PProxy {
                     };
 
                     tokio::spawn(async move { client.forward_share(request).await });
-                }
-                Err(e) => println!("Error in opening the connection!: {}", e),
+                    Ok(())
+                },
+                Err(e) => {
+                    error!("Error in opening the connection!: {}", e);
+                    return Err("Error in opening the connection!".to_string());
+                },
             }
         });
+        Ok(())
     }
 
     async fn deliver(&mut self) -> Option<NetMessage> {

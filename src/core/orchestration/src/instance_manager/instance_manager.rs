@@ -335,6 +335,9 @@ impl InstanceManager {
                         v.checked = true;
                     }
                     info!("Old backlogged instances deleted");
+
+                    // also clean the cache every minute
+                    // self.instances.attempt_eject();
                 }
             }
         }

@@ -4,7 +4,7 @@ use tonic::async_trait;
 #[async_trait]
 pub trait Gossip: Send {
     type T;
-    fn broadcast(&mut self, message: Self::T);
+    fn broadcast(&mut self, message: Self::T) -> Result<(), String>;
     async fn deliver(&mut self) -> Option<Self::T>;
 }
 
