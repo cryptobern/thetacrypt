@@ -11,22 +11,22 @@ mod tests{
         let peer1 = NetworkPeer{
             id: 1,
             ip: localhost.to_string(),
-            port: 8081,
+            port: 8181,
         };
         let peer2 = NetworkPeer{
             id: 2,
             ip: localhost.to_string(),
-            port: 8082,
+            port: 8182,
         };
         let peer3 = NetworkPeer{
             id: 3,
             ip: localhost.to_string(),
-            port: 8083,
+            port: 8183,
         };
         let peer4 = NetworkPeer{
             id: 4,
             ip: localhost.to_string(),
-            port: 8084,
+            port: 8184,
         };
 
         //Create network configuration
