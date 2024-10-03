@@ -27,6 +27,7 @@ COPY --from=builder /rootLibrary/threasholdLibrary/target/release/client /target
 COPY --from=builder /rootLibrary/threasholdLibrary/target/release/thetacli /target/release/
 
 COPY --from=builder /rootLibrary/threasholdLibrary/log4rs.yaml /target/release/
+COPY --from=builder /rootLibrary/threasholdLibrary/log4rs_to_file.yaml /target/release/
 
 WORKDIR /target/release/
 
