@@ -9,3 +9,4 @@ src/protocols/conf/*
 */.rustc_info.json
 */tmp/*
 src/start_network.sh
+src/log

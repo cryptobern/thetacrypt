@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use chrono::Utc;
 use theta_events::event::Event;
 use theta_protocols::interface::{ProtocolMessageWrapper, ThresholdRoundProtocol};
+use tokio::sync::mpsc::error::SendError;
 
 use crate::interface::ThresholdProtocol;
 use log::{error, info};
@@ -68,6 +69,14 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                 }
             }
             Err(e) => {
+                let error_message = format!("Error during initial round: {:?}", e);
+                error!("{}", error_message);
+                let event = Event::FailedInstance {
+                    timestamp: Utc::now(),
+                    instance_id: self.instance_id.clone(),
+                    error_message: error_message.to_string(),
+                };
+                self.event_emitter_sender.send(event).await.unwrap();
                 return Err(e);
             }
         }
@@ -84,16 +93,35 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                             if self.protocol.is_ready_to_finalize() {
                                 let result = self.protocol.finalize(); //handle the error
 
-                                //emitter code for signaling termination
-                                let event = Event::FinishedInstance {
-                                    timestamp: Utc::now(),
-                                    instance_id: self.instance_id.clone(),
-                                };
-                                self.event_emitter_sender.send(event).await.unwrap();
-
                                 match result {
-                                    Ok(value) => return Ok(value),
+                                    Ok(value) => {
+
+                                        //emitter code for signaling termination
+                                        let event = Event::FinishedInstance {
+                                            timestamp: Utc::now(),
+                                            instance_id: self.instance_id.clone(),
+                                        };
+                                        self.event_emitter_sender.send(event).await.unwrap();
+
+                                        info!(
+                                            "<{:?}>: Finished executing threshold protocol instance",
+                                            &self.instance_id
+                                        );
+
+                                        return Ok(value)
+                                    }
                                     Err(prot_err) => {
+                                        let error_message = format!("Error during finalization: {:?}", prot_err);
+                                        let event = Event::FailedInstance {
+                                            timestamp: Utc::now(),
+                                            instance_id: self.instance_id.clone(),
+                                            error_message: error_message.to_string(),
+                                        };
+                                        self.event_emitter_sender.send(event).await.unwrap();
+                                        error!(
+                                            "<{:?}>: {:?}",
+                                            &self.instance_id, prot_err
+                                        );
                                         return Err(prot_err);
                                     }
                                 }
@@ -109,6 +137,14 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                                             }
                                         }
                                         Err(e) => {
+                                            let error_message = format!("Error during round: {:?}", e);
+                                            error!("{}", error_message);
+                                            let event = Event::FailedInstance {
+                                                timestamp: Utc::now(),
+                                                instance_id: self.instance_id.clone(),
+                                                error_message: error_message.to_string(),
+                                            };
+                                            self.event_emitter_sender.send(event).await.unwrap();
                                             return Err(e);
                                         }
                                     }
@@ -116,7 +152,14 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                             }
                         }
                         Err(e) => {
-                            error!("Error during update: {:?}", e);
+                            let error_message = format!("Error during update: {:?}", e);
+                            error!("{}", error_message);
+                            let event = Event::FailedInstance {
+                                timestamp: Utc::now(),
+                                instance_id: self.instance_id.clone(),
+                                error_message: error_message.to_string(),
+                            };
+                            self.event_emitter_sender.send(event).await.unwrap();
                             return Err(e);
                         }
                     }
@@ -126,6 +169,14 @@ impl<P: ThresholdRoundProtocol<T> + std::marker::Send, T: std::marker::Send + De
                         "<{:?}>: Sender end unexpectedly closed. Protocol instance will quit.",
                         &self.instance_id
                     );
+                    let error_message = format!("Channel for receiving closed.");
+                            error!("{}", error_message);
+                            let event = Event::FailedInstance {
+                                timestamp: Utc::now(),
+                                instance_id: self.instance_id.clone(),
+                                error_message: error_message.to_string(),
+                            };
+                            self.event_emitter_sender.send(event).await.unwrap();
                     self.chan_in.close();
                     return Err(ProtocolError::NotFinished);
                 }

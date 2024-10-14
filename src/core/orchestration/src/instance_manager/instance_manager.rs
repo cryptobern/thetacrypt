@@ -196,6 +196,7 @@ pub enum InstanceManagerCommand {
     UpdateInstanceStatus {
         instance_id: String,
         status: String,
+        error: Option<ProtocolError>,
     },
 }
 
@@ -234,7 +235,6 @@ impl InstanceManager {
                             responder
                         } => {
                             let result = self.start(request).await;
-                            // TODO: update error message
                             if result.is_err() {
                                 error!("Error starting instance: {:?}", result.unwrap_err());
                             } else {
@@ -269,15 +269,27 @@ impl InstanceManager {
                                     _instance.set_result(result);
                                     self.instances.inform_of_termination(instance_id.clone());
                                 },
-                                None => info!("Error storing instance result for instance {}", instance_id)
+                                None => error!("Error storing instance result for instance {}", instance_id)
                             }
                         },
 
-                        InstanceManagerCommand::UpdateInstanceStatus {instance_id, status } => {
-                            let instance = self.instances.get_mut(&instance_id);
-                            match instance {
-                                Some(_instance) => _instance.set_status(&status),
-                                None => {}
+                        InstanceManagerCommand::UpdateInstanceStatus {instance_id, status, error } => {
+                            if error.is_some() {
+                                let instance = self.instances.get_mut(&instance_id);
+                                match instance {
+                                    Some(_instance) => {
+                                        _instance.set_status(&status);
+                                        _instance.set_result(Err(error.unwrap()));
+                                        self.instances.inform_of_termination(instance_id.clone());
+                                    },
+                                    None => error!("Error updating instance failed status for instance {}", instance_id)
+                                }
+                            } else {
+                                let instance = self.instances.get_mut(&instance_id);
+                                match instance {
+                                    Some(_instance) => _instance.set_status(&status),
+                                    None => error!("Error updating instance status for instance {}", instance_id)
+                                }
                             }
                         }
                     }
@@ -362,7 +374,7 @@ impl InstanceManager {
                     )
                     .await;
 
-                println!("Set up instance after {}ms", now.elapsed().as_millis());
+                debug!("Set up instance after {}ms", now.elapsed().as_millis());
 
                 if key.is_err() {
                     let e = key.unwrap_err();
@@ -409,13 +421,15 @@ impl InstanceManager {
                         sender,
                     ).await;
                     if result.is_err() {
-                        error!("Error starting protocol: {:?}", result.unwrap_err());
+                        let error = result.unwrap_err();
+                        error!("Error during protocol execution protocol: {:?}", error);  
                     }
                 });
 
+                // Maybe here handle error situations
                 _ = self.forward_backlogged_messages(instance_id.clone());
 
-                println!(
+                debug!(
                     "Set up instance thread after {}ms",
                     now.elapsed().as_millis()
                 );
@@ -589,6 +603,7 @@ impl InstanceManager {
     ) -> Result<(), ProtocolError> {
         
             let result = executor.run().await;
+            let instance_manager_sender = sender.clone();
 
             match result {
                 Ok(_) => {
@@ -597,6 +612,15 @@ impl InstanceManager {
                 },
                 Err(e) => {
                     error!("Error running protocol: {:?}", e);
+
+                    // Inform the instance manager about the error and the failed status. 
+                    instance_manager_sender.send(InstanceManagerCommand::UpdateInstanceStatus {
+                        instance_id: instance_id,
+                        status: "Failed".to_string(),
+                        error: Some(e.clone()),
+                    }).await.expect("channel closed by instance manager");
+
+                
                     return Err(e);
                 }
             }

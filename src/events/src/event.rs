@@ -20,6 +20,14 @@ pub enum Event {
         instance_id: String,
     },
 
+    // Emitted when an instance terminates with an error.
+    FailedInstance {
+        timestamp: DateTime<Utc>,
+        instance_id: String,
+        // maybe include an error code here?
+        error_message: String,
+    },
+
     // // Emitted when the server received a signing request.
     // ReceivedSigningRequest {
     //     timestamp: DateTime<Utc>,
@@ -84,16 +92,28 @@ pub mod emitter {
     /// events, a channel through which the emitter can be shut down, as well as the emitter's thread handle.
     pub fn start(
         emitter: Emitter,
-    ) -> (
-        Sender<Event>,
+    ) ->
+        Result<
+        (Sender<Event>,
         oneshot::Sender<bool>,
-        JoinHandle<Result<(), BenchmarkingError>>,
-    ) {
+        JoinHandle<Result<(), BenchmarkingError>>),
+        BenchmarkingError >
+     {
+         // We re-open the file such that we can move the file handle into the thread.
+        let fh = File::options()
+        .create(true)
+        .append(true)
+        .open(&emitter.outfile)
+        .map_err(|e| BenchmarkingError::IOError(e))?;
+
         let (tx, rx) = mpsc::channel::<Event>(100);
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<bool>();
-        let handle = tokio::spawn(async move { emitter.run(rx, shutdown_rx).await });
+        let handle = tokio::spawn(async move { 
+            //Handel the error in case of failure to start the emitter
+            emitter.run(fh, rx, shutdown_rx).await 
+        });
 
-        (tx, shutdown_tx, handle)
+        Ok((tx, shutdown_tx, handle))
     }
 
     /// Starts a null emitter which behaves like a regular emitter, but discards all events
@@ -136,15 +156,10 @@ pub mod emitter {
         /// emitter will keep running until a value is received via the shutdown channel.
         pub async fn run(
             &self,
+            mut file: File,
             mut rx: Receiver<Event>,
             mut shutdown_rx: oneshot::Receiver<bool>,
         ) -> Result<(), BenchmarkingError> {
-            // We re-open the file such that we can move the file handle into the thread.
-            let mut fh = File::options()
-                .create(true)
-                .append(true)
-                .open(self.outfile.clone())
-                .map_err(|e| BenchmarkingError::IOError(e))?;
 
             info!("Ready and waiting for events");
             loop {
@@ -166,7 +181,7 @@ pub mod emitter {
                         debug!("Emitting event: {:?}", event);
                         // We'll unwrap here, to noisly faily should serialization fail
                         let data = serde_json::to_string(&event).unwrap();
-                        writeln!(fh, "{}", data).unwrap();
+                        writeln!(file, "{}", data).unwrap();
                     },
                 }
             }

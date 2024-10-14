@@ -26,7 +26,7 @@ done > conf/server_ips.txt
 cargo run --bin confgen -- --ip-file conf/server_ips.txt --port-strategy consecutive --outdir=conf
 
 # Generate the keystore files 
-cargo run --bin thetacli -- keygen -k=${threshold} -n=${num_lines} --subjects Frost-Ed25519 --output ./conf
+cargo run --bin thetacli -- keygen -k=${threshold} -n=${num_lines} --subjects Sg02-Bls12381 --output ./conf
 
 
 # Create the start_network.sh file

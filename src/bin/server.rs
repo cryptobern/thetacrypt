@@ -144,7 +144,14 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
             );
             let emitter = emitter::new(&f);
 
-            emitter::start(emitter)
+            let result = emitter::start(emitter);
+            match result {
+                Ok((tx, shutdown_tx, handle)) => (tx, shutdown_tx, handle),
+                Err(e) => {
+                    error!("Failed to start event emitter: {}", e);
+                    return Err("Failed to start event emitter".to_string());
+                }
+            }
         }
         None => {
             info!("Starting null-emitter, which will discard all benchmarking events");
@@ -186,6 +193,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
         .await
     });
 
+    // TODO: Handle shutdown gracefully in the main thread.
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             info!("Threshold server received ctrl-c, shutting down");
