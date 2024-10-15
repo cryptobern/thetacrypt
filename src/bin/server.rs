@@ -96,15 +96,26 @@ async fn monitor_for_task_failure(handles: &mut Vec<JoinHandle<Result<(), String
 
     info!("Monitoring for task failure");
 
-    // Wait for all the handles to complete concurrently and return as soon as one of them fails
-    let results = futures::future::join_all(handles.iter_mut()).await;
+    //monitor the tasks and return as soon as one of them finishes
+    let result = futures::future::select_all(handles.iter_mut()).await;
 
-    info!("After join_all");
+    let (handle_ready, index, _) = result;
 
-    for result in results {
-        if let Err(e) = result {
-            error!("Task failed: {:?}", e);
+    // If the handle is ready, then it means that the task has finished
+    if handle_ready.is_ok() {
+        match handle_ready.unwrap() {
+            Ok(_) => {
+                info!("Task {} finished successfully", index);
+            }
+            Err(e) => {
+                error!("Task {} failed: {}", index, e);
+            }
         }
+
+        // Remove the handle from the list
+        handles.remove(index);
+    } else {
+        error!("Error during join: {:?}", handle_ready.err().unwrap());
     }
 }
 
