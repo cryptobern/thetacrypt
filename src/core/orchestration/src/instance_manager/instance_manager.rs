@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, VecDeque}, f32::consts::E, process::Command, sync::Arc, thread, time::{self, Instant}
 };
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use mcore::hash256::HASH256;
 use reqwest::header::CACHE_CONTROL;
 use theta_events::event::Event;
@@ -17,7 +17,7 @@ use theta_protocols::{
 use theta_schemes::{
     dl_schemes::signatures::frost::FrostOptions, interface::{Ciphertext, SchemeError}, keys::{key_store::KeyEntry, keys::PrivateKeyShare}
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Notify};
 use tonic::{Code, Status};
 
 use crate::{
@@ -224,73 +224,84 @@ impl InstanceManager {
         };
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self, shutdown_notify: Arc<Notify>) -> Result<(), String> {
         loop {
             tokio::select! {
+                _ = shutdown_notify.notified() => {
+                    info!("Instance manager shutting down");
+                    return Ok(());
+                }
                 command = self.instance_command_receiver.recv() => {
-                    let cmd = command.expect("");
-                    match cmd {
-                       InstanceManagerCommand::CreateInstance{
-                            request,
-                            responder
-                        } => {
-                            let result = self.start(request).await;
-                            if result.is_err() {
-                                error!("Error starting instance: {:?}", result.unwrap_err());
-                            } else {
-                                responder.send(Ok(result.unwrap())).expect("The receiver for responder in Rpc_request_handler has been closed.");
-                            }
-                        },
-
-                        InstanceManagerCommand::GetInstanceStatus { instance_id, responder } => {
-                            let result = match self.instances.get(&instance_id) {
-                                Some(instance) => {
-
-                                    Some(InstanceStatus {
-                                        scheme: instance.get_scheme().clone(),
-                                        group: instance.get_group().clone(),
-                                        finished: instance.is_finished(),
-                                        result: instance.get_result().clone()
-                                    })
-                                },
-                                None => {
-                                    None
-                                },
-                            };
-
-                            responder.send(result).expect("The receiver for responder in StateUpdateCommand::GetInstanceResult has been closed.");
-                        },
-
-                        InstanceManagerCommand::StoreResult {instance_id, result } => {
-                            let instance = self.instances.get_mut(&instance_id);
-
-                            match instance {
-                                Some(_instance) => {
-                                    _instance.set_result(result);
-                                    self.instances.inform_of_termination(instance_id.clone());
-                                },
-                                None => error!("Error storing instance result for instance {}", instance_id)
-                            }
-                        },
-
-                        InstanceManagerCommand::UpdateInstanceStatus {instance_id, status, error } => {
-                            if error.is_some() {
-                                let instance = self.instances.get_mut(&instance_id);
-                                match instance {
-                                    Some(_instance) => {
-                                        _instance.set_status(&status);
-                                        _instance.set_result(Err(error.unwrap()));
-                                        self.instances.inform_of_termination(instance_id.clone());
+                    match command {
+                        Some(cmd) => {
+                            match cmd {
+                                InstanceManagerCommand::CreateInstance{
+                                        request,
+                                        responder
+                                    } => {
+                                        let result = self.start(request).await;
+                                        if result.is_err() {
+                                            error!("Error starting instance: {:?}", result.unwrap_err());
+                                        } else {
+                                            responder.send(Ok(result.unwrap())).expect("The receiver for responder in Rpc_request_handler has been closed.");
+                                        }
                                     },
-                                    None => error!("Error updating instance failed status for instance {}", instance_id)
-                                }
-                            } else {
-                                let instance = self.instances.get_mut(&instance_id);
-                                match instance {
-                                    Some(_instance) => _instance.set_status(&status),
-                                    None => error!("Error updating instance status for instance {}", instance_id)
+
+                                InstanceManagerCommand::GetInstanceStatus { instance_id, responder } => {
+                                    let result = match self.instances.get(&instance_id) {
+                                        Some(instance) => {
+
+                                            Some(InstanceStatus {
+                                                scheme: instance.get_scheme().clone(),
+                                                group: instance.get_group().clone(),
+                                                finished: instance.is_finished(),
+                                                result: instance.get_result().clone()
+                                            })
+                                        },
+                                        None => {
+                                            None
+                                        },
+                                    };
+
+                                    responder.send(result).expect("The receiver for responder in StateUpdateCommand::GetInstanceResult has been closed.");
+                                },
+
+                                InstanceManagerCommand::StoreResult {instance_id, result } => {
+                                    let instance = self.instances.get_mut(&instance_id);
+
+                                    match instance {
+                                        Some(_instance) => {
+                                            _instance.set_result(result);
+                                            self.instances.inform_of_termination(instance_id.clone());
+                                        },
+                                        None => error!("Error storing instance result for instance {}", instance_id)
+                                    }
+                                },
+
+                                InstanceManagerCommand::UpdateInstanceStatus {instance_id, status, error } => {
+                                    if error.is_some() {
+                                        let instance = self.instances.get_mut(&instance_id);
+                                        match instance {
+                                            Some(_instance) => {
+                                                _instance.set_status(&status);
+                                                _instance.set_result(Err(error.unwrap()));
+                                                self.instances.inform_of_termination(instance_id.clone());
+                                            },
+                                            None => error!("Error updating instance failed status for instance {}", instance_id)
+                                        }
+                                    } else {
+                                        let instance = self.instances.get_mut(&instance_id);
+                                        match instance {
+                                            Some(_instance) => _instance.set_status(&status),
+                                            None => error!("Error updating instance status for instance {}", instance_id)
+                                        }
+                                    }
                                 }
                             }
+                        },
+                        None => {
+                            warn!("Instance manager command channel closed. Shutting down.");
+                            return Err("Instance manager command channel closed".to_string());
                         }
                     }
                 }
@@ -330,7 +341,8 @@ impl InstanceManager {
                             }
                         },
                         None => {
-                            todo!()
+                            warn!("Incoming message channel closed");
+                            return Err("Incoming message channel closed".to_string());
                         }
                     }
                 }

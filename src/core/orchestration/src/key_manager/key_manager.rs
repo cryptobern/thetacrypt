@@ -1,6 +1,6 @@
 use std::{borrow::BorrowMut, collections::HashMap, path::PathBuf, sync::Arc};
 
-use log::{error, info};
+use log::{error, info, warn};
 use theta_proto::{
     scheme_types::PublicKeyEntry,
     scheme_types::{Group, ThresholdScheme},
@@ -10,6 +10,7 @@ use theta_schemes::{
     dl_schemes::signatures::frost::PublicCommitment,
     keys::key_store::{KeyEntry, KeyStore},
 };
+use tokio::sync::Notify;
 
 pub struct KeyManager {
     command_receiver: tokio::sync::mpsc::Receiver<KeyManagerCommand>,
@@ -67,49 +68,60 @@ impl KeyManager {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self, shutdown_notify: Arc<Notify>) -> Result<(), String> {
         loop {
             tokio::select! {
+                _ = shutdown_notify.notified() => {
+                    info!("Shutting down KeyManager");
+                    return Ok(());
+                },
                 command = self.command_receiver.recv() => {
-                    let cmd = command.expect("");
-                    match cmd {
-                        KeyManagerCommand::ListAvailableKeys{
-                            responder
-                        } => {
-                            let result = self.keystore.list_public_keys();
-                            responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
-                        },
-                        KeyManagerCommand::PopFrostPrecomputation {
-                            key_id,
-                            responder
-                        } => {
-                            let result = self.pop_precomputation(&key_id);
+                    match command {
+                        Some(cmd) => {
+                            match cmd {
+                                KeyManagerCommand::ListAvailableKeys{
+                                    responder
+                                } => {
+                                    let result = self.keystore.list_public_keys();
+                                    responder.send(result).expect("The receiver for responder in KeyManagerCommand::GetInstanceResult has been closed.");
+                                },
+                                KeyManagerCommand::PopFrostPrecomputation {
+                                    key_id,
+                                    responder
+                                } => {
+                                    let result = self.pop_precomputation(&key_id);
 
-                            responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    responder.send(result).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
 
-                            info!("{} FROST precomputations left", self.num_precomputations());
-                        },
-                        KeyManagerCommand::PushFrostPrecomputations { key_id, precomputations } => {
-                            self.append_precomputations(&key_id, precomputations);
-                        },
-                        KeyManagerCommand::GetKeyById {id, responder} => {
-                            info!("Searching for key with id {}", &id);
-                            let result = self.keystore.get_key_by_id(&id);
+                                    info!("{} FROST precomputations left", self.num_precomputations());
+                                },
+                                KeyManagerCommand::PushFrostPrecomputations { key_id, precomputations } => {
+                                    self.append_precomputations(&key_id, precomputations);
+                                },
+                                KeyManagerCommand::GetKeyById {id, responder} => {
+                                    info!("Searching for key with id {}", &id);
+                                    let result = self.keystore.get_key_by_id(&id);
 
-                            if result.is_ok() {
-                                responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
-                            } else {
-                                responder.send(Err(result.unwrap_err().to_string())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    if result.is_ok() {
+                                        responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    } else {
+                                        responder.send(Err(result.unwrap_err().to_string())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    }
+                                },
+                                KeyManagerCommand::GetKeyBySchemeAndGroup { scheme, group, responder } => {
+                                    let result = self.keystore.get_key_by_scheme_and_group(scheme, group);
+
+                                    if result.is_ok() {
+                                        responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    } else {
+                                        responder.send(Err(result.unwrap_err())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
+                                    }
+                                }
                             }
                         },
-                        KeyManagerCommand::GetKeyBySchemeAndGroup { scheme, group, responder } => {
-                            let result = self.keystore.get_key_by_scheme_and_group(scheme, group);
-
-                            if result.is_ok() {
-                                responder.send(Ok(Arc::new(result.unwrap()))).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
-                            } else {
-                                responder.send(Err(result.unwrap_err())).expect("The receiver for responder in KeyManagerCommand::PopFrostPrecomputation has been closed.");
-                            }
+                        None => {
+                            warn!("KeyManager command channel closed. Shutting down.");
+                            return Err("KeyManager command channel closed".to_string());
                         }
                     }
                 }

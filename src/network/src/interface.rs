@@ -6,6 +6,7 @@ pub trait Gossip: Send {
     type T;
     fn broadcast(&mut self, message: Self::T) -> Result<(), String>;
     async fn deliver(&mut self) -> Option<Self::T>;
+    async fn init(&mut self) -> Result<(), String>;
 }
 
 #[async_trait]

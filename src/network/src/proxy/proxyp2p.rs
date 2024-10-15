@@ -34,6 +34,32 @@ pub struct P2PProxy {
 impl Gossip for P2PProxy {
 
     type T = NetMessage;
+
+    async fn init(&mut self) -> Result<(), String> {
+
+        let local_node = self.config.local_peer.clone();
+
+        let host_ip = <Ipv4Addr>::from_str(local_node.ip.as_str()).unwrap();
+        let port: u16 = local_node.port;
+        let address = SocketAddr::new(IpAddr::V4(host_ip), port);
+
+        println!("[P2PProxyServer]: Request handler is starting. Listening for RPC on address: {address}");
+        let service = P2PProxyService{
+            sender: self.sender.clone()
+        };
+        tokio::spawn(async move {
+            println!("Server is starting");
+            Server::builder()
+                .add_service(ProxyApiServer::new(service))
+                // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
+                .serve(address)
+                .await
+                .expect("Error starting the gRPC Server!");
+        });
+        
+        Ok(())
+    }
+
     fn broadcast(&mut self, message: NetMessage) -> Result<(), std::string::String> {
         info!("Receiving message from outgoing_channel");
         //here goes the target_platform ip
@@ -119,29 +145,6 @@ impl P2PProxy {
     pub fn new(config: NetworkConfig, id: u32) -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel::<Vec<u8>>(32);
         return P2PProxy { config: config, id: id , sender: sender, receiver: receiver}
-    }
-
-    pub async fn init(&mut self) {
-
-        let local_node = self.config.local_peer.clone();
-
-        let host_ip = <Ipv4Addr>::from_str(local_node.ip.as_str()).unwrap();
-        let port: u16 = local_node.port;
-        let address = SocketAddr::new(IpAddr::V4(host_ip), port);
-
-        println!("[P2PProxyServer]: Request handler is starting. Listening for RPC on address: {address}");
-        let service = P2PProxyService{
-            sender: self.sender.clone()
-        };
-        tokio::spawn(async move {
-            println!("Server is starting");
-            Server::builder()
-                .add_service(ProxyApiServer::new(service))
-                // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
-                .serve(address)
-                .await
-                .expect("Error starting the gRPC Server!");
-        });
     }
 }
 

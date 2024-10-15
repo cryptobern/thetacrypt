@@ -10,7 +10,7 @@ use theta_proto::protocol_types::{
     CoinRequest, CoinResponse, KeyRequest, KeyResponse, StatusRequest, StatusResponse,
 };
 use theta_proto::scheme_types::{Group, PublicKeyEntry};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Notify};
 use tonic::{transport::Server, Request, Response, Status};
 
 use log::{self, error, info, debug};
@@ -285,7 +285,8 @@ pub async fn init(
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
     key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
     event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
-) {
+    shutdown_notify: Arc<Notify>
+) -> Result<(), String>{
     // Start server
     let rpc_addr = format!("{}:{}", rpc_listen_address, rpc_listen_port);
     let service = RpcRequestHandler {
@@ -293,11 +294,34 @@ pub async fn init(
         instance_manager_command_sender: instance_manager_command_sender,
         event_emitter_sender,
     };
+
+    tokio::select! {
+        _ = shutdown_notify.notified() => {
+            info!("Shutting down RPC server.");
+            return Ok(());
+        },
+        result = start_rpc_server(rpc_addr, service) => {
+            match result {
+                Ok(_) => {
+                    info!("RPC server shut down.");
+                    return Ok(());
+                },
+                Err(e) => {
+                    error!("Error at gRPC server: {}", e);
+                    return Err(e.to_string());
+                }
+            }
+        }
+    }
+}
+
+async fn start_rpc_server(
+    rpc_addr: String,
+    service: RpcRequestHandler,
+) -> Result<(), String> {
     Server::builder()
         .add_service(ThresholdCryptoLibraryServer::new(service))
-        // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
         .serve(rpc_addr.parse().unwrap())
         .await
-        .expect("");
-    info!("Request handler is starting. Listening for RPC on address: {rpc_addr}");
+        .map_err(|e| e.to_string())
 }

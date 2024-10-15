@@ -1,8 +1,10 @@
 use clap::Parser;
-use log::{error, info};
+use futures::SinkExt;
+use log::{debug, error, info, warn};
 use log4rs;
 use sha2::{Digest, Sha256};
-use std::{path::PathBuf, process::exit, result};
+use tokio::{runtime::Handle, sync::Notify, task::JoinHandle};
+use std::{future, path::PathBuf, process::exit, result, sync::Arc, vec};
 use theta_events::event::emitter::{self, start_null_emitter};
 use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
@@ -15,7 +17,7 @@ use utils::server::{cli::ServerCli, types::ServerConfig};
 use theta_network::{
     network_manager::{network_director::NetworkDirector, network_manager_builder::NetworkManagerBuilder}, types::{config::NetworkConfig, message::NetMessage}
 };
-use tonic::async_trait;
+
 
 #[tokio::main]
 async fn main() {
@@ -51,17 +53,65 @@ async fn main() {
 
     info!("Keychain location: {}", keychain_path.display());
 
-    let result = start_server(&cfg, keychain_path).await;
+    //TODO: Move cjhecking existance of emmitter file path also here and return error if it does not exist
 
-    if result.is_err(){
-        print!("{}", result.err().unwrap())
+    //Logic for handling correctly the shutdown of the server
+    let shutdown_notify = Arc::new(Notify::new());
+    let mut handles: Vec<JoinHandle<Result<(), String>>> = vec![];
+
+    // Starting all the component of the server. Here we want to return a list of handles for every component
+    let result = start_server(&cfg, keychain_path, shutdown_notify.clone());
+    match result {
+        Ok(h) => handles = h,
+        Err(e) => {
+            error!("Failed to start server: {}", e);
+            //Notify the already started components to shut down
+            shutdown_notify.notify_waiters();
+        }
+    }
+    
+    // TODO: Handle shutdown gracefully in the main thread.
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Threshold server received ctrl-c, shutting down");
+        }
+        _ = monitor_for_task_failure(&mut handles) => {
+            warn!("A task failed, shutting down");
+        }
     }
 
+    info!("Notifying all components of shutdown");
+    shutdown_notify.notify_waiters();
+
+    info!("Waiting for all components to shut down");
+    for handle in handles {
+        let _ = handle.await; //Here additionally we could check if the result is an error, even though we are shutting down anyway
+    }
+
+    info!("Shutdown complete");
     
 }
 
+async fn monitor_for_task_failure(handles: &mut Vec<JoinHandle<Result<(), String>>>) {
+
+    info!("Monitoring for task failure");
+
+    // Wait for all the handles to complete concurrently and return as soon as one of them fails
+    let results = futures::future::join_all(handles.iter_mut()).await;
+
+    info!("After join_all");
+
+    for result in results {
+        if let Err(e) = result {
+            error!("Task failed: {:?}", e);
+        }
+    }
+}
+
 /// Start main event loop of server.
-pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Result<(), String >{
+pub fn start_server(config: &ServerConfig, keychain_path: PathBuf, shutdown_notify: Arc<Notify>) -> Result<Vec<JoinHandle<Result<(), String>>>, String >{
+
+    let mut handles = vec![];
 
     let try_network_config = NetworkConfig::new(config);
 
@@ -101,18 +151,19 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
 
     //Here introduce code to differenciate between standalone and blockchain integration
     if config.proxy_node.is_some(){
-        NetworkDirector::construct_proxy_network(&mut network_builder, net_cfg.clone(), my_id).await;
+        NetworkDirector::construct_proxy_network(&mut network_builder, net_cfg.clone(), my_id);
     }else{
-        NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id).await;
+        NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id);
     }
 
     // Instantiate the NetworkManager
     let mut network_manager = network_builder.build();
-
-    tokio::spawn(async move {
-        network_manager.run()
-        .await;
+    let shutdown_network = shutdown_notify.clone();
+    let network_handle = tokio::spawn(async move {
+        return network_manager.run(shutdown_network).await;
     });
+
+    handles.push(network_handle);
 
     // Channel to send commands to the KeyManager.
     // Used by the InstanceManager and RpcRequestHandler
@@ -121,10 +172,13 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
         tokio::sync::mpsc::channel::<KeyManagerCommand>(32);
 
     info!("Initiating the key manager.");
-    tokio::spawn(async move {
+    let shutdown_key_manager = shutdown_notify.clone();
+    let key_manager_handle = tokio::spawn(async move {
         let mut sm = KeyManager::new(keychain_path, key_manager_command_receiver);
-        sm.run().await;
+        return sm.run(shutdown_key_manager).await;
     });
+
+    handles.push(key_manager_handle);
 
     /* Starting instance manager */
     // Channel to send commands to the InstanceManager.
@@ -136,7 +190,8 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
     // Takes ownership of instance_manager_receiver, incoming_message_receiver, state_command_sender
     info!("Initiating InstanceManager.");
 
-    let (emitter_tx, emitter_shutdown_tx, emitter_handle) = match &config.event_file {
+    //TODO: Handle also here the life-cycle of the emitter
+    let (emitter_tx, emitter_handle) = match &config.event_file {
         Some(f) => {
             info!(
                 "Starting event emitter with output file {}",
@@ -144,9 +199,9 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
             );
             let emitter = emitter::new(&f);
 
-            let result = emitter::start(emitter);
+            let result = emitter::start(emitter, shutdown_notify.clone());
             match result {
-                Ok((tx, shutdown_tx, handle)) => (tx, shutdown_tx, handle),
+                Ok((tx, handle)) => (tx, handle),
                 Err(e) => {
                     error!("Failed to start event emitter: {}", e);
                     return Err("Failed to start event emitter".to_string());
@@ -156,15 +211,19 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
         None => {
             info!("Starting null-emitter, which will discard all benchmarking events");
 
-            start_null_emitter()
+            start_null_emitter(shutdown_notify.clone())
         }
     };
+
+    handles.push(emitter_handle);
 
     let inst_cmd_sender = instance_manager_sender.clone();
     let key_mgr_sender = key_manager_command_sender.clone();
 
     let emitter_tx2 = emitter_tx.clone();
-    tokio::spawn(async move {
+
+    let shutdown_instance_manager = shutdown_notify.clone();
+    let instance_manager_handle = tokio::spawn(async move {
         let mut mfw = InstanceManager::new(
             key_mgr_sender,
             instance_manager_receiver,
@@ -173,8 +232,10 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
             net_to_prot_receiver,
             emitter_tx,
         );
-        mfw.run().await;
+        return mfw.run(shutdown_instance_manager).await;
     });
+
+    handles.push(instance_manager_handle);
 
     let my_listen_address = config.listen_address.clone();
     let my_rpc_port = config.rpc_port;
@@ -182,6 +243,7 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
         "Starting RPC server on {}:{}",
         my_listen_address, my_rpc_port
     );
+    let shutdown_rpc_handler = shutdown_notify.clone();
     let rpc_handle = tokio::spawn(async move {
         rpc_request_handler::init(
             my_listen_address,
@@ -189,25 +251,12 @@ pub async fn start_server(config: &ServerConfig, keychain_path: PathBuf) -> Resu
             instance_manager_sender,
             key_manager_command_sender,
             emitter_tx2,
+            shutdown_rpc_handler
         )
         .await
     });
 
-    // TODO: Handle shutdown gracefully in the main thread.
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
-            info!("Threshold server received ctrl-c, shutting down");
+    handles.push(rpc_handle);
 
-            info!("Notifying event emitter of shutdown");
-            emitter_shutdown_tx.send(true).unwrap();
-            // Now that it's shutting down we can await its handle to ensure it has shut down.
-            emitter_handle.await.unwrap().unwrap();
-
-            info!("Killing RPC server");
-            rpc_handle.abort();
-
-            info!("Shutdown complete");
-            return Ok(())
-        }
-    }
+    return Ok(handles);
 }

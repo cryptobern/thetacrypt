@@ -33,6 +33,46 @@ impl Gossip for P2PComponent
 {
     type T = NetMessage;
 
+     ///init() for now provides the initialization of libp2p
+    //TODO: The goal will be to setup the different modules available for transmission 
+    async fn init(&mut self) -> Result<(), String> { 
+        // Create a Gossipsub topic
+
+       // Create a random Keypair and PeerId (hash of the public key)
+       let id_keys = identity::Keypair::generate_ed25519();
+       let local_peer_id = PeerId::from(id_keys.public());
+       // println!(">> NET: Local peer id: {:?}", local_peer_id);
+
+       // Create a keypair for authenticated encryption of the transport.
+       let noise_keys = utils::create_noise_keys(&id_keys);
+
+       // Create a tokio-based TCP transport, use noise for authenticated
+       // encryption and Mplex for multiplexing of substreams on a TCP stream.
+       let transport = utils::create_tcp_transport(noise_keys);
+
+       // Create a Swarm to manage peers and events.
+       let swarm = utils::create_gossipsub_swarm(&self.topic, id_keys.clone(), transport, local_peer_id);
+       self.swarm = Some(swarm);
+
+       // load listener address from config file
+       let listen_addr = self.config.get_p2p_listen_addr();
+       debug!("NET: Listening for P2P on: {}", listen_addr);
+
+       // bind port to listener address
+       let swarm = self.swarm.as_mut().ok_or("Swarm not initialized")?;
+
+       match swarm.listen_on(listen_addr.clone()) {
+           Ok(_) => (),
+           Err(error) => {
+                debug!("NET: listen {:?} failed: {:?}", listen_addr, error);
+                return Err(format!("Failed to start swarm"))
+           }
+       }
+        
+       return self.dial_local_net().await;
+
+    }
+
     fn broadcast(&mut self, net_message: Self::T) -> Result<(), String> {
         
         debug!("NET: Sending a message");
@@ -123,46 +163,6 @@ impl P2PComponent {
             swarm: None,
             topic: topic,
         }
-    }
-    
-    ///init() for now provides the initialization of libp2p
-    //TODO: The goal will be to setup the different modules available for transmission 
-    pub async fn init(&mut self) -> Result<(), String> { 
-        // Create a Gossipsub topic
-
-       // Create a random Keypair and PeerId (hash of the public key)
-       let id_keys = identity::Keypair::generate_ed25519();
-       let local_peer_id = PeerId::from(id_keys.public());
-       // println!(">> NET: Local peer id: {:?}", local_peer_id);
-
-       // Create a keypair for authenticated encryption of the transport.
-       let noise_keys = utils::create_noise_keys(&id_keys);
-
-       // Create a tokio-based TCP transport, use noise for authenticated
-       // encryption and Mplex for multiplexing of substreams on a TCP stream.
-       let transport = utils::create_tcp_transport(noise_keys);
-
-       // Create a Swarm to manage peers and events.
-       let swarm = utils::create_gossipsub_swarm(&self.topic, id_keys.clone(), transport, local_peer_id);
-       self.swarm = Some(swarm);
-
-       // load listener address from config file
-       let listen_addr = self.config.get_p2p_listen_addr();
-       debug!("NET: Listening for P2P on: {}", listen_addr);
-
-       // bind port to listener address
-       let swarm = self.swarm.as_mut().ok_or("Swarm not initialized")?;
-
-       match swarm.listen_on(listen_addr.clone()) {
-           Ok(_) => (),
-           Err(error) => {
-                debug!("NET: listen {:?} failed: {:?}", listen_addr, error);
-                return Err(format!("Failed to start swarm"))
-           }
-       }
-        
-       self.dial_local_net().await
-
     }
 
     /// Dial all peers, and wait for at least one connection to be established.
