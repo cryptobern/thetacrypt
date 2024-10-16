@@ -127,6 +127,11 @@ impl BigInt {
         self.value.cmp(&y.value)
     }
 
+    // returns if self is less than y
+    pub fn is_less_than(&self, y: &Self) -> bool {
+        self.cmp(y).is_lt()
+    }
+
     /* set self to y */
     pub fn set(&mut self, y: &Self) {
         self.value.assign(&y.value);

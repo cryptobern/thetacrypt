@@ -248,7 +248,7 @@ impl KeyGenerator {
 
                 let d = e.inv_mod(&m);
 
-                let delta = fac(n);
+                let delta = fac(BIGINT!(n));
                 let (xi, vi) = shamir_share_rsa(&d, k, n, &N, &m, &v, modsize, rng);
 
                 let mut u;

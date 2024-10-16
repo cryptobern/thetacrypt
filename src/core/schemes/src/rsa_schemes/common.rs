@@ -1,4 +1,6 @@
 #![allow(non_snake_case)]
+use log::info;
+
 use crate::{integers::bigint::BigInt, rand::RNG, BIGINT, ONE, ZERO};
 
 use super::signatures::sh00::Sh00SignatureShare;
@@ -149,7 +151,7 @@ pub fn shamir_share_rsa(
         fk.push(rand);
     }
 
-    let d_inv = BIGINT!(fac(n)).inv_mod(&m); // delta^(-1)
+    let d_inv = fac(BIGINT!(n)).inv_mod(&m); // delta^(-1)
     let mut t;
     let mut I;
     let mut J;
@@ -262,14 +264,14 @@ pub fn extend(bytes: &[u8], len: usize) -> Vec<u8> {
 }
 
 // TODO: usize to RsaBigInt
-pub fn fac(x: usize) -> usize {
-    if x < 2 {
-        return 1;
+pub fn fac(x: BigInt) -> BigInt {
+    if x.is_less_than(&BigInt::new_int(2)){
+        return ONE!();
     }
-    x * fac(x - 1)
+    x.mul(&fac(x.sub(&ONE!())))
 }
 
-pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &BigInt, delta: usize) -> BigInt {
+pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &BigInt, delta: BigInt) -> BigInt {
     let slen = shares.len();
     let ids: Vec<u8> = (0..slen).map(|x| shares[x].get_id() as u8).collect();
     let mut w = ONE!();
@@ -277,7 +279,7 @@ pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &BigInt, delta: usize) -
     for i in 0..slen {
         let share = shares[i].clone();
 
-        let l = lag_coeff(&ids, share.get_id() as isize, delta);
+        let l = lag_coeff(&ids, share.get_id() as isize, delta.clone());
         let wj = share.get_data().pow_mod(&l, &N);
         w = w.mul_mod(&wj, &N);
     }
@@ -285,8 +287,8 @@ pub fn interpolate(shares: &Vec<Sh00SignatureShare>, N: &BigInt, delta: usize) -
     w
 }
 
-pub fn lag_coeff(indices: &[u8], i: isize, d: usize) -> BigInt {
-    let mut ln = BIGINT!(d);
+pub fn lag_coeff(indices: &[u8], i: isize, d: BigInt) -> BigInt {
+    let mut ln = d;
     let mut ld = ONE!();
     let ilen = indices.len();
 

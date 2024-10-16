@@ -20,7 +20,7 @@ pub struct Sh00PublicKey {
     N: BigInt,
     e: BigInt,
     verification_key: Sh00VerificationKey,
-    delta: usize,
+    delta: BigInt,
     modbits: usize,
     group: Group,
 }
@@ -42,7 +42,7 @@ impl Sh00PublicKey {
         N: BigInt,
         e: BigInt,
         verification_key: Sh00VerificationKey,
-        delta: usize,
+        delta: BigInt,
         modbits: usize,
     ) -> Self {
         let group = mb2group(modbits);
@@ -101,7 +101,7 @@ impl Serializable for Sh00PublicKey {
                 }
 
                 w.write_element(&bytes.unwrap().as_slice())?;
-                w.write_element(&(self.delta as u64))?;
+                w.write_element(&self.delta.to_bytes().as_slice())?;
                 w.write_element(&(self.modbits as u64))?;
                 Ok(())
             }))
@@ -134,7 +134,8 @@ impl Serializable for Sh00PublicKey {
 
                 let verification_key = res.unwrap();
 
-                let delta = d.read_element::<u64>()? as usize;
+                b = d.read_element::<&[u8]>()?;
+                let delta = BigInt::from_bytes(&mut b);//d.read_element::<u64>()? as usize;
                 let modbits = d.read_element::<u64>()? as usize;
 
                 let group = mb2group(modbits);
@@ -583,7 +584,7 @@ impl Sh00ThresholdSignature {
 
         let (a, b) = ext_euclid(&BIGINT!(4), &pk.e); // 4*a + e*b = 1
         let (x, j) = H(&msg, &pk);
-        let w = interpolate(&shares, &pk.N, pk.delta).pow_mod(&a, &N);
+        let w = interpolate(&shares, &pk.N, pk.delta.clone()).pow_mod(&a, &N);
         let mut y = w.mul_mod(&x.pow_mod(&b, &pk.N), &pk.N); // y = w^a * x^b
 
         if j == -1 {
