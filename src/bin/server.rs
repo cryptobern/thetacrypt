@@ -251,8 +251,9 @@ pub fn start_server(config: &ServerConfig, keychain_path: PathBuf, shutdown_noti
     );
     let shutdown_rpc_handler = shutdown_notify.clone();
     let rpc_request_handler = RpcRequestHandler::new(key_manager_command_sender, instance_manager_sender, emitter_tx2);
+    let rpc_addr = format!("{}:{}", my_listen_address, my_rpc_port);
     let rpc_handle = tokio::spawn(async move {
-        rpc_request_handler.run(my_listen_address, shutdown_rpc_handler).await
+        rpc_request_handler.run(rpc_addr, shutdown_rpc_handler).await
     });
 
     handles.push(rpc_handle);
