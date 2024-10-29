@@ -245,7 +245,7 @@ impl InstanceManager {
                                         } else {
                                             if let Err(e) = responder.send(Ok(result.unwrap())) {
                                                 error!("Error sending response to instance creation request: {:?}", e);
-                                                return Err("Error sending response to instance creation request".to_string());
+                                                // return Err("Error sending response to instance creation request".to_string());
                                             };
                                         }
                                     },
