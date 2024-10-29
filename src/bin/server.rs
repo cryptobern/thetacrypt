@@ -10,7 +10,7 @@ use theta_orchestration::{
     instance_manager::instance_manager::{InstanceManager, InstanceManagerCommand},
     key_manager::key_manager::{KeyManager, KeyManagerCommand},
 };
-use theta_service::rpc_request_handler;
+use theta_service::rpc_request_handler::{self, RpcRequestHandler};
 
 use utils::server::{cli::ServerCli, types::ServerConfig};
 
@@ -70,7 +70,6 @@ async fn main() {
         }
     }
     
-    // TODO: Handle shutdown gracefully in the main thread.
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             info!("Threshold server received ctrl-c, shutting down");
@@ -149,10 +148,6 @@ pub fn start_server(config: &ServerConfig, keychain_path: PathBuf, shutdown_noti
         "Starting Gossipsub P2P network on {}:{}",
         config.listen_address, my_p2p_port
     );
-
-    // TODO: Here we can have an init() function for the network (that gives back the id) 
-    // and then a run() function to run it on a different thread
-
 
     let mut network_builder = NetworkManagerBuilder::default();
     network_builder.set_outgoing_msg_receiver(prot_to_net_receiver);
@@ -255,16 +250,9 @@ pub fn start_server(config: &ServerConfig, keychain_path: PathBuf, shutdown_noti
         my_listen_address, my_rpc_port
     );
     let shutdown_rpc_handler = shutdown_notify.clone();
+    let rpc_request_handler = RpcRequestHandler::new(key_manager_command_sender, instance_manager_sender, emitter_tx2);
     let rpc_handle = tokio::spawn(async move {
-        rpc_request_handler::init(
-            my_listen_address,
-            my_rpc_port,
-            instance_manager_sender,
-            key_manager_command_sender,
-            emitter_tx2,
-            shutdown_rpc_handler
-        )
-        .await
+        rpc_request_handler.run(my_listen_address, shutdown_rpc_handler).await
     });
 
     handles.push(rpc_handle);

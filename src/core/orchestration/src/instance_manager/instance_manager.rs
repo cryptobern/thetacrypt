@@ -243,7 +243,10 @@ impl InstanceManager {
                                         if result.is_err() {
                                             error!("Error starting instance: {:?}", result.unwrap_err());
                                         } else {
-                                            responder.send(Ok(result.unwrap())).expect("The receiver for responder in Rpc_request_handler has been closed.");
+                                            if let Err(e) = responder.send(Ok(result.unwrap())) {
+                                                error!("Error sending response to instance creation request: {:?}", e);
+                                                return Err("Error sending response to instance creation request".to_string());
+                                            };
                                         }
                                     },
 

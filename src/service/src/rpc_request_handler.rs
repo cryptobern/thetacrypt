@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Instant;
 
 use chrono::Utc;
@@ -13,7 +14,7 @@ use theta_proto::scheme_types::{Group, PublicKeyEntry};
 use tokio::sync::{oneshot, Notify};
 use tonic::{transport::Server, Request, Response, Status};
 
-use log::{self, error, info, debug};
+use log::{self, debug, error, info, warn};
 
 use theta_proto::protocol_types::{
     threshold_crypto_library_server::{ThresholdCryptoLibrary, ThresholdCryptoLibraryServer},
@@ -23,6 +24,7 @@ use theta_schemes::interface::{Ciphertext, SchemeError, Serializable, ThresholdS
 
 use theta_events::event::Event;
 
+#[derive(Clone)]
 pub struct RpcRequestHandler {
     key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
     instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
@@ -298,30 +300,88 @@ pub async fn init(
     tokio::select! {
         _ = shutdown_notify.notified() => {
             info!("Shutting down RPC server.");
+            //TODO: Gracefully shut down the server
             return Ok(());
         },
-        result = start_rpc_server(rpc_addr, service) => {
-            match result {
-                Ok(_) => {
-                    info!("RPC server shut down.");
-                    return Ok(());
-                },
-                Err(e) => {
-                    error!("Error at gRPC server: {}", e);
-                    return Err(e.to_string());
+        // result = _start_rpc_server(rpc_addr, service) => {
+        //     match result {
+        //         Ok(_) => {
+        //             info!("RPC server shut down.");
+        //             return Ok(());
+        //         },
+        //         Err(e) => {
+        //             error!("Error at gRPC server: {}", e);
+        //             return Err(e.to_string());
+        //         }
+        //     }
+        // }
+    }
+
+    Ok(())
+}
+
+impl RpcRequestHandler {
+
+    pub fn new(
+        key_manager_command_sender: tokio::sync::mpsc::Sender<KeyManagerCommand>,
+        instance_manager_command_sender: tokio::sync::mpsc::Sender<InstanceManagerCommand>,
+        event_emitter_sender: tokio::sync::mpsc::Sender<Event>,
+    ) -> Self {
+        return Self {
+            key_manager_command_sender,
+            instance_manager_command_sender,
+            event_emitter_sender,
+        };
+    }
+
+
+    pub async fn run(&self, rpc_addr: String, shutdown_notify: Arc<Notify>) -> Result<(), String>{
+        info!("Starting RPC server.");
+
+        let service = self.clone();
+
+        // Start server
+        let rpc_handle = tokio::spawn( async move {
+            Server::builder()
+            .add_service(ThresholdCryptoLibraryServer::new(service))
+            .serve(rpc_addr.parse().unwrap())
+            .await
+            .map_err(|e| e.to_string())
+        });
+
+        tokio::select! {
+            result = rpc_handle => {
+                info!("RPC server shut down.");
+                match result {
+                    Ok(_) => {
+                        return Ok(());
+                    },
+                    Err(e) => {
+                        error!("Error at gRPC server: {}", e);
+                        return Err(e.to_string());
+                    }
                 }
+            },
+            _ = shutdown_notify.notified() => {
+                warn!("Shutting down RPC server.");
+                Ok(())
             }
         }
+
+    }
+
+
+    async fn _start_rpc_server(
+        &mut self,
+        rpc_addr: String,
+        service: RpcRequestHandler,
+    ) -> Result<(), String> {
+        Server::builder()
+            .add_service(ThresholdCryptoLibraryServer::new(service))
+            .serve(rpc_addr.parse().unwrap())
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
-async fn start_rpc_server(
-    rpc_addr: String,
-    service: RpcRequestHandler,
-) -> Result<(), String> {
-    Server::builder()
-        .add_service(ThresholdCryptoLibraryServer::new(service))
-        .serve(rpc_addr.parse().unwrap())
-        .await
-        .map_err(|e| e.to_string())
-}
+
