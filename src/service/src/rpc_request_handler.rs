@@ -142,6 +142,8 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
         let receive_result = response_receiver
             .await;
 
+        debug!("Received response from instance manager command.");
+
         match receive_result {
             Ok(result) => {
                 if result.is_err() {
@@ -349,10 +351,10 @@ impl RpcRequestHandler {
     }
 
 
-    pub async fn run(&self, rpc_addr: String, shutdown_notify: Arc<Notify>) -> Result<(), String>{
+    pub async fn run(rpc_addr: String, shutdown_notify: Arc<Notify>, service: RpcRequestHandler) -> Result<(), String>{
         info!("Starting RPC server.");
 
-        let service = self.clone();
+        
 
         // Start server
         let rpc_handle = tokio::spawn( async move {
