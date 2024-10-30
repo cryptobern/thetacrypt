@@ -3,6 +3,7 @@ use std::thread::JoinHandle;
 use std::time::Instant;
 
 use chrono::Utc;
+use futures::future::ok;
 use theta_orchestration::instance_manager::instance_manager::{
     InstanceManagerCommand, InstanceStatus, StartInstanceRequest,
 };
@@ -121,7 +122,7 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
 
         let (response_sender, response_receiver) =
             oneshot::channel::<Result<String, SchemeError>>();
-        self.instance_manager_command_sender
+        if let Err(e) = self.instance_manager_command_sender
             .send(InstanceManagerCommand::CreateInstance {
                 request: StartInstanceRequest::Signature {
                     message: req.message.clone(),
@@ -132,25 +133,38 @@ impl ThresholdCryptoLibrary for RpcRequestHandler {
                 },
                 responder: response_sender,
             })
-            .await
-            .expect("Receiver for state_command_sender closed.");
+            .await{
+                error!("Receiver for state_command_sender closed.");
+            }
 
-        let result = response_receiver
-            .await
-            .expect("response_receiver.await returned Err");
+        debug!("Sent request to instance manager command.");
 
-        if result.is_err() {
-            error!(
-                "Error creating instance: {}",
-                result.as_ref().unwrap_err().to_string()
-            );
-            return Err(Status::aborted(result.unwrap_err().to_string()));
+        let receive_result = response_receiver
+            .await;
+
+        match receive_result {
+            Ok(result) => {
+                if result.is_err() {
+                    error!(
+                        "Error creating instance: {}",
+                        result.as_ref().unwrap_err().to_string()
+                    );
+                    return Err(Status::aborted(result.unwrap_err().to_string()));
+                }
+                debug!("Instance for id {}, created", result.clone().unwrap());
+                Ok(Response::new(SignResponse {
+                    instance_id: result.unwrap(),
+                }))
+        
+            },
+            Err(e) => {
+                error!("Error receiving response from instance manager: {}", e);
+                return Err(Status::aborted("Error receiving response from instance manager"));
+            }
         }
 
-        Ok(Response::new(SignResponse {
-            instance_id: result.unwrap(),
-        }))
     }
+    
 
     async fn flip_coin(
         &self,
