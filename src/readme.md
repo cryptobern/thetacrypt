@@ -11,8 +11,12 @@ The cryptographic heart of the Thetacrypt is the **schemes** module. In the cont
 One can import the `schemes` module in a Rust application to for example use the primitives required to encrypt data to submit for threshold decryption or verify signatures created using a threshold signature scheme.
 
 Alternatively, one can use Thetacrypt as a library through the **SchemeAPI** and directly access the cryptographic primitives in a more fine-grained manner.
-
-![Architectural Overview](img/thetacrypt-stack.png)
+<!-- 
+![Architectural Overview](img/thetacrypt-stack.png) -->
+<!-- Using HTML to enforce size -->
+<p align="center">
+<img src="img/thetacrypt-stack.png" alt="Architectural Overview" width="600">
+</p>
 
 ## Repo organization
 
