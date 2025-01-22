@@ -7,7 +7,7 @@ services:
       context: ..
       network: host
       dockerfile: Dockerfile
-    command: ./server --config-file conf/server_0.json --key-file conf/node0.keystore
+    command: ./server --config-file conf/server_1.json --key-file conf/node1.keystore
     volumes:
       - ./tmp:/target/release/conf:Z
     image: rust-threshold-library
@@ -27,7 +27,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./tmp:/target/release/conf:Z      
-    command: ./server --config-file conf/server_1.json --key-file conf/node1.keystore
+    command: ./server --config-file conf/server_2.json --key-file conf/node2.keystore
     image: rust-threshold-library
     ports:
       - "27002:27000"
@@ -45,7 +45,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./tmp:/target/release/conf:Z
-    command: ./server --config-file conf/server_2.json --key-file conf/node2.keystore
+    command: ./server --config-file conf/server_3.json --key-file conf/node3.keystore
     image: rust-threshold-library
     ports:
       - "27003:27000"
@@ -63,7 +63,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./tmp:/target/release/conf:Z
-    command: ./server --config-file conf/server_3.json --key-file conf/node3.keystore
+    command: ./server --config-file conf/server_4.json --key-file conf/node4.keystore
     image: rust-threshold-library
     ports:
       - "27004:27000"
