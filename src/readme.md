@@ -12,7 +12,7 @@ One can import the `schemes` module in a Rust application to for example use the
 
 Alternatively, one can use Thetacrypt as a library through the **SchemeAPI** and directly access the cryptographic primitives in a more fine-grained manner.
 
-![Architectural Overview](img/thetacrypt-stack.pdf)
+![Architectural Overview](img/thetacrypt-stack.png)
 
 ## Repo organization
 
