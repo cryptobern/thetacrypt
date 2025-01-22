@@ -1,7 +1,7 @@
 # Checklist
 
-- Demo with docker
-- Local spawn of processes to test the network
+- Demo with docker ✅
+- Local spawn of processes to test the network ?
 - proper readmes (fix this before than change code)
 - push a nice version on the public GitHub
 - Add the VRF (mainly for me to get the understanding of adding a new scheme + writing a guided file that explains how to)
