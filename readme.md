@@ -32,6 +32,6 @@ Threshold cryptosystems are known for public-key schemes only, where applying se
 | BZ03         | Cryptosystem           | [Simple and Efficient Threshold Cryptosystem from the Gap Diffie-Hellman Group](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=1258486) (Pairing-based)                  |
 | BLS04        | Signature              | [Short Signatures from the Weil Pairing](https://www.iacr.org/archive/asiacrypt2001/22480516.pdf) (Pairing-based)                                                                  |
 | FROST        | Signature              | [FROST: Flexible Round-Optimized Schnorr Threshold Signatures](https://eprint.iacr.org/2020/852.pdf) (ZK-based)                                                                    |     
-| SHOO         | Signature              | [Practical Threshold Signatures](https://www.iacr.org/archive/eurocrypt2000/1807/18070209-new.pdf) (Threshold RSA)                                                                 |
+| SH00         | Signature              | [Practical Threshold Signatures](https://www.iacr.org/archive/eurocrypt2000/1807/18070209-new.pdf) (Threshold RSA)                                                                 |
 | CKS05        | Coin-flip              | [Random Oracles in Constantinople: Practical Asynchronous Byzantine Agreement Using Cryptography](https://link.springer.com/content/pdf/10.1007/s00145-005-0318-0.pdf) (ZK-based)  |
 
