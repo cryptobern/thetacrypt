@@ -6,7 +6,7 @@ Thetacrypt architecture encompasses three layers:
 - The **core** layer: Implements the logic, the primitives and the orchestration code to run the threshold cryptographic operations.
 - The **network** layer: Implements the modules to exchange peer-to-peer messages between the participating parties.
 
-The cryptographic heart of the Thetacrypt is the **schemes** module. In the contest of the service architecture, the schemes module is part of the core layer, providing the implementation of different threshold cryptographic schemes. This module is self-contained and can be used as a *standalone library* in any Rust project.
+The cryptographic heart of Thetacrypt is the **schemes** module. In the contest of the service architecture, the schemes module is part of the core layer, providing the implementation of different threshold cryptographic schemes. This module is self-contained and can be used as a *standalone library* in any Rust project.
 
 One can import the `schemes` module in a Rust application to for example use the primitives required to encrypt data to submit for threshold decryption or verify signatures created using a threshold signature scheme.
 
@@ -24,7 +24,7 @@ The current directory contains all the code developed for the codebase of Thetac
 
 To learn more about the binaries needed to setup and use the service continue reading on this page. To learn more about the internal structure of the different packages, go to the readmes in specific directories. 
 
-To try immediately Thetacrypt go back to the repo's root folder and checkout the demo in docker. 
+To try immediately Thetacrypt go back to the repo's root folder and checkout the demo with Docker.
 
 
 ## Installation
@@ -40,6 +40,18 @@ To run the schemes test application, use
 
 ## How to run the server
 
+To run a local Thetacrypt network one can use the `setup.sh` script, which automates all configuration steps needed. 
+Under `src` one can run: 
+```
+sh setup.sh <N_servers>
+```
+The output will be a second script `start_network.sh`, which will allow running a Thetacrypt network consisting of <N_servers>. 
+```
+sh start_network.sh
+```
+
+To have a deeper understanding of the code and configuration requirement, one can perform the single steps, as explained in the following subparagraphs.
+
 ### Generating server configuration
 
 You can use the `confgen` binary to generate the configuration files that are needed to start server and client instances.
@@ -52,7 +64,7 @@ or, if you have already installed the binary, simply:
 confgen --help
 ```
 
-The steps to generate the configuration files are the following, assuming `src\protocols` as cwd, and that one wants a local deployment.
+The steps to generate the configuration files are the following, assuming `src` as cwd, and that one wants a local deployment:
 
 1. Create a file with the IP addresses of the servers. For example you can use:
 
@@ -82,13 +94,13 @@ It writes the keys for each server in a chosen directory. For a deployment with 
 cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --output ./conf
 ```
 
-By default, the newly generated key gets appended to the list of keys in the output file specified through `--dir`. To a completely new file and overwrite the previous key is possible to add the `--new` flag at the end. 
+By default, the newly generated key gets appended to the list of keys in the output file specified through `--output`. To substitute completely the file and overwrite the previous key, add the `--new` flag at the end. 
 ```
 cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects Sg02-Bls12381 --output ./conf --new
 ```
 
-To generate the keys, information on the scheme and group is needed. Available schemes are:
-
+To generate the keys, information on the scheme and group is needed. Here available combinations:
+<!-- 
 - Bz03 (pairings, DL)
 - Sg02 (DL)
 - Bls04 (pairings, DL)
@@ -104,7 +116,23 @@ Available groups are:
 - Rsa512 (no DL)
 - Rsa1024 (no DL)
 - Rsa2048 (no DL)
-- Rsa4096 (no DL)
+- Rsa4096 (no DL) -->
+
+| Scheme | Possible Group                      |
+|--------|-------------------------------------|
+| Bz03   | Bls12381, Bn254                     |
+| Sg02   | Bls12381, Bn254, Ed25519            |
+| Bls04  | Bls12381, Bn254                     |
+| Cks05  | Bls12381, Bn254, Ed25519            |
+| Frost  | Ed25519                             |
+| Sh00   | Rsa512, Rsa1024, Rsa2048, Rsa4096   |
+
+
+
+
+
+
+
 
 For more information run the binary with `--help` option.
 
@@ -116,7 +144,7 @@ cargo run --bin thetacli -- keygen -k=3 -n=4 --subjects all --output ./conf --ne
 ### Starting the server binary
 
 The server is implemented in `src\bin\server.rs`.
-From the root directory of the `protocols` project start 4 terminals and run, respectively:
+From the directory `src` start 4 terminals and run, respectively:
 ```
 cargo run --bin server -- --config-file conf/server_1.json --key-file conf/node1.keystore
 cargo run --bin server -- --config-file conf/server_2.json --key-file conf/node2.keystore
@@ -124,14 +152,15 @@ cargo run --bin server -- --config-file conf/server_3.json --key-file conf/node3
 cargo run --bin server -- --config-file conf/server_4.json --key-file conf/node4.keystore
 ```
 
-Or use the supplied `start_network.sh` script to start four instances in a single terminal.
+Alternatively, you can use the supplied `start_network.sh` script to start four instances in a single terminal.
 
 The server prints info messages, to see them set the following environment variable: `RUST_LOG=info`
 (or see here for more possibilities: https://docs.rs/env_logger/latest/env_logger/).
 
 You should see each server process print that it is connected to the others and ready to receive client requests.
 
-**The server can also be run without specifying the `--key-file` flag, this is optional.** In the future, the service will support algorithms to generate the key(DKG) or compute randomness in a distributed manner without any previous setup.
+**The server can also be run without specifying the `--key-file` flag, this is optional.** 
+In the future, the service will support algorithms to generate the key(DKG) or compute randomness in a distributed manner without any previous setup.
 
 ## Run an example client
 
@@ -146,9 +175,19 @@ The code waits for the key **Enter** to be pressed before submitting each reques
 
 There exists a CLI application which can be used to encrypt files and generate keys. Use `cargo run --bin thetacli` to build and run the CLI application. 
 
-We already used this application for **generating the keys**, but it has other two functions. It can be used to **encrypt** a piece of data that later might be decrypted by the servers in the Thetacrypt network, and to **verify** a signature issued by the network. 
+We already used this application for **generating the keys**, but it has other two functions. It can be used to **encrypt** a piece of data that later might be decrypted by the servers in the Thetacrypt network, and to **verify** a signature issued by the network.
 
-Usage: `./thetacli [action] [params]`
+To explore the other functions, run: 
+```
+cargo run --bin thetacli -- --help
+```
+to receive the help prompt for specific subcommands, run: 
+```
+cargo run --bin thetacli -- <SUBCOMMAND> --help
+```
+
+
+<!-- Usage: `./thetacli [action] [params]`
 available actions:
 
 - `keygen -k [k] -n [n] --subjects [subjects] --output [output_dir]` \
@@ -189,11 +228,11 @@ available actions:
     `--keystore` = path to a .keystore file (alternative to providing `pubkey` directly) \
     `--key-id` = id of the public key to use (only needed when using keystore) \
     `--msg` = path to message file (bytes) \
-    `--signature` = path to signature to verify (hex encoded)
+    `--signature` = path to signature to verify (hex encoded) -->
 
 
 
-## About **Tokio** and **async_std**
+## Extras: About **Tokio** and **async_std**
 
 Both are asynchronous runtimes for Rust that don't seem to differ much from each other. Since **Tokio** has a larger ecosystem than **async_std** we decided to use **Tokio** as asynchronous runtime.
 

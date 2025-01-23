@@ -26,7 +26,7 @@ done > conf/server_ips.txt
 cargo run --bin confgen -- --ip-file conf/server_ips.txt --port-strategy consecutive --outdir=conf
 
 # Generate the keystore files 
-cargo run --bin thetacli -- keygen -k=${threshold} -n=${num_lines} --subjects Sh00-Rsa2048 --output ./conf
+cargo run --bin thetacli -- keygen -k=${threshold} -n=${num_lines} --subjects all --output ./conf --new
 
 
 # Create the start_network.sh file
