@@ -157,6 +157,7 @@ pub fn start_server(config: &ServerConfig, keychain_path: PathBuf, shutdown_noti
 
     //Here introduce code to differenciate between standalone and blockchain integration
     if config.proxy_node.is_some(){
+        info!("Starting network with a proxy node");
         NetworkDirector::construct_proxy_network(&mut network_builder, net_cfg.clone(), my_id);
     }else{
         NetworkDirector::construct_standalone_network(&mut network_builder, net_cfg.clone(), my_id);

@@ -111,7 +111,7 @@ impl ProxyApi for ThetacryptBlockchainStub {
     ) -> Result<Response<ForwardShareResponse>, Status> {
         //Forward to the other parties
 
-        print!("Message received from peer...");
+        info!("Message received from peer...");
         let peers_config = P2PConfig {
             peers: self.peers.clone(),
         };
@@ -139,7 +139,7 @@ impl ProxyApi for ThetacryptBlockchainStub {
 
         //Adding the msg into to the queue (TODO: implement the solution with a second channel and a dedicated function for deliver the TOB msg)
         if let Err(e) = self.broadcast_channel_sender.send((id, msg.to_vec())).await {
-            println!("Error occurred during send(): {}", e);
+            error!("Error occurred during send(): {}", e);
         }
         Ok(Response::new(AtomicBroadcastResponse {}))
     }

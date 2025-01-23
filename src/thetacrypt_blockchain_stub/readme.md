@@ -22,7 +22,7 @@ The steps to generate the configuration files are the following, assuming `../sr
 1. Create two files with the IP addresses of the servers, and of the proxies. For example you can use:
 
 ```
-cat > conf/server_ips << EOF
+cat > conf/server_ips.txt << EOF
 127.0.0.1
 127.0.0.1
 127.0.0.1
@@ -33,7 +33,7 @@ EOF
 and
 
 ```
-cat > conf/proxy_ips << EOF
+cat > conf/proxy_ips.txt << EOF
 127.0.0.1
 127.0.0.1
 127.0.0.1
@@ -68,10 +68,10 @@ This step is the same as in the local deployment.
 The server is implemented in `bin` and can be started using `src\bin\proxy_server.rs`.
 From the root directory of the `src` project start 4 terminals and run, respectively:
 ```
-cargo run --bin proxy_server -- --config-file conf/server_0.json --key-file conf/keys_0.json
-cargo run --bin proxy_server -- --config-file conf/server_1.json --key-file conf/keys_1.json
-cargo run --bin proxy_server -- --config-file conf/server_2.json --key-file conf/keys_2.json
-cargo run --bin proxy_server -- --config-file conf/server_3.json --key-file conf/keys_3.json
+cargo run --bin server -- --config-file conf/server_1.json --key-file conf/node1.keystore
+cargo run --bin server -- --config-file conf/server_2.json --key-file conf/node2.keystore
+cargo run --bin server -- --config-file conf/server_3.json --key-file conf/node3.keystore
+cargo run --bin server -- --config-file conf/server_4.json --key-file conf/node4.keystore
 ```
 
 The server prints info messages, to see them set the following environment variable: `RUST_LOG=info`
@@ -101,5 +101,5 @@ cd thetacrypt_blockchain_stub
 and run: 
 
 ```
-cargo run --bin server -- --config-file ../conf/stub.json
+RUST_LOG=info cargo run --bin server -- --config-file ../conf/stub.json
 ```

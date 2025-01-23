@@ -43,12 +43,12 @@ impl Gossip for P2PProxy {
         let port: u16 = local_node.port;
         let address = SocketAddr::new(IpAddr::V4(host_ip), port);
 
-        println!("[P2PProxyServer]: Request handler is starting. Listening for RPC on address: {address}");
+        info!("[P2PProxyServer]: Request handler is starting. Listening for RPC on address: {address}");
         let service = P2PProxyService{
             sender: self.sender.clone()
         };
         tokio::spawn(async move {
-            println!("Server is starting");
+            info!("[P2PProxyServer] Server is starting");
             Server::builder()
                 .add_service(ProxyApiServer::new(service))
                 // .serve(format!("[{rpc_listen_address}]:{rpc_listen_port}").parse().unwrap())
@@ -125,7 +125,7 @@ impl ProxyApi for P2PProxyService {
         let msg = binding.data;
 
         info!("Share received from proxy");
-        self.sender.send(msg).await;
+        let _ = self.sender.send(msg).await;
 
         Ok(Response::new(ForwardShareResponse{}))
     }
